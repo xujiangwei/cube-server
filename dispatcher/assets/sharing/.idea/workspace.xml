@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="b1408c98-f6aa-434f-978c-a980e61d5e76" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/../../../common/src/cube/common/entity/VisitTrace.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../../common/src/cube/common/entity/VisitTrace.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../src/cube/dispatcher/filestorage/FileChunkTag.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/cube/dispatcher/filestorage/FileChunkTag.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../src/cube/dispatcher/filestorage/FileHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/../../src/cube/dispatcher/filestorage/FileHandler.java" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="HTML File" />
+        <option value="CSS File" />
+        <option value="JavaScript File" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../../.." />
+  </component>
+  <component name="ProjectId" id="2BdsWqpNdAdRsZQkZLOD3jb4K9x" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showExcludedFiles" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="DefaultHtmlFileTemplate" value="HTML File" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/script" />
+    <property name="list.type.of.created.stylesheet" value="CSS" />
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/script" />
+      <recent name="$PROJECT_DIR$/style" />
+      <recent name="$PROJECT_DIR$" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/css" />
+    </key>
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="b1408c98-f6aa-434f-978c-a980e61d5e76" name="Default Changelist" comment="" />
+      <created>1657247330451</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1657247330451</updated>
+      <workItem from="1657247331594" duration="7282000" />
+      <workItem from="1657415692445" duration="3313000" />
+      <workItem from="1657434149738" duration="2601000" />
+      <workItem from="1658101861160" duration="6606000" />
+      <workItem from="1658132367551" duration="441000" />
+      <workItem from="1658137036623" duration="257000" />
+      <workItem from="1658296696571" duration="7401000" />
+      <workItem from="1658457019893" duration="1799000" />
+      <workItem from="1659671306550" duration="896000" />
+      <workItem from="1659836269616" duration="6297000" />
+      <workItem from="1659919461743" duration="1402000" />
+      <workItem from="1660027318516" duration="131000" />
+      <workItem from="1660100295853" duration="6379000" />
+      <workItem from="1660175125993" duration="127000" />
+      <workItem from="1660193196428" duration="18000" />
+      <workItem from="1660201330162" duration="918000" />
+      <workItem from="1660478223742" duration="965000" />
+      <workItem from="1660479614357" duration="563000" />
+      <workItem from="1661163842772" duration="3186000" />
+      <workItem from="1661218118357" duration="5602000" />
+      <workItem from="1661309893697" duration="2261000" />
+      <workItem from="1662339208942" duration="897000" />
+      <workItem from="1663550862410" duration="541000" />
+      <workItem from="1663658593130" duration="241000" />
+      <workItem from="1664348723765" duration="101000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="1" />
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="499" y="237" width="674" height="486" key="find.popup" timestamp="1659671342583">
+      <screen x="0" y="25" width="1680" height="939" />
+    </state>
+    <state x="499" y="237" width="674" height="486" key="find.popup/0.25.1680.939@0.25.1680.939" timestamp="1659671342583" />
+  </component>
+</project>

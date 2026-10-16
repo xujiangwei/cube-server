@@ -1,0 +1,304 @@
+html {
+    overflow-x: hidden;
+}
+
+body {
+    background: #FFFFFF;
+    font-size: 14px;
+    overflow-x: hidden;
+    padding: 0;
+    margin: 0;
+}
+
+img {
+    border: none;
+}
+
+.main {
+    text-align: center;
+    border-radius: 10px;
+    width: 100%;
+    height: 400px;
+    max-width: 600px;
+    margin: auto;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.preview {
+    width: 100%;
+    padding: 0;
+    margin: 0;
+}
+.container {
+    text-align: center;
+    display: flex;
+    flex-flow: column wrap;
+}
+.page {
+    width: 100%;
+    text-align: center;
+    display: table-cell;
+    vertical-align: middle;
+    border-bottom: solid #ddd 1px;
+}
+.page img {
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+    margin: auto;
+}
+
+.page-head {
+    height: 44px;
+}
+.page-tail {
+    height: 72px;
+}
+
+.header {
+    text-align: center;
+    width: 100%;
+    margin: auto;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #F5F5F5;
+    border-bottom: solid #ccc 1px;
+    z-index: 9;
+}
+
+.footer {
+    text-align: center;
+    width: 100%;
+    margin: auto;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #FFFFFF;
+}
+
+.item {
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.file-icon {
+    border-radius: 10px;
+    max-width: 300px;
+}
+
+.file-name {
+    font-size: 20px;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.file-size {
+    font-size: 14px;
+}
+
+.title {
+    text-align: center;
+    vertical-align: middle;
+    font-size: 14px;
+    margin: 12px 10px 10px 10px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
+.operation {
+    margin: 16px 0px 32px 0px;
+}
+.col {
+    display: inline-block;
+}
+.col-blank {
+    display: inline-block;
+    width: 5%;
+}
+
+.btn {
+    width: 100px;
+    height: 40px;
+    background: #287DF6;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.clipboard-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    width: 1px;
+    height: 1px;
+}
+.clipboard-area textarea {
+    width: 1px;
+    height: 1px;
+    visibility: hidden;
+}
+
+.password-input {
+    width: 100%;
+    text-align: center;
+    vertical-align: middle;
+    visibility: hidden;
+}
+.password-input .panel {
+    width: 300px;
+    padding-top: 20px;
+    padding-bottom: 30px;
+    background: #EEEEEE;
+    border-radius: 8px;
+    display: inline-block;
+}
+.password-input .title {
+    font-size: 14px;
+}
+.password-input .container {
+    display: block;
+}
+.password-input .container div {
+    display: inline-block;
+    padding: 2px 2px 2px 2px;
+}
+.password-input .container div input {
+    width: 20px;
+    height: 32px;
+    font-size: 18px;
+    text-align: center;
+    border: 1px #bbb solid;
+    border-radius: 3px;
+}
+
+.toast {
+    text-align: center;
+    width: 100%;
+    height: 200px;
+    margin: auto;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+    z-index: 99;
+}
+.toast-content {
+    display: table;
+    text-align: center;
+    vertical-align: middle;
+    border-radius: 10px;
+    width: 280px;
+    height: 100px;
+    background: #202020;
+    margin: auto;
+}
+.toast-text {
+    display: table-cell;
+    text-align: center;
+    vertical-align: middle;
+    font-size: 14px;
+    color: #F5F5F5;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.qrcode {
+    text-align: center;
+    height: 300px;
+    margin: auto;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+    z-index: 8;
+}
+.qrcode-container {
+    vertical-align: middle;
+    width: 302px;
+    height: 338px;
+    border-radius: 10px;
+    display: inline-block;
+}
+.qrcode-container img {
+    width: 300px;
+    height: 300px;
+    border-radius: 10px;
+    border: #dddddd 1px solid;
+}
+.qrcode-container p span {
+    background: #EEEEEE;
+    font-size: 14px;
+    padding: 8px 12px 8px 12px;
+    border-radius: 5px;
+}
+
+.tips {
+    height: 32px;
+    text-align: center;
+    margin: auto;
+    position: fixed;
+    top: 44px;
+    left: 0;
+    right: 0;
+    display: block;
+    z-index: 10;
+}
+.tips p span {
+    background: rgb(252,248,227);
+    color: rgb(130,108,58);
+    font-size: 12px;
+    padding: 8px 16px 8px 16px;
+    border-radius: 3px;
+}
+
+@keyframes toast-show-anim
+{
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1.0;
+    }
+}
+@-webkit-keyframes toast-show-anim
+{
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1.0;
+    }
+}
+
+@keyframes toast-hide-anim
+{
+    from {
+        opacity: 1.0;
+    }
+    to {
+        opacity: 0;
+    }
+}
+@-webkit-keyframes toast-hide-anim
+{
+    from {
+        opacity: 1.0;
+    }
+    to {
+        opacity: 0;
+    }
+}

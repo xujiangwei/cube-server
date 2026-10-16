@@ -1,0 +1,235 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
+package cube.dispatcher.aigc.handler.app;
+
+import cell.util.log.Logger;
+import cube.aigc.AppEvent;
+import cube.aigc.ModelConfig;
+import cube.aigc.app.ConfigInfo;
+import cube.common.entity.Device;
+import cube.common.entity.KnowledgeProfile;
+import cube.dispatcher.aigc.Manager;
+import cube.dispatcher.aigc.handler.AIGCHandler;
+import org.eclipse.jetty.http.HttpStatus;
+import org.eclipse.jetty.server.handler.ContextHandler;
+import org.json.JSONObject;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+public class Session extends ContextHandler {
+
+    public final static String[] MODELS = new String[]{
+            "Baize", "BaizeX", "BaizeNext",
+    };
+
+    public Session() {
+        super("/app/session/");
+        setHandler(new Handler());
+    }
+
+    private class Handler extends AIGCHandler {
+
+        public Handler() {
+            super();
+        }
+
+        @Override
+        public void doPost(HttpServletRequest request, HttpServletResponse response) {
+            String version = request.getHeader(HEADER_X_BAIZE_API_VERSION);
+
+            if (null != version) {
+                try {
+                    String token = this.getApiToken(request);
+                    if (null == token) {
+                        this.respond(response, HttpStatus.UNAUTHORIZED_401, this.makeError(HttpStatus.UNAUTHORIZED_401));
+                        this.complete();
+                        return;
+                    }
+
+                    // 设备信息
+                    Device device = getDevice(request);
+
+                    JSONObject data = this.readBodyAsJSONObject(request);
+                    JSONObject eventData = new JSONObject();
+                    eventData.put("token", token);
+
+                    if (data.has("device") && data.has("platform")) {
+                        // 兼容 App 1.0.8 及之前的版本
+                        eventData.put("ip", data.has("ip") ? data.getString("ip") : request.getRemoteAddr());
+                        eventData.put("device", data.has("device") ? data.getString("device") : "");
+                        eventData.put("platform", data.has("platform") ? data.getString("platform") : "");
+                    }
+                    else {
+                        eventData.put("device", device.toJSON());
+                    }
+
+                    eventData.put("channel", data.has("channel") ? data.getString("channel") : "");
+                    AppEvent appEvent = new AppEvent(AppEvent.Session, System.currentTimeMillis(), eventData);
+                    if (!Manager.getInstance().addAppEvent(token, appEvent)) {
+                        Logger.w(Session.class, "Write app event failed: " + token);
+                    }
+
+                    ConfigInfo configInfo = Manager.getInstance().getConfigInfo(token);
+                    if (null == configInfo) {
+                        this.respond(response, HttpStatus.FORBIDDEN_403, this.makeError(HttpStatus.FORBIDDEN_403));
+                        this.complete();
+                        return;
+                    }
+
+                    JSONObject responseData = configInfo.toJSON();
+
+                    // 移除缓存
+                    Manager.getInstance().removeTokenCache(token);
+                    // 校验
+                    boolean valid = Manager.getInstance().checkToken(token, device);
+                    responseData.put("valid", valid);
+                    this.respondOk(response, responseData);
+                    this.complete();
+                } catch (Exception e) {
+                    Logger.w(Session.class, "#doPost", e);
+                    this.respond(response, HttpStatus.INTERNAL_SERVER_ERROR_500,
+                            this.makeError(HttpStatus.INTERNAL_SERVER_ERROR_500));
+                    this.complete();
+                }
+            }
+            else {
+                String token = null;
+                String ip = null;
+                try {
+                    JSONObject data = this.readBodyAsJSONObject(request);
+                    if (null == data) {
+                        this.respond(response, HttpStatus.BAD_REQUEST_400, this.makeError(HttpStatus.BAD_REQUEST_400));
+                        this.complete();
+                        return;
+                    }
+
+                    if (!data.has("app")) {
+                        this.respond(response, HttpStatus.BAD_REQUEST_400, this.makeError(HttpStatus.BAD_REQUEST_400));
+                        this.complete();
+                        return;
+                    }
+
+                    if (!data.getString("app").equalsIgnoreCase("baize")) {
+                        this.respond(response, HttpStatus.BAD_REQUEST_400, this.makeError(HttpStatus.BAD_REQUEST_400));
+                        this.complete();
+                        return;
+                    }
+
+                    if (data.has("token")) {
+                        token = data.getString("token");
+                    }
+
+                    if (data.has("ip")) {
+                        ip = data.getString("ip");
+                    }
+                } catch (Exception e) {
+                    Logger.w(Session.class, "#doPost", e);
+                    this.respond(response, HttpStatus.FORBIDDEN_403, this.makeError(HttpStatus.FORBIDDEN_403));
+                    this.complete();
+                    return;
+                }
+
+                JSONObject responseData = new JSONObject();
+
+                if (null == token || token.length() == 0) {
+                    token = null;
+                    String authorization = request.getHeader("Authorization");
+                    if (null == authorization) {
+                        Logger.w(Session.class, "No authorization data");
+                    }
+                    else {
+                        String[] tmp = authorization.split(" ");
+                        if (tmp.length > 1) {
+                            token = tmp[1].trim();
+                        }
+                    }
+                }
+
+                if (null != token) {
+                    if (Manager.getInstance().checkToken(token, getDevice(request))) {
+                        JSONObject eventData = new JSONObject();
+                        eventData.put("token", token);
+                        if (null != ip) {
+                            eventData.put("ip", ip);
+                        }
+
+                        // 获取模型配置
+                        ConfigInfo configInfo = Manager.getInstance().getConfigInfo(token);
+
+                        // 选择默认
+                        ModelConfig modelConfig = null;
+                        for (String modelName : MODELS) {
+                            modelConfig = Manager.getInstance().getModelConfigByModel(configInfo, modelName);
+                            if (null != modelConfig) {
+                                break;
+                            }
+                        }
+                        responseData.put("selectedModel", modelConfig.toJSON());
+
+                        // 申请频道
+                        App.ChannelInfo channel = App.getInstance().openChannel(token, modelConfig);
+                        if (null != channel) {
+                            responseData.put("auth", true);
+                            responseData.put("channel", channel.code);
+                            responseData.put("models", configInfo.getModelsAsJSONArray());
+
+                            Manager.ContactToken contactToken = Manager.getInstance().getContactToken(token,
+                                    this.getDevice(request));
+                            if (null == contactToken) {
+                                this.respond(response, HttpStatus.FORBIDDEN_403, this.makeError(HttpStatus.FORBIDDEN_403));
+                                this.complete();
+                                return;
+                            }
+                            responseData.put("context", contactToken.toJSON());
+
+                            // 知识库概述
+                            KnowledgeProfile profile = Manager.getInstance().getKnowledgeProfile(token);
+                            if (null != profile) {
+                                responseData.put("knowledge", profile.toJSON());
+                            }
+                            else {
+                                responseData.put("knowledge", KnowledgeProfile.createDummy().toJSON());
+                                Logger.w(this.getClass(), "#doPost - Knowledge profile is null - token: " + token);
+                            }
+
+                            // 知识库框架，仅为了兼容旧版本
+                            responseData.put("knowledgeFramework", Manager.getInstance().getKnowledgeFramework(token));
+
+                            eventData.put("auth", true);
+                        }
+                        else {
+                            responseData.put("auth", false);
+                            responseData.put("knowledge", KnowledgeProfile.createDummy().toJSON());
+                            Logger.w(Session.class, "Failed to open channel for token: " + token);
+
+                            eventData.put("auth", false);
+                        }
+
+                        // 记录事件
+                        AppEvent appEvent = new AppEvent(AppEvent.Session, System.currentTimeMillis(), eventData);
+                        if (!Manager.getInstance().addAppEvent(token, appEvent)) {
+                            Logger.w(Session.class, "Write app event failed: " + token);
+                        }
+                    }
+                    else {
+                        responseData.put("auth", false);
+                        responseData.put("knowledge", KnowledgeProfile.createDummy().toJSON());
+                        Logger.w(Session.class, "Manager check token failed: " + token);
+                    }
+                }
+                else {
+                    responseData.put("auth", false);
+                    responseData.put("knowledge", KnowledgeProfile.createDummy().toJSON());
+                    Logger.w(Session.class, "Token is null");
+                }
+
+                Helper.respondOk(this, response, responseData);
+            }
+        }
+    }
+}
