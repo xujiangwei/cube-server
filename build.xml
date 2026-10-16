@@ -1,0 +1,403 @@
+<?xml version="1.0"?>
+
+<!-- ======================================================================= -->
+<!-- Cube Server Build File                                                  -->
+<!-- ======================================================================= -->
+
+<project name="cube-server" default="build" basedir=".">
+
+	<!--property name="java.version" value="8" /-->
+
+	<property name="project-common.dir" value="common" />
+	<property name="project-dispatcher.dir" value="dispatcher" />
+	<property name="project-service.dir" value="service" />
+
+	<property name="project-console.dir" value="console" />
+
+	<property name="project-server-app.dir" value="server-app" />
+
+	<property name="project-service-filestorage.dir" value="service-filestorage" />
+	<property name="project-service-fileprocessor.dir" value="service-fileprocessor" />
+	<property name="project-service-messaging.dir" value="service-messaging" />
+	<property name="project-service-multipointcomm.dir" value="service-multipointcomm" />
+	<property name="project-service-conference.dir" value="service-conference" />
+	<property name="project-service-psychology.dir" value="service-psychology" />
+	<property name="project-service-riskmgmt.dir" value="service-riskmgmt" />
+
+	<property name="project-ferryboat.dir" value="ferryboat" />
+	<property name="project-ferryhouse.dir" value="ferryhouse" />
+
+	<property name="build.dir" value="build" />
+
+	<property name="deploy.dir" value="deploy" />
+
+	<target name="init">
+		<mkdir dir="${build.dir}" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds project common for debug                                     -->
+	<!-- =================================================================== -->
+	<target name="build-common-debug">
+		<ant antfile="build.xml"
+			 dir="${project-common.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds project common for release                                   -->
+	<!-- =================================================================== -->
+	<target name="build-common-release">
+		<ant antfile="build.xml"
+			 dir="${project-common.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds project console for debug                                    -->
+	<!-- =================================================================== -->
+	<target name="build-console-debug">
+		<ant antfile="build.xml"
+			 dir="${project-console.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds project console for release                                  -->
+	<!-- =================================================================== -->
+	<target name="build-console-release">
+		<ant antfile="build.xml"
+			 dir="${project-console.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds project server app for debug                                 -->
+	<!-- =================================================================== -->
+	<target name="build-server-app-debug">
+		<ant antfile="build.xml"
+			 dir="${project-server-app.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds project server app for release                               -->
+	<!-- =================================================================== -->
+	<target name="build-server-app-release">
+		<ant antfile="build.xml"
+			 dir="${project-server-app.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds project dispatcher for debug                                 -->
+	<!-- =================================================================== -->
+	<target name="build-dispatcher-debug" depends="build-common-debug">
+		<ant antfile="build.xml"
+			 dir="${project-dispatcher.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds project dispatcher for release                               -->
+	<!-- =================================================================== -->
+	<target name="build-dispatcher-release" depends="build-common-release">
+		<ant antfile="build.xml"
+			 dir="${project-dispatcher.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds all service projects for debug                               -->
+	<!-- =================================================================== -->
+	<target name="build-service-debug" depends="build-common-debug,build-dispatcher-debug">
+		<!-- 心理学业务模块插件。
+		     ⚠️ 必须排在 service 之前：该模块的 dispatcher 子包向网关注入 REST 端点，
+		     编译期引用 cube-dispatcher-*.jar，故 depends 里加了 build-dispatcher-debug。
+		     依赖方向单向：本模块 → dispatcher；dispatcher 侧零引用本模块任何类型，
+		     仅按配置类名反射装载。不存在循环依赖。 -->
+		<ant antfile="build.xml"
+				dir="${project-service-psychology.dir}"
+				inheritall="false"
+				inheritrefs="false"
+				target="build-debug" />
+		<ant antfile="build.xml"
+				dir="${project-service.dir}"
+				inheritall="false"
+				inheritrefs="false"
+				target="build-debug" />
+		<ant antfile="build.xml"
+			 dir="${project-service-filestorage.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+		<ant antfile="build.xml"
+			 dir="${project-service-fileprocessor.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+		<ant antfile="build.xml"
+			 dir="${project-service-messaging.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+		<ant antfile="build.xml"
+			 dir="${project-service-multipointcomm.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+		<ant antfile="build.xml"
+			 dir="${project-service-conference.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+		<ant antfile="build.xml"
+			 dir="${project-service-riskmgmt.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds all service projects for release                             -->
+	<!-- =================================================================== -->
+	<target name="build-service-release" depends="build-common-release,build-dispatcher-release">
+		<!-- 心理学业务模块插件。必须排在 service 之前，理由同 build-service-debug。 -->
+		<ant antfile="build.xml"
+				dir="${project-service-psychology.dir}"
+				inheritall="false"
+				inheritrefs="false"
+				target="build-release" />
+		<ant antfile="build.xml"
+				dir="${project-service.dir}"
+				inheritall="false"
+				inheritrefs="false"
+				target="build-release" />
+		<ant antfile="build.xml"
+			 dir="${project-service-filestorage.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+		<ant antfile="build.xml"
+			 dir="${project-service-fileprocessor.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+		<ant antfile="build.xml"
+			 dir="${project-service-messaging.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+		<ant antfile="build.xml"
+			 dir="${project-service-multipointcomm.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+		<ant antfile="build.xml"
+			 dir="${project-service-conference.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+		<ant antfile="build.xml"
+			 dir="${project-service-riskmgmt.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds ferry projects for debug                                     -->
+	<!-- =================================================================== -->
+	<target name="build-ferry-debug" depends="build-common-debug">
+		<ant antfile="build.xml"
+			 dir="${project-ferryboat.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+
+		<ant antfile="build.xml"
+			 dir="${project-ferryhouse.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-debug" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds ferry projects for release                                   -->
+	<!-- =================================================================== -->
+	<target name="build-ferry-release" depends="build-common-release">
+		<ant antfile="build.xml"
+			 dir="${project-ferryboat.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+
+		<ant antfile="build.xml"
+			 dir="${project-ferryhouse.dir}"
+			 inheritall="false"
+			 inheritrefs="false"
+			 target="build-release" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Deploy all projects                                                 -->
+	<!-- =================================================================== -->
+	<target name="deploy" depends="clean-deploy">
+		<copy todir="${deploy.dir}/libs/">
+			<fileset dir="${build.dir}">
+				<include name="cube-common-*.jar" />
+				<include name="cube-dispatcher-*.jar" />
+				<include name="cube-service-*.jar" />
+				<include name="cube-service-filestorage-*.jar" />
+				<include name="cube-service-fileprocessor-*.jar" />
+				<exclude name="*service-messaging*" />
+				<exclude name="*service-multipointcomm*" />
+				<exclude name="*service-conference*" />
+				<exclude name="*service-riskmgmt*" />
+			</fileset>
+		</copy>
+		<copy todir="${deploy.dir}/cellets/">
+			<fileset dir="${build.dir}">
+				<include name="cube-service-messaging-*.jar" />
+				<include name="cube-service-multipointcomm-*.jar" />
+				<include name="cube-service-conference-*.jar" />
+				<include name="cube-service-riskmgmt-*.jar" />
+			</fileset>
+		</copy>
+
+		<!-- 业务模块清单：以 service/config 为唯一来源同步到部署形态。
+		     此前两份文件各自维护、要求人工"保持同步"，实际已漂移
+		     （deploy 那份的三行一直是注释态，部署形态下模块根本不加载）。
+		     ModuleRegistry 在部署形态下读deploy/config/，故必须同步。 -->
+		<copy todir="${deploy.dir}/config/" overwrite="true">
+			<fileset dir="${project-service.dir}/config/">
+				<include name="aigc-modules.properties" />
+			</fileset>
+		</copy>
+		<echo>Synced aigc-modules.properties to ${deploy.dir}/config/.</echo>
+
+		<!-- 心理学配置模板：随模板部署，运维据此创建 .local.json。
+		     .local.json 含数据库凭据，由gitignore排除，不进仓库、也不随包分发。
+		     部署时若缺少它，PsychologyModule 会记 ERROR 并拒绝装载
+		     （消息中指明该复制哪个文件），不会静默连错库。 -->
+		<copy todir="${deploy.dir}/config/" overwrite="true">
+			<fileset dir="${project-service.dir}/config/">
+				<include name="psychology.json.template" />
+			</fileset>
+		</copy>
+		<!-- 提示运维创建实际配置。此处只做提示、不做判断：判断需 ant-contrib 的
+		     <if>，而本工程只依赖 ant 核心（build.xml 无任何 taskdef 引入），
+		     引入额外依赖会提高构建环境的隐式要求。 -->
+		<echo>Reminder: copy ${deploy.dir}/config/psychology.json.template to</echo>
+		<echo>          ${deploy.dir}/config/psychology.local.json and fill in the database settings.</echo>
+
+		<!-- 业务资产：心理学语料/量表/脚本、引导流程、提示词。
+		     Resource 与 Guides 读的是硬编码相对路径（assets/psychology/...），
+		     cell.sh 的工作目录是 deploy/，故必须同步，否则部署形态下
+		     checkFiles 全部失败、语料与量表一律读不到。
+		     ⚠️ 刻意【不】同步 service/assets/data/（1.3G，含模型与词典），
+		     该目录由部署环境单独提供。 -->
+		<copy todir="${deploy.dir}/assets/">
+			<fileset dir="${project-service.dir}/assets/">
+				<include name="psychology/**" />
+				<include name="guidance/**" />
+				<include name="prompt/**" />
+			</fileset>
+		</copy>
+		<echo>Synced assets (psychology / guidance / prompt) to ${deploy.dir}/assets/.</echo>
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Clean deploy files                                                  -->
+	<!-- =================================================================== -->
+	<target name="clean-deploy">
+		<delete failonerror="false" includeemptydirs="true">
+			<fileset dir="${deploy.dir}/libs/">
+				<include name="cube-common-*.jar" />
+				<include name="cube-dispatcher-*.jar" />
+				<include name="cube-service-*.jar" />
+				<include name="cube-service-filestorage-*.jar" />
+				<include name="cube-service-fileprocessor-*.jar" />
+			</fileset>
+		</delete>
+		<delete failonerror="false" includeemptydirs="true">
+			<fileset dir="${deploy.dir}/cellets/">
+				<include name="cube-service-messaging-*.jar" />
+				<include name="cube-service-multipointcomm-*.jar" />
+				<include name="cube-service-conference-*.jar" />
+				<include name="cube-service-riskmgmt-*.jar" />
+			</fileset>
+		</delete>
+		<delete failonerror="false" includeemptydirs="true">
+			<fileset dir="${deploy.dir}/bin/">
+				<include name="*pid" />
+			</fileset>
+		</delete>
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Clean all deploy files                                              -->
+	<!-- =================================================================== -->
+	<target name="clean" depends="clean-deploy">
+		<echo>Clean all deploy files.</echo>
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Install project files                                               -->
+	<!-- =================================================================== -->
+	<target name="install" depends="deploy">
+		<echo>Install all deploy files.</echo>
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Build all projects                                                  -->
+	<!-- =================================================================== -->
+	<target name="all" depends="build,deploy">
+		<echo>Build and deploy all projects.</echo>
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds all projects for debug                                       -->
+	<!-- =================================================================== -->
+	<target name="build-debug" depends="init,build-common-debug,build-dispatcher-debug,build-service-debug,build-ferry-debug,build-console-debug,build-server-app-debug">
+		<echo>Build all projects for debug.</echo>
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds all projects for release                                     -->
+	<!-- =================================================================== -->
+	<target name="build" depends="init,build-common-release,build-dispatcher-release,build-service-release,build-ferry-release,build-console-release,build-server-app-release">
+		<echo>Build all projects.</echo>
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Help                                                                -->
+	<!-- =================================================================== -->
+	<target name="help">
+		<echo>Cube server 3.0</echo>
+		<echo>Please use `make target`, where 'target' is one of</echo>
+		<echo>    build       - to compile and build release project</echo>
+		<echo>    build-debug - to compile and build debug project</echo>
+		<echo>    deploy      - to install project files to deploy directory</echo>
+		<echo>    all         - to build and install all projects</echo>
+		<echo>    install     - to install project files to deploy directory</echo>
+		<echo>    clean       - to clean all deploy files</echo>
+	</target>
+
+</project>

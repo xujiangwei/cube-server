@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/common/common.iml" filepath="$PROJECT_DIR$/common/common.iml" />
+      <module fileurl="file://$PROJECT_DIR$/console/console.iml" filepath="$PROJECT_DIR$/console/console.iml" />
+      <module fileurl="file://$PROJECT_DIR$/dispatcher/dispatcher.iml" filepath="$PROJECT_DIR$/dispatcher/dispatcher.iml" />
+      <module fileurl="file://$PROJECT_DIR$/ferryboat/ferryboat.iml" filepath="$PROJECT_DIR$/ferryboat/ferryboat.iml" />
+      <module fileurl="file://$PROJECT_DIR$/ferryhouse/ferryhouse.iml" filepath="$PROJECT_DIR$/ferryhouse/ferryhouse.iml" />
+      <module fileurl="file://$PROJECT_DIR$/server-app/server-app.iml" filepath="$PROJECT_DIR$/server-app/server-app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/service/service.iml" filepath="$PROJECT_DIR$/service/service.iml" />
+      <module fileurl="file://$PROJECT_DIR$/service-conference/service-conference.iml" filepath="$PROJECT_DIR$/service-conference/service-conference.iml" />
+      <module fileurl="file://$PROJECT_DIR$/service-fileprocessor/service-fileprocessor.iml" filepath="$PROJECT_DIR$/service-fileprocessor/service-fileprocessor.iml" />
+      <module fileurl="file://$PROJECT_DIR$/service-filestorage/service-filestorage.iml" filepath="$PROJECT_DIR$/service-filestorage/service-filestorage.iml" />
+      <module fileurl="file://$PROJECT_DIR$/service-messaging/service-messaging.iml" filepath="$PROJECT_DIR$/service-messaging/service-messaging.iml" />
+      <module fileurl="file://$PROJECT_DIR$/service-multipointcomm/service-multipointcomm.iml" filepath="$PROJECT_DIR$/service-multipointcomm/service-multipointcomm.iml" />
+      <module fileurl="file://$PROJECT_DIR$/service-psychology/service-psychology.iml" filepath="$PROJECT_DIR$/service-psychology/service-psychology.iml" />
+      <module fileurl="file://$PROJECT_DIR$/service-riskmgmt/service-riskmgmt.iml" filepath="$PROJECT_DIR$/service-riskmgmt/service-riskmgmt.iml" />
+      <!-- 「宿主 × 插件」集成验证程序：唯一在编译期引用 service-psychology 的模块 -->
+      <module fileurl="file://$PROJECT_DIR$/verify/verify.iml" filepath="$PROJECT_DIR$/verify/verify.iml" />
+    </modules>
+  </component>
+</project>
