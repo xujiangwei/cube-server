@@ -1,0 +1,103 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
+package cube.common.entity;
+
+import cube.auth.AuthToken;
+import cube.common.JSONable;
+import org.json.JSONObject;
+
+public class VoiceStreamSink implements JSONable {
+
+    private String streamName;
+
+    private int index;
+
+    private String fileCode;
+
+    private long timestamp;
+
+    private VoiceDiarization diarization;
+
+    private FileLabel fileLabel;
+
+    public AuthToken authToken;
+
+    public VoiceStreamSink(String streamName, int index, String fileCode) {
+        this.streamName = streamName;
+        this.index = index;
+        this.fileCode = fileCode;
+        this.timestamp = System.currentTimeMillis();
+    }
+
+    public VoiceStreamSink(JSONObject json) {
+        this.streamName = json.getString("streamName");
+        this.index = json.getInt("index");
+        this.timestamp = json.getLong("timestamp");
+        if (json.has("diarization")) {
+            this.diarization = new VoiceDiarization(json.getJSONObject("diarization"));
+        }
+        if (json.has("file")) {
+            this.fileLabel = new FileLabel(json.getJSONObject("file"));
+        }
+    }
+
+    public String getStreamName() {
+        return this.streamName;
+    }
+
+    public int getIndex() {
+        return this.index;
+    }
+
+    public String getFileCode() {
+        return this.fileCode;
+    }
+
+    public long getTimestamp() {
+        return this.timestamp;
+    }
+
+    public VoiceDiarization getDiarization() {
+        return this.diarization;
+    }
+
+    public FileLabel getFileLabel() {
+        return this.fileLabel;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public void setDiarization(VoiceDiarization diarization) {
+        this.diarization = diarization;
+    }
+
+    public void setFileLabel(FileLabel fileLabel) {
+        this.fileLabel = fileLabel;
+    }
+
+    @Override
+    public JSONObject toJSON() {
+        JSONObject json = new JSONObject();
+        json.put("streamName", this.streamName);
+        json.put("index", this.index);
+        json.put("timestamp", this.timestamp);
+        if (null != this.diarization) {
+            json.put("diarization", this.diarization.toJSON());
+        }
+        if (null != this.fileLabel) {
+            json.put("file", this.fileLabel.toCompactJSON());
+        }
+        return json;
+    }
+
+    @Override
+    public JSONObject toCompactJSON() {
+        return this.toJSON();
+    }
+}

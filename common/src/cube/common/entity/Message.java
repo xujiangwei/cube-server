@@ -1,0 +1,662 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
+package cube.common.entity;
+
+import cell.util.Utils;
+import cube.common.Domain;
+import cube.common.Packet;
+import cube.common.UniqueKey;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+/**
+ * 消息实体。
+ */
+public class Message extends Entity implements Comparable<Message> {
+
+    /**
+     * 消息负载 JSON 数据。
+     */
+    private JSONObject payload;
+
+    /**
+     * 消息来源的 ID 。
+     */
+    private Long from = 0L;
+
+    /**
+     * 消息投送目标的 ID 。
+     */
+    private Long to = 0L;
+
+    /**
+     * 消息转副本之后的源 ID 。
+     */
+    private Long source = 0L;
+
+    /**
+     * 副本持有人。
+     */
+    private Long owner = 0L;
+
+    /**
+     * 消息作用域。
+     */
+    private int scope = MessageScope.Unlimited;
+
+    /**
+     * 消息生成时的源时间戳。
+     */
+    private long localTimestamp;
+
+    /**
+     * 消息到达接入层时的时间戳。
+     */
+    private long remoteTimestamp;
+
+    /**
+     * 消息的文件附件。
+     */
+    private FileAttachment attachment;
+
+    /**
+     * 消息的来源设备。
+     */
+    private Device sourceDevice;
+
+    /**
+     * 消息状态。
+     */
+    private MessageState state = MessageState.Unknown;
+
+    /**
+     * 消息发件人。
+     * 仅用于客户端。
+     */
+    private Contact sender;
+
+    /**
+     * 消息所在的群组。
+     * 仅用于客户端。
+     */
+    private Group group;
+
+    /**
+     * 消息互动的联系人。
+     * 仅用于客户端。
+     */
+    private Contact partner;
+
+    /**
+     * 时间戳精度。
+     * 仅用于客户端。
+     */
+    private int timestampPrecision = 0;
+
+    /**
+     * 构造函数。
+     *
+     * @param packet 指定包含消息数据的数据包。
+     */
+    public Message(Packet packet) throws JSONException {
+        super();
+
+        this.domain = new Domain(packet.data.getString("domain"));
+        this.id = packet.data.getLong("id");
+        this.uniqueKey = UniqueKey.make(this.id, this.domain.getName());
+
+        this.from = packet.data.getLong("from");
+        this.to = packet.data.getLong("to");
+        this.source = packet.data.getLong("source");
+        this.localTimestamp = packet.data.getLong("lts");
+        this.remoteTimestamp = packet.data.getLong("rts");
+        this.state = MessageState.parse(packet.data.getInt("state"));
+
+        this.scope = packet.data.has("scope") ? packet.data.getInt("scope") : MessageScope.Unlimited;
+
+        this.payload = packet.data.getJSONObject("payload");
+
+        if (packet.data.has("attachment")) {
+            // 解析文件附件
+            this.attachment = new FileAttachment(packet.data.getJSONObject("attachment"));
+        }
+
+        if (packet.data.has("device")) {
+            this.sourceDevice = new Device(packet.data.getJSONObject("device"));
+        }
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param json 由 JSON 描述的消息。
+     */
+    public Message(JSONObject json) {
+        super();
+
+        this.id = json.getLong("id");
+        this.localTimestamp = json.getLong("lts");
+        this.remoteTimestamp = json.getLong("rts");
+        this.state = MessageState.parse(json.getInt("state"));
+
+        if (!json.has("from")) {
+            if (json.has("sender")) {
+                this.sender = new Contact(json.getJSONObject("sender"));
+            }
+
+            if (json.has("group")) {
+                this.group = new Group(json.getJSONObject("group"));
+            }
+
+            if (json.has("partner")) {
+                this.partner = new Contact(json.getJSONObject("partner"));
+            }
+
+            if (json.has("timestampPrecision")) {
+                this.timestampPrecision = json.getInt("timestampPrecision");
+            }
+        }
+        else {
+            this.domain = new Domain(json.getString("domain"));
+            this.from = json.getLong("from");
+            this.to = json.getLong("to");
+            this.source = json.getLong("source");
+
+            if (json.has("scope")) {
+                this.scope = json.getInt("scope");
+            }
+
+            if (json.has("owner")) {
+                this.owner = json.getLong("owner");
+            }
+
+            if (json.has("device")) {
+                this.sourceDevice = new Device(json.getJSONObject("device"));
+            }
+
+            this.uniqueKey = UniqueKey.make(this.id, this.domain.getName());
+        }
+
+        if (json.has("payload")) {
+            this.payload = json.getJSONObject("payload");
+        }
+
+        if (json.has("attachment")) {
+            this.attachment = new FileAttachment(json.getJSONObject("attachment"));
+        }
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param src 指定复制源。
+     */
+    public Message(Message src) {
+        super(src.id);
+
+        this.domain = src.domain;
+        this.from = src.from;
+        this.to = src.to;
+        this.source = src.source;
+        this.owner = src.owner;
+        this.localTimestamp = src.localTimestamp;
+        this.remoteTimestamp = src.remoteTimestamp;
+        this.state = src.state;
+        this.scope = src.scope;
+        this.payload = src.payload;
+        this.attachment = src.attachment;
+        this.sourceDevice = src.sourceDevice;
+
+        this.uniqueKey = UniqueKey.make(this.id, this.domain.getName());
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param domain 指定所在域。
+     * @param id 指定消息 ID 。
+     * @param from 指定消息发件人 ID 。
+     * @param to 指定消息收件人 ID 。
+     * @param source 指定消息来源群的 ID 。
+     * @param owner 指定消息的副本持有人 ID 。
+     * @param localTimestamp 指定消息生成时的本地时间戳。
+     * @param remoteTimestamp 指定消息在服务器上被处理的时间戳。
+     * @param state 指定消息状态。
+     * @param scope 指定消息的作用域。
+     * @param sourceDevice 指定源设备。
+     * @param payload 指定消息负载数据。
+     * @param attachment 指定消息附件。
+     */
+    public Message(String domain, Long id, Long from, Long to, Long source, Long owner,
+                   Long localTimestamp, Long remoteTimestamp, int state, int scope,
+                   JSONObject sourceDevice, JSONObject payload, JSONObject attachment) {
+        super(id, domain);
+        this.from = from;
+        this.to = to;
+        this.source = source;
+        this.owner = owner;
+        this.localTimestamp = localTimestamp;
+        this.remoteTimestamp = remoteTimestamp;
+        this.state = MessageState.parse(state);
+        this.scope = scope;
+
+        if (null != sourceDevice) {
+            this.sourceDevice = new Device(sourceDevice);
+        }
+
+        this.payload = payload;
+
+        if (null != attachment) {
+            this.attachment = new FileAttachment(attachment);
+        }
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param id
+     * @param sender
+     * @param group
+     * @param timestamp
+     * @param payload
+     */
+    public Message(long id, Contact sender, Group group, long timestamp, JSONObject payload) {
+        super();
+        this.id = id;
+        this.sender = sender;
+        this.group = group;
+        this.localTimestamp = timestamp;
+        this.remoteTimestamp = timestamp;
+        this.payload = payload;
+        this.state = MessageState.Sent;
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param id
+     * @param sender
+     * @param partner
+     * @param timestamp
+     * @param payload
+     */
+    public Message(long id, Contact sender, Contact partner, long timestamp, JSONObject payload) {
+        super();
+        this.id = id;
+        this.sender = sender;
+        this.partner = partner;
+        this.localTimestamp = timestamp;
+        this.remoteTimestamp = timestamp;
+        this.payload = payload;
+        this.state = MessageState.Sent;
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param partner
+     * @param payload
+     */
+    public Message(Contact partner, JSONObject payload) {
+        super();
+        this.id = Utils.generateSerialNumber();
+        this.partner = partner;
+        this.localTimestamp = timestamp;
+        this.remoteTimestamp = timestamp;
+        this.payload = payload;
+        this.state = MessageState.Sent;
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param group
+     * @param payload
+     */
+    public Message(Group group, JSONObject payload) {
+        super();
+        this.id = Utils.generateSerialNumber();
+        this.group = group;
+        this.localTimestamp = timestamp;
+        this.remoteTimestamp = timestamp;
+        this.payload = payload;
+        this.state = MessageState.Sent;
+    }
+
+    /**
+     * 获取消息发送人。
+     *
+     * @return
+     */
+    public Contact getSender() {
+        return this.sender;
+    }
+
+    /**
+     * 获取消息的群组。
+     *
+     * @return
+     */
+    public Group getGroup() {
+        return this.group;
+    }
+
+    /**
+     * 获取消息对话互动联系人。
+     *
+     * @return
+     */
+    public Contact getPartner() {
+        return this.partner;
+    }
+
+    /**
+     * 获取消息发件人 ID 。
+     *
+     * @return 返回消息发件人 ID 。
+     */
+    public Long getFrom() {
+        return this.from;
+    }
+
+    /**
+     * 设置消息发件人 ID 。
+     *
+     * @param from 新的发件人 ID 。
+     */
+    public void setFrom(Long from) {
+        this.from = from;
+    }
+
+    /**
+     * 获取消息收件人 ID 。
+     *
+     * @return 返回消息收件人 ID 。
+     */
+    public Long getTo() {
+        return this.to;
+    }
+
+    /**
+     * 设置消息收件人 ID 。
+     *
+     * @param to 新的收件人 ID 。
+     */
+    public void setTo(Long to) {
+        this.to = to;
+    }
+
+    /**
+     * 获取消息的来源群的 ID 。
+     *
+     * @return 返回消息的来源群的 ID 。
+     */
+    public Long getSource() {
+        return this.source;
+    }
+
+    /**
+     * 设置消息来源群的 ID 。
+     *
+     * @param source 新的群 ID 。
+     */
+    public void setSource(Long source) {
+        this.source = source;
+    }
+
+    /**
+     * 是否来自群组。
+     *
+     * @return 如果来源是群组返回 {@code true} 。
+     */
+    public boolean isFromGroup() {
+        return (this.source > 0) || (null != this.group);
+    }
+
+    /**
+     * 设置消息副本持有人。
+     *
+     * @param ownerId 指定持有人 ID 。
+     */
+    public void setOwner(Long ownerId) {
+        this.owner = ownerId;
+    }
+
+    /**
+     * 获取消息副本持有人。
+     *
+     * @return 返回消息副本持有人 ID 。
+     */
+    public Long getOwner() {
+        return this.owner;
+    }
+
+    /**
+     * 获取消息的本地时间戳。
+     *
+     * @return 返回消息的本地时间戳。
+     */
+    public long getLocalTimestamp() {
+        return this.localTimestamp;
+    }
+
+    /**
+     * 设置消息的本地时间戳。
+     *
+     * @param localTimestamp 指定本地时间戳。
+     */
+    public void setLocalTimestamp(long localTimestamp) {
+        this.localTimestamp = localTimestamp;
+    }
+
+    /**
+     * 获取消息的服务器时间戳。
+     *
+     * @return 返回消息的服务器时间戳。
+     */
+    public long getRemoteTimestamp() {
+        return this.remoteTimestamp;
+    }
+
+    /**
+     * 设置消息的服务器时间戳。
+     *
+     * @param remoteTimestamp 指定服务器时间戳。
+     */
+    public void setRemoteTimestamp(long remoteTimestamp) {
+        this.remoteTimestamp = remoteTimestamp;
+    }
+
+    /**
+     * 设置消息负载数据。
+     *
+     * @param payload 指定负载数据。
+     */
+    public void setPayload(JSONObject payload) {
+        this.payload = payload;
+    }
+
+    /**
+     * 获取消息负载数据。
+     *
+     * @return 返回 JSON 形式的负载数据。
+     */
+    public JSONObject getPayload() {
+        return this.payload;
+    }
+
+    /**
+     * 设置消息附件。
+     *
+     * @param attachment
+     */
+    public void setAttachment(FileAttachment attachment) {
+        this.attachment = attachment;
+    }
+
+    /**
+     * 获取消息附件。
+     *
+     * @return 返回消息的文件附件。
+     */
+    public FileAttachment getAttachment() {
+        return this.attachment;
+    }
+
+    /**
+     * 设置消息发送时的设备。
+     *
+     * @param device 设备实例。
+     */
+    public void setSourceDevice(Device device) {
+        this.sourceDevice = device;
+    }
+
+    /**
+     * 获取消息发出的源设备。
+     *
+     * @return 返回消息发出的源设备，如果没有记录返回 {@code null} 值。
+     */
+    public Device getSourceDevice() {
+        return this.sourceDevice;
+    }
+
+    /**
+     * 设置消息状态。
+     *
+     * @param state 消息状态。
+     */
+    public void setState(MessageState state) {
+        this.state = state;
+    }
+
+    /**
+     * 获取消息状态。
+     *
+     * @return 返回消息状态。
+     */
+    public MessageState getState() {
+        return this.state;
+    }
+
+    /**
+     * 获取消息作用域。
+     *
+     * @return 返回消息作用域。
+     */
+    public int getScope() {
+        return this.scope;
+    }
+
+    /**
+     * 设置时间戳精度。
+     *
+     * @param timestampPrecision
+     */
+    public void setTimestampPrecision(int timestampPrecision) {
+        this.timestampPrecision = timestampPrecision;
+    }
+
+    /**
+     * 获取时间戳精度。
+     *
+     * @return
+     */
+    public int getTimestampPrecision() {
+        return this.timestampPrecision;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) {
+            return true;
+        }
+        
+        if (null != object && object instanceof Message) {
+            Message other = (Message) object;
+            if (other.id.longValue() == this.id.longValue()
+                    && other.owner.longValue() == this.owner.longValue()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public JSONObject toJSON() {
+        JSONObject json = new JSONObject();
+
+        json.put("id", this.id.longValue());
+        json.put("lts", this.localTimestamp);
+        json.put("rts", this.remoteTimestamp);
+        json.put("state", this.state.getCode());
+
+        if (this.from == 0) {
+            if (null != this.sender) {
+                json.put("sender", this.sender.toCompactJSON());
+            }
+
+            if (null != this.group) {
+                json.put("group", this.group.toCompactJSON());
+            }
+
+            if (null != this.partner) {
+                json.put("partner", this.partner.toCompactJSON());
+            }
+
+            json.put("timestampPrecision", this.timestampPrecision);
+        }
+        else {
+            json.put("domain", this.domain.getName());
+            json.put("from", this.from.longValue());
+            json.put("to", this.to.longValue());
+            json.put("source", this.source.longValue());
+            json.put("owner", this.owner.longValue());
+            json.put("scope", this.scope);
+        }
+
+        if (null != this.payload) {
+            json.put("payload", this.payload);
+        }
+
+        if (null != this.attachment) {
+            json.put("attachment", this.attachment.toJSON());
+        }
+
+        if (null != this.sourceDevice) {
+            json.put("device", this.sourceDevice.toCompactJSON());
+        }
+        return json;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public JSONObject toCompactJSON() {
+        JSONObject json = this.toJSON();
+        if (json.has("payload")) {
+            json.remove("payload");
+        }
+        return json;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int compareTo(Message other) {
+        return (int)(this.remoteTimestamp - other.remoteTimestamp);
+    }
+}

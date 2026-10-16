@@ -1,0 +1,406 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
+package cube.common.entity;
+
+import cell.core.talk.TalkContext;
+import cube.common.Domain;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 联系人实体。
+ */
+public class Contact extends AbstractContact {
+
+    /**
+     * 普通用户联系人的最小 ID 。
+     *
+     * ID 的十进制位数大于等于 8 位的联系人视为「联系人」。
+     * 统计口径以此常量为准，不要在各处硬编码数值。
+     */
+    public static final long MIN_USER_CONTACT_ID = 10000000L;
+
+    /**
+     * AIGC 工作单元联系人的最小 ID 。
+     *
+     * ID 的十进制位数大于等于 6 位、且小于 8 位的联系人是 service 里注册的 AIGC 工作单元节点
+     * （例如 <code>Unit-531001</code>）；位数小于 6 位的联系人不是统计对象。
+     * 统计口径以此常量为准，不要在各处硬编码数值。
+     */
+    public static final long MIN_UNIT_CONTACT_ID = 100000L;
+
+    /**
+     * 联系人的设备列表。
+     */
+    private List<Device> deviceList;
+
+    /**
+     * 附录。
+     */
+    private ContactAppendix appendix;
+
+    /**
+     * 构造函数。
+     */
+    public Contact() {
+        super();
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param id 联系人 ID 。
+     * @param domainName 联系人所在的域。
+     */
+    public Contact(long id, String domainName) {
+        super(id, domainName, "");
+        this.deviceList = new ArrayList<>(1);
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param id 联系人 ID 。
+     * @param domainName 所在域的域名。
+     * @param name 显示名。
+     */
+    public Contact(Long id, String domainName, String name) {
+        super(id, domainName, name);
+        this.deviceList = new ArrayList<>(1);
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param id 联系人 ID 。
+     * @param domainName 所在域的域名。
+     * @param name 显示名。
+     * @param timestamp 时间戳。
+     */
+    public Contact(Long id, String domainName, String name, long timestamp) {
+        super(id, domainName, name, timestamp);
+        this.deviceList = new ArrayList<>(1);
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param id 联系人 ID 。
+     * @param domain 所在域。
+     * @param name 显示名。
+     */
+    public Contact(Long id, Domain domain, String name) {
+        super(id, domain, name);
+        this.deviceList = new ArrayList<>(1);
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param externalId 外部 ID 。
+     */
+    public Contact(String externalId) {
+        super(externalId);
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param json 符合格式的 JSON 数据。
+     */
+    public Contact(JSONObject json) {
+        this(json, "");
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param json 符合格式的 JSON 数据。
+     * @param domain 指定的域。
+     */
+    public Contact(JSONObject json, Domain domain) {
+        this(json, domain.getName());
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param json 符合格式的 JSON 数据。
+     * @param domain 指定的域。
+     */
+    public Contact(JSONObject json, String domain) {
+        super(json, domain);
+
+        this.deviceList = new ArrayList<>(1);
+
+        if (json.has("devices")) {
+            JSONArray array = json.getJSONArray("devices");
+            for (int i = 0; i < array.length(); ++i) {
+                JSONObject devJson = array.getJSONObject(i);
+                Device device = new Device(devJson);
+                this.addDevice(device);
+            }
+        }
+    }
+
+    /**
+     * 构造函数。
+     *
+     * @param json 符合格式的 JSON 数据。
+     * @param talkContext 关联的 Talk Context 。
+     */
+    public Contact(JSONObject json, TalkContext talkContext) {
+        super(json, null);
+
+        this.deviceList = new ArrayList<>(1);
+
+        if (json.has("devices")) {
+            JSONArray array = json.getJSONArray("devices");
+            for (int i = 0; i < array.length(); ++i) {
+                JSONObject devJson = array.getJSONObject(i);
+                Device device = new Device(devJson);
+                this.addDevice(device);
+            }
+        }
+
+        // 绑定设备到上下文
+        if (json.has("device")) {
+            JSONObject deviceJson = json.getJSONObject("device");
+            Device device = new Device(deviceJson, talkContext);
+            this.addDevice(device);
+        }
+    }
+
+    /**
+     * 添加设备。
+     *
+     * @param device 指定设备。
+     * @return 返回之前已经添加的同类型设备。
+     */
+    public Device addDevice(Device device) {
+        Device invalid = null;
+        int index = this.deviceList.indexOf(device);
+        if (index >= 0) {
+            invalid = this.deviceList.get(index);
+            this.deviceList.remove(index);
+        }
+
+        device.contact = this;
+        this.deviceList.add(device);
+
+        return invalid;
+    }
+
+    /**
+     * 添加设备。
+     *
+     * @param name 设备名称。
+     * @param platform 平台描述。
+     * @param talkContext 对应的会话上下文。
+     * @return 返回之前已经添加的同类型设备。
+     */
+    public Device addDevice(String name, String platform, TalkContext talkContext) {
+        Device invalid = null;
+        Device device = new Device(name, platform, talkContext);
+
+        int index = this.deviceList.indexOf(device);
+        if (index >= 0) {
+            invalid = this.deviceList.get(index);
+            this.deviceList.remove(index);
+        }
+
+        device.contact = this;
+        this.deviceList.add(device);
+
+        return invalid;
+    }
+
+    /**
+     * 移除设备。
+     *
+     * @param device 待移除设备。
+     */
+    public void removeDevice(Device device) {
+        this.deviceList.remove(device);
+    }
+
+    /**
+     * 移除所有设备。
+     */
+    public void removeDevices() {
+        this.deviceList.clear();
+    }
+
+    /**
+     * 返回设备数量。
+     *
+     * @return 返回设备数量。
+     */
+    public int numDevices() {
+        return this.deviceList.size();
+    }
+
+    /**
+     * 通过客户端的 TalkContext 匹配获取对应的设备。
+     * 该方法主要提供给网关节点使用。
+     *
+     * @param talkContext 会话上下文。
+     * @return 返回在此上下文上通信的设备。
+     */
+    public Device getDevice(TalkContext talkContext) {
+        Device device = null;
+        for (int i = 0, size = this.deviceList.size(); i < size; ++i) {
+            device = this.deviceList.get(i);
+            if (device.getTalkContext() == talkContext) {
+                return device;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 获取与指定源设备相同描述的设备。
+     *
+     * @param src 指定对比的源设备。
+     * @return 返回该联系保存的设备实例。
+     */
+    public Device getDevice(Device src) {
+        for (Device device : this.deviceList) {
+            if (device.equals(src)) {
+                return device;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 获取当前联系人第一个设备。
+     *
+     * @return
+     */
+    public Device getDevice() {
+        return (this.deviceList.isEmpty()) ? new Device("Unknown", "Unknown") : this.deviceList.get(0);
+    }
+
+    /**
+     * 获取设备列表。
+     *
+     * @return 返回设备列表。
+     */
+    public List<Device> getDeviceList() {
+        return new ArrayList<>(this.deviceList);
+    }
+
+    /**
+     * 是否包含指定设备。
+     *
+     * @param device 指定设备实例。
+     * @return 如果包含该设备返回 {@code true} ，否则返回 {@code false} 。
+     */
+    public boolean hasDevice(Device device) {
+        return this.deviceList.contains(device);
+    }
+
+    /**
+     * 设置附录。
+     * @see ContactAppendix
+     *
+     * @param appendix 指定联系人附录。
+     */
+    public void setAppendix(ContactAppendix appendix) {
+        this.appendix = appendix;
+    }
+
+    /**
+     * 获取附录。
+     * @see ContactAppendix
+     *
+     * @return 返回联系人附录。
+     */
+    public ContactAppendix getAppendix() {
+        return this.appendix;
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (object instanceof Contact) {
+            Contact other = (Contact) object;
+            if (other.id.longValue() == this.id.longValue() && other.domain.equals(this.domain)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return this.id.hashCode() * 3 + this.domain.hashCode() * 5;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public JSONObject toJSON() {
+        JSONObject json = super.toJSON();
+
+        if (null != this.deviceList && !this.deviceList.isEmpty()) {
+            JSONArray array = new JSONArray();
+            for (int i = 0, len = this.deviceList.size(); i < len; ++i) {
+                Device device = this.deviceList.get(i);
+                array.put(device.toJSON());
+            }
+            json.put("devices", array);
+        }
+
+        return json;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public JSONObject toCompactJSON() {
+        return super.toCompactJSON();
+    }
+
+    /**
+     * 在格式数据里增加指定设备。
+     *
+     * @param device 指定设备。
+     * @return 返回包含该设备的数据结构。
+     */
+    public JSONObject toJSON(Device device) {
+        JSONObject json = this.toJSON();
+        json.put("device", device.toJSON());
+        return json;
+    }
+
+    /**
+     * 判断指定联系人 ID 是否代表普通用户。
+     *
+     * @param contactId 联系人 ID 。
+     * @return 如果 ID 的十进制位数大于等于 8 返回 <code>true</code> 。
+     */
+    public static boolean isUserContactId(long contactId) {
+        return contactId >= MIN_USER_CONTACT_ID;
+    }
+
+    /**
+     * 判断指定联系人 ID 是否代表 AIGC 工作单元节点。
+     *
+     * @param contactId 联系人 ID 。
+     * @return 如果 ID 的十进制位数大于等于 6 且小于 8 返回 <code>true</code> 。
+     */
+    public static boolean isUnitContactId(long contactId) {
+        return contactId >= MIN_UNIT_CONTACT_ID && contactId < MIN_USER_CONTACT_ID;
+    }
+}

@@ -1,0 +1,289 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
+package cube.common.entity;
+
+import cube.common.JSONable;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * AI 能力集。
+ */
+public class AICapability implements JSONable {
+
+    public final static String MultimodalTask = "Multimodal";
+
+    public final static String NaturalLanguageProcessingTask = "NaturalLanguageProcessing";
+
+    public final static String ComputerVisionTask = "ComputerVision";
+
+    public final static String AudioProcessingTask = "AudioProcessing";
+
+    public final static String DataProcessingTask = "DataProcessing";
+
+    public final static String OtherProcessingTask = "OtherProcessing";
+
+    private final String name;
+
+    private final String task;
+
+    private final String version;
+
+    private final List<String> subtasks;
+
+    private final String description;
+
+    /** Optional protocol capabilities; older units declare none. */
+    private volatile JSONObject chatCompletion = new JSONObject();
+
+    public AICapability(String name, String task, String version, List<String> subtasks, String description) {
+        this.name = name;
+        this.task = task;
+        this.version = version;
+        this.subtasks = subtasks;
+        this.description = description;
+    }
+
+    public AICapability(JSONObject json) {
+        this.name = json.getString("name");
+        this.task = json.getString("task");
+        this.version = json.has("version") ? json.getString("version") : "1.0";
+
+        this.subtasks = new ArrayList<>();
+        if (json.has("subtask")) {
+            this.subtasks.add(json.getString("subtask"));
+        }
+        else if (json.has("subtasks")) {
+            JSONArray array = json.getJSONArray("subtasks");
+            for (int i = 0; i < array.length(); ++i) {
+                this.subtasks.add(array.getString(i));
+            }
+        }
+
+        this.description = json.getString("description");
+        if (json.optJSONObject("chatCompletion") != null) {
+            this.chatCompletion = new JSONObject(json.getJSONObject("chatCompletion").toString());
+        }
+    }
+
+    public String getName() {
+        return this.name;
+    }
+
+    public String getTask() {
+        return this.task;
+    }
+
+    public String getVersion() {
+        return this.version;
+    }
+
+    public String getPrimarySubtask() {
+        return this.subtasks.get(0);
+    }
+
+    public boolean containsSubtask(String subtask) {
+        return this.subtasks.contains(subtask);
+    }
+
+    public String getDescription() {
+        return this.description;
+    }
+
+    public JSONObject getChatCompletion() {
+        return new JSONObject(this.chatCompletion.toString());
+    }
+
+    public void setChatCompletion(JSONObject capability) {
+        this.chatCompletion = new JSONObject(capability.toString());
+    }
+
+    @Override
+    public JSONObject toJSON() {
+        JSONObject json = new JSONObject();
+        json.put("name", this.name);
+        json.put("task", this.task);
+        json.put("version", this.version);
+
+        if (this.subtasks.size() == 1) {
+            json.put("subtask", this.subtasks.get(0));
+        }
+        else {
+            JSONArray array = new JSONArray();
+            for (String subtask : this.subtasks) {
+                array.put(subtask);
+            }
+            json.put("subtasks", array);
+        }
+
+        json.put("description", this.description);
+        if (this.chatCompletion.length() != 0) {
+            json.put("chatCompletion", getChatCompletion());
+        }
+        return json;
+    }
+
+    @Override
+    public JSONObject toCompactJSON() {
+        return this.toJSON();
+    }
+
+
+    public static class Multimodal {
+
+        public final static String TextToImage = "TextToImage";
+
+        public final static String ImageToText = "ImageToText";
+
+        public final static String TextToVideo = "TextToVideo";
+
+        public final static String VisualQuestionAnswering = "VisualQuestionAnswering";
+
+        public final static String DocumentQuestionAnswering = "DocumentQuestionAnswering";
+
+        public final static String FeatureExtraction = "FeatureExtraction";
+
+        public final static String ImageTextToText = "ImageTextToText";
+
+        private Multimodal() {
+        }
+    }
+
+
+    public static class NaturalLanguageProcessing {
+
+        public final static String Segmentation = "Segmentation";
+
+        public final static String TextClassification = "TextClassification";
+
+        public final static String TokenClassification = "TokenClassification";
+
+        public final static String TableQuestionAnswering = "TableQuestionAnswering";
+
+        public final static String QuestionAnswering = "QuestionAnswering";
+
+        public final static String ZeroShotClassification = "ZeroShotClassification";
+
+        public final static String Translation = "Translation";
+
+        public final static String Summarization = "Summarization";
+
+        public final static String Conversational = "Conversational";
+
+        public final static String TextGeneration = "TextGeneration";
+
+        public final static String Text2TextGeneration = "Text2TextGeneration";
+
+        public final static String FillMask = "FillMask";
+
+        public final static String SentenceSimilarity = "SentenceSimilarity";
+
+        public final static String SentimentAnalysis = "SentimentAnalysis";
+
+        public final static String ExtractKeywords = "ExtractKeywords";
+
+        public final static String MultiTask = "MultiTask";
+
+        public final static String KnowledgeComprehension = "KnowledgeComprehension";
+
+        public final static String SemanticSearch = "SemanticSearch";
+
+        public final static String ParaphraseMining = "ParaphraseMining";
+
+        public final static String RetrieveReRank = "RetrieveReRank";
+
+        private NaturalLanguageProcessing() {
+        }
+    }
+
+
+    public static class ComputerVision {
+
+        public final static String DepthEstimation = "DepthEstimation";
+
+        public final static String ImageClassification = "ImageClassification";
+
+        public final static String ObjectDetection = "ObjectDetection";
+
+        public final static String ImageSegmentation = "ImageSegmentation";
+
+        public final static String ImageToImage = "ImageToImage";
+
+        public final static String UnconditionalImageGeneration = "UnconditionalImageGeneration";
+
+        public final static String VideoClassification = "VideoClassification";
+
+        public final static String ZeroShotImageClassification = "ZeroShotImageClassification";
+
+        public final static String FacialExpressionRecognition = "FacialExpressionRecognition";
+
+        public final static String PoseEstimation = "PoseEstimation";
+
+        private ComputerVision() {
+        }
+    }
+
+
+    public static class AudioProcessing {
+
+        public final static String TextToSpeech = "TextToSpeech";
+
+        public final static String AutomaticSpeechRecognition = "AutomaticSpeechRecognition";
+
+        public final static String AudioToAudio = "AudioToAudio";
+
+        public final static String AudioClassification = "AudioClassification";
+
+        public final static String VoiceActivityDetection = "VoiceActivityDetection";
+
+        /**
+         * 说话人验证。
+         */
+        public final static String SpeakerVerification = "SpeakerVerification";
+
+        /**
+         * 说话人识别。
+         */
+        public final static String SpeakerIdentification = "SpeakerIdentification";
+
+        /**
+         * 说话人分割聚类、说话人分离。
+         */
+        public final static String SpeakerDiarization = "SpeakerDiarization";
+
+        private AudioProcessing() {
+        }
+    }
+
+
+    public static class DataProcessing {
+
+        public final static String ExtractURLContent = "ExtractURLContent";
+
+        private DataProcessing() {
+        }
+    }
+
+    public static class PsychologyProcessing {
+
+        public final static String GeneratePaintingTemplateArticle = "GeneratePaintingTemplateArticle";
+
+        private PsychologyProcessing() {
+        }
+    }
+
+    public static class OtherProcessing {
+
+        public final static String Psychology = "Psychology";
+
+        private OtherProcessing() {
+        }
+    }
+}
