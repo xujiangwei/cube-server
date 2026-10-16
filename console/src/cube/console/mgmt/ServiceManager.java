@@ -1,0 +1,456 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
+package cube.console.mgmt;
+
+import cell.util.log.Logger;
+import cube.console.storage.ServiceStorage;
+import cube.console.tool.DeployTool;
+import cube.util.ConfigUtils;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * 服务单元管理器。
+ */
+public class ServiceManager {
+
+    private String tag;
+
+    private ServiceStorage storage;
+
+    private Path deploySourcePath;
+
+    private Map<String, ServiceServer> serverMap;
+
+    private long timeout = 5L * 60L * 1000L;
+
+    public ServiceManager(String tag) {
+        this.tag = tag;
+        this.serverMap = new ConcurrentHashMap<>();
+    }
+
+    public void start() {
+        String filepath = null;
+        for (String path : DeployTool.CONSOLE_PROP_FILES) {
+            File file = new File(path);
+            if (file.exists()) {
+                filepath = path;
+                break;
+            }
+        }
+
+        try {
+            Properties properties = ConfigUtils.readProperties(filepath);
+            this.storage = new ServiceStorage(properties);
+            this.storage.open();
+        } catch (IOException e) {
+            Logger.w(this.getClass(), "#start", e);
+        }
+
+        this.deploySourcePath = DeployTool.searchDeploySource();
+        if (null != this.deploySourcePath) {
+            Logger.i(this.getClass(), "Deploy source path: " + this.deploySourcePath.toString());
+
+            // 检查当前库里是否有默认部署信息
+            ServiceServer server = this.storage.readServer(this.tag, this.deploySourcePath.toString());
+            if (null == server) {
+                // 插入本地部署
+                this.storage.writeServer(this.tag, this.getDefaultDeployPath(),
+                        this.getDefaultConfigPath(), this.getDefaultCelletsPath());
+            }
+        }
+        else {
+            Logger.e(this.getClass(), "Can NOT find deploy source path");
+        }
+    }
+
+    public void stop() {
+        if (null != this.storage) {
+            this.storage.close();
+        }
+    }
+
+    public void tick(long now) {
+        // 按照指定超时时间删除内存里的服务器数据
+        Iterator<ServiceServer> iter = this.serverMap.values().iterator();
+        while (iter.hasNext()) {
+            ServiceServer server = iter.next();
+            if (now - server.timestamp > this.timeout) {
+                iter.remove();
+            }
+            else {
+                // 刷新运行状态。列表接口只在缓存未命中时才做一次完整 refresh，
+                // 若不在这里周期性刷新，运行状态会一直陈旧到缓存超时（5 分钟）。
+                server.refreshRunning();
+            }
+        }
+    }
+
+    public String getDefaultDeployPath() {
+        if (null == this.deploySourcePath) {
+            return null;
+        }
+
+        return this.deploySourcePath.toString();
+    }
+
+    public String getDefaultConfigPath() {
+        if (null == this.deploySourcePath) {
+            return null;
+        }
+
+        Path path = Paths.get(this.deploySourcePath.toString(), "config");
+        return path.toString();
+    }
+
+    public String getDefaultCelletsPath() {
+        if (null == this.deploySourcePath) {
+            return null;
+        }
+
+        Path path = Paths.get(this.deploySourcePath.toString(), "cellets");
+        return path.toString();
+    }
+
+    /**
+     * 返回内存中已加载的服务器名集合。
+     *
+     * 只读取内存缓存，不做任何文件或数据库访问，供上报路径做节点名归一使用。
+     *
+     * @return 服务器名集合，可能为空。
+     */
+    public java.util.Set<String> listServerNames() {
+        java.util.Set<String> result = new java.util.HashSet<>();
+        for (ServiceServer server : this.serverMap.values()) {
+            String name = server.getName();
+            if (null != name) {
+                result.add(name);
+            }
+        }
+        return result;
+    }
+
+    public List<ServiceServer> listServiceServers() {
+        if (null == this.deploySourcePath) {
+            return null;
+        }
+
+        List<ServiceServer> list = this.storage.listServers();
+        if (null == list) {
+            return null;
+        }
+
+        for (int i = 0; i < list.size(); ++i) {
+            ServiceServer server = list.get(i);
+
+            if (this.tag.equals(server.tag)) {
+                if (!this.serverMap.containsKey(server.deployPath)) {
+                    server.refresh();
+
+                    if (server.isLocal()) {
+                        this.serverMap.put(server.deployPath, server);
+                    }
+                }
+                else {
+                    list.set(i, this.serverMap.get(server.deployPath));
+                }
+            }
+            else {
+                // TODO
+            }
+        }
+
+        List<ServiceServer> result = new ArrayList<>(this.serverMap.values());
+        for (ServiceServer server : result) {
+            // 保证本次响应里的运行状态是最新的（心跳为内存查询，端口探测有 3 秒结果缓存）
+            server.refreshRunning();
+        }
+
+        return result;
+    }
+
+    public ServiceServer getServiceServer(String tag, String deployPath) {
+        ServiceServer server = null;
+
+        if (this.tag.equals(tag)) {
+            server = this.serverMap.get(deployPath);
+            if (null != server) {
+                return server;
+            }
+        }
+
+        server = this.storage.readServer(tag, deployPath);
+        if (null == server) {
+            return null;
+        }
+
+        if (this.tag.equals(server.tag)) {
+            server.refresh();
+
+            if (server.isLocal()) {
+                this.serverMap.put(deployPath, server);
+            }
+        }
+        else {
+            // TODO
+        }
+
+        return server;
+    }
+
+    public ServiceServer updateServiceServer(JSONObject data)
+            throws JSONException {
+        String tag = data.getString("tag");
+        String deployPath = data.getString("deployPath");
+
+        return null;
+    }
+
+    /**
+     * 启动服务器。
+     *
+     * @param tag
+     * @param deployPath
+     * @param password
+     * @return
+     */
+    public ServiceServer startService(final String tag, final String deployPath, final String password) {
+        ServiceServer server = getServiceServer(tag, deployPath);
+        if (null == server) {
+            return null;
+        }
+
+        // 判断运行状态
+        if (!server.isRunning()) {
+            if (this.tag.equals(server.tag)) {
+                (new Thread() {
+                    @Override
+                    public void run() {
+                        int status = 1;
+                        ProcessBuilder pb = new ProcessBuilder(deployPath + "/start-service.sh");
+                        pb.directory(new File(deployPath));
+                        try {
+                            // 执行脚本
+                            Process process = pb.start();
+                            BufferedReader stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                            BufferedReader stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+
+                            (new Thread() {
+                                @Override
+                                public void run() {
+                                    String line = null;
+                                    try {
+                                        while ((line = stdInput.readLine()) != null) {
+                                            if (line.length() > 0) {
+                                                Logger.i(DispatcherManager.class, "#startService - " + line);
+                                            }
+                                        }
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                    } finally {
+                                        if (null != stdInput) {
+                                            try {
+                                                stdInput.close();
+                                            } catch (IOException e) {
+                                            }
+                                        }
+                                    }
+                                }
+                            }).start();
+
+                            (new Thread() {
+                                @Override
+                                public void run() {
+                                    String line = null;
+                                    try {
+                                        while ((line = stdError.readLine()) != null) {
+                                            if (line.length() > 0) {
+                                                Logger.w(DispatcherManager.class, "#startService - " + line);
+                                            }
+                                        }
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                    } finally {
+                                        if (null != stdError) {
+                                            try {
+                                                stdError.close();
+                                            } catch (IOException e) {
+                                            }
+                                        }
+                                    }
+                                }
+                            }).start();
+
+                            try {
+                                status = process.waitFor();
+                            } catch (InterruptedException e) {
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                        Logger.i(DispatcherManager.class, "Start service '" + deployPath + "' - " + status);
+
+                        // 5秒后刷新状态
+                        AtomicInteger count = new AtomicInteger(8);
+                        Timer timer = new Timer();
+                        TimerTask task = new TimerTask() {
+                            @Override
+                            public void run() {
+                                ServiceServer server = getServiceServer(tag, deployPath);
+                                // 刷新数据
+                                server.refresh();
+
+                                if (server.isRunning()) {
+                                    timer.cancel();
+                                    return;
+                                }
+
+                                if (count.decrementAndGet() == 0) {
+                                    timer.cancel();
+                                }
+                            }
+                        };
+                        timer.schedule(task, 5000, 3000);
+                    }
+                }).start();
+            }
+            else {
+                // TODO
+            }
+        }
+
+        return server;
+    }
+
+    /**
+     * 关停服务器。
+     *
+     * @param tag
+     * @param deployPath
+     * @param password
+     * @return
+     */
+    public ServiceServer stopService(String tag, String deployPath, String password) {
+        ServiceServer server = getServiceServer(tag, deployPath);
+        if (null == server) {
+            return null;
+        }
+
+        // 判断运行状态
+        if (server.isRunning()) {
+            if (this.tag.equals(server.tag)) {
+                (new Thread() {
+                    @Override
+                    public void run() {
+                        int status = 1;
+                        ProcessBuilder pb = new ProcessBuilder(deployPath + "/stop-service.sh");
+                        pb.directory(new File(deployPath));
+                        try {
+                            // 执行脚本
+                            Process process = pb.start();
+                            BufferedReader stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                            BufferedReader stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+
+                            (new Thread() {
+                                @Override
+                                public void run() {
+                                    String line = null;
+                                    try {
+                                        while ((line = stdInput.readLine()) != null) {
+                                            if (line.length() > 0) {
+                                                Logger.i(DispatcherManager.class, "#stopService - " + line);
+                                            }
+                                        }
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                    } finally {
+                                        if (null != stdInput) {
+                                            try {
+                                                stdInput.close();
+                                            } catch (IOException e) {
+                                            }
+                                        }
+                                    }
+                                }
+                            }).start();
+
+                            (new Thread() {
+                                @Override
+                                public void run() {
+                                    String line = null;
+                                    try {
+                                        while ((line = stdError.readLine()) != null) {
+                                            if (line.length() > 0) {
+                                                Logger.w(DispatcherManager.class, "#stopService - " + line);
+                                            }
+                                        }
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                    } finally {
+                                        if (null != stdError) {
+                                            try {
+                                                stdError.close();
+                                            } catch (IOException e) {
+                                            }
+                                        }
+                                    }
+                                }
+                            }).start();
+
+                            try {
+                                status = process.waitFor();
+                            } catch (InterruptedException e) {
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                        Logger.i(DispatcherManager.class, "Stop service '" + deployPath + "' - " + status);
+
+                        // 5秒后刷新状态
+                        AtomicInteger count = new AtomicInteger(8);
+                        Timer timer = new Timer();
+                        TimerTask task = new TimerTask() {
+                            @Override
+                            public void run() {
+                                ServiceServer server = getServiceServer(tag, deployPath);
+                                // 刷新数据
+                                server.refresh();
+
+                                if (!server.isRunning()) {
+                                    timer.cancel();
+                                    return;
+                                }
+
+                                if (count.decrementAndGet() == 0) {
+                                    timer.cancel();
+                                }
+                            }
+                        };
+                        timer.schedule(task, 5000, 2000);
+                    }
+                }).start();
+            }
+            else {
+                // TODO
+            }
+        }
+
+        return server;
+    }
+}
