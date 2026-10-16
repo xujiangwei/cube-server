@@ -1,0 +1,582 @@
+{
+    "category": {
+        "Personality": {
+            "name": "人格",
+            "scales": [
+                {
+                    "classification": "个性",
+                    "factors": [
+                        "外向性（内向性）",
+                        "神经质（高/低）",
+                        "精神性（高/低）",
+                        "掩饰性（高/低）"
+                    ],
+                    "title": "艾森克人格量表",
+                    "name": "EysenckPersonalityQuestionnaire"
+                },
+                {
+                    "classification": "大五人格",
+                    "factors": [
+                        "宜人性（高/低）",
+                        "尽责性（高/低）",
+                        "外向性（高/低）",
+                        "进取性（高/低）",
+                        "情绪性（高/低）"
+                    ],
+                    "title": "大五人格量表",
+                    "name": "NEOFiveFactorInventory"
+                },
+                {
+                    "classification": "16种人格因素",
+                    "factors": [
+                        "乐群性",
+                        "聪慧性",
+                        "稳定性",
+                        "恃强性",
+                        "兴奋性",
+                        "有恒性",
+                        "敢为性",
+                        "敏感性",
+                        "怀疑性",
+                        "幻想性",
+                        "世故性",
+                        "忧虑性",
+                        "实验性",
+                        "独立性",
+                        "自律性",
+                        "紧张性"
+                    ],
+                    "title": "卡特尔16种人格测验",
+                    "name": "16PersonalityFactorsQuestionnaire"
+                },
+                {
+                    "classification": "16型人格",
+                    "factors": [
+                        "外向（E）",
+                        "内向（I）",
+                        "感觉（S）",
+                        "直觉（N）",
+                        "思考（T）",
+                        "情感（F）",
+                        "知觉（P）",
+                        "判断（J）"
+                    ],
+                    "title": "MBTI性格测试",
+                    "name": "MBTI-16Personalities"
+                }
+            ]
+        },
+        "Emotion": {
+            "name": "情绪",
+            "scales": [
+                {
+                    "classification": "情绪状态",
+                    "factors": [
+                        "积极情绪",
+                        "消极情绪"
+                    ],
+                    "title": "积极与消极情感量表",
+                    "name": "PositiveNegativeAffectSchedule"
+                },
+                {
+                    "classification": "情绪状态",
+                    "factors": [
+                        "紧张",
+                        "抑郁",
+                        "愤怒",
+                        "疲劳",
+                        "活力",
+                        "混杂"
+                    ],
+                    "title": "情绪状态问卷",
+                    "name": "ProfileOfMoodStates"
+                },
+                {
+                    "classification": "抑郁",
+                    "factors": [],
+                    "title": "抑郁自评量表",
+                    "name": "Self-ratingDepressionScale"
+                },
+                {
+                    "classification": "抑郁",
+                    "factors": [],
+                    "title": "贝克抑郁自评量表",
+                    "name": "BeckDepressionInventory"
+                },
+                {
+                    "classification": "抑郁",
+                    "factors": [],
+                    "title": "流调中心用抑郁量表",
+                    "name": "CenterForEpidemiologicStudiesDepressionScale"
+                },
+                {
+                    "classification": "焦虑",
+                    "factors": [],
+                    "title": "焦虑自评量表",
+                    "name": "Self-ratingAnxietyScale"
+                },
+                {
+                    "classification": "焦虑",
+                    "factors": [],
+                    "title": "状态一特质焦虑问卷",
+                    "name": "State-TraitAnxietyInventory"
+                },
+                {
+                    "classification": "愤怒",
+                    "factors": [],
+                    "title": "状态-特质愤怒表达量表",
+                    "name": "State-TraitAngerExpressionInventory"
+                },
+                {
+                    "classification": "愤怒",
+                    "factors": [],
+                    "title": "Buss-Perry攻击性量表",
+                    "name": "Buss-PerryAggressionQuestionnaire"
+                },
+                {
+                    "classification": "愤怒",
+                    "factors": [],
+                    "title": "工作愤怒量表",
+                    "name": "WorkplaceAngerScale"
+                },
+                {
+                    "classification": "害羞",
+                    "factors": [],
+                    "title": "羞怯量表",
+                    "name": "ShynessScale"
+                },
+                {
+                    "classification": "害羞",
+                    "factors": [],
+                    "title": "社交回避及苦恼量表",
+                    "name": "SocialAvoidanceAndDistressScale"
+                },
+                {
+                    "classification": "内疚",
+                    "factors": [],
+                    "title": "内疚和羞耻倾向量表",
+                    "name": "GuiltAndShamePronenessScale"
+                }
+            ]
+        },
+        "Cognition": {
+            "name": "认知",
+            "scales": [
+                {
+                    "classification": "注意",
+                    "factors": [],
+                    "title": "注意控制量表",
+                    "name": "AttentionalControlScale"
+                },
+                {
+                    "classification": "注意",
+                    "factors": [],
+                    "title": "正念觉知注意量表",
+                    "name": "MindfulAttentionAwarenessScale"
+                },
+                {
+                    "classification": "记忆",
+                    "factors": [],
+                    "title": "数字广度测试",
+                    "name": "DigitSpan"
+                },
+                {
+                    "classification": "自我控制",
+                    "factors": [
+                        "冲动控制"
+                    ],
+                    "title": "简式自我控制量表",
+                    "name": "BriefSelfControlScale"
+                },
+                {
+                    "classification": "自我控制",
+                    "factors": [
+                        "冲动控制",
+                        "健康习惯",
+                        "抵御诱惑",
+                        "专注工作",
+                        "节制娱乐"
+                    ],
+                    "title": "大学生自我控制量表",
+                    "name": "SelfControlScale"
+                },
+                {
+                    "classification": "执行功能",
+                    "factors": [
+                        "抑制控制"
+                    ],
+                    "title": "行为抑制系统量表",
+                    "name": "BehavioralInhibitionSystemScale"
+                },
+                {
+                    "classification": "执行功能",
+                    "factors": [
+                        "认知灵活性"
+                    ],
+                    "title": "认知灵活性量表",
+                    "name": "CognitiveFlexibilityScale"
+                },
+                {
+                    "classification": "智商",
+                    "factors": [],
+                    "title": "韦克斯勒成人智力量表",
+                    "name": "WechslerAdultIntelligenceScale"
+                },
+                {
+                    "classification": "智商",
+                    "factors": [],
+                    "title": "瑞文标准推理测试",
+                    "name": "RavenProgressiveMatrices"
+                }
+            ]
+        },
+        "Behavior": {
+            "name": "行为",
+            "scales": [
+                {
+                    "classification": "攻击行为",
+                    "factors": [
+                        "身体攻击",
+                        "言语攻击",
+                        "愤怒",
+                        "敌意"
+                    ],
+                    "title": "Buss-Perry攻击性量表",
+                    "name": "Buss-PerryAggressionQuestionnaire"
+                },
+                {
+                    "classification": "攻击行为",
+                    "factors": [
+                        "反应性攻击",
+                        "主动性攻击"
+                    ],
+                    "title": "简版反应性–主动性攻击问卷",
+                    "name": "Reactive-ProactiveAggressionQuestionnaire"
+                },
+                {
+                    "classification": "冲动行为",
+                    "factors": [
+                        "非计划冲动性",
+                        "行动冲动性",
+                        "认知冲动性"
+                    ],
+                    "title": "Barratt冲动量表",
+                    "name": "BarrattImpulsivenessScaleVersion11"
+                },
+                {
+                    "classification": "冲动行为",
+                    "factors": [
+                        "功能性冲动",
+                        "非功能性冲动"
+                    ],
+                    "title": "Dickman冲动性量表",
+                    "name": "DickmanImpulsivityInventory"
+                },
+                {
+                    "classification": "成瘾行为",
+                    "factors": [],
+                    "title": "网络成瘾测试量表",
+                    "name": "InternetAddictionTest"
+                },
+                {
+                    "classification": "成瘾行为",
+                    "factors": [],
+                    "title": "游戏成瘾量表",
+                    "name": "GameAddictionScale"
+                },
+                {
+                    "classification": "亲社会行为",
+                    "factors": [
+                        "对他人的同情、理解和援助"
+                    ],
+                    "title": "亲社会倾向量表",
+                    "name": "ProsocialTendencyMeasure"
+                },
+                {
+                    "classification": "应对方式",
+                    "factors": [
+                        "积极应对",
+                        "消极应对",
+                        "情感寻求支持",
+                        "问题解决"
+                    ],
+                    "title": "应对方式问卷",
+                    "name": "CopingOrientationToProblemsExperienced"
+                },
+                {
+                    "classification": "应对方式",
+                    "factors": [],
+                    "title": "简易应对问卷",
+                    "name": "BriefCOPE"
+                }
+            ]
+        },
+        "InterpersonalRelationship": {
+            "name": "人际关系",
+            "scales": [
+                {
+                    "classification": "亲子关系",
+                    "factors": [
+                        "情感交流",
+                        "积极沟通",
+                        "自我主义",
+                        "问题解决",
+                        "家庭规则"
+                    ],
+                    "title": "亲子关系量表",
+                    "name": "Parent-ChildRelationshipInventory"
+                },
+                {
+                    "classification": "亲子关系",
+                    "factors": [
+                        "接纳/拒绝",
+                        "心理自主/心理受控",
+                        "严厉/放纵"
+                    ],
+                    "title": "父母教育方式评价量表",
+                    "name": "EgnaMinnenBarndomsUppfostran"
+                },
+                {
+                    "classification": "亲密关系",
+                    "factors": [],
+                    "title": "关系评估量表",
+                    "name": "RelationshipAssessmentScale"
+                },
+                {
+                    "classification": "依恋",
+                    "factors": [
+                        "安全型",
+                        "恐惧型",
+                        "专注型",
+                        "冷漠型"
+                    ],
+                    "title": "亲密关系经历量表",
+                    "name": "ExperiencesInCloseRelationshipsScale"
+                },
+                {
+                    "classification": "依恋",
+                    "factors": [],
+                    "title": "成人依恋量表",
+                    "name": "AdultAttachmentScale"
+                },
+                {
+                    "classification": "友谊",
+                    "factors": [
+                        "亲密性",
+                        "支持",
+                        "冲突"
+                    ],
+                    "title": "友谊质量量表",
+                    "name": "FriendshipQualityScale"
+                },
+                {
+                    "classification": "恋爱",
+                    "factors": [
+                        "浪漫型",
+                        "同伴型",
+                        "现实型",
+                        "游戏型",
+                        "占有型",
+                        "奉献型"
+                    ],
+                    "title": "爱情态度量表",
+                    "name": "LoveAttitudeScale"
+                },
+                {
+                    "classification": "恋爱",
+                    "factors": [
+                        "关怀",
+                        "依附",
+                        "亲密"
+                    ],
+                    "title": "鲁宾的爱情量表",
+                    "name": "RubinLoveScale"
+                },
+                {
+                    "classification": "恋爱",
+                    "factors": [
+                        "亲密",
+                        "激情",
+                        "承诺"
+                    ],
+                    "title": "爱情三元量表",
+                    "name": "SternbergLoveTriangleScale"
+                },
+                {
+                    "classification": "信任",
+                    "factors": [],
+                    "title": "人际信任量表",
+                    "name": "InterpersonalTrustScale"
+                },
+                {
+                    "classification": "信任",
+                    "factors": [],
+                    "title": "信任量表",
+                    "name": "TrustScale"
+                },
+                {
+                    "classification": "社会支持",
+                    "factors": [
+                        "家庭支持",
+                        "朋友支持",
+                        "他人支持"
+                    ],
+                    "title": "领悟社会支持量表",
+                    "name": "PerceivedSocialSupportScale"
+                },
+                {
+                    "classification": "社会支持",
+                    "factors": [],
+                    "title": "社会支持评定量表",
+                    "name": "SocialSupportRatingScale"
+                },
+                {
+                    "classification": "职业关系",
+                    "factors": [
+                        "员工与领导的关系"
+                    ],
+                    "title": "关系能量量表",
+                    "name": "RelationalEnergyScale"
+                },
+                {
+                    "classification": "职业关系",
+                    "factors": [
+                        "同事关系"
+                    ],
+                    "title": "人际冲突量表",
+                    "name": "InterpersonalConflictAtWorkScale"
+                }
+            ]
+        },
+        "SelfAssessment": {
+            "name": "自我评价",
+            "scales": [
+                {
+                    "classification": "自尊",
+                    "factors": [],
+                    "title": "罗森伯格自尊量表",
+                    "name": "RosenbergSelf-EsteemScale"
+                },
+                {
+                    "classification": "自我效能感",
+                    "factors": [],
+                    "title": "一般自我效能感量表",
+                    "name": "GeneralSelf-EfficacyScale"
+                },
+                {
+                    "classification": "自我效能感",
+                    "factors": [
+                        "社交困难",
+                        "社交信心",
+                        "分享兴趣",
+                        "主动建立友谊"
+                    ],
+                    "title": "学生社会自我效能感问卷",
+                    "name": "SocialSelf-EfficacyScaleForStudents"
+                },
+                {
+                    "classification": "主观幸福感",
+                    "factors": [
+                        "情感",
+                        "认知"
+                    ],
+                    "title": "主观幸福感量表",
+                    "name": "SubjectiveWell-Being"
+                },
+                {
+                    "classification": "主观幸福感",
+                    "factors": [
+                        "生活满意度"
+                    ],
+                    "title": "生活满意度指数A",
+                    "name": "LifeSatisfactionIndexA"
+                },
+                {
+                    "classification": "主观幸福感",
+                    "factors": [
+                        "生活满意度"
+                    ],
+                    "title": "生活满意度指数B",
+                    "name": "LifeSatisfactionIndexB"
+                }
+            ]
+        },
+        "MentalHealth": {
+            "name": "心理健康",
+            "scales": [
+                {
+                    "classification": "精神症状",
+                    "factors": [
+                        "躯体化",
+                        "强迫症状",
+                        "人际关系敏感",
+                        "抑郁",
+                        "焦虑",
+                        "敌对",
+                        "恐怖",
+                        "偏执",
+                        "精神病性",
+                        "其他"
+                    ],
+                    "title": "90项症状清单",
+                    "name": "SCL-90"
+                },
+                {
+                    "classification": "心理弹性",
+                    "factors": [
+                        "坚韧性",
+                        "力量性",
+                        "乐观性"
+                    ],
+                    "title": "心理弹性量表",
+                    "name": "Connor-DavidsonResilienceScale"
+                },
+                {
+                    "classification": "压力",
+                    "factors": [
+                        "工作量",
+                        "工作控制",
+                        "工作满意度"
+                    ],
+                    "title": "工作压力量表",
+                    "name": "JobStressSurvey"
+                },
+                {
+                    "classification": "疲劳",
+                    "factors": [
+                        "体力疲劳",
+                        "心理疲劳",
+                        "情绪疲劳",
+                        "认知疲劳"
+                    ],
+                    "title": "多维疲劳库存量表",
+                    "name": "MultidimensionalFatigueInventory"
+                }
+            ]
+        },
+        "Capacity": {
+            "name": "能力",
+            "scales": [
+                {
+                    "classification": "职业相性",
+                    "factors": [
+                        "现实型（R）",
+                        "研究型（I）",
+                        "艺术型（A）",
+                        "社会型（S）",
+                        "企业型（E）",
+                        "常规型（C）"
+                    ],
+                    "title": "霍兰德职业兴趣量表",
+                    "name": "HollandCode"
+                },
+                {
+                    "classification": "工作状态和满意度",
+                    "factors": [],
+                    "title": "工作旺盛感量表",
+                    "name": "ThrivingAtWorkScale"
+                }
+            ]
+        }
+    }
+}

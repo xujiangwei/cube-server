@@ -1,0 +1,112 @@
+<?xml version="1.0"?>
+
+<!-- ======================================================================= -->
+<!-- Cube Service Build File                                                 -->
+<!-- ======================================================================= -->
+
+<project name="cube-service" default="build-release" basedir=".">
+
+	<property name="version.brand" value="3.0" />
+
+	<property name="version.tgt" value="1.8" />
+	<property name="version.src" value="1.8" />
+
+	<property name="src.dir" value="src" />
+	<property name="lib.dir" value="../../cube-server-dependencies" />
+	<property name="common.dir" value="../build" />
+	<property name="doc.dir" value="doc" />
+
+	<property name="build.dir" value="build" />
+	<property name="build.classes" value="${build.dir}/classes" />
+	<property name="build.jar" value="${build.dir}/jar" />
+
+	<path id="master-classpath">
+		<fileset dir="${lib.dir}">
+			<include name="*.jar" />
+		</fileset>
+		<fileset dir="${common.dir}">
+			<include name="cube-common-*.jar" />
+			<!-- 刻意【不】包含 cube-service-psychology-*.jar。
+			     心理学业务模块插件在运行期经 deploy/libs/ 装载（与宿主同一
+			     ClassLoader），但编译期宿主【零引用】它的任何类型：
+			     报告运行态、语音流、陪练与咨询编排均已迁入插件，
+			     宿主只经 cube.aigc.spi.* 与它交互。
+			     若此处重新 include，宿主就会悄悄恢复对插件的编译期依赖。 -->
+		</fileset>
+		<pathelement path="${build.classes}" />
+	</path>
+
+	<target name="init">
+		<mkdir dir="${build.dir}" />
+		<mkdir dir="${build.classes}" />
+		<mkdir dir="${build.jar}" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Cleans up generated stuff                                           -->
+	<!-- =================================================================== -->
+	<target name="clean">
+		<delete failonerror="false" includeemptydirs="true">
+			<fileset dir="${build.dir}"/>
+		</delete>
+		<delete file="../build/cube-service-${version.brand}.jar" failonerror="false" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Dispenses project for debug                                         -->
+	<!-- =================================================================== -->
+	<target name="debug" depends="clean, init">
+		<javac target="${version.tgt}" source="${version.src}" fork="yes" srcdir="${src.dir}" destdir="${build.classes}" debug="on" encoding="UTF-8" deprecation="on" optimize="off">
+			<classpath refid="master-classpath" />
+		</javac>
+		<delete file="${build.jar}/cube-service.jar" failonerror="false" />
+		<jar destfile="${build.jar}/cube-service.jar" basedir="${build.classes}" excludes="cube/service/test/**" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Dispenses project for release                                       -->
+	<!-- =================================================================== -->
+	<target name="release" depends="clean, init">
+		<javac target="${version.tgt}" source="${version.src}" fork="yes" srcdir="${src.dir}" destdir="${build.classes}" debug="off" encoding="UTF-8" deprecation="on" optimize="on">
+			<classpath refid="master-classpath" />
+		</javac>
+		<delete file="${build.jar}/cube-service.jar" failonerror="false" />
+		<jar destfile="${build.jar}/cube-service.jar" basedir="${build.classes}" excludes="cube/service/test/**" />
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds project for debug                                            -->
+	<!-- =================================================================== -->
+	<target name="build-debug" depends="debug">
+		<delete file="../build/cube-service-${version.brand}.jar" failonerror="false" />
+		<copy file="${build.jar}/cube-service.jar" tofile="../build/cube-service-${version.brand}.jar"/>
+		<echo>Build project for debug.</echo>
+		<echo>Copyright (C) 2020 Cube Team. All rights reserved.</echo>
+	</target>
+
+	<!-- =================================================================== -->
+	<!-- Builds project for release                                          -->
+	<!-- =================================================================== -->
+	<target name="build-release" depends="release">
+		<delete file="../build/cube-service-${version.brand}.jar" failonerror="false" />
+		<copy file="${build.jar}/cube-service.jar" tofile="../build/cube-service-${version.brand}.jar"/>
+		<echo>Build project for release.</echo>
+		<echo>Copyright (C) 2020 Cube Team. All rights reserved.</echo>
+	</target>
+	
+	<!-- =================================================================== -->
+	<!-- Generates API document                                              -->
+	<!-- =================================================================== -->
+	<target name="doc">
+		<delete failonerror="false" includeemptydirs="true">
+			<fileset dir="${doc.dir}"/>
+		</delete>
+		<javadoc destdir="${doc.dir}" windowtitle="Cube Service API Documents" encoding="UTF-8" docencoding="UTF-8">
+			<packageset dir="${src.dir}">
+				<include name="**"/>
+				<exclude name="cube/service/test/**" />
+			</packageset>
+		</javadoc>
+	</target>
+
+</project>

@@ -1,0 +1,48 @@
+{
+  "files": [
+    {
+      "name": "general",
+      "file": "general.md"
+    },
+    {
+      "name": "revolver",
+      "file": "revolver.md"
+    },
+    {
+      "name": "revolver_no_info",
+      "file": "revolver_no_info.md"
+    },
+    {
+      "name": "psy_organize_record",
+      "file": "psy_organize_record.md"
+    },
+    {
+      "name": "psy_supervise_record",
+      "file": "psy_supervise_record.md"
+    },
+    {
+      "name": "psy_template_report",
+      "file": "psy_template_report.md"
+    },
+    {
+      "name": "psy_popularization_report",
+      "file": "psy_popularization_report.md"
+    },
+    {
+      "name": "psy_appointment_data",
+      "file": "psy_appointment_data.md"
+    },
+    {
+      "name": "psy_appointment_answer",
+      "file": "psy_appointment_answer.md"
+    },
+    {
+      "name": "srbc-integration_zone",
+      "file": "srbc-integration_zone.md"
+    },
+    {
+      "name": "srbc-blind_spots",
+      "file": "srbc-blind_spots.md"
+    }
+  ]
+}

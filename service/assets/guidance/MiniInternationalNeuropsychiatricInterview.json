@@ -1,0 +1,201 @@
+{
+    "name": "MINI",
+    "displayName": "Mini International Neuropsychiatric Interview",
+    "keywords": [ "诊断", "心理", "访谈", "问卷", "DSM" ],
+    "instruction": "我会使用专业的访谈问卷进行接下来的谈话，如果对任何不完全清楚的问题您可以提出澄清的要求。为了使访谈尽可能简短，我将进行一个定式的访谈。在访谈中，关于心理问题的非常准确的问句请使用“是”或“否”作答。",
+    "explainPrefix": "在心理诊断访谈问答的场景下，你作为心理专家正在提出问题。",
+    "noResults": "",
+    "questionableResults": "",
+    "sections": [
+        {
+            "name": "抑郁发作",
+            "questions": [
+                {
+                    "sn": "A1a",
+                    "question": "您是否曾经在两个星期几乎每天的大部分时间里都觉得抑郁或情绪低落?",
+                    "original": true,
+                    "answers": [
+                        {
+                            "code": "true",
+                            "content": "是"
+                        },
+                        {
+                            "code": "false",
+                            "content": "否"
+                        }
+                    ],
+                    "router": {
+                        "rule": "true-or-false",
+                        "route": {
+                            "true": {
+                                "jump": "A1b"
+                            },
+                            "false": {
+                                "jump": "A2a",
+                                "answer": {
+                                    "A1b": "false"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "sn": "A1b",
+                    "question": "在过去的两周里，您是否几乎每天的大部分时间都觉得抑郁或情绪低落?",
+                    "original": true,
+                    "answers": [
+                        {
+                            "code": "true",
+                            "content": "是"
+                        },
+                        {
+                            "code": "false",
+                            "content": "否"
+                        }
+                    ],
+                    "router": {
+                        "rule": "true-or-false",
+                        "route": {
+                            "true": {
+                                "jump": "A2a"
+                            },
+                            "false": {
+                                "jump": "A2a"
+                            }
+                        }
+                    }
+                },
+                {
+                    "sn": "A2a",
+                    "question": "您是否曾经在两个星期的大部分时间里对大多数的事物表现出更少的兴趣或对曾经喜欢的事物表现出更少的喜爱?",
+                    "original": true,
+                    "answers": [
+                        {
+                            "code": "true",
+                            "content": "是"
+                        },
+                        {
+                            "code": "false",
+                            "content": "否"
+                        }
+                    ],
+                    "router": {
+                        "rule": "true-or-false",
+                        "route": {
+                            "true": {
+                                "jump": "A2b"
+                            },
+                            "false": {
+                                "jump": "A3a",
+                                "answer": {
+                                    "A2b": "false"
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "sn": "A2b",
+                    "question": "在过去的两周里，您是否在大部分的时间里对大多数的事物表现出更少的兴趣或对曾经喜欢的事物表现出更少的喜爱?",
+                    "original": true,
+                    "answers": [
+                        {
+                            "code": "true",
+                            "content": "是"
+                        },
+                        {
+                            "code": "false",
+                            "content": "否"
+                        }
+                    ],
+                    "router": {
+                        "rule": "true-or-false",
+                        "route": {
+                            "true": {
+                                "jump": "A3a"
+                            },
+                            "false": {
+                                "jump": "A3a"
+                            }
+                        }
+                    }
+                },
+                {
+                    "sn": "A3a",
+                    "precondition": {
+                        "items": [ "A1b", "A2b" ],
+                        "condition": "MINI_A3.js"
+                    },
+                    "prefix": "当您觉得抑郁或不感兴趣时：",
+                    "question": "您的食欲几乎每天是减少还是增加呢? 或是您的体重是否会在不刻意努力的情况下减少或增加?",
+                    "original": false,
+                    "answers": [
+                        {
+                            "group": "A",
+                            "content": "过去的两周期间",
+                            "answers": [
+                                {
+                                    "code": "true",
+                                    "content": "是"
+                                },
+                                {
+                                    "code": "false",
+                                    "content": "否"
+                                }
+                            ]
+                        },
+                        {
+                            "group": "B",
+                            "content": "既往时间里",
+                            "answers": [
+                                {
+                                    "code": "true",
+                                    "content": "是"
+                                },
+                                {
+                                    "code": "false",
+                                    "content": "否"
+                                }
+                            ]
+                        }
+                    ],
+                    "router": {
+                        "rule": "true-or-false",
+                        "route": {
+                            "true": {
+                                "jump": "A3b"
+                            },
+                            "false": {
+                                "jump": "A3b"
+                            }
+                        }
+                    }
+                },
+                {
+                    "sn": "A3b",
+                    "question": "您是否几乎每晚都有睡眠问题（难以入睡、半夜醒来、早上醒得过早或睡眠过多）?",
+                    "original": false,
+                    "answers": [
+                        {
+                            "code": "true",
+                            "content": "是"
+                        },
+                        {
+                            "code": "false",
+                            "content": "否"
+                        }
+                    ],
+                    "router": {
+                        "rule": "true-or-false",
+                        "route": {
+                            "evaluation": {
+                                "script": "MINI_A_Evaluation.js"
+                            }
+                        }
+                    }
+                }
+            ],
+            "evaluation": ""
+        }
+    ]
+}
