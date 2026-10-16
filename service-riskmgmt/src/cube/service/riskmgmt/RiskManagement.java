@@ -1,0 +1,380 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
+package cube.service.riskmgmt;
+
+import cell.util.Utils;
+import cell.util.log.Logger;
+import cube.common.action.RiskManagementAction;
+import cube.common.entity.*;
+import cube.common.notice.ListContactBehaviors;
+import cube.common.notice.NoticeData;
+import cube.core.AbstractModule;
+import cube.core.Kernel;
+import cube.core.Module;
+import cube.file.hook.FileStorageHook;
+import cube.plugin.PluginSystem;
+import cube.service.aigc.AIGCHook;
+import cube.service.aigc.AIGCPluginSystem;
+import cube.service.aigc.AIGCService;
+import cube.service.auth.AuthService;
+import cube.service.auth.AuthServiceHook;
+import cube.service.auth.AuthServicePluginSystem;
+import cube.service.contact.ContactHook;
+import cube.service.contact.ContactManager;
+import cube.service.contact.ContactManagerListener;
+import cube.service.contact.ContactPluginSystem;
+import cube.service.filestorage.FileStoragePluginSystem;
+import cube.service.filestorage.FileStorageService;
+import cube.service.messaging.MessagingHook;
+import cube.service.messaging.MessagingPluginSystem;
+import cube.service.messaging.MessagingService;
+import cube.service.riskmgmt.plugin.*;
+import cube.service.riskmgmt.util.SensitiveWord;
+import cube.storage.StorageType;
+import cube.util.ConfigUtils;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * 风险管理。
+ */
+public class RiskManagement extends AbstractModule implements ContactManagerListener {
+
+    /**
+     * 服务单元名。
+     */
+    public final static String NAME = "RiskMgmt";
+
+    private ExecutorService executor;
+
+    private RiskMgmtStorage riskMgmtStorage;
+
+    private HashMap<String, List<SensitiveWord>> sensitiveWordsMap;
+
+    private ModifyContactNamePlugin modifyContactNamePlugin;
+
+    public RiskManagement() {
+        super();
+        this.sensitiveWordsMap = new HashMap<>();
+    }
+
+    @Override
+    public void start() {
+        this.executor = Executors.newFixedThreadPool(8);
+
+        ContactManager.getInstance().addListener(this);
+
+        JSONObject config = ConfigUtils.readStorageConfig();
+        if (config.has(RiskManagement.NAME)) {
+            config = config.getJSONObject(RiskManagement.NAME);
+
+            if (config.getString("type").equalsIgnoreCase("MySQL")) {
+                this.riskMgmtStorage = new RiskMgmtStorage(this.executor, StorageType.MySQL, config);
+            }
+            else {
+                this.riskMgmtStorage = new RiskMgmtStorage(this.executor, StorageType.SQLite, config);
+            }
+
+            this.executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    riskMgmtStorage.open();
+
+                    AuthService authService = (AuthService) getKernel().getModule(AuthService.NAME);
+                    riskMgmtStorage.execSelfChecking(authService.getDomainList());
+
+                    loadSensitiveWordToMemory(authService.getDomainList());
+
+                    initPlugin();
+
+                    started.set(true);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void stop() {
+        ContactManager.getInstance().removeListener(this);
+
+        if (null != this.riskMgmtStorage) {
+            this.riskMgmtStorage.close();
+        }
+
+        if (null != this.executor) {
+            this.executor.shutdownNow();
+        }
+
+        this.started.set(false);
+    }
+
+    @Override
+    public PluginSystem getPluginSystem() {
+        return null;
+    }
+
+    @Override
+    public void onTick(Module module, Kernel kernel) {
+    }
+
+    @Override
+    public void onStarted(ContactManager manager) {
+        this.modifyContactNamePlugin = new ModifyContactNamePlugin(this);
+        manager.getPluginSystem().register(ContactHook.ModifyContactName, this.modifyContactNamePlugin);
+    }
+
+    @Override
+    public void onStopped(ContactManager manager) {
+        manager.getPluginSystem().deregister(ContactHook.ModifyContactName, this.modifyContactNamePlugin);
+        this.modifyContactNamePlugin = null;
+    }
+
+    public void refreshDomain(AuthDomain authDomain) {
+        List<String> list = new ArrayList<>();
+        list.add(authDomain.domainName);
+        this.riskMgmtStorage.execSelfChecking(list);
+    }
+
+    /**
+     * 获取联系人的风险掩码。
+     *
+     * @param domain
+     * @param contactId
+     * @return
+     */
+    public int getContactRiskMask(String domain, long contactId) {
+        return this.riskMgmtStorage.readContactRiskMask(domain, contactId);
+    }
+
+    /**
+     * 修改联系人风险控制掩码。
+     *
+     * @param domain
+     * @param contactId
+     * @param mask
+     * @return
+     */
+    public boolean modifyContactRiskMask(String domain, long contactId, int mask) {
+        return this.riskMgmtStorage.writeContactRiskMask(domain, contactId, mask);
+    }
+
+    /**
+     * 记录联系人行为。
+     *
+     * @param behavior
+     */
+    public void recordContactBehavior(ContactBehavior behavior) {
+        this.riskMgmtStorage.writeContactBehavior(behavior);
+    }
+
+    /**
+     * 获取指定联系人在起止时间段内的行为记录列表。
+     *
+     * @param domain
+     * @param contactId
+     * @param beginTime
+     * @param endTime
+     * @param behavior
+     * @return
+     */
+    public List<ContactBehavior> listContactBehaviors(String domain, long contactId, long beginTime, long endTime,
+                                                      String behavior) {
+        return this.riskMgmtStorage.readContactBehaviors(domain, contactId, beginTime, endTime, behavior);
+    }
+
+    public boolean hasSensitiveWord(String domain, String text) {
+        List<SensitiveWord> list = this.sensitiveWordsMap.get(domain);
+        if (null == list) {
+            return false;
+        }
+
+        String upperCase = text.toUpperCase();
+        for (SensitiveWord sensitiveWord : list) {
+            if (upperCase.contains(sensitiveWord.word)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void addFileChainNode(String event, Message message, Device device) {
+        final String domain = message.getDomain().getName();
+
+        this.executor.execute(() -> {
+            FileAttachment attachment = message.getAttachment();
+            FileLabel fileLabel = attachment.getFileLabel(0);
+            // 文件 SHA1 码
+            String track1 = fileLabel.getSHA1Code();
+            // 文件 MD5 码
+            String track2 = fileLabel.getMD5Code();
+
+            Contact contact = ContactManager.getInstance().getContact(domain, message.getFrom());
+
+            AbstractContact target = null;
+            if (message.isFromGroup()) {
+                target = ContactManager.getInstance().getGroup(message.getSource(), domain);
+            }
+            else {
+                target = ContactManager.getInstance().getContact(domain, message.getTo());
+            }
+
+            // 创建节点
+            ChainNode node = new ChainNode(Utils.generateSerialNumber(),
+                    domain, event, contact, fileLabel, message.getRemoteTimestamp());
+            // 设置 Track
+            if (null != track1)
+                node.addTrack(track1);
+            if (null != track2)
+                node.addTrack(track2);
+
+            // 设置传输的方法
+            TransmissionMethod method = new TransmissionMethod(message, target, device);
+            node.setMethod(method);
+
+            // 写入数据库
+            this.riskMgmtStorage.addTransmissionChainNode(node);
+        });
+    }
+
+    public void addFileChainNode(SharingTag sharingTag) {
+        final String domain = sharingTag.getDomain().getName();
+        this.executor.execute(() -> {
+            String event = TraceEvent.Share;
+
+            FileLabel fileLabel = sharingTag.getConfig().getFileLabel();
+            // 文件 SHA1 码
+            String track1 = fileLabel.getSHA1Code();
+            // 文件 MD5 码
+            String track2 = fileLabel.getMD5Code();
+
+            // 创建节点
+            ChainNode node = new ChainNode(Utils.generateSerialNumber(),
+                    domain, event, sharingTag.getConfig().getContact(), fileLabel,
+                    sharingTag.getTimestamp());
+            // 设置 Track
+            if (null != track1)
+                node.addTrack(track1);
+            if (null != track2)
+                node.addTrack(track2);
+
+            // 设置传输的方法
+            TransmissionMethod method = new TransmissionMethod(sharingTag);
+            node.setMethod(method);
+
+            // 写入数据库
+            this.riskMgmtStorage.addTransmissionChainNode(node);
+        });
+    }
+
+    public RiskMgmtStorage getStorage() {
+        return this.riskMgmtStorage;
+    }
+
+    @Override
+    public Object notify(Object data) {
+        if (data instanceof JSONObject) {
+            JSONObject jsonData = (JSONObject) data;
+            String action = jsonData.getString(NoticeData.ACTION);
+
+            if (RiskManagementAction.ListContactBehaviors.name.equals(action)) {
+                String domain = jsonData.getString(ListContactBehaviors.DOMAIN);
+                long contactId = jsonData.getLong(ListContactBehaviors.CONTACT_ID);
+                long beginTime = jsonData.getLong(ListContactBehaviors.BEGIN_TIME);
+                long endTime = jsonData.getLong(ListContactBehaviors.END_TIME);
+                String behavior = jsonData.has(ListContactBehaviors.BEHAVIOR) ?
+                        jsonData.getString(ListContactBehaviors.BEHAVIOR) : null;
+                return this.listContactBehaviors(domain, contactId, beginTime, endTime, behavior);
+            }
+        }
+
+        return null;
+    }
+
+    private void loadSensitiveWordToMemory(List<String> domainList) {
+        for (String domain : domainList) {
+            List<SensitiveWord> list = this.riskMgmtStorage.readAllSensitiveWords(domain);
+            this.sensitiveWordsMap.put(domain, list);
+        }
+    }
+
+    private void initPlugin() {
+        // 授权服务
+        AuthService authService = (AuthService) getKernel().getModule(AuthService.NAME);
+        while (!authService.isStarted()) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        AuthServicePluginSystem authPluginSystem = authService.getPluginSystem();
+        authPluginSystem.register(AuthServiceHook.CreateDomainApp,
+                new CreateDomainAppPlugin(this));
+
+        // 联系人服务
+        while (!ContactManager.getInstance().isStarted()) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        ContactPluginSystem contactPluginSystem = ContactManager.getInstance().getPluginSystem();
+        ContactPlugin contactPlugin = new ContactPlugin(this);
+        contactPluginSystem.register(ContactHook.VerifyIdentity, contactPlugin);
+        contactPluginSystem.register(ContactHook.SignIn, contactPlugin);
+        contactPluginSystem.register(ContactHook.SignOut, contactPlugin);
+        contactPluginSystem.register(ContactHook.Comeback, contactPlugin);
+        contactPluginSystem.register(ContactHook.DeviceTimeout, contactPlugin);
+
+        // 文件存储服务
+        FileStorageService fileStorage = (FileStorageService) this.getKernel().getModule(FileStorageService.NAME);
+        while (!fileStorage.isStarted()) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        FileStoragePluginSystem filePluginSystem = fileStorage.getPluginSystem();
+        FileStoragePlugin fileStoragePlugin = new FileStoragePlugin(this);
+        filePluginSystem.register(FileStorageHook.NewFile, fileStoragePlugin);
+        filePluginSystem.register(FileStorageHook.DeleteFile, fileStoragePlugin);
+        filePluginSystem.register(FileStorageHook.DownloadFile, fileStoragePlugin);
+        filePluginSystem.register(FileStorageHook.CreateSharingTag, new FileCreateSharingTagPlugin(this));
+
+        // 消息服务
+        MessagingService messagingService = (MessagingService) this.getKernel().getModule(MessagingService.NAME);
+        while (!messagingService.isStarted()) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        MessagingPluginSystem messagingPluginSystem = messagingService.getPluginSystem();
+        messagingPluginSystem.register(MessagingHook.PrePush, new MessagingPrePushPlugin(this));
+        // 消息发送
+        messagingPluginSystem.register(MessagingHook.SendMessage, new MessagingSendPlugin(this));
+        // 消息转发
+        messagingPluginSystem.register(MessagingHook.ForwardMessage, new MessagingForwardPlugin(this));
+        // 消息删除
+        messagingPluginSystem.register(MessagingHook.DeleteMessage, new MessagingDeletePlugin(this));
+
+        // AIGC 服务
+        AIGCService aigcService = (AIGCService) this.getKernel().getModule(AIGCService.NAME);
+        AIGCPluginSystem aigcPluginSystem = aigcService.getPluginSystem();
+        aigcPluginSystem.register(AIGCHook.TaskProcessing, new AITaskPlugin(this));
+
+        Logger.i(this.getClass(), "#initPlugin - Registers all plugin");
+    }
+}

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="file://$MODULE_DIR$/../../cube-server-dependencies" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+        <jarDirectory url="file://$MODULE_DIR$/../../cube-server-dependencies" recursive="false" />
+      </library>
+    </orderEntry>
+    <orderEntry type="module" module-name="common" />
+    <!-- dispatcher 网关模块：COMPILE 作用域。
+         本模块的 dispatcher 子包（PsychologyEndpoints）需 import 网关的 Jetty
+         handler 类向网关注入 REST 端点，故编译期必须可见。
+         依赖方向单向：插件 → dispatcher；dispatcher 侧对本模块零编译期引用。 -->
+    <orderEntry type="module" module-name="dispatcher" />
+    <orderEntry type="module" module-name="service" />
+  </component>
+</module>

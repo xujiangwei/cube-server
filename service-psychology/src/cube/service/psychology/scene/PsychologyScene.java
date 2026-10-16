@@ -1,0 +1,2145 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
+package cube.service.psychology.scene;
+
+import cell.core.talk.dialect.ActionDialect;
+import cell.util.Utils;
+import cell.util.log.Logger;
+import cube.aigc.*;
+import cube.aigc.cv.MatchSimilarityListener;
+import cube.aigc.psychology.*;
+import cube.aigc.psychology.algorithm.Attention;
+import cube.aigc.psychology.algorithm.PerceptronThing;
+import cube.aigc.psychology.algorithm.Representation;
+import cube.aigc.psychology.composition.*;
+import cube.aigc.psychology.listener.PaintingReportListener;
+import cube.aigc.psychology.listener.ScaleReportListener;
+import cube.aigc.psychology.material.Label;
+import cube.aigc.spi.AIGCHost;
+import cube.aigc.spi.AIGCPluginContextLite;
+import cube.auth.AuthConsts;
+import cube.auth.AuthToken;
+import cube.common.Language;
+import cube.common.Packet;
+import cube.common.action.AIGCAction;
+import cube.common.entity.*;
+import cube.common.state.AIGCStateCode;
+import cube.common.state.CVStateCode;
+import cube.service.psychology.EvaluationWorker;
+import cube.service.psychology.PsychologyStorage;
+import cube.service.psychology.evaluation.*;
+import cube.service.psychology.scene.node.DetectTeenagerQueryStrategyNode;
+import cube.service.psychology.scene.node.TeenagerProblemClassificationNode;
+import cube.service.psychology.scene.node.TeenagerQueryNode;
+import cube.util.FileUtils;
+import cube.util.ImageUtils;
+import cube.util.TextUtils;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * 心理学场景。
+ */
+public class PsychologyScene {
+
+    private final static PsychologyScene instance = new PsychologyScene();
+
+    public final static String UNIT = "Psychology";
+
+    /**
+     * 「任务处理」钩子的键。
+     *
+     * <p>该钩子由 AI 任务留痕等插件消费，用于按次记录模型调用的用量。
+     * 钩子键常量位于宿主，模块只能传裸字符串。</p>
+     */
+    private final static String HOOK_TASK_PROCESSING = "TaskProcessing";
+
+    /**
+     * 宿主能力接口，由插件装载时注入。
+     */
+    private AIGCHost host;
+
+    /**
+     * 心理学存储。
+     *
+     * <p><b>由 {@code PsychologyModule} 创建并传入</b>（见 {@link #setup}），
+     * 本类不自己建、不自己close。</p>
+     */
+    private PsychologyStorage storage;
+
+    /**
+     * 报告生成队列上限，装配时由模块从配置读入。
+     */
+    private int maxQueueLength = 30;
+
+    private Queue<PaintingReportTask> paintingReportTaskQueue;
+
+    private AtomicInteger numRunningPaintingTasks;
+
+    private Queue<ScaleReportTask> scaleTaskQueue;
+
+    private AtomicInteger numRunningScaleTasks;
+
+    /**
+     * Key：报告序列号。
+     */
+    private Map<Long, Report> reportMap;
+
+    /**
+     * Key：报告序列号。
+     */
+    private Map<Long, Painting> paintingMap;
+
+    /**
+     * Key：报告序列号。
+     */
+    private Map<Long, TemplateArticleBuilder> articleBuilderMap;
+
+    /**
+     * 综合报告工作器。
+     */
+    private Queue<ComprehensiveReportWorker> comprehensiveReportWorkerQueue;
+
+    private AtomicInteger numRunningComprehensiveTasks;
+
+    private Map<Long, ComprehensiveReport> comprehensiveReportMap;
+
+    private PsychologyScene() {
+        this.paintingReportTaskQueue = new ConcurrentLinkedQueue<>();
+        this.numRunningPaintingTasks = new AtomicInteger(0);
+        this.scaleTaskQueue = new ConcurrentLinkedQueue<>();
+        this.numRunningScaleTasks = new AtomicInteger(0);
+        this.reportMap = new ConcurrentHashMap<>();
+        this.paintingMap = new ConcurrentHashMap<>();
+        this.articleBuilderMap = new ConcurrentHashMap<>();
+        this.comprehensiveReportWorkerQueue = new ConcurrentLinkedQueue<>();
+        this.numRunningComprehensiveTasks = new AtomicInteger(0);
+        this.comprehensiveReportMap = new ConcurrentHashMap<>();
+    }
+
+    public static PsychologyScene getInstance() {
+        return PsychologyScene.instance;
+    }
+
+    /**
+     * 获取宿主能力接口。
+     *
+     * <p>评估器与报告工作器位于同一 jar 内，但它们只能经 SPI 访问宿主能力，
+     * 故由本场景统一转发。</p>
+     *
+     * <p>字段在 {@link #setup} 时由模块注入，注入动作早于任何一次动作派发，
+     * 故直接读字段即可，不存在「取到 null」的窗口。</p>
+     *
+     * @return 返回宿主能力接口；未装配时返回 <code>null</code>。
+     */
+    private AIGCHost host() {
+        return this.host;
+    }
+
+    /**
+     * 把宿主能力适配为「按单元名生成文本」的接口。
+     *
+     * <p>提示词链（策略流）以单元名而非单元对象驱动生成，
+     * 而 SPI 只提供按单元对象生成的方法，故在此做一次名称解析。</p>
+     */
+    private final static class HostGeneratable implements Generatable {
+
+        private final AIGCHost host;
+
+        HostGeneratable(AIGCHost host) {
+            this.host = host;
+        }
+
+        @Override
+        public GeneratingRecord generateText(String unitName, String prompt, GeneratingOption option,
+                List<GeneratingRecord> history) {
+            AIGCUnit unit = this.host.selectUnit(unitName);
+            if (null == unit) {
+                return null;
+            }
+
+            return this.host.syncGenerateText(unit, prompt, option, history, null);
+        }
+    }
+
+    /**
+     * 把宿主能力适配为协议实体所需的分词器接口。
+     *
+     * <p>协议实体（资源、语料）以接口方式使用分词器，
+     * 而具体实现依赖宿主的词典与权重表，故此处以宿主能力代理实现，
+     * 不把分词器实体引入模块。</p>
+     */
+    private final static class HostTokenizer implements Tokenizable {
+
+        private final AIGCHost host;
+
+        HostTokenizer(AIGCHost host) {
+            this.host = host;
+        }
+
+        @Override
+        public List<String> segment(String text) {
+            return this.host.segmentWords(text);
+        }
+
+        @Override
+        public List<String> analyze(String text, int topN) {
+            return this.host.extractKeywords(text, topN);
+        }
+    }
+
+    /**
+     * 装配场景。
+     *
+     * <p>由 {@code PsychologyModule#setup(AIGCHost)} 调用。本方法<b>只接收</b>
+     * 已就绪的存储与宿主能力，不自己读配置、不自己建存储——
+     * 存储的唯一所有者是模块，场景只是它的使用者。同一 jar 内互相引用
+     * 不违反「插件编译期零宿主依赖」约束。</p>
+     *
+     * <p><b>为何必须由模块驱动</b>：本场景的 41 处存储访问与 60+ 处方法
+     * 都会被插件动作经 SPI 回调到，而 {@code ActionModule} 的契约方法只有
+     * {@code setup} / {@code teardown} / {@code onTick} 三个。若场景自行
+     * 初始化，就必然出现「无人装配 ⇒ 存储恒为 null，而调用点照旧」的断链。</p>
+     *
+     * @param host 宿主能力接口。
+     * @param storage 已打开的心理学存储。
+     * @param maxQueueLength 报告生成队列上限。
+     */
+    public void setup(AIGCHost host, PsychologyStorage storage, int maxQueueLength) {
+        if (null == host || null == storage) {
+            throw new IllegalArgumentException("Host and storage must NOT be NULL");
+        }
+
+        this.host = host;
+        this.storage = storage;
+        this.maxQueueLength = (maxQueueLength > 0) ? maxQueueLength : this.maxQueueLength;
+        this.lastRetentionRefresh = System.currentTimeMillis();
+
+        Logger.i(this.getClass(), "#setup - Scene is ready, max queue length: " + this.maxQueueLength);
+
+        // 对话历史与图表的读写经宿主能力完成，场景管理器只做转发
+        SceneManager.getInstance().setHost(host);
+
+        // 引导系统列表：流程定义随心理学业务模块一并位于插件内，故在此列出
+        for (GuideFlow flow : Guides.listGuideFlows()) {
+            Logger.i(this.getClass(), "#setup - Guide flow: " + flow.getName());
+        }
+
+        // 协议实体（量表、语料）以接口方式使用分词器与 TF-IDF，而实现依赖宿主
+        // 的词典与权重表，故以本地适配器代理。必须在任何语料/量表加载之前设置：
+        // Resource#loadDataset 内部即调用 tokenizer.analyze。
+        Resource.getInstance().setTokenizer(new HostTokenizer(host));
+
+        // 资产缺失不阻断装载——只记 ERROR，能力退化而非服务不可用
+        if (!Resource.getInstance().checkFiles()) {
+            Logger.e(this.getClass(), "#setup - SOME asset file is MISSING, "
+                    + "resource-dependent features will be degraded");
+        }
+
+        String dataset = host.extractContent("白泽京智");
+        Logger.i(this.getClass(), "#setup - Active dataset: " + dataset);
+
+        String corpus = Resource.getInstance().getCorpus("baize", "MIND_ECHO");
+        Logger.i(this.getClass(), "#setup - Active corpus: " + corpus);
+    }
+
+    /**
+     * 停止场景并释放其持有的引用。
+     *
+     * <p><b>不关闭存储</b>：存储的所有者是模块，由模块的 {@code teardown}
+     * 关闭。此处只清空引用并阻断新任务，避免双重关闭。</p>
+     */
+    public void teardown() {
+        // 阻止新任务进入
+        this.maxQueueLength = 0;
+        this.numRunningPaintingTasks.set(Integer.MAX_VALUE);
+
+        this.storage = null;
+        this.host = null;
+
+        this.numRunningPaintingTasks.set(0);
+    }
+
+    /**
+     * 报告生成队列上限。
+     *
+     * @return 返回队列上限；场景未装配时返回 0。
+     */
+    public int getMaxQueueLength() {
+        return this.maxQueueLength;
+    }
+
+    /**
+     * 宿主能力是否已就绪。
+     *
+     * <p>供动作处理器在经 SPI 回调本场景前判空——场景未装配时
+     * 应直接回失败并记ERROR，而不是让空引用异常被上层 catch 吞成
+     * 无信息的 {@code Failure}。</p>
+     *
+     * @return 已装配时返回 <code>true</code>。
+     */
+    public boolean isReady() {
+        return null != this.host && null != this.storage;
+    }
+
+    /**
+     * 注入一份报告到内存表，仅供冒烟测试使用。
+     *
+     * <p><b>为何需要它</b>：报告的运行态读取（命中 / 未命中 / 队列位置 /
+     * 导出形态）此前是经宿主能力接口回调本场景的，测试便可在宿主桩里
+     * 构造报告返回给动作。改为动作直调场景后，那条注入路径不复存在，
+     * 而报告<b>本来就在本场景的内存表里</b>——测试直接注入此处即可，
+     * 比经外部桩往返更贴近真实形态。</p>
+     *
+     * <p>生产代码不应使用。</p>
+     *
+     * @param report 待注入的报告。
+     */
+    public void putReportForTest(Report report) {
+        if (null == report) {
+            return;
+        }
+
+        this.reportMap.put(report.sn, report);
+    }
+
+    /**
+     * 清空内存表中的报告，仅供冒烟测试在用例之间隔离状态。
+     *
+     * <p>生产代码不应使用。</p>
+     */
+    public void clearReportsForTest() {
+        this.reportMap.clear();
+    }
+
+    /**
+     * 上次执行报告保留期刷新的时刻。
+     *
+     * <p>{@link #onTick(long)} 每小时刷新一次入库报告的留存策略。
+     * 装配时初始化为当前时刻，使首次刷新在一个小时后发生。</p>
+     */
+    private long lastRetentionRefresh;
+
+    /**
+     * 读取并应用运行期可变的配置项。
+     *
+     * <p><b>队列上限与存储均不在此处应用</b>：前者是启动期参数，由
+     * {@link #setup} 一次性设定；后者归模块所有。运行期需要重读的只有
+     * 报告保留期策略，而它是 {@link #onTick(long)} 内的每小时刷新，
+     * 不依赖配置文件改动。</p>
+     */
+    private void loadConfig() {
+        // 保留此方法作为配置热更的挂载点：若将来某项偏好（如保留天数）
+        // 需要运行期重读，在此读取并应用即可，不必再改调用点。
+    }
+
+    public PsychologyStorage getStorage() {
+        return this.storage;
+    }
+
+//    public boolean recordUsage(Usage usage) {
+//        return this.storage.writeUsage(usage.cid, usage.token, usage.timestamp, usage.remoteHost, usage.query,
+//                usage.queryType, usage.queryTokens, usage.completionTokens, usage.completionSN);
+//    }
+
+    public boolean checkPsychologyPainting(AuthToken authToken, String fileCode) {
+        FileLabel fileLabel = this.host.getFile(authToken.getDomain(), fileCode);
+        if (null == fileLabel) {
+            Logger.w(this.getClass(), "#checkPsychologyPainting - File error: " + fileCode);
+            return false;
+        }
+
+        boolean more = false;
+        ObjectInfo info = this.host.detectObject(authToken.getDomain(), fileCode, false);
+        if (null != info) {
+            more = this.hasMoreObjects(info);
+        }
+
+        AIGCUnit unit = this.host.selectUnit(UNIT);
+        if (null == unit) {
+            Logger.w(this.getClass(), "#checkPsychologyPainting - No psychology unit: " + fileCode);
+            return false;
+        }
+
+        JSONObject data = new JSONObject();
+        data.put("fileLabel", fileLabel.toJSON());
+        ActionDialect dialect = this.host.invokeUnit(unit, AIGCAction.CheckPsychologyPainting.name, data, 60 * 1000);
+        if (null == dialect) {
+            Logger.w(this.getClass(), "#checkPsychologyPainting - Predict image unit error");
+            return false;
+        }
+
+        Packet response = new Packet(dialect);
+        if (Packet.extractCode(response) != AIGCStateCode.Ok.code) {
+            Logger.w(this.getClass(), "#checkPsychologyPainting - Predict image response state: " +
+                    Packet.extractCode(response));
+            return false;
+        }
+
+        try {
+            JSONObject responseData = Packet.extractDataPayload(response);
+            // 结果
+            boolean result = responseData.getBoolean("result");
+            // 1. 通过像素校验是绘画
+            // 2. 物体检测没有其他元素
+            // 依此上述两条判断是否是绘画
+            return (result || !more);
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#checkPsychologyPainting", e);
+            return false;
+        }
+    }
+
+    private boolean hasMoreObjects(ObjectInfo info) {
+        int count = 0;
+        for (Material object : info.getObjects()) {
+            if (object.label.startsWith("人")) {
+                continue;
+            }
+            ++count;
+        }
+        return (count > 0);
+    }
+
+    public PaintingReport getPaintingReport(long sn) {
+        Report current = this.reportMap.get(sn);
+        if (current instanceof PaintingReport) {
+            return (PaintingReport) current;
+        }
+
+        PaintingReport report = this.storage.readPsychologyReport(sn);
+        if (null == report) {
+            return null;
+        }
+
+        FileLabel fileLabel = this.host.getFile(AuthConsts.DEFAULT_DOMAIN, report.getFileCode());
+        if (null == fileLabel) {
+            return null;
+        }
+
+        report.setFileLabel(fileLabel);
+        return report;
+    }
+
+    public int numPaintingReports(long contactId) {
+        return this.storage.countPsychologyReports(contactId);
+    }
+
+    public int numPaintingReports(long contactId, int state) {
+        return this.storage.countPsychologyReports(contactId, state);
+    }
+
+    public int numPaintingReports(long contactId, int state, boolean permissible) {
+        return this.storage.countPsychologyReports(contactId, state, permissible);
+    }
+
+    public int numPaintingReports(long contactId, int state, boolean permissible, long starTime, long endTime) {
+        return this.storage.countPsychologyReports(contactId, state, permissible, starTime, endTime);
+    }
+
+    public List<PaintingReport> getPaintingReports(long contactId, int state, int limit) {
+        List<PaintingReport> list = this.storage.readPsychologyReportsByContact(contactId, state, limit);
+        Iterator<PaintingReport> iter = list.iterator();
+        while (iter.hasNext()) {
+            PaintingReport report = iter.next();
+            FileLabel fileLabel = this.host.getFile(AuthConsts.DEFAULT_DOMAIN, report.getFileCode());
+            if (null != fileLabel) {
+                report.setFileLabel(fileLabel);
+                report.painting = this.storage.readPainting(report.sn);
+            }
+            else {
+                Logger.w(this.getClass(), "#getPaintingReports - NOT find file: " + report.sn);
+                iter.remove();
+            }
+        }
+        return list;
+    }
+
+    public List<PaintingReport> getPaintingReports(long contactId, int pageIndex, int pageSize, boolean descending) {
+        List<PaintingReport> list = this.storage.readPsychologyReports(contactId, pageIndex, pageSize, descending);
+        Iterator<PaintingReport> iter = list.iterator();
+        while (iter.hasNext()) {
+            PaintingReport report = iter.next();
+            FileLabel fileLabel = this.host.getFile(AuthConsts.DEFAULT_DOMAIN, report.getFileCode());
+            if (null != fileLabel) {
+                report.setFileLabel(fileLabel);
+                report.painting = this.storage.readPainting(report.sn);
+            }
+            else {
+                iter.remove();
+            }
+        }
+        return list;
+    }
+
+    public List<PaintingReport> getPaintingReportsWithState(long contactId, int pageIndex, int pageSize,
+                                                              boolean descending, int state) {
+        List<PaintingReport> list = this.storage.readPsychologyReports(contactId, pageIndex, pageSize, descending, state);
+        Iterator<PaintingReport> iter = list.iterator();
+        while (iter.hasNext()) {
+            PaintingReport report = iter.next();
+            FileLabel fileLabel = this.host.getFile(AuthConsts.DEFAULT_DOMAIN, report.getFileCode());
+            if (null != fileLabel) {
+                report.setFileLabel(fileLabel);
+                report.painting = this.storage.readPainting(report.sn);
+            }
+            else {
+                iter.remove();
+            }
+        }
+        return list;
+    }
+
+    /**
+     * 修改报告备注。
+     *
+     * @param reportSn 报告序列号。
+     * @param remark 新备注。
+     * @return 返回更新后的报告；更新失败或报告不存在时返回 {@code null}。
+     */
+    public PaintingReport modifyPaintingReportRemark(long reportSn, String remark) {
+        if (this.storage.updatePsychologyReportRemark(reportSn, remark)) {
+            PaintingReport report = this.storage.readPsychologyReport(reportSn);
+            report.setRemark(remark);
+            return report;
+        }
+        return null;
+    }
+
+    /**
+     * 根据主题生成评测报告。
+     *
+     * @param channel 所属频道。
+     * @param attribute 受测者属性。
+     * @param fileLabel 绘画文件标签。
+     * @param theme 报告主题。
+     * @param maxIndicators 指标的最大条数。
+     * @param adjust 是否按指标强度调整措辞。
+     * @param retention 保存天数
+     * @param remark 备注
+     * @param listener 生成过程监听器。
+     * @return 返回已提交的绘画报告；入队失败或队列已满时返回 {@code null}。
+     */
+    public synchronized PaintingReport generatePaintingReport(AIGCChannel channel, Attribute attribute,
+                                                              FileLabel fileLabel, Theme theme,
+                                                              int maxIndicators, boolean adjust,
+                                                              int retention, String remark,
+                                                              PaintingReportListener listener) {
+        if (null == channel) {
+            Logger.e(this.getClass(), "#generatePaintingReport - Channel is null");
+            return null;
+        }
+
+        if (this.paintingReportTaskQueue.size() >= this.maxQueueLength) {
+            Logger.w(this.getClass(), "#generatePaintingReport - The queue length has reached the maximum limit: "
+                    + this.paintingReportTaskQueue.size() + "/" + this.maxQueueLength);
+            return null;
+        }
+
+        // 判断属性限制
+        if (attribute.age < Attribute.MIN_AGE || attribute.age > Attribute.MAX_AGE) {
+            Logger.w(this.getClass(), "#generatePaintingReport - Age param overflow: " +
+                    attribute.age);
+            return null;
+        }
+
+        // 并发数量
+        int concurrency = this.host.countUnits(ModelConfig.BAIZE_2_UNIT);
+        if (0 == concurrency) {
+            concurrency = this.host.countUnits(ModelConfig.BAIZE_UNIT);
+            if (0 == concurrency) {
+                Logger.e(this.getClass(), "#generatePaintingReport - No baize unit");
+                return null;
+            }
+        }
+        if (concurrency > 2) {
+            // 留1个缓存节点
+            concurrency -= 1;
+        }
+
+        if (!this.host.hasUnit(UNIT)) {
+            Logger.e(this.getClass(), "#generatePaintingReport - No psychology unit");
+            return null;
+        }
+
+        PaintingReport report = new PaintingReport(channel.getAuthToken().getContactId(),
+                attribute, fileLabel, theme);
+        // 设置备注
+        if (null != remark) {
+            report.setRemark(remark);
+        }
+
+        PaintingReportTask task = new PaintingReportTask(channel, attribute, fileLabel, theme, maxIndicators, adjust, listener, report);
+
+        this.paintingReportTaskQueue.offer(task);
+
+        Logger.d(this.getClass(), "#generatePaintingReport - Number of concurrency (C/Q/R): " + concurrency
+                + "/" + this.paintingReportTaskQueue.size() + "/" + this.numRunningPaintingTasks.get());
+
+        this.reportMap.put(report.sn, report);
+
+        // 判断并发数量
+        if (this.numRunningPaintingTasks.get() >= concurrency) {
+            // 并发数量大于等于单元数量，在队列中等待
+            return report;
+        }
+
+        this.numRunningPaintingTasks.incrementAndGet();
+
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Logger.i(PsychologyScene.class, "Generating thread START ("
+                        + numRunningPaintingTasks.get() + "/" + paintingReportTaskQueue.size() + ") - "
+                        + Thread.currentThread().getName()
+                        + " - " + Utils.gsDateFormat.format(new Date(System.currentTimeMillis())));
+
+                // 加载配置
+                loadConfig();
+
+                try {
+                    while (!paintingReportTaskQueue.isEmpty()) {
+                        // 新任务
+                        PaintingReportTask paintingReportTask = paintingReportTaskQueue.poll();
+                        if (null == paintingReportTask) {
+                            // 队列空，结束
+                            break;
+                        }
+
+                        long start = System.currentTimeMillis();
+                        Logger.i(getClass(), "Starts generating report: " + paintingReportTask.report.sn);
+
+                        try {
+                            // 设置为正在操作
+                            paintingReportTask.channel.setProcessing(true);
+
+                            // 获取单元
+                            AIGCUnit unit = PsychologyScene.this.host.selectUnit(UNIT);
+                            if (null == unit) {
+                                // 没有可用单元
+                                paintingReportTask.report.setState(AIGCStateCode.UnitError);
+                                paintingReportTask.report.setFinished(true);
+                                paintingReportTask.listener.onPaintingPredictFailed(paintingReportTask.report);
+                                continue;
+                            }
+
+                            // 更新单元状态
+                            unit.setRunning(true);
+
+                            // 预测
+                            paintingReportTask.listener.onPaintingPredicting(paintingReportTask.report, paintingReportTask.fileLabel);
+
+                            Painting painting = processPainting(unit, paintingReportTask.fileLabel, theme, paintingReportTask.adjust, false);
+                            if (null == painting) {
+                                // 预测绘图失败
+                                Logger.w(PsychologyScene.class, "#generatePaintingReport - onPaintingPredictFailed: " +
+                                        paintingReportTask.fileLabel.getFileCode());
+                                // 记录故障
+                                unit.markFailure(AIGCStateCode.FileError.code, System.currentTimeMillis(),
+                                        paintingReportTask.channel.getAuthToken().getContactId());
+                                // 更新单元状态
+                                unit.setRunning(false);
+                                paintingReportTask.report.setState(AIGCStateCode.FileError);
+                                paintingReportTask.report.setFinished(true);
+                                paintingReportTask.listener.onPaintingPredictFailed(paintingReportTask.report);
+                                continue;
+                            }
+
+                            // 更新单元状态
+                            unit.setRunning(false);
+
+                            // 设置绘画属性
+                            painting.setAttribute(paintingReportTask.attribute);
+                            painting.fileLabel = paintingReportTask.fileLabel;
+                            paintingMap.put(paintingReportTask.report.sn, painting);
+
+                            // 关联绘画
+                            paintingReportTask.report.painting = painting;
+
+                            // 绘画预测完成
+                            paintingReportTask.listener.onPaintingPredictCompleted(paintingReportTask.report, paintingReportTask.fileLabel, painting);
+
+                            // 开始进行评估
+                            paintingReportTask.listener.onReportEvaluating(paintingReportTask.report);
+
+                            // 根据图像推理报告
+                            EvaluationWorker evaluationWorker = processReport(paintingReportTask.channel, painting,
+                                    paintingReportTask.theme, unit);
+
+                            // 将特征集数据填写到报告，这里仅仅是方便客户端获取特征描述文本
+                            paintingReportTask.report.paintingFeatureSet = evaluationWorker.getPaintingFeatureSet();
+                            // 设置评估数据
+                            paintingReportTask.report.setEvaluationReport(evaluationWorker.getEvaluationReport());
+
+                            // 修改状态
+                            paintingReportTask.report.setState(AIGCStateCode.Inferencing);
+
+                            // 执行工作流，制作报告数据
+                            evaluationWorker = evaluationWorker.make(paintingReportTask.channel, paintingReportTask.theme, paintingReportTask.maxIndicators);
+                            if (null == evaluationWorker) {
+                                // 推理生成报告失败
+                                Logger.w(PsychologyScene.class, "#generatePaintingReport - onReportEvaluateFailed (IllegalOperation): " +
+                                        paintingReportTask.fileLabel.getFileCode());
+                                paintingReportTask.report.setState(AIGCStateCode.IllegalOperation);
+                                paintingReportTask.report.setFinished(true);
+                                paintingReportTask.listener.onReportEvaluateFailed(paintingReportTask.report);
+                                continue;
+                            }
+
+                            // 填写数据
+                            evaluationWorker.fillReport(paintingReportTask.report);
+
+                            if (evaluationWorker.isUnknown()) {
+                                // 未能处理的图片
+                                Logger.w(PsychologyScene.class, "#generatePaintingReport - onReportEvaluateCompleted (InvalidData): " +
+                                        paintingReportTask.fileLabel.getFileCode());
+                                paintingReportTask.report.setState(AIGCStateCode.InvalidData);
+                                paintingReportTask.report.setFinished(true);
+
+                                // 存储
+                                storage.writePsychologyReport(paintingReportTask.report);
+                                storage.writePainting(paintingReportTask.report.sn, paintingReportTask.fileLabel.getFileCode(), painting);
+                                if (null != evaluationWorker.getPaintingFeatureSet()) {
+                                    PaintingFeatureSet paintingFeatureSet = evaluationWorker.getPaintingFeatureSet();
+                                    storage.writePaintingFeatureSet(paintingFeatureSet);
+                                }
+
+                                // 按照正常状态返回
+                                paintingReportTask.listener.onReportEvaluateCompleted(paintingReportTask.report, unit);
+                                // reportTask.listener.onReportEvaluateFailed(reportTask.report);
+                                continue;
+                            }
+
+                            // 生成 Markdown 调试信息
+                            paintingReportTask.report.makeMarkdown();
+
+                            // 设置状态
+                            if (paintingReportTask.report.isNull()) {
+                                paintingReportTask.report.setState(AIGCStateCode.Failure);
+                            } else {
+                                paintingReportTask.report.setState(AIGCStateCode.Ok);
+                            }
+
+                            // 修改结束状态
+                            paintingReportTask.report.setFinished(true);
+                            paintingReportTask.listener.onReportEvaluateCompleted(paintingReportTask.report, unit);
+
+                            // 填写数据
+                            evaluationWorker.fillReport(paintingReportTask.report);
+                            // 生成 Markdown 调试信息
+                            paintingReportTask.report.makeMarkdown();
+
+                            // 存储
+                            storage.writePsychologyReport(paintingReportTask.report, retention);
+                            storage.writePainting(paintingReportTask.report.sn, paintingReportTask.fileLabel.getFileCode(), painting);
+                            if (null != evaluationWorker.getPaintingFeatureSet()) {
+                                PaintingFeatureSet paintingFeatureSet = evaluationWorker.getPaintingFeatureSet();
+                                storage.writePaintingFeatureSet(paintingFeatureSet);
+                            }
+
+                            Logger.i(getClass(), "End generating report: " + paintingReportTask.report.sn + " - elapsed: " +
+                                    Math.round((System.currentTimeMillis() - start) / 1000.0) + "s");
+                        } catch (Exception e) {
+                            Logger.e(PsychologyScene.class, "#run", e);
+                        } finally {
+                            // 频道状态恢复
+                            paintingReportTask.channel.setProcessing(false);
+                        }
+                    } // while
+                } catch (Exception e) {
+                    Logger.e(PsychologyScene.class, "#run", e);
+                } finally {
+                    // 更新运行计数
+                    numRunningPaintingTasks.decrementAndGet();
+
+                    Logger.i(PsychologyScene.class, "Generating thread END ("
+                            + numRunningPaintingTasks.get() + "/" + paintingReportTaskQueue.size() + ") - "
+                            + Thread.currentThread().getName()
+                            + " - " + Utils.gsDateFormat.format(new Date(System.currentTimeMillis())));
+                }
+            }
+        });
+        thread.setName("GeneratePaintingReport-" + System.currentTimeMillis());
+        thread.start();
+
+        return report;
+    }
+
+    public PaintingReport stopGenerating(long sn) {
+        Report current = this.reportMap.get(sn);
+        if (!(current instanceof PaintingReport)) {
+            // 没有找到报告
+            Logger.i(this.getClass(), "#stopGenerating - Can NOT find report: " + sn);
+            return null;
+        }
+
+        PaintingReport report = (PaintingReport) current;
+
+        if (report.getState() == AIGCStateCode.Ok) {
+            // 已经生成的报告不能停止
+            Logger.i(this.getClass(), "#stopGenerating - Report is ok: " + sn);
+            return null;
+        }
+
+        Iterator<PaintingReportTask> iter = this.paintingReportTaskQueue.iterator();
+        while (iter.hasNext()) {
+            PaintingReportTask task = iter.next();
+            if (task.report.sn == sn) {
+                iter.remove();
+                break;
+            }
+        }
+
+        // 设置状态
+        report.setState(AIGCStateCode.Stopped);
+
+        return report;
+    }
+
+    public int getGeneratingQueuePosition(long sn) {
+        int position = 0;
+        for (PaintingReportTask task : this.paintingReportTaskQueue) {
+            ++position;
+            if (task.report.sn == sn) {
+                return position;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * 重置报告的关注等级数据。
+     *
+     * @param reportSn 报告序列号。
+     * @param newAttention 目标关注等级；{@code null} 表示回滚到滚动建议。
+     * @return 返回重置后的报告；报告不存在时返回 {@code null}。
+     */
+    public PaintingReport resetReportAttention(long reportSn, Attention newAttention) {
+        PaintingReport report = this.getPaintingReport(reportSn);
+        if (null == report) {
+            Logger.w(this.getClass(), "#resetReportAttention - Can NOT find report: " + reportSn);
+            return null;
+        }
+
+        EvaluationReport evaluationReport = report.getEvaluationReport();
+        Attention current = evaluationReport.getAttention();
+        if (null == newAttention) {
+            evaluationReport.rollAttentionSuggestion();
+        }
+        else {
+            evaluationReport.overlayAttentionSuggestion(newAttention);
+        }
+
+        Logger.i(this.getClass(), "#resetReportAttention - Reset attention: " +
+                current.level + " -> " + evaluationReport.getAttention().level);
+
+        if (!this.storage.updatePsychologyReport(report)) {
+            Logger.w(this.getClass(), "#resetReportAttention - Update report data error: " + reportSn);
+            return null;
+        }
+
+        return report;
+    }
+
+    /**
+     * 按照模板规则生成绘画报告内容。
+     *
+     * @param channel 所属频道。
+     * @param attribute 受测者属性。
+     * @param fileLabel 绘画文件标签。
+     * @param theme 报告主题。
+     * @param templateName 模板名。
+     * @param structured 是否输出结构化版本。
+     * @param listener 生成过程监听器。
+     * @return 返回报告序号；模板名非法时返回 {@code null}。
+     */
+    public TemplateArticleBuilder generatePaintingTemplateArticle(AIGCChannel channel, Attribute attribute, FileLabel fileLabel,
+                                                                  Theme theme, String templateName, boolean structured,
+                                                                  PaintingTemplateArticleListener listener) {
+        final TemplateArticleBuilder builder = new TemplateArticleBuilder(theme, templateName, structured);
+        if (!builder.isValidTemplate()) {
+            Logger.w(this.getClass(), "#generatePaintingTemplateArticle - The template is not correct: " + templateName);
+            return null;
+        }
+
+        PaintingReport report = this.generatePaintingReport(channel, attribute, fileLabel, theme,
+                10, true, 0, null, new PaintingReportListener() {
+                    @Override
+                    public void onPaintingPredicting(PaintingReport report, FileLabel file) {
+                        // Nothing
+                    }
+
+                    @Override
+                    public void onPaintingPredictCompleted(PaintingReport report, FileLabel file, Painting painting) {
+                        // Nothing
+                    }
+
+                    @Override
+                    public void onPaintingPredictFailed(PaintingReport report) {
+                        builder.getArticle().state = AIGCStateCode.Failure;
+                        listener.onFailed(channel, fileLabel);
+                    }
+
+                    @Override
+                    public void onReportEvaluating(PaintingReport report) {
+                        // Nothing
+                    }
+
+                    @Override
+                    public void onReportEvaluateCompleted(PaintingReport report, AIGCUnit unit) {
+                        // 生成
+                        ReportArticle article = builder.build(PsychologyScene.this.host());
+                        if (null != article) {
+                            listener.onCompleted(report, article);
+
+                            // 入库
+                            storage.writeReportArticle(article);
+
+                            PsychologyScene.this.host.schedule("psychology-scene", 0, new Runnable() {
+                                @Override
+                                public void run() {
+                                    File file = PsychologyScene.this.host.loadFile(channel.getDomain().getName(), fileLabel.getFileCode());
+                                    if (null == file) {
+                                        Logger.w(this.getClass(), "#generatePaintingTemplateArticle - Can NOT find file: "
+                                            + fileLabel.getFileCode());
+                                        return;
+                                    }
+
+                                    int inputTokens = ImageUtils.calcImageTokens(file);
+                                    int outputTokens = builder.calcOutputTokens(PsychologyScene.this.host);
+                                    AIGCPluginContextLite context = new AIGCPluginContextLite(channel.getAuthToken(),
+                                            AICapability.PsychologyProcessing.GeneratePaintingTemplateArticle);
+                                    context.setInputTokens(inputTokens);
+                                    context.setOutputTokens(outputTokens);
+                                    context.addFileCode(fileLabel.getFileCode());
+                                    context.setUnit(unit);
+                                    PsychologyScene.this.host.fireHook(HOOK_TASK_PROCESSING, context);
+                                }
+                            });
+                        }
+                        else {
+                            listener.onFailed(channel, fileLabel);
+                        }
+                    }
+
+                    @Override
+                    public void onReportEvaluateFailed(PaintingReport report) {
+                        builder.getArticle().state = AIGCStateCode.Failure;
+                        listener.onFailed(channel, fileLabel);
+                    }
+                });
+
+        if (null == report) {
+            Logger.w(this.getClass(), "#generatePaintingTemplateArticle - The report is null: " + fileLabel.getFileCode());
+            return null;
+        }
+
+        // 初始化构建器
+        builder.init(report);
+        // 记录
+        this.articleBuilderMap.put(report.sn, builder);
+
+        return builder;
+    }
+
+    /**
+     * 获取绘画模板报告文章。
+     *
+     * @param sn 报告序号。
+     * @return 返回文章；内存态与存储中均无记录时返回 {@code null}。
+     */
+    public ReportArticle getPaintingTemplateArticle(long sn) {
+        TemplateArticleBuilder builder = this.articleBuilderMap.get(sn);
+        if (null != builder) {
+            return builder.getArticle();
+        }
+
+        ReportArticle article = this.storage.readReportArticle(sn);
+        if (null != article) {
+            return article;
+        }
+
+        Logger.w(this.getClass(), "#getPaintingTemplateArticle - Can NOT find: " + sn);
+        return null;
+    }
+
+    public List<Scale> listScales(long contactId) {
+        List<Scale> result = new ArrayList<>();
+        List<Scale> scales = Resource.getInstance().listScales(contactId);
+        for (Scale scale : scales) {
+            if (!scale.open) {
+                continue;
+            }
+            result.add(scale);
+        }
+        return result;
+    }
+
+    public Scale getScale(long sn) {
+        return this.storage.readScale(sn);
+    }
+
+    public Scale generateScale(long contactId, String scaleName, Attribute attribute) {
+        Scale scale = Resource.getInstance().loadScaleByName(scaleName, contactId);
+        if (null == scale) {
+            Logger.w(this.getClass(), "#generateScale - Can NOT find scale: " + scaleName);
+            return null;
+        }
+
+        scale.setAttribute(attribute);
+        this.storage.writeScale(scale);
+        return scale;
+    }
+
+    public ScaleResult submitAnswerSheet(AnswerSheet answerSheet) {
+        Scale scale = this.storage.readScale(answerSheet.scaleSn);
+        if (null == scale) {
+            Logger.w(this.getClass(), "#submitAnswerSheet - Can NOT find scale: " + answerSheet.scaleSn);
+            return null;
+        }
+
+        scale.submitAnswer(answerSheet);
+        this.storage.writeScale(scale);
+        this.storage.writeAnswerSheet(answerSheet);
+
+        if (!answerSheet.isValid()) {
+            Logger.w(this.getClass(), "#submitAnswerSheet - The answer is NOT valid: " + scale.getSN());
+        }
+
+        if (!scale.isComplete()) {
+            Logger.d(this.getClass(), "#submitAnswerSheet - Scale complete: false");
+            return new ScaleResult(scale);
+        }
+
+        try {
+            // 尝试推理答案评级
+            this.inferScaleAnswer(scale);
+
+            ScaleResult scaleResult = scale.scoring(Resource.getInstance().getQuestionnairesPath());
+            if (null != scaleResult) {
+                this.storage.writeScale(scale);
+            }
+            return scaleResult;
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#submitAnswerSheet", e);
+            return null;
+        }
+    }
+
+    private ScaleResult submitScale(Scale scale) {
+        try {
+            // 尝试推理答案评级
+            this.inferScaleAnswer(scale);
+
+            ScaleResult scaleResult = scale.scoring(Resource.getInstance().getQuestionnairesPath());
+            if (null != scaleResult) {
+                if (!this.storage.writeScale(scale)) {
+                    Logger.e(this.getClass(), "#submitScale - Write scale to DB failed: " + scale.getSN());
+                }
+            }
+            return scaleResult;
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#submitScale", e);
+            return null;
+        }
+    }
+
+    private void inferScaleAnswer(Scale scale) {
+        for (Question question : scale.getQuestions()) {
+            this.inferScaleAnswer(scale, question.sn);
+        }
+    }
+
+    public void inferScaleAnswer(Scale scale, int questionSn) {
+        Question question = scale.getQuestion(questionSn);
+        if (question.isDescriptive()) {
+            // 检查是否已经有答案
+            if (question.hasChosen()) {
+                return;
+            }
+
+            Logger.i(this.getClass(), "#inferScaleAnswer - scale: " + scale.getSN() + " - " + questionSn);
+
+            GeneratingRecord result = this.host.syncGenerateText(this.host.selectUnit(ModelConfig.BAIZE_2_UNIT),
+                    question.makeInferencePrompt(), null, null, null);
+            if (null == result) {
+                result = this.host.syncGenerateText(this.host.selectUnit(ModelConfig.BAIZE_UNIT),
+                        question.makeInferencePrompt(), null, null, null);
+            }
+            if (null == result) {
+                Logger.e(this.getClass(), "#inferScaleAnswer - Inference answer error: " + scale.getSN());
+                // 发生错误，选择第一个
+                question.chooseAnswer(question.answers.get(0).code);
+                question.setInferenceResult(question.answers.get(0).content);
+                return;
+            }
+
+            // 关键词抽取由宿主分词器完成
+            // 所有答案的关键字
+            List<List<String>> answerKeywordList = new ArrayList<>();
+            for (Answer answer : question.answers) {
+                List<String> keywords = this.host.extractKeywords(answer.content, 3);
+                answerKeywordList.add(keywords);
+            }
+
+            Answer hit = null;
+            int index = 0;
+            for (List<String> answerKeyword : answerKeywordList) {
+                for (String word : answerKeyword) {
+                    if (TextUtils.isNumeric(word)) {
+                        // 跳过数字
+                        continue;
+                    }
+
+                    if (result.answer.contains(word)) {
+                        hit = question.answers.get(index);
+                        break;
+                    }
+                }
+                ++index;
+                if (null != hit) {
+                    break;
+                }
+            }
+
+            if (null == hit) {
+                Logger.e(this.getClass(), "#inferScaleAnswer - Can NOT find answer keyword: " + scale.getSN());
+                hit = question.answers.get(0);
+            }
+
+            Logger.i(this.getClass(), "#inferScaleAnswer - scale: " +  scale.getSN() +
+                    " - hit: " + hit.code + " - " + hit.content);
+            question.chooseAnswer(hit.code);
+            question.setInferenceResult(result.answer);
+        }
+    }
+
+    /**
+     * 根据报告内容推荐量表。
+     *
+     * @param reportSn 报告序列号。
+     * @return 返回推荐的量表；报告不存在时返回 {@code null}。
+     */
+    public Scale recommendScale(long reportSn) {
+        PaintingReport report = this.getPaintingReport(reportSn);
+        if (null == report) {
+            Logger.w(this.getClass(), "#recommendScale - Can NOT find report: " + reportSn);
+            return null;
+        }
+
+        ScaleEvaluation evaluation = new ScaleEvaluation();
+        return evaluation.recommendScale(report.getEvaluationReport());
+    }
+
+    /**
+     * 生成量表报告。
+     *
+     * @param channel 所属频道。
+     * @param scale 量表，须已答完。
+     * @param language 输出语言。
+     * @param listener 生成过程监听器。
+     * @return 返回已提交的量表报告；量表未答完、重复提交或入队失败时返回 {@code null}。
+     */
+    public ScaleReport generateScaleReport(AIGCChannel channel, Scale scale, Language language,
+                                           ScaleReportListener listener) {
+        if (!scale.isComplete()) {
+            Logger.e(this.getClass(), "#generateScaleReport - The scale is NOT complete: " + scale.getSN());
+            return null;
+        }
+
+        if (this.reportMap.containsKey(scale.getSN())) {
+            Logger.e(this.getClass(), "#generateScaleReport - Submits data repeatedly: " + scale.getSN());
+            return null;
+        }
+
+        if (null == scale.getResult()) {
+            Logger.d(this.getClass(), "#generateScaleReport - Recalculates scale score: " + scale.getSN());
+            this.submitScale(scale);
+        }
+
+        if (null == scale.getResult() || null == scale.getResult().prompt) {
+            Logger.w(this.getClass(), "#generateScaleReport - Scale prompt data is null: " + scale.getSN());
+            return null;
+        }
+
+        // 并发数量
+        int numUnit = this.host.countUnits(ModelConfig.BAIZE_2_UNIT);
+        if (0 == numUnit) {
+            Logger.e(this.getClass(), "#generateScaleReport - No unit");
+            return null;
+        }
+
+        ScaleReport report = new ScaleReport(channel.getAuthToken().getContactId(), scale);
+
+        ScaleReportTask task = new ScaleReportTask(channel, scale, report, listener);
+
+        // 缓存到内存
+        this.reportMap.put(report.sn, report);
+
+        this.scaleTaskQueue.offer(task);
+
+        if (this.numRunningScaleTasks.get() >= numUnit) {
+            // 执行任务数大于单元数
+            return report;
+        }
+
+        this.numRunningScaleTasks.incrementAndGet();
+
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Logger.i(PsychologyScene.class, "#generateScaleReport - Generating thread start");
+
+                ScaleReportTask scaleReportTask = scaleTaskQueue.poll();
+                while (null != scaleReportTask) {
+                    // 回调
+                    scaleReportTask.listener.onReportEvaluating(scaleReportTask.scaleReport);
+
+                    // 生成报告
+                    AIGCStateCode state = processScaleReport(scaleReportTask);
+                    if (state == AIGCStateCode.Ok) {
+                        // 写入数据库
+                        if (!storage.writeScaleReport(scaleReportTask.scaleReport)) {
+                            Logger.e(this.getClass(), "#generateScaleReport - #writeScaleReport error: "
+                                    + scaleReportTask.scaleReport.sn);
+                        }
+
+                        // 变更状态
+                        scaleReportTask.scaleReport.setFinished(true);
+                        scaleReportTask.scaleReport.setState(AIGCStateCode.Ok);
+
+                        // 回调
+                        scaleReportTask.listener.onReportEvaluateCompleted(scaleReportTask.scaleReport);
+                    }
+                    else {
+                        Logger.e(this.getClass(), "#generateScaleReport - #processScaleReport state: " + state.code);
+
+                        // 变更状态
+                        scaleReportTask.scaleReport.setFinished(true);
+                        scaleReportTask.scaleReport.setState(state);
+
+                        // 回调
+                        scaleReportTask.listener.onReportEvaluateFailed(scaleReportTask.scaleReport);
+                    }
+
+                    scaleReportTask = scaleTaskQueue.poll();
+                }
+
+                numRunningScaleTasks.decrementAndGet();
+            }
+        });
+        thread.setName("PsychologyScene#generateScaleReport");
+        thread.start();
+
+        return report;
+    }
+
+    public int numScaleReports(long contactId) {
+        return this.storage.countScaleReports(contactId);
+    }
+
+    public int numScaleReports(long contactId, int state) {
+        return this.storage.countScaleReports(contactId, state);
+    }
+
+    public int numScaleReports(long contactId, int state, boolean permissible, long startTime, long endTime) {
+        return this.storage.countPsychologyReports(contactId, state, permissible, startTime, endTime);
+    }
+
+    public ScaleReport getScaleReport(long sn) {
+        Report current = this.reportMap.get(sn);
+        if (current instanceof ScaleReport) {
+            return (ScaleReport) current;
+        }
+
+        ScaleReport report = this.storage.readScaleReport(sn);
+        if (null == report) {
+            Logger.w(this.getClass(), "#getScaleReport - Can NOT find scale report: " + sn);
+            return null;
+        }
+
+        return report;
+    }
+
+    public List<ScaleReport> getScaleReports(long contactId, boolean descending) {
+        return this.storage.readScaleReports(contactId, descending);
+    }
+
+    public List<ScaleReport> getScaleReports(long contactId, int state, boolean descending) {
+        return this.storage.readScaleReports(contactId, state, descending);
+    }
+
+    /**
+     * 生成融合内容。
+     *
+     * @param channel 所属频道。
+     * @param theme 综合评测主题，须支持综合评测。
+     * @param comprehensives 待评测的综合项列表。
+     * @param listener 生成过程监听器。
+     * @return 返回已提交的综合报告；主题不匹配、文件缺失或入队失败时返回 {@code null}。
+     */
+    public synchronized ComprehensiveReport generateComprehensive(AIGCChannel channel, Theme theme,
+                                                                  List<Comprehensive> comprehensives,
+                                                                  ComprehensiveReportListener listener) {
+        if (null == channel) {
+            Logger.e(this.getClass(), "#generateComprehensive - Channel is null");
+            return null;
+        }
+
+        if (!theme.isComprehensive()) {
+            Logger.e(this.getClass(), "#generateComprehensive - Unable to match the theme: " + theme.name);
+            return null;
+        }
+
+        for (Comprehensive comprehensive : comprehensives) {
+            if (!comprehensive.isValidFile()) {
+                Logger.e(this.getClass(), "#generateComprehensive - No files: " + comprehensive.getName());
+                return null;
+            }
+        }
+
+        if (this.comprehensiveReportWorkerQueue.size() >= this.maxQueueLength) {
+            Logger.w(this.getClass(), "#generateComprehensive - The queue length has reached the maximum limit: "
+                    + this.comprehensiveReportWorkerQueue.size() + "/" + this.maxQueueLength);
+            return null;
+        }
+
+        ComprehensiveReportWorker worker = new ComprehensiveReportWorker(this.host(), this.storage, channel, theme,
+                comprehensives, listener);
+        // 添加到队列
+        this.comprehensiveReportWorkerQueue.offer(worker);
+
+        // 缓存报告
+        ComprehensiveReport report = worker.getReport();
+        this.comprehensiveReportMap.put(report.sn, report);
+
+        // 并发数
+        int concurrency = this.host.countUnits(ModelConfig.BAIZE_2_UNIT);
+
+        if (this.numRunningComprehensiveTasks.get() >= concurrency) {
+            // 超过最大并发队列长度
+            return worker.getReport();
+        }
+
+        this.numRunningComprehensiveTasks.incrementAndGet();
+
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    // 加载配置
+                    loadConfig();
+
+                    Logger.i(PsychologyScene.class, "Comprehensive report worker thread START ("
+                            + numRunningComprehensiveTasks.get() + "/" + comprehensiveReportWorkerQueue.size() + ") - "
+                            + Thread.currentThread().getName()
+                            + " - " + Utils.gsDateFormat.format(new Date(System.currentTimeMillis())));
+
+                    ComprehensiveReportWorker reportWorker = comprehensiveReportWorkerQueue.poll();
+                    while (null != reportWorker) {
+                        // 读取文件
+                        for (Comprehensive comprehensive : reportWorker.getReport().comprehensives) {
+                            if (!comprehensive.hasFileLabels()) {
+                                for (String fileCode : comprehensive.getFileCodes()) {
+                                    FileLabel fileLabel = PsychologyScene.this.host.getFile(worker.channel.getDomain().getName(), fileCode);
+                                    if (null == fileLabel) {
+                                        Logger.w(this.getClass(), "#generateComprehensive - Can NOT find file: " + fileCode);
+                                        continue;
+                                    }
+                                    // 设置文件
+                                    comprehensive.addFileLabel(fileLabel);
+                                }
+                                for (String fileUrl : comprehensive.getFileUrls()) {
+                                    FileLabel fileLabel = PsychologyScene.this.host.downloadFile(worker.channel.getAuthToken(), fileUrl);
+                                    if (null == fileLabel) {
+                                        Logger.w(this.getClass(), "#generateComprehensive - Can NOT download file: " + fileUrl);
+                                        continue;
+                                    }
+                                    // 设置文件
+                                    comprehensive.addFileLabel(fileLabel);
+                                }
+                            }
+                        }
+
+                        // 工作器执行任务
+                        reportWorker.run();
+                        // 下一个
+                        reportWorker = comprehensiveReportWorkerQueue.poll();
+                    }
+                } catch (Exception e) {
+                    Logger.e(PsychologyScene.class, "#generateComprehensive", e);
+                } finally {
+                    numRunningComprehensiveTasks.decrementAndGet();
+
+                    Logger.i(PsychologyScene.class, "Comprehensive report worker thread END ("
+                            + numRunningComprehensiveTasks.get() + "/" + comprehensiveReportWorkerQueue.size() + ") - "
+                            + Thread.currentThread().getName()
+                            + " - " + Utils.gsDateFormat.format(new Date(System.currentTimeMillis())));
+                }
+            }
+        };
+        thread.setName("ComprehensiveWorkerThread-" + System.currentTimeMillis());
+        thread.start();
+
+        return worker.getReport();
+    }
+
+    public ComprehensiveReport getComprehensiveReport(long sn) {
+        ComprehensiveReport report = this.comprehensiveReportMap.get(sn);
+        if (null == report) {
+            report = this.storage.readComprehensiveReport(sn);
+        }
+        return report;
+    }
+
+    public String buildPrompt(List<ConversationRelation> relations, String query) {
+        StringBuilder result = new StringBuilder();
+
+        if (relations.size() == 1) {
+            ConversationRelation relation = relations.get(0);
+            if (relation.hasReport()) {
+                PaintingReport report = this.getPaintingReport(relation.getReportSn());
+                if (null != report) {
+                    relation.setReport(report);
+                }
+                else {
+                    ScaleReport scaleReport = this.getScaleReport(relation.getReportSn());
+                    if (null != scaleReport) {
+                        relation.setReport(scaleReport);
+                    }
+                }
+
+                if (null != relation.getReport()) {
+                    QueryRevolver queryRevolver = new QueryRevolver(PsychologyScene.this.host, this.storage);
+                    result.append(queryRevolver.generatePrompt(relation, query));
+                }
+                else {
+                    Logger.w(this.getClass(), "#buildPrompt - Can NOT find report: " + relation.getReportSn());
+                }
+            }
+        }
+        else {
+            List<ConversationRelation> relationList = new ArrayList<>();
+            List<Report> reportList = new ArrayList<>();
+
+            for (ConversationRelation relation : relations) {
+                Report report;
+                PaintingReport paintingReport = this.getPaintingReport(relation.getReportSn());
+                if (null == paintingReport) {
+                    ScaleReport scaleReport = this.getScaleReport(relation.getReportSn());
+                    report = scaleReport;
+                }
+                else {
+                    report = paintingReport;
+                }
+                if (null == report) {
+                    Logger.w(this.getClass(), "#buildPrompt - Can NOT find report: " + relation.getReportSn());
+                    continue;
+                }
+
+                relation.setReport(report);
+
+                relationList.add(relation);
+                reportList.add(report);
+            }
+
+            if (relationList.isEmpty() || reportList.isEmpty()) {
+                Logger.w(this.getClass(), "#buildPrompt - No data for building prompt");
+                return null;
+            }
+
+            QueryRevolver queryRevolver = new QueryRevolver(this.host, this.storage);
+            result.append(queryRevolver.generatePrompt(relationList, reportList, query));
+        }
+
+        return result.toString();
+    }
+
+    /**
+     * 构建基于上下文数据的提示词。
+     *
+     * @param context 会话上下文，提供关系与当前报告。
+     * @param query 本轮用户输入。
+     * @param language 输出语言。
+     * @return 返回提示词链；无匹配策略时返回 {@code null}。
+     */
+    public PromptRevolver revolve(ConversationContext context, String query, Language language) {
+        QueryRevolver revolver = new QueryRevolver(this.host, this.storage);
+
+        // 尝试情景推理
+        if (null != context.getRelation().getReport()) {
+            Report report = context.getRelation().getReport();
+            if (report.getAttribute().age < 18) {
+                Logger.d(this.getClass(), "#revolve - The age is less then 18: " + report.sn);
+
+                // 添加节点
+                StrategyNode detectQuery = new DetectTeenagerQueryStrategyNode(query, language);
+                StrategyNode problemClassification = new TeenagerProblemClassificationNode(revolver, context.getCurrentReport());
+                StrategyNode queryNode = new TeenagerQueryNode(query, revolver, context.getCurrentReport());
+                // 连接节点
+                detectQuery.link(problemClassification).link(queryNode);
+
+                // 创建流
+                StrategyFlow flow = new StrategyFlow(detectQuery);
+
+                // 执行
+                GeneratingRecord result = flow.generate(new HostGeneratable(PsychologyScene.this.host));
+                if (null != result) {
+                    PromptRevolver prompt = new PromptRevolver(result.query);
+                    prompt.result = result;
+                    return prompt;
+                }
+            }
+        }
+
+        return revolver.generatePrompt(context, query);
+    }
+
+    public Painting getPainting(long reportSn) {
+        Painting painting = this.paintingMap.get(reportSn);
+        if (null != painting) {
+            return painting;
+        }
+        return this.storage.readPainting(reportSn);
+    }
+
+    public PaintingFeatureSet getPaintingFeatureSet(long reportSn) {
+        PaintingFeatureSet featureSet = this.storage.readPaintingFeatureSet(reportSn);
+        if (null != featureSet) {
+            return featureSet;
+        }
+
+        Report report = this.reportMap.get(reportSn);
+        if (report instanceof PaintingReport) {
+            PaintingReport paintingReport = (PaintingReport) report;
+            return paintingReport.paintingFeatureSet;
+        }
+
+        return null;
+    }
+
+    public Painting getPredictedPainting(AuthToken authToken, String fileCode) {
+        FileLabel fileLabel = this.host.getFile(authToken.getDomain(), fileCode);
+        if (null == fileLabel) {
+            Logger.w(this.getClass(), "#getPredictedPainting - Can NOT find file: " + fileCode);
+            return null;
+        }
+
+        /*
+        File file = this.host.loadFile(authToken.getDomain(), fileLabel.getFileCode());
+        if (null == file) {
+            Logger.e(this.getClass(), "#getPredictedPainting - Can NOT find painting file: " +
+                    fileCode);
+            return null;
+        }
+
+        // 将文件调整为指定规格：横幅，宽1280
+        File outputFile = new File(this.host.getWorkingPath(),
+                FileUtils.extractFileName(file.getName()) + "_processed.jpg");
+        try {
+            BufferedImage image = ImageIO.read(file);
+            image = ImageUtils.rotateToLandscape(image);
+            image = ImageUtils.adjustAspectRatio(image);
+            image = ImageUtils.resizeToDefault(image);
+            ImageIO.write(image, "jpeg", outputFile);
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#getPredictedPainting - Process image file error: " +
+                    fileLabel.getFileCode());
+            return null;
+        }
+
+        String filename = fileLabel.getFileCode() + "_predict.jpg";
+        String newFileCode = FileUtils.makeFileCode(fileCode, authToken.getDomain(), filename);
+        FileLabel resultFile = this.host.saveFile(authToken, newFileCode, outputFile, filename, true);
+        */
+
+        AIGCUnit unit = this.host.selectUnit(UNIT);
+        if (null == unit) {
+            Logger.e(this.getClass(), "#getPredictedPainting - No unit: " + fileCode);
+            return null;
+        }
+        // 进行绘画元素预测
+        Painting resultPainting = this.processPainting(unit, fileLabel, Theme.Generic, true, true);
+        if (null == resultPainting) {
+            Logger.e(this.getClass(), "#getPredictedPainting - Predict painting failed: " + fileCode);
+            return null;
+        }
+        resultPainting.fileLabel = resultPainting.processedFileLabel;
+        return resultPainting;
+    }
+
+    public FileLabel getPredictedPainting(AuthToken authToken, long reportSn, boolean bbox, boolean  vparam,
+                                          double probability) {
+        Painting painting = this.getPainting(reportSn);
+        if (null == painting) {
+            Logger.w(this.getClass(), "#getPredictedPainting - Can NOT find painting: " + reportSn);
+            return null;
+        }
+
+        if (null == painting.fileLabel) {
+            PaintingReport report = this.getPaintingReport(reportSn);
+            if (null == report) {
+                Logger.w(this.getClass(), "#getPredictedPainting - Can NOT find painting: " + reportSn);
+                return null;
+            }
+            // 设置文件
+            painting.fileLabel = report.getFileLabel();
+        }
+
+        /*
+        File file = this.host.loadFile(authToken.getDomain(), painting.fileLabel.getFileCode());
+        if (null == file) {
+            Logger.e(this.getClass(), "#getPredictedPainting - Can NOT find painting file: " +
+                    painting.fileLabel.getFileCode());
+            return null;
+        }
+
+        // 将文件调整为指定规格：横幅，宽1280
+        File rawFile = new File(this.host.getWorkingPath(),
+                FileUtils.extractFileName(file.getName()) + "_processed.jpg");
+        try {
+            BufferedImage image = ImageIO.read(file);
+            image = ImageUtils.rotateToLandscape(image);
+            image = ImageUtils.adjustAspectRatio(image);
+            image = ImageUtils.resizeToDefault(image);
+            ImageIO.write(image, "jpeg", rawFile);
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#getPredictedPainting - Process image file error: " +
+                    painting.fileLabel.getFileCode());
+            return null;
+        }
+
+        String filename = painting.fileLabel.getFileCode() + "_predict.jpg";
+        String tmpFileCode = FileUtils.makeFileCode(reportSn, authToken.getDomain(), filename);
+        FileLabel rawFileLabel = this.host.saveFile(authToken, tmpFileCode, rawFile, filename, false);
+        */
+
+        AIGCUnit unit = this.host.selectUnit(UNIT);
+        if (null == unit) {
+            Logger.e(this.getClass(), "#getPredictedPainting - No unit");
+            return null;
+        }
+        // 进行绘画元素预测
+        Painting resultPainting = this.processPainting(unit, painting.fileLabel, Theme.Generic, true, true);
+        if (null == resultPainting) {
+            Logger.e(this.getClass(), "#getPredictedPainting - Process painting failed");
+            return null;
+        }
+        resultPainting.fileLabel = resultPainting.processedFileLabel;
+
+        List<Material> materials = new ArrayList<>();
+        for (Material material : resultPainting.getMaterials()) {
+            if (material.prob >= probability) {
+                materials.add(material);
+            }
+        }
+
+        File rawFile = this.host.loadFile(authToken.getDomain(), resultPainting.fileLabel.getFileCode());
+
+        // 绘制预测数据
+        File outputFile = new File(this.host.getWorkingPath(),
+                resultPainting.fileLabel.getFileCode() + "_result.jpg");
+        PaintingUtils.drawMaterial(rawFile, materials, bbox, vparam, outputFile);
+
+        if (!outputFile.exists()) {
+            Logger.e(this.getClass(), "#getPredictedPainting - Drawing picture material box failed: " + reportSn);
+            return null;
+        }
+
+        String filename = reportSn + "_predict.jpg";
+        String tmpFileCode = FileUtils.makeFileCode(reportSn, authToken.getDomain(), filename);
+        FileLabel result = this.host.saveFile(authToken, tmpFileCode, outputFile, filename, true);
+        return result;
+    }
+
+    public JSONObject getPaintingInferenceData(AuthToken authToken, long reportSn) {
+        PaintingReport report = this.getPaintingReport(reportSn);
+        if (null == report) {
+            Logger.d(this.getClass(), "#getPaintingInferenceData - Can NOT find report: " + reportSn);
+            return null;
+        }
+
+        if (report.getState() == AIGCStateCode.Ok || report.getState() == AIGCStateCode.Inferencing) {
+            JSONObject result = new JSONObject();
+            JSONArray nodes = new JSONArray();
+            JSONArray links = new JSONArray();
+
+            List<String> nodesNames = new ArrayList<>();
+            List<String> houseCompNodeNames = new ArrayList<>();
+            List<String> treeCompNodeNames = new ArrayList<>();
+            List<String> personCompNodeNames = new ArrayList<>();
+            List<String> otherCompNodeNames = new ArrayList<>();
+            List<String> otherNodeNames = new ArrayList<>();
+
+            EvaluationReport evaluationReport = report.getEvaluationReport();
+            if (null == evaluationReport) {
+                Logger.w(this.getClass(), "#getPaintingInferenceData - Evaluation data is null: " + reportSn);
+                return null;
+            }
+            List<Representation> list = evaluationReport.getRepresentationList();
+            for (Representation rep : list) {
+                JSONObject node = new JSONObject();
+                if (!nodesNames.contains(rep.knowledgeStrategy.getTerm().word)) {
+                    nodesNames.add(rep.knowledgeStrategy.getTerm().word);
+                    node.put("name", rep.knowledgeStrategy.getTerm().word);
+                    nodes.put(node);
+                }
+
+                for (PerceptronThing thing : rep.things) {
+                    Label label = thing.getLabel();
+                    String name = thing.getName();
+
+                    if (houseCompNodeNames.contains(name) ||
+                            treeCompNodeNames.contains(name) ||
+                            personCompNodeNames.contains(name) ||
+                            otherCompNodeNames.contains(name) ||
+                            otherNodeNames.contains(name)) {
+                        continue;
+                    }
+
+                    if (Label.isHouseComponent(label)) {
+                        houseCompNodeNames.add(name);
+                    }
+                    else if (Label.isTreeComponent(label)) {
+                        treeCompNodeNames.add(name);
+                    }
+                    else if (Label.isPersonComponent(label)) {
+                        personCompNodeNames.add(name);
+                    }
+                    else if (Label.isOther(label)) {
+                        otherCompNodeNames.add(name);
+                    }
+                    else {
+                        otherNodeNames.add(name);
+                    }
+
+                    if (!nodesNames.contains(name)) {
+                        nodesNames.add(name);
+                        node = new JSONObject();
+                        node.put("name", name);
+                        nodes.put(node);
+                    }
+                }
+            }
+
+            for (Representation rep : list) {
+                int value = rep.positiveCorrelation - rep.negativeCorrelation;
+                value = (value <= 0) ? 1 : value + 1;
+                for (PerceptronThing thing : rep.things) {
+                    String name = thing.getName();
+                    JSONObject link = new JSONObject();
+                    link.put("source", name);
+                    link.put("target", rep.knowledgeStrategy.getTerm().word);
+                    link.put("value", value);
+                    links.put(link);
+                }
+            }
+
+            // 组件关系
+            for (Representation rep : list) {
+                for (PerceptronThing thing : rep.things) {
+                    Label label = thing.getLabel();
+                    String name = thing.getName();
+                    if (Label.isHouse(label)) {
+                        for (String comp : houseCompNodeNames) {
+                            JSONObject link = new JSONObject();
+                            link.put("source", comp);
+                            link.put("target", name);
+                            link.put("value", 3);
+                            links.put(link);
+                        }
+                    }
+                    else if (Label.isTree(label)) {
+                        for (String comp : treeCompNodeNames) {
+                            JSONObject link = new JSONObject();
+                            link.put("source", comp);
+                            link.put("target", name);
+                            link.put("value", 4);
+                            links.put(link);
+                        }
+                    }
+                    else if (Label.isPerson(label)) {
+                        for (String comp : personCompNodeNames) {
+                            JSONObject link = new JSONObject();
+                            link.put("source", comp);
+                            link.put("target", name);
+                            link.put("value", 5);
+                            links.put(link);
+                        }
+                    }
+                }
+            }
+
+            // 子集关系
+            for (Representation rep : list) {
+                for (PerceptronThing thing : rep.things) {
+                    if (thing.hasChildren()) {
+                        for (PerceptronThing child : thing.getChildren()) {
+                            JSONObject link = new JSONObject();
+                            link.put("source", child.getName());
+                            link.put("target", thing.getName());
+                            link.put("value", thing.getValue());
+                            links.put(link);
+                        }
+                    }
+                }
+            }
+
+            result.put("nodes", nodes);
+            result.put("links", links);
+            return result;
+        }
+
+        return null;
+    }
+
+    public List<PaintingLabel> getPaintingLabels(long sn) {
+        return this.storage.readPaintingLabels(sn);
+    }
+
+    public boolean writePaintingLabels(long sn, List<PaintingLabel> labels) {
+        this.storage.deletePaintingLabel(sn);
+
+        if (labels.isEmpty()) {
+            return true;
+        }
+        return this.storage.writePaintingLabels(labels);
+    }
+
+    public boolean writePaintingReportState(long sn, int state) {
+        return this.storage.writePaintingManagementState(sn, state);
+    }
+
+    private Painting processPainting(AIGCUnit unit, FileLabel fileLabel, Theme theme, boolean adjust, boolean upload) {
+        JSONObject data = new JSONObject();
+        data.put("fileLabel", fileLabel.toJSON());
+        data.put("adjust", adjust);
+        data.put("upload", upload);
+        ActionDialect dialect = this.host.invokeUnit(unit, AIGCAction.PredictPsychologyPainting.name, data, 5 * 60 * 1000);
+        if (null == dialect) {
+            Logger.w(this.getClass(), "#processPainting - Predict image unit error");
+            return null;
+        }
+
+        Packet response = new Packet(dialect);
+        if (Packet.extractCode(response) != AIGCStateCode.Ok.code) {
+            Logger.w(this.getClass(), "#processPainting - Predict image response state: " +
+                    Packet.extractCode(response));
+            return null;
+        }
+
+        try {
+            JSONObject responseData = Packet.extractDataPayload(response);
+            // 绘画识别结果
+            Painting painting = new Painting(responseData.getJSONArray("result").getJSONObject(0));
+
+            if (Theme.PersonInRain == theme) {
+                // 增加对伞的识别
+                final List<String> templateNameList = new ArrayList<>();
+                templateNameList.add("umbrella");
+                boolean success = this.host.matchSimilarity(fileLabel, templateNameList, new MatchSimilarityListener() {
+                    @Override
+                    public void onCompleted(FileLabel fileLabel, List<String> templateNames, List<Material> materials) {
+                        for (Material material : materials) {
+                            painting.append(material);
+                        }
+
+                        synchronized (templateNameList) {
+                            templateNameList.notify();
+                        }
+                    }
+
+                    @Override
+                    public void onFailed(FileLabel fileLabel, CVStateCode stateCode) {
+                        synchronized (templateNameList) {
+                            templateNameList.notify();
+                        }
+                    }
+                });
+
+                if (success) {
+                    synchronized (templateNameList) {
+                        try {
+                            templateNameList.wait(2 * 60 * 1000);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+            else if (Theme.SocialIcebreakerGame == theme) {
+                // 增加对"火"的识别
+                final List<String> templateNameList = new ArrayList<>();
+                templateNameList.add("fire");
+                templateNameList.add("torch");
+                boolean success = this.host.matchSimilarity(fileLabel, templateNameList, new MatchSimilarityListener() {
+                    @Override
+                    public void onCompleted(FileLabel fileLabel, List<String> templateNames, List<Material> materials) {
+                        for (Material material : materials) {
+                            painting.append(material);
+                        }
+
+                        synchronized (templateNameList) {
+                            templateNameList.notify();
+                        }
+                    }
+
+                    @Override
+                    public void onFailed(FileLabel fileLabel, CVStateCode stateCode) {
+                        synchronized (templateNameList) {
+                            templateNameList.notify();
+                        }
+                    }
+                });
+
+                if (success) {
+                    synchronized (templateNameList) {
+                        try {
+                            templateNameList.wait(2 * 60 * 1000);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+
+            return painting;
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#processPainting", e);
+            return null;
+        }
+    }
+
+    private EvaluationWorker processReport(AIGCChannel channel, Painting painting, Theme theme, AIGCUnit unit) {
+        Evaluation evaluation = null;
+        AIGCHost host = this.host();
+        switch (theme) {
+            case HouseTreePerson:
+                evaluation = (null == painting) ?
+                        new HTPEvaluation(channel.getAuthToken().getContactId(),
+                                new Attribute("female", 28, "", channel.getLanguage(), false)) :
+                        new HTPEvaluation(channel.getAuthToken().getContactId(), painting);
+                break;
+            case AttachmentStyle:
+                evaluation = new AttachmentStyleEvaluation(channel.getAuthToken().getContactId(), painting);
+                break;
+            case PersonInRain:
+                evaluation = new PersonInRainEvaluation(channel.getAuthToken().getContactId(), painting, host);
+                break;
+            case SocialIcebreakerGame:
+                evaluation = new SocialIcebreakerGameEvaluation(channel.getAuthToken().getContactId(),
+                        painting, host);
+                break;
+            default:
+                evaluation = (null == painting) ?
+                        new HTPEvaluation(channel.getAuthToken().getContactId(),
+                                new Attribute("male", 28, "", channel.getLanguage(), false)) :
+                        new HTPEvaluation(channel.getAuthToken().getContactId(), painting);
+                break;
+        }
+
+        // 生成评估报告
+        EvaluationReport report = evaluation.makeEvaluationReport();
+
+        EvaluationWorker evaluationWorker = new EvaluationWorker(report, host);
+        if (report.isEmpty()) {
+            Logger.w(this.getClass(), "#processReport - No things in painting: " + channel.getAuthToken().getContactId());
+            return evaluationWorker;
+        }
+
+        // 设置绘画特征集
+        evaluationWorker.setPaintingFeatureSet(evaluation.getPaintingFeatureSet());
+
+        if (theme == Theme.Generic || theme == Theme.HouseTreePerson) {
+            // 进行指标因子推理
+            JSONObject data = new JSONObject();
+            JSONArray indicators = new JSONArray();
+            for (EvaluationScore es : report.getFullEvaluationScores()) {
+                indicators.put(es.calcScore());
+            }
+            data.put("attribute", report.getAttribute().calcFactorToArray());
+            data.put("indicators", indicators);
+            ActionDialect dialect = this.host.invokeUnit(unit, AIGCAction.CheckPsychologyPainting.name, data, 60 * 1000);
+            if (null != dialect) {
+                Packet response = new Packet(dialect);
+                if (Packet.extractCode(response) == AIGCStateCode.Ok.code) {
+                    JSONObject responseData = Packet.extractDataPayload(response);
+                    FactorSet factorSet = new FactorSet(responseData.getJSONObject("result"));
+                    // 合并因子集合
+                    evaluationWorker.mergeFactorSet(factorSet);
+                }
+                else {
+                    Logger.w(this.getClass(), "#processReport - Predict factor response state: " +
+                            Packet.extractCode(response));
+                }
+            }
+            else {
+                Logger.w(this.getClass(), "#processReport - Predict factor unit error");
+            }
+        }
+
+        return evaluationWorker;
+    }
+
+    private AIGCStateCode processScaleReport(ScaleReportTask task) {
+        if (task.scaleReport.getResult().prompt.isEmpty()) {
+            // 没有可用的提示词
+            return AIGCStateCode.Ok;
+        }
+
+        EvaluationWorker evaluationWorker = new EvaluationWorker(this.host(), task.scaleReport.getAttribute());
+
+        for (ScaleFactor factor : task.scaleReport.getFactors()) {
+            ScalePrompt.Factor prompt = task.scale.getResult().prompt.getFactor(factor.name);
+            if (null == prompt) {
+                Logger.w(this.getClass(), "#processScaleReport - Can NOT find prompt: " + factor.name);
+                return AIGCStateCode.IllegalOperation;
+            }
+
+            String description = null;
+            if (evaluationWorker.fast) {
+                Logger.d(this.getClass(), "processScaleReport - factor prompt: " +
+                        prompt.name + " - " + prompt.description);
+                description = this.host.extractContent(prompt.description);
+            }
+            if (null == description) {
+                GeneratingRecord result = this.host.syncGenerateText(this.host.selectUnit(ModelConfig.BAIZE_2_UNIT),
+                        prompt.description, new GeneratingOption(), null, null);
+                if (null != result) {
+                    description = result.answer;
+                }
+            }
+
+            if (null == description || description.length() == 0) {
+                Logger.w(this.getClass(), "#processScaleReport - Generates description error: " + factor.name);
+                return AIGCStateCode.UnitError;
+            }
+
+            // 描述
+            factor.description = description;
+
+            if (null != prompt.suggestion && prompt.suggestion.length() > 3) {
+                String suggestion = null;
+                if (evaluationWorker.fast) {
+                    Logger.d(this.getClass(), "processScaleReport - factor prompt: " +
+                            prompt.name + " - " + prompt.suggestion);
+                    suggestion =  this.host.extractContent(prompt.suggestion);
+                }
+                if (null == suggestion) {
+                    GeneratingRecord result = this.host.syncGenerateText(this.host.selectUnit(ModelConfig.BAIZE_2_UNIT),
+                            prompt.suggestion, new GeneratingOption(), null, null);
+                    if (null != result) {
+                        suggestion = result.answer;
+                    }
+                }
+
+                factor.suggestion = (null != suggestion) ? suggestion : "";
+            }
+        }
+
+        return AIGCStateCode.Ok;
+    }
+
+    private long lastCheckReportRetention = 0;
+
+    public void onTick(long now) {
+        Iterator<Map.Entry<Long, Report>> iter = this.reportMap.entrySet().iterator();
+        while (iter.hasNext()) {
+            Report report = iter.next().getValue();
+            if (now - report.timestamp > 12 * 60 * 60 * 1000) {
+                iter.remove();
+            }
+        }
+
+        Iterator<Map.Entry<Long, Painting>> piter = this.paintingMap.entrySet().iterator();
+        while (piter.hasNext()) {
+            Painting painting = piter.next().getValue();
+            if (now - painting.timestamp > 12 * 60 * 60 * 1000) {
+                piter.remove();
+            }
+        }
+
+        // 处理超期留存报告
+        if (now - this.lastRetentionRefresh > 60 * 60 * 1000) {
+            this.lastRetentionRefresh = now;
+            int count = this.storage.refreshPsychologyReportRetention();
+            Logger.i(this.getClass(), "#onTick - Refresh report retention: " + count);
+        }
+
+        Iterator<Map.Entry<Long, ComprehensiveReport>> citer = this.comprehensiveReportMap.entrySet().iterator();
+        while (citer.hasNext()) {
+            ComprehensiveReport comprehensiveReport = citer.next().getValue();
+            if (now - comprehensiveReport.timestamp > 12 * 60 * 60 * 1000) {
+                citer.remove();
+            }
+        }
+
+        Iterator<Map.Entry<Long, TemplateArticleBuilder>> aiter = this.articleBuilderMap.entrySet().iterator();
+        while (aiter.hasNext()) {
+            TemplateArticleBuilder builder = aiter.next().getValue();
+            if (now - builder.timestamp > 12 * 60 * 60 * 1000) {
+                aiter.remove();
+            }
+        }
+    }
+
+    public class PaintingReportTask {
+
+        protected AIGCChannel channel;
+
+        protected Attribute attribute;
+
+        protected FileLabel fileLabel;
+
+        protected Theme theme;
+
+        protected int maxIndicators;
+
+        protected boolean adjust;
+
+        protected PaintingReportListener listener;
+
+        protected PaintingReport report;
+
+        public PaintingReportTask(AIGCChannel channel, Attribute attribute, FileLabel fileLabel,
+                                  Theme theme, int maxIndicators, boolean adjust,
+                                  PaintingReportListener listener, PaintingReport report) {
+            this.channel = channel;
+            this.attribute = attribute;
+            this.fileLabel = fileLabel;
+            this.theme = theme;
+            this.maxIndicators = Math.min(maxIndicators, 36);
+            this.adjust = adjust;
+            this.listener = listener;
+            this.report = report;
+        }
+    }
+
+    public class ScaleReportTask {
+
+        protected AIGCChannel channel;
+
+        protected Scale scale;
+
+        protected ScaleReport scaleReport;
+
+        protected ScaleReportListener listener;
+
+        public ScaleReportTask(AIGCChannel channel, Scale scale, ScaleReport scaleReport, ScaleReportListener listener) {
+            this.channel = channel;
+            this.scale = scale;
+            this.scaleReport = scaleReport;
+            this.listener = listener;
+        }
+    }
+}

@@ -1,0 +1,2552 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
+package cube.service.psychology;
+
+import cell.core.talk.LiteralBase;
+import cell.util.log.Logger;
+import cube.aigc.psychology.*;
+import cube.aigc.psychology.algorithm.BigFivePersonality;
+import cube.aigc.psychology.algorithm.IndicatorRate;
+import cube.aigc.psychology.app.ConsultationSchedule;
+import cube.aigc.psychology.app.Customer;
+import cube.aigc.psychology.composition.*;
+import cube.aigc.psychology.consultation.ConsultationMethod;
+import cube.aigc.psychology.consultation.ConsultationScheduleState;
+import cube.aigc.psychology.consultation.ConsultationTheme;
+import cube.aigc.psychology.indicator.Indicator;
+import cube.auth.AuthToken;
+import cube.common.Language;
+import cube.common.Storagable;
+import cube.common.entity.Appointment;
+import cube.common.state.AIGCStateCode;
+import cube.core.Conditional;
+import cube.core.Constraint;
+import cube.core.Storage;
+import cube.core.StorageField;
+import cube.storage.StorageFactory;
+import cube.storage.StorageFields;
+import cube.storage.StorageType;
+import cube.util.EmojiFilter;
+import cube.util.Gender;
+import cube.util.JSONStorageUtils;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
+
+/**
+ * 心理学场景的存储器。
+ *
+ * <p><b>模块归属</b>：本类属于心理学业务模块 {@code service-psychology}，
+ * 编译期<b>只</b>依赖 {@code cube-common} 与 cell 框架，不依赖宿主 {@code service} 模块。
+ * 这一点由该模块的构建配置保证（classpath 中不含 {@code cube-service-*.jar}），
+ * 因此本类中不允许出现任何 {@code cube.service.*} 的类型引用。</p>
+ *
+ * <p><b>六维描述生成</b>：报告的六维得分描述需要分词器与 TF-IDF 语料，
+ * 而该生成算法的实现体在宿主侧（{@code cube.service.aigc.utils.ContentTools}），经宿主能力接口转发，
+ * 传入的分词器实例由宿主持有。因此本类不持有分词器，
+ * 而是由宿主在打开存储前以 {@link BiConsumer} 注入一个「描述生成器」，
+ * 从而在编译期彻底切断对宿主模块的依赖。</p>
+ */
+public class PsychologyStorage implements Storagable {
+
+    private final String reportTable = "psychology_report";
+
+    private final String reportPermissionTable = "psychology_report_permission";
+
+    private final String paintingTable = "psychology_painting";
+
+    private final String paintingFeatureSetTable = "psychology_painting_feature_set";
+
+    private final String reportTextTable = "psychology_report_text";
+
+    private final String reportHexagonTable = "psychology_report_hexagon";
+
+    private final String scaleTable = "psychology_scale";
+
+    private final String scaleAnswerTable = "psychology_scale_answer";
+
+    private final String scaleReportTable = "psychology_scale_report";
+
+    private final String paintingLabelTable = "psychology_painting_label";
+
+    private final String paintingReportManagementTable = "psychology_painting_report_mgmt";
+
+    private final String reportArticleTable = "psychology_report_article";
+
+    private final String comprehensiveReportTable = "psychology_comprehensive";
+
+    private final String customerTable = "psychology_customer";
+
+    private final String scheduleTable = "psychology_schedule";
+
+    private final String appointmentTable = "psychology_appointment";
+
+    /**
+     * 咨询录音归档表。
+     *
+     * <p><b>表名变更</b>：原为宿主 {@code aigc_counseling_recording}，
+     * 随咨询业务迁入本模块后改为 {@code psychology_counseling_recording}。</p>
+     *
+     * <p><b>为何要迁</b>：该表只被咨询流使用（写入方是
+     * {@code CounselingManager#stopStream}，读取方是
+     * {@code stopVoiceStream} 与 {@code getVoiceStreamFile}），
+     * 留在宿主存储会让咨询业务反过来依赖宿主。</p>
+     *
+     * <p>⚠️ <b>既有数据不会被自动迁移</b>：旧表在宿主库中留存，
+     * 新表在本模块的库中从空表开始。历史咨询录音需按需手工搬运。</p>
+     */
+    private final String counselingRecordingTable = "psychology_counseling_recording";
+
+//    private final String usageTable = "psychology_usage";
+
+    private final StorageField[] reportFields = new StorageField[] {
+            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY
+            }),
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("name", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("gender", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("age", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("role", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL,
+            }),
+            new StorageField("language", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("strict", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL, Constraint.DEFAULT_0
+            }),
+            new StorageField("file_code", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("theme", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("state", LiteralBase.INT, new Constraint[] {
+                    Constraint.DEFAULT_0
+            }),
+            new StorageField("finished_timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.DEFAULT_0
+            }),
+            new StorageField("summary", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("evaluation_data", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("remark", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("extension", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            })
+    };
+
+    private final StorageField[] reportFieldsForQuery = new StorageField[] {
+            new StorageField(reportTable, "sn", LiteralBase.LONG),
+            new StorageField(reportTable, "contact_id", LiteralBase.LONG),
+            new StorageField(reportTable, "timestamp", LiteralBase.LONG),
+            new StorageField(reportTable, "name", LiteralBase.STRING),
+            new StorageField(reportTable, "gender", LiteralBase.STRING),
+            new StorageField(reportTable, "age", LiteralBase.INT),
+            new StorageField(reportTable, "role", LiteralBase.STRING),
+            new StorageField(reportTable, "language", LiteralBase.STRING),
+            new StorageField(reportTable, "strict", LiteralBase.INT),
+            new StorageField(reportTable, "file_code", LiteralBase.STRING),
+            new StorageField(reportTable, "theme", LiteralBase.STRING),
+            new StorageField(reportTable, "state", LiteralBase.INT),
+            new StorageField(reportTable, "finished_timestamp", LiteralBase.LONG),
+            new StorageField(reportTable, "summary", LiteralBase.STRING),
+            new StorageField(reportTable, "evaluation_data", LiteralBase.STRING),
+            new StorageField(reportTable, "remark", LiteralBase.STRING),
+            new StorageField(reportTable, "extension", LiteralBase.STRING)
+    };
+
+    private final StorageField[] reportPermissionFields = new StorageField[] {
+            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("report_sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("file", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("indicator_summary", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("indicator_details", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("personality_portrait", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("personality_details", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("dimension_score", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("attention", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("reference", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("recommend", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("suggestion", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("symptom_factor", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("affect_factor", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("personality_factor", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            })
+    };
+
+    private final StorageField[] paintingFields = new StorageField[] {
+            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            new StorageField("report_sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("file_code", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("data", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            })
+    };
+
+    private final StorageField[] paintingFeatureSetFields = new StorageField[] {
+            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("data", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            })
+    };
+
+    private final StorageField[] reportTextFields = new StorageField[] {
+            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            new StorageField("report_sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("indicator", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("title", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL,
+            }),
+            new StorageField("report", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("suggestion", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("rate", LiteralBase.INT, new Constraint[] {
+                    Constraint.DEFAULT_0
+            })
+    };
+
+    private final StorageField[] reportHexagonFields = new StorageField[] {
+            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("mood", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("cognition", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("behavior", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("interpersonal_relationship", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("self_assessment", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("mental_health", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+    };
+
+    private final StorageField[] scaleFields = new StorageField[] {
+            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.UNIQUE
+            }),
+            new StorageField("name", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL,
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("gender", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("age", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("role", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("language", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("complete", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("data", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            })
+    };
+
+    private final StorageField[] scaleAnswerFields = new StorageField[] {
+            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            new StorageField("scale_sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.UNIQUE
+            }),
+            new StorageField("sheet", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("num_answers", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            })
+    };
+
+    private final StorageField[] scaleReportFields = new StorageField[] {
+            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY
+            }),
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("name", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("gender", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("age", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("role", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("language", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("strict", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL, Constraint.DEFAULT_0
+            }),
+            new StorageField("factor_data", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("state", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL, Constraint.DEFAULT_0
+            }),
+            new StorageField("remark", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            })
+    };
+
+    private final StorageField[] paintingLabelFields = new StorageField[] {
+            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("description", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("evaluation_scores", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("representations", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            })
+    };
+
+    private final StorageField[] paintingReportManagementFields = new StorageField[] {
+            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            new StorageField("report_sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.UNIQUE
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("state", LiteralBase.INT, new Constraint[] {
+                    Constraint.DEFAULT_0
+            }),
+            new StorageField("retention", LiteralBase.INT, new Constraint[] {
+                    Constraint.DEFAULT_0
+            })
+    };
+
+    private final StorageField[] reportArticleFields = new StorageField[] {
+            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY,
+            }),
+            new StorageField("theme", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL,
+            }),
+            new StorageField("template", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL,
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL,
+            }),
+            new StorageField("state", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL,
+            }),
+            new StorageField("rate", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL,
+            }),
+            new StorageField("title", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL,
+            }),
+            new StorageField("content", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL,
+            }),
+            new StorageField("paragraph_1", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL,
+            }),
+            new StorageField("paragraph_2", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL,
+            }),
+            new StorageField("paragraph_3", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL,
+            }),
+            new StorageField("paragraph_4", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL,
+            }),
+            new StorageField("paragraph_5", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL,
+            })
+    };
+
+    private final StorageField[] comprehensiveReportFields = new StorageField[] {
+            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY
+            }),
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("elapsed", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("theme", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("state", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("summary", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("sections", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("comprehensive_1", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("comprehensive_2", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("comprehensive_3", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("comprehensive_4", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("comprehensive_5", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            })
+    };
+
+    private final StorageField[] customerFields = new StorageField[] {
+            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY,
+            }),
+            new StorageField("cid", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("name", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("gender", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("age", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("mobile", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("comment", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("state", LiteralBase.INT, new Constraint[] {
+                    Constraint.DEFAULT_0
+            }),
+            new StorageField("hexagon_score", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("personality", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            })
+    };
+
+    private final StorageField[] scheduleFields = new StorageField[] {
+            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY,
+            }),
+            new StorageField("cid", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("customer_id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("appointment_time", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("appointment_duration", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("appointment_theme", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("appointment_consultation", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("state", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("counseling_time", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("counseling_duration", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("counseling_theme", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("counseling_consultation", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("recording_name", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("recording_file_code", LiteralBase.STRING, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            }),
+            new StorageField("voice_diarization_id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.DEFAULT_NULL
+            })
+    };
+
+    private final StorageField[] appointmentFields = new StorageField[] {
+            new StorageField("uid", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY
+            }),
+            new StorageField("theme", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("date", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            })
+    };
+
+    private final StorageField[] counselingRecordingFields = new StorageField[] {
+            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            new StorageField("cid", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("domain", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("stream", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("duration", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("gender", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("age", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("theme", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("file_code", LiteralBase.STRING, new Constraint[] {
+                    Constraint.NOT_NULL
+            })
+    };
+
+//    private final StorageField[] usageFields = new StorageField[] {
+//            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+//                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+//            }),
+//            new StorageField("cid", LiteralBase.LONG, new Constraint[] {
+//                    Constraint.NOT_NULL
+//            }),
+//            new StorageField("token", LiteralBase.STRING, new Constraint[] {
+//                    Constraint.NOT_NULL
+//            }),
+//            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+//                    Constraint.NOT_NULL
+//            }),
+//            new StorageField("remote", LiteralBase.STRING, new Constraint[] {
+//                    Constraint.DEFAULT_NULL
+//            }),
+//            new StorageField("query", LiteralBase.STRING, new Constraint[] {
+//                    Constraint.NOT_NULL
+//            }),
+//            new StorageField("query_type", LiteralBase.STRING, new Constraint[] {
+//                    Constraint.NOT_NULL
+//            }),
+//            new StorageField("query_tokens", LiteralBase.LONG, new Constraint[] {
+//                    Constraint.NOT_NULL
+//            }),
+//            new StorageField("completion_tokens", LiteralBase.LONG, new Constraint[] {
+//                    Constraint.NOT_NULL
+//            }),
+//            new StorageField("completion_sn", LiteralBase.LONG, new Constraint[] {
+//                    Constraint.NOT_NULL
+//            })
+//    };
+
+    private Storage storage;
+
+    /**
+     * 六维得分描述生成器。
+     *
+     * <p>由宿主在 {@link #open()} 之前以 {@link #setHexagonDescriber} 注入。
+     * 未注入时 {@link #fillHexagonScoreDescription} 会记WARN 并跳过，
+     * 结果等同于「描述为空」。</p>
+     */
+    private BiConsumer<HexagonDimensionScore, Language> hexagonDescriber;
+
+    public final int limit = 5;
+
+    public PsychologyStorage(StorageType type, JSONObject config) {
+        this.storage = StorageFactory.getInstance().createStorage(type, "PsychologyStorage", config);
+    }
+
+    /**
+     * 设置六维得分描述生成器。
+     *
+     * <p>必须在 {@link #open()} 之前调用；报告被读取时才会实际使用。</p>
+     *
+     * @param hexagonDescriber 描述生成器，可为 {@code null} 表示不生成描述。
+     */
+    public void setHexagonDescriber(BiConsumer<HexagonDimensionScore, Language> hexagonDescriber) {
+        this.hexagonDescriber = hexagonDescriber;
+    }
+
+    @Override
+    public void open() {
+        this.storage.open();
+    }
+
+    @Override
+    public void close() {
+        this.storage.close();
+    }
+
+    /**
+     * 逐表检查并建表。
+     *
+     * <p><b>调用时机</b>：由 {@code PsychologyModule.setup()} 在
+     * {@link #open()} 之后、场景装配之前调用一次，<b>不在请求路径上</b>。
+     * 早前曾用「首次动作派发时惰性建表」以避开启动阻塞，现已改为
+     * 在 setup 内一次完成：{@code setup} 本就运行在单元安装阶段，
+     * 延后建表只会让「表是否存在」变成运行期变量，而建表逐表先判断
+     * 存在再创建、是幂等的，重复执行无害。</p>
+     *
+     * <p>首次部署要建十几张表（MySQL 下可能耗时数秒），稳态下只是
+     * 逐表存在性查询，很快。</p>
+     *
+     * @param domainNameList 本存储不按域分库，忽略该参数。
+     */
+    @Override
+    public void execSelfChecking(List<String> domainNameList) {
+        if (!this.storage.exist(this.reportTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.reportTable, this.reportFields)) {
+                // evaluation_data 字段修改为 LONGTEXT
+                /*
+                ALTER TABLE `psychology_report` CHANGE COLUMN `evaluation_data` `evaluation_data` MEDIUMTEXT NULL DEFAULT NULL ;
+                */
+                this.storage.execute("ALTER TABLE `" + this.reportTable +
+                        "` CHANGE COLUMN `evaluation_data` `evaluation_data` LONGTEXT NULL DEFAULT NULL");
+                Logger.i(this.getClass(), "Created table '" + this.reportTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.reportPermissionTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.reportPermissionTable, this.reportPermissionFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.reportPermissionTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.paintingTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.paintingTable, this.paintingFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.paintingTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.paintingFeatureSetTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.paintingFeatureSetTable, this.paintingFeatureSetFields)) {
+                this.storage.execute("ALTER TABLE `" + this.paintingFeatureSetTable +
+                        "` CHANGE COLUMN `data` `data` LONGTEXT NULL DEFAULT NULL");
+                Logger.i(this.getClass(), "Created table '" + this.paintingFeatureSetTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.reportTextTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.reportTextTable, this.reportTextFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.reportTextTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.reportHexagonTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.reportHexagonTable, this.reportHexagonFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.reportHexagonTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.scaleTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.scaleTable, this.scaleFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.scaleTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.scaleAnswerTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.scaleAnswerTable, this.scaleAnswerFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.scaleAnswerTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.scaleReportTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.scaleReportTable, this.scaleReportFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.scaleReportTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.paintingLabelTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.paintingLabelTable, this.paintingLabelFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.paintingLabelTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.paintingReportManagementTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.paintingReportManagementTable, this.paintingReportManagementFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.paintingReportManagementTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.reportArticleTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.reportArticleTable, this.reportArticleFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.reportArticleTable + "' successfully");
+                // 优化字段
+                this.storage.execute("ALTER TABLE `" + this.reportArticleTable +
+                        "` CHANGE COLUMN `paragraph_1` `paragraph_1` MEDIUMTEXT NULL DEFAULT NULL");
+                this.storage.execute("ALTER TABLE `" + this.reportArticleTable +
+                        "` CHANGE COLUMN `paragraph_2` `paragraph_2` MEDIUMTEXT NULL DEFAULT NULL");
+                this.storage.execute("ALTER TABLE `" + this.reportArticleTable +
+                        "` CHANGE COLUMN `paragraph_3` `paragraph_3` MEDIUMTEXT NULL DEFAULT NULL");
+                this.storage.execute("ALTER TABLE `" + this.reportArticleTable +
+                        "` CHANGE COLUMN `paragraph_4` `paragraph_4` MEDIUMTEXT NULL DEFAULT NULL");
+                this.storage.execute("ALTER TABLE `" + this.reportArticleTable +
+                        "` CHANGE COLUMN `paragraph_5` `paragraph_5` MEDIUMTEXT NULL DEFAULT NULL");
+            }
+        }
+
+        if (!this.storage.exist(this.comprehensiveReportTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.comprehensiveReportTable, this.comprehensiveReportFields)) {
+                // 优化字段
+                this.storage.execute("ALTER TABLE `" + this.comprehensiveReportTable +
+                        "` CHANGE COLUMN `summary` `summary` MEDIUMTEXT NULL DEFAULT NULL");
+                this.storage.execute("ALTER TABLE `" + this.comprehensiveReportTable +
+                        "` CHANGE COLUMN `sections` `sections` MEDIUMTEXT NULL DEFAULT NULL");
+                for (int i = 1; i <= 5; ++i) {
+                    this.storage.execute("ALTER TABLE `" + this.comprehensiveReportTable +
+                            "` CHANGE COLUMN `comprehensive_" + i + "` `comprehensive_" + i + "` MEDIUMTEXT NULL DEFAULT NULL");
+                }
+                Logger.i(this.getClass(), "Created table '" + this.comprehensiveReportTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.customerTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.customerTable, this.customerFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.customerTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.scheduleTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.scheduleTable, this.scheduleFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.scheduleTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.appointmentTable)) {
+            // 不存在，建新表
+            if (this.storage.executeCreate(this.appointmentTable, this.appointmentFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.appointmentTable + "' successfully");
+            }
+        }
+
+        if (!this.storage.exist(this.counselingRecordingTable)) {
+            if (this.storage.executeCreate(this.counselingRecordingTable, this.counselingRecordingFields)) {
+                Logger.i(this.getClass(), "Created table '" + this.counselingRecordingTable + "' successfully");
+            }
+        }
+
+//        if (!this.storage.exist(this.usageTable)) {
+//            // 不存在，建新表
+//            if (this.storage.executeCreate(this.usageTable, this.usageFields)) {
+//                Logger.i(this.getClass(), "Created table '" + this.usageTable + "' successfully");
+//            }
+//        }
+
+        // 检查管理表里是否有遗漏数据
+//        this.recheckReportManagementTable();
+    }
+
+    private void recheckReportManagementTable() {
+        List<StorageField[]> result = this.storage.executeQuery(this.reportTable, new StorageField[] {
+                new StorageField("sn", LiteralBase.LONG)
+        });
+        for (StorageField[] fields : result) {
+            long sn = fields[0].getLong();
+            List<StorageField[]> mgmtResult = this.storage.executeQuery(this.paintingReportManagementTable,
+                    new StorageField[] { new StorageField("state", LiteralBase.INT) },
+                    new Conditional[] { Conditional.createEqualTo("report_sn", sn) });
+            if (mgmtResult.isEmpty()) {
+                Logger.w(this.getClass(), "#recheckReportManagementTable - Insert state to report: " + sn);
+                this.storage.executeInsert(this.paintingReportManagementTable, new StorageField[] {
+                        new StorageField("report_sn", sn),
+                        new StorageField("timestamp", System.currentTimeMillis()),
+                        new StorageField("state", 0)
+                });
+            }
+        }
+    }
+
+    public int countPsychologyReports(long contactId) {
+        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(*) FROM " + this.reportTable +
+                " WHERE finished_timestamp<>0 AND `contact_id`=" + contactId);
+        return result.get(0)[0].getInt();
+    }
+
+    public int countPsychologyReports(long contactId, int state) {
+        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(sn) FROM " + this.reportTable +
+                " WHERE `contact_id`=" + contactId +
+                " AND " +
+                "`state`=" + state +
+                " AND " +
+                "finished_timestamp<>0");
+        return result.get(0)[0].getInt();
+    }
+
+    public int countPsychologyReports(long contactId, int state, boolean permissible) {
+        String sql = "SELECT COUNT(*) FROM " + this.reportTable + ", " + this.reportPermissionTable +
+                " WHERE " + this.reportTable + ".contact_id=" + contactId +
+                " AND " + this.reportTable + ".state=" + state +
+                " AND " + this.reportTable + ".sn=" + this.reportPermissionTable + ".report_sn" +
+                " AND " + this.reportPermissionTable + ".indicator_details=" + (permissible ? "1" : "0") +
+                " AND " + this.reportPermissionTable + ".personality_details=" + (permissible ? "1" : "0");
+        List<StorageField[]> result = this.storage.executeQuery(sql);
+        return result.get(0)[0].getInt();
+    }
+
+    public int countPsychologyReports(long contactId, int state, boolean permissible, long starTime, long endTime) {
+        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(*) FROM " + this.reportTable +
+                ", " + this.reportPermissionTable +
+                " WHERE " + this.reportTable + ".contact_id=" + contactId +
+                " AND " + this.reportTable + ".timestamp>=" + starTime +
+                " AND " + this.reportTable + ".timestamp<=" + endTime +
+                " AND " + this.reportTable + ".state=" + state +
+                " AND " + this.reportTable + ".sn=" + this.reportPermissionTable + ".report_sn" +
+                " AND " + this.reportPermissionTable + ".indicator_details=" + (permissible ? "1" : "0") +
+                " AND " + this.reportPermissionTable + ".personality_details=" + (permissible ? "1" : "0"));
+        return result.get(0)[0].getInt();
+    }
+
+    public PaintingReport readPsychologyReport(long sn) {
+        List<StorageField[]> result = this.storage.executeQuery(this.reportTable, this.reportFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("sn", sn)
+                });
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        PaintingReport report = this.makeReport(result.get(0));
+        return report;
+    }
+
+    public List<PaintingReport> readPsychologyReportsByContact(long contactId, int state, int limit) {
+        List<PaintingReport> list = new ArrayList<>();
+
+        List<StorageField[]> result = this.storage.executeQuery(this.reportTable, this.reportFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("contact_id", contactId),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo("state", state),
+                        Conditional.createOrderBy("timestamp", true),
+                        Conditional.createLimit(limit)
+                });
+
+        for (StorageField[] fields : result) {
+            PaintingReport report = this.makeReport(fields);
+            if (null == report) {
+                Logger.e(this.getClass(), "#readPsychologyReportsByContact - Read data error: " + fields[0].getLong());
+                continue;
+            }
+            list.add(report);
+        }
+        return list;
+    }
+
+    public List<PaintingReport> readPsychologyReports(long contactId, int pageIndex, int pageSize, boolean descending) {
+        List<PaintingReport> list = new ArrayList<>();
+
+        List<StorageField[]> result = this.storage.executeQuery(this.reportTable, this.reportFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("contact_id", contactId),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo("state", 0),
+                        Conditional.createOrderBy("timestamp", descending),
+                        Conditional.createLimitOffset(pageSize, pageIndex * pageSize)
+                });
+
+        for (StorageField[] fields : result) {
+            PaintingReport report = this.makeReport(fields);
+            if (null == report) {
+                Logger.e(this.getClass(), "#readPsychologyReports - Read data error: " + fields[0].getLong());
+                continue;
+            }
+            list.add(report);
+        }
+
+        return list;
+    }
+
+    public List<PaintingReport> readPsychologyReports(long contactId, int pageIndex, int pageSize, boolean descending, int state) {
+        List<PaintingReport> list = new ArrayList<>();
+
+        List<StorageField[]> result = this.storage.executeQuery(new String[] {
+                        this.reportTable,
+                        this.paintingReportManagementTable
+                }, this.reportFieldsForQuery,
+                new Conditional[] {
+                        Conditional.createEqualTo(new StorageField(this.reportTable, "contact_id",
+                                LiteralBase.LONG, contactId)),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo(
+                                new StorageField(this.paintingReportManagementTable, "report_sn", LiteralBase.LONG),
+                                new StorageField(this.reportTable, "sn", LiteralBase.LONG)),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo(new StorageField(this.paintingReportManagementTable, "state",
+                                LiteralBase.INT, state)),
+                        Conditional.createOrderBy(this.reportTable, "timestamp", descending),
+                        Conditional.createLimitOffset(pageSize, pageIndex * pageSize)
+                });
+
+        for (StorageField[] fields : result) {
+            PaintingReport report = this.makeReport(fields);
+            if (null == report) {
+                Logger.e(this.getClass(), "#readPsychologyReports - Read report error");
+                continue;
+            }
+            list.add(report);
+        }
+
+        return list;
+    }
+
+    public int refreshPsychologyReportRetention() {
+        String sql = "SELECT `sn`," + this.reportTable + ".timestamp FROM " + this.reportTable + "," + this.paintingReportManagementTable +
+                " WHERE " + this.reportTable + ".sn=" + this.paintingReportManagementTable + ".report_sn " +
+                " AND " + this.reportTable + ".state=" + AIGCStateCode.Ok.code +
+                " AND " + this.paintingReportManagementTable + ".retention=" + RetentionPolicy.NON_MEMBER_RETENTION_DAYS;
+        List<StorageField[]> list = this.storage.executeQuery(sql);
+        if (list.isEmpty()) {
+            return 0;
+        }
+
+        int count = 0;
+        long now = System.currentTimeMillis();
+        long delta = RetentionPolicy.NON_MEMBER_RETENTION_DAYS * 24 * 60 * 60 * 1000L;
+        for (StorageField[] fields : list) {
+            long sn = fields[0].getLong();
+            long timestamp = fields[1].getLong();
+            if (now - timestamp > delta) {
+                // 过期
+                ++count;
+                this.storage.executeUpdate(this.reportTable, new StorageField[] {
+                        new StorageField("state", AIGCStateCode.Expired.code)
+                }, new Conditional[] {
+                        Conditional.createEqualTo("sn", sn)
+                });
+                this.storage.executeUpdate(this.paintingReportManagementTable, new StorageField[] {
+                        new StorageField("state", AIGCStateCode.Expired.code)
+                }, new Conditional[] {
+                        Conditional.createEqualTo("report_sn", sn)
+                });
+            }
+        }
+
+        return count;
+    }
+
+    public boolean writePsychologyReport(PaintingReport report) {
+        return this.writePsychologyReport(report, 0);
+    }
+
+    public synchronized boolean writePsychologyReport(PaintingReport report, int retention) {
+        // 插入状态
+        List<StorageField[]> result = this.storage.executeQuery(this.paintingReportManagementTable, new StorageField[] {
+                    new StorageField("report_sn", LiteralBase.LONG)
+                }, new Conditional[] {
+                    Conditional.createEqualTo("report_sn", report.sn)
+                });
+        if (result.isEmpty()) {
+            this.storage.executeInsert(this.paintingReportManagementTable, new StorageField[] {
+                    new StorageField("report_sn", report.sn),
+                    new StorageField("timestamp", System.currentTimeMillis()),
+                    new StorageField("state", 0),
+                    new StorageField("retention", retention)
+            });
+        }
+        else {
+            this.storage.executeUpdate(this.paintingReportManagementTable, new StorageField[] {
+                    new StorageField("timestamp", System.currentTimeMillis()),
+                    new StorageField("state", 0),
+                    new StorageField("retention", retention)
+            }, new Conditional[] {
+                    Conditional.createEqualTo("report_sn", report.sn)
+            });
+        }
+
+        if (null != report.getReportSections()) {
+            for (ReportSection rs : report.getReportSections()) {
+                this.storage.executeInsert(this.reportTextTable, new StorageField[]{
+                        new StorageField("report_sn", report.sn),
+                        new StorageField("indicator", rs.indicator.name),
+                        new StorageField("title", rs.title),
+                        new StorageField("report", EmojiFilter.filterEmoji(rs.report)),
+                        new StorageField("suggestion", EmojiFilter.filterEmoji(rs.suggestion)),
+                        new StorageField("rate", rs.rate.value)
+                });
+            }
+        }
+
+        if (null != report.getDimensionScore()) {
+            // 先移除旧数据
+            this.storage.executeDelete(this.reportHexagonTable, new Conditional[] {
+                    Conditional.createEqualTo("sn", report.sn)
+            });
+            // 插入数据
+            this.storage.executeInsert(this.reportHexagonTable, new StorageField[] {
+                    new StorageField("sn", report.sn),
+                    new StorageField("timestamp", System.currentTimeMillis()),
+                    new StorageField("mood",
+                            JSONStorageUtils.encode(
+                                    report.getDimensionScore().getFactor(HexagonDimension.Mood).toJSON().toString())),
+                    new StorageField("cognition",
+                            JSONStorageUtils.encode(
+                                    report.getDimensionScore().getFactor(HexagonDimension.Cognition).toJSON().toString())),
+                    new StorageField("behavior",
+                            JSONStorageUtils.encode(
+                                    report.getDimensionScore().getFactor(HexagonDimension.Behavior).toJSON().toString())),
+                    new StorageField("interpersonal_relationship",
+                            JSONStorageUtils.encode(
+                                    report.getDimensionScore().getFactor(HexagonDimension.InterpersonalRelationship).toJSON().toString())),
+                    new StorageField("self_assessment",
+                            JSONStorageUtils.encode(
+                                    report.getDimensionScore().getFactor(HexagonDimension.SelfAssessment).toJSON().toString())),
+                    new StorageField("mental_health",
+                            JSONStorageUtils.encode(
+                                    report.getDimensionScore().getFactor(HexagonDimension.MentalHealth).toJSON().toString())),
+            });
+        }
+
+        this.storage.executeDelete(this.reportTable, new Conditional[] {
+                Conditional.createEqualTo("sn", report.sn)
+        });
+
+        // 权限
+        this.writeReportPermission(report.getPermission());
+
+        String dataString = report.getEvaluationReport().toStrictJSON().toString();
+        dataString = JSONStorageUtils.encode(dataString);
+
+        return this.storage.executeInsert(this.reportTable, new StorageField[] {
+                new StorageField("sn", report.sn),
+                new StorageField("contact_id", report.contactId),
+                new StorageField("timestamp", report.timestamp),
+                new StorageField("name", report.getName()),
+                new StorageField("gender", report.getAttribute().gender),
+                new StorageField("age", report.getAttribute().age),
+                new StorageField("role", report.getAttribute().role),
+                new StorageField("language", report.getAttribute().language.simplified),
+                new StorageField("strict", report.getAttribute().strict ? 1 : 0),
+                new StorageField("file_code", report.getFileCode()),
+                new StorageField("theme", report.getTheme().code),
+                new StorageField("state", 0),
+                new StorageField("finished_timestamp", report.getFinishedTimestamp()),
+                new StorageField("summary", report.getSummary()),
+                new StorageField("evaluation_data", dataString),
+                new StorageField("remark", report.getRemark()),
+                new StorageField("extension", (null != report.getExtension() ?
+                        JSONStorageUtils.encode(report.getExtension().toString()) : null))
+        });
+    }
+
+    public boolean updatePsychologyReport(PaintingReport report) {
+        String dataString = report.getEvaluationReport().toStrictJSON().toString();
+        dataString = JSONStorageUtils.encode(dataString);
+
+        return this.storage.executeUpdate(this.reportTable, new StorageField[] {
+                new StorageField("timestamp", report.timestamp),
+                new StorageField("name", report.getName()),
+                new StorageField("gender", report.getAttribute().gender),
+                new StorageField("age", report.getAttribute().age),
+                new StorageField("role", report.getAttribute().role),
+                new StorageField("language", report.getAttribute().language.simplified),
+                new StorageField("finished_timestamp", report.getFinishedTimestamp()),
+                new StorageField("summary", report.getSummary()),
+                new StorageField("evaluation_data", dataString),
+                new StorageField("remark", report.getRemark()),
+                new StorageField("extension", (null != report.getExtension() ?
+                        JSONStorageUtils.encode(report.getExtension().toString()) : null))
+        }, new Conditional[] {
+                Conditional.createEqualTo("sn", report.sn)
+        });
+    }
+
+    public boolean updatePsychologyReportRemark(long sn, String remark) {
+        return this.storage.executeUpdate(this.reportTable, new StorageField[] {
+                new StorageField("remark", remark)
+        }, new Conditional[] {
+                Conditional.createEqualTo("sn", sn)
+        });
+    }
+
+    public synchronized ReportPermission readReportPermission(long contactId, long reportSn) {
+        List<StorageField[]> result = this.storage.executeQuery(this.reportPermissionTable, this.reportPermissionFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("contact_id", contactId),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo("report_sn", reportSn)
+                });
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        Map<String, StorageField> data = StorageFields.get(result.get(0));
+        ReportPermission permission = new ReportPermission(contactId, reportSn);
+        permission.file = data.get("file").getInt() == 1;
+        permission.indicatorSummary = data.get("indicator_summary").getInt() == 1;
+        permission.indicatorDetails = data.get("indicator_details").getInt() == 1;
+        permission.personalityPortrait = data.get("personality_portrait").getInt() == 1;
+        permission.personalityDetails = data.get("personality_details").getInt() == 1;
+        permission.dimensionScore = data.get("dimension_score").getInt() == 1;
+        permission.attention = data.get("attention").getInt() == 1;
+        permission.reference = data.get("reference").getInt() == 1;
+        permission.recommend = data.get("recommend").getInt() == 1;
+        permission.suggestion = data.get("suggestion").getInt() == 1;
+        permission.symptomFactor = data.get("symptom_factor").getInt() == 1;
+        permission.affectFactor = data.get("affect_factor").getInt() == 1;
+        permission.personalityFactor = data.get("personality_factor").getInt() == 1;
+        return permission;
+    }
+
+    public synchronized boolean writeReportPermission(ReportPermission permission) {
+        List<StorageField[]> result = this.storage.executeQuery(this.reportPermissionTable,
+                new StorageField[] {
+                        new StorageField("sn", LiteralBase.LONG)
+                },
+                new Conditional[] {
+                        Conditional.createEqualTo("contact_id", permission.contactId),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo("report_sn", permission.reportSn)
+                });
+        if (result.isEmpty()) {
+            return this.storage.executeInsert(this.reportPermissionTable, new StorageField[] {
+                    new StorageField("contact_id", permission.contactId),
+                    new StorageField("report_sn", permission.reportSn),
+                    new StorageField("timestamp", System.currentTimeMillis()),
+                    new StorageField("file", permission.file ? 1 : 0),
+                    new StorageField("indicator_summary", permission.indicatorSummary ? 1 : 0),
+                    new StorageField("indicator_details", permission.indicatorDetails ? 1 : 0),
+                    new StorageField("personality_portrait", permission.personalityPortrait ? 1 : 0),
+                    new StorageField("personality_details", permission.personalityDetails ? 1 : 0),
+                    new StorageField("dimension_score", permission.dimensionScore ? 1 : 0),
+                    new StorageField("attention", permission.attention ? 1 : 0),
+                    new StorageField("reference", permission.reference ? 1 : 0),
+                    new StorageField("recommend", permission.recommend ? 1 : 0),
+                    new StorageField("suggestion", permission.suggestion ? 1 : 0),
+                    new StorageField("symptom_factor", permission.symptomFactor ? 1 : 0),
+                    new StorageField("affect_factor", permission.affectFactor ? 1 : 0),
+                    new StorageField("personality_factor", permission.personalityFactor ? 1 : 0)
+            });
+        }
+        else {
+            return this.storage.executeUpdate(this.reportPermissionTable, new StorageField[] {
+                    new StorageField("timestamp", System.currentTimeMillis()),
+                    new StorageField("file", permission.file ? 1 : 0),
+                    new StorageField("indicator_summary", permission.indicatorSummary ? 1 : 0),
+                    new StorageField("indicator_details", permission.indicatorDetails ? 1 : 0),
+                    new StorageField("personality_portrait", permission.personalityPortrait ? 1 : 0),
+                    new StorageField("personality_details", permission.personalityDetails ? 1 : 0),
+                    new StorageField("dimension_score", permission.dimensionScore ? 1 : 0),
+                    new StorageField("attention", permission.attention ? 1 : 0),
+                    new StorageField("reference", permission.reference ? 1 : 0),
+                    new StorageField("recommend", permission.recommend ? 1 : 0),
+                    new StorageField("suggestion", permission.suggestion ? 1 : 0),
+                    new StorageField("symptom_factor", permission.symptomFactor ? 1 : 0),
+                    new StorageField("affect_factor", permission.affectFactor ? 1 : 0),
+                    new StorageField("personality_factor", permission.personalityFactor ? 1 : 0)
+            }, new Conditional[] {
+                    Conditional.createEqualTo("contact_id", permission.contactId),
+                    Conditional.createAnd(),
+                    Conditional.createEqualTo("report_sn", permission.reportSn)
+            });
+        }
+    }
+
+    public Painting readPainting(long sn) {
+        List<StorageField[]> result = this.storage.executeQuery(this.paintingTable, this.paintingFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("report_sn", sn)
+                });
+
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        Map<String, StorageField> fields = StorageFields.get(result.get(0));
+        JSONObject dataJson = JSONStorageUtils.decodeObject(fields.get("data").getString());
+        if (null == dataJson) {
+            Logger.w(this.getClass(), "#readPainting - `data` data error: " + sn);
+            return null;
+        }
+
+        try {
+            return new Painting(dataJson);
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#readPainting", e);
+            return null;
+        }
+    }
+
+    public boolean writePainting(long sn, String fileCode, Painting painting) {
+        List<StorageField[]> result = this.storage.executeQuery(this.paintingTable, this.paintingFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("report_sn", sn)
+                });
+
+        if (result.isEmpty()) {
+            // 插入
+            return this.storage.executeInsert(this.paintingTable, new StorageField[] {
+                    new StorageField("report_sn", sn),
+                    new StorageField("file_code", fileCode),
+                    new StorageField("timestamp", System.currentTimeMillis()),
+                    new StorageField("data", JSONStorageUtils.encode(painting.toJSON()))
+            });
+        }
+        else {
+            // 更新
+            return this.storage.executeUpdate(this.paintingTable, new StorageField[] {
+                    new StorageField("file_code", fileCode),
+                    new StorageField("timestamp", System.currentTimeMillis()),
+                    new StorageField("data", JSONStorageUtils.encode(painting.toJSON()))
+            }, new Conditional[] {
+                    Conditional.createEqualTo("report_sn", sn)
+            });
+        }
+    }
+
+    public PaintingFeatureSet readPaintingFeatureSet(long sn) {
+        List<StorageField[]> result = this.storage.executeQuery(this.paintingFeatureSetTable, this.paintingFeatureSetFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("sn", sn)
+                });
+        if (result.isEmpty()) {
+            Logger.e(this.getClass(), "#readPaintingFeatureSet - No record: " + sn);
+            return null;
+        }
+
+        Map<String, StorageField> fields = StorageFields.get(result.get(0));
+        JSONObject dataJson = JSONStorageUtils.decodeObject(fields.get("data").getString());
+        if (null == dataJson) {
+            Logger.w(this.getClass(), "#readPaintingFeatureSet - `data` data error: " + sn);
+            return null;
+        }
+
+        try {
+            return new PaintingFeatureSet(dataJson);
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#readPaintingFeatureSet", e);
+            return null;
+        }
+    }
+
+    public boolean writePaintingFeatureSet(PaintingFeatureSet featureSet) {
+        List<StorageField[]> result = this.storage.executeQuery(this.paintingFeatureSetTable, this.paintingFeatureSetFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("sn", featureSet.getSN())
+                });
+
+        if (result.isEmpty()) {
+            // 插入
+            return this.storage.executeInsert(this.paintingFeatureSetTable, new StorageField[] {
+                    new StorageField("sn", featureSet.getSN()),
+                    new StorageField("timestamp", System.currentTimeMillis()),
+                    new StorageField("data", JSONStorageUtils.encode(featureSet.toJSON()))
+            });
+        }
+        else {
+            // 更新
+            return this.storage.executeUpdate(this.paintingFeatureSetTable, new StorageField[] {
+                    new StorageField("timestamp", System.currentTimeMillis()),
+                    new StorageField("data", JSONStorageUtils.encode(featureSet.toJSON()))
+            }, new Conditional[] {
+                    Conditional.createEqualTo("sn", featureSet.getSN())
+            });
+        }
+    }
+
+    public Scale readScale(long sn) {
+        List<StorageField[]> result = this.storage.executeQuery(this.scaleTable, this.scaleFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("sn", sn)
+                });
+
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        Map<String, StorageField> fields = StorageFields.get(result.get(0));
+        JSONObject dataJson = JSONStorageUtils.decodeObject(fields.get("data").getString());
+        if (null == dataJson) {
+            Logger.w(this.getClass(), "#readScale - `data` data error: " + sn);
+            return null;
+        }
+
+        try {
+            return new Scale(dataJson);
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#readScale", e);
+            return null;
+        }
+    }
+
+    public synchronized boolean writeScale(Scale scale) {
+        List<StorageField[]> result = this.storage.executeQuery(this.scaleTable, new StorageField[] {
+                    new StorageField("id", LiteralBase.LONG)
+            }, new Conditional[] {
+                    Conditional.createEqualTo("sn", scale.getSN())
+            });
+
+        String dataString = scale.toJSON().toString();
+        // 过滤表情
+        dataString = EmojiFilter.filterEmoji(dataString);
+        dataString = JSONStorageUtils.encode(dataString);
+
+        if (result.isEmpty()) {
+            return this.storage.executeInsert(this.scaleTable, new StorageField[] {
+                    new StorageField("sn", scale.getSN()),
+                    new StorageField("name", scale.name),
+                    new StorageField("contact_id", scale.getContactId()),
+                    new StorageField("timestamp", scale.getTimestamp()),
+                    new StorageField("gender", scale.getAttribute().gender),
+                    new StorageField("age", scale.getAttribute().age),
+                    new StorageField("role", scale.getAttribute().role),
+                    new StorageField("language", scale.getAttribute().language.simplified),
+                    new StorageField("complete", scale.isComplete() ? 1 : 0),
+                    new StorageField("data", dataString)
+            });
+        }
+        else {
+            return this.storage.executeUpdate(this.scaleTable, new StorageField[] {
+                    new StorageField("name", scale.name),
+                    new StorageField("contact_id", scale.getContactId()),
+                    new StorageField("timestamp", scale.getTimestamp()),
+                    new StorageField("gender", scale.getAttribute().gender),
+                    new StorageField("age", scale.getAttribute().age),
+                    new StorageField("role", scale.getAttribute().role),
+                    new StorageField("language", scale.getAttribute().language.simplified),
+                    new StorageField("complete", scale.isComplete() ? 1 : 0),
+                    new StorageField("data", dataString)
+            }, new Conditional[] {
+                    Conditional.createEqualTo("sn", scale.getSN())
+            });
+        }
+    }
+
+    public AnswerSheet readAnswerSheet(long scaleSn) {
+        List<StorageField[]> result = this.storage.executeQuery(this.scaleAnswerTable, this.scaleAnswerFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("scale_sn", scaleSn)
+                });
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        Map<String, StorageField> fields = StorageFields.get(result.get(0));
+        JSONObject dataJson = JSONStorageUtils.decodeObject(fields.get("sheet").getString());
+        if (null == dataJson) {
+            Logger.w(this.getClass(), "#readAnswerSheet - `sheet` data error: " + scaleSn);
+            return null;
+        }
+
+        try {
+            return new AnswerSheet(dataJson);
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#readAnswerSheet", e);
+            return null;
+        }
+    }
+
+    public synchronized boolean writeAnswerSheet(AnswerSheet answerSheet) {
+        List<StorageField[]> result = this.storage.executeQuery(this.scaleAnswerTable, this.scaleAnswerFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("scale_sn", answerSheet.scaleSn)
+                });
+
+        if (result.isEmpty()) {
+            return this.storage.executeInsert(this.scaleAnswerTable, new StorageField[] {
+                    new StorageField("scale_sn", answerSheet.scaleSn),
+                    new StorageField("sheet", JSONStorageUtils.encode(answerSheet.toJSON())),
+                    new StorageField("num_answers", answerSheet.answers.size())
+            });
+        }
+        else {
+            return this.storage.executeUpdate(this.scaleAnswerTable, new StorageField[] {
+                    new StorageField("sheet", JSONStorageUtils.encode(answerSheet.toJSON())),
+                    new StorageField("num_answers", answerSheet.answers.size())
+            }, new Conditional[] {
+                    Conditional.createEqualTo("scale_sn", answerSheet.scaleSn)
+            });
+        }
+    }
+
+    public int countScaleReports(long contactId) {
+        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(sn) FROM " + this.scaleReportTable +
+                " WHERE `state`=0 AND `contact_id`=" + contactId);
+        return result.get(0)[0].getInt();
+    }
+
+    public int countScaleReports(long contactId, int state) {
+        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(sn) FROM " + this.scaleReportTable +
+                " WHERE `state`=" + state + " AND `contact_id`=" + contactId);
+        return result.get(0)[0].getInt();
+    }
+
+    public ScaleReport readScaleReport(long sn) {
+        List<StorageField[]> result = this.storage.executeQuery(this.scaleReportTable, this.scaleReportFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("sn", sn)
+                });
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        Scale scale = readScale(sn);
+        if (null == scale) {
+            Logger.w(this.getClass(), "#readScaleReport - Can NOT find scale: " + sn);
+            return null;
+        }
+
+        Map<String, StorageField> data = StorageFields.get(result.get(0));
+
+        Attribute attribute = new Attribute(data.get("gender").getString(), data.get("age").getInt(),
+                data.get("role").isNullValue() ? "" : data.get("role").getString(),
+                data.get("language").isNullValue() ? Language.Chinese : Language.parse(data.get("language").getString()),
+                data.get("strict").getInt() != 0);
+
+        JSONArray factorData = JSONStorageUtils.decodeArray(data.get("factor_data").getString());
+        if (null == factorData) {
+            Logger.w(this.getClass(), "#readScaleReport - `factor_data` data error: " + sn);
+            return null;
+        }
+
+        ScaleReport report = null;
+        try {
+            report = new ScaleReport(sn, data.get("contact_id").getLong(), data.get("timestamp").getLong(),
+                    attribute, factorData,
+                    scale, data.get("state").getInt(),
+                    data.get("remark").isNullValue() ? "" : data.get("remark").getString());
+        } catch (Exception e) {
+            Logger.w(this.getClass(), "#readScaleReport", e);
+        }
+        return report;
+    }
+
+    public List<ScaleReport> readScaleReports(long contactId, boolean descending) {
+        List<ScaleReport> list = new ArrayList<>();
+        List<StorageField[]> result = this.storage.executeQuery(this.scaleReportTable, this.scaleReportFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("contact_id", contactId),
+                        Conditional.createOrderBy("timestamp", descending)
+                });
+        for (StorageField[] fields : result) {
+            Map<String, StorageField> data = StorageFields.get(fields);
+
+            Scale scale = readScale(data.get("sn").getLong());
+            if (null == scale) {
+                Logger.w(this.getClass(), "#readScaleReports - Can NOT find scale: " + data.get("sn").getLong());
+                continue;
+            }
+
+            Attribute attribute = new Attribute(data.get("gender").getString(), data.get("age").getInt(),
+                    data.get("role").isNullValue() ? "" : data.get("role").getString(),
+                    data.get("language").isNullValue() ? Language.Chinese : Language.parse(data.get("language").getString()),
+                    data.get("strict").getInt() != 0);
+            JSONArray factorData = JSONStorageUtils.decodeArray(data.get("factor_data").getString());
+            if (null == factorData) {
+                Logger.w(this.getClass(), "#readScaleReports - `factor_data` data error: " + data.get("sn").getLong());
+                continue;
+            }
+
+            ScaleReport report = new ScaleReport(data.get("sn").getLong(), data.get("contact_id").getLong(),
+                    data.get("timestamp").getLong(), attribute, factorData,
+                    scale, data.get("state").getInt(),
+                    data.get("remark").isNullValue() ? "" : data.get("remark").getString());
+            list.add(report);
+        }
+        return list;
+    }
+
+    public List<ScaleReport> readScaleReports(long contactId, int state, boolean descending) {
+        List<ScaleReport> list = new ArrayList<>();
+        List<StorageField[]> result = this.storage.executeQuery(this.scaleReportTable, this.scaleReportFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("contact_id", contactId),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo("state", state),
+                        Conditional.createOrderBy("timestamp", descending)
+                });
+        for (StorageField[] fields : result) {
+            Map<String, StorageField> data = StorageFields.get(fields);
+
+            Scale scale = readScale(data.get("sn").getLong());
+            if (null == scale) {
+                Logger.w(this.getClass(), "#readScaleReports - Can NOT find scale: " + data.get("sn").getLong());
+                continue;
+            }
+
+            Attribute attribute = new Attribute(data.get("gender").getString(), data.get("age").getInt(),
+                    data.get("role").isNullValue() ? "" : data.get("role").getString(),
+                    data.get("language").isNullValue() ? Language.Chinese : Language.parse(data.get("language").getString()),
+                    data.get("strict").getInt() != 0);
+            JSONArray factorData = JSONStorageUtils.decodeArray(data.get("factor_data").getString());
+            if (null == factorData) {
+                Logger.w(this.getClass(), "#readScaleReports - `factor_data` data error: " + data.get("sn").getLong());
+                continue;
+            }
+
+            ScaleReport report = new ScaleReport(data.get("sn").getLong(), data.get("contact_id").getLong(),
+                    data.get("timestamp").getLong(), attribute, factorData,
+                    scale, data.get("state").getInt(),
+                    data.get("remark").isNullValue() ? "" : data.get("remark").getString());
+            list.add(report);
+        }
+        return list;
+    }
+
+    public boolean writeScaleReport(ScaleReport scaleReport) {
+        String dataString = scaleReport.getFactorsAsJSONArray().toString();
+        dataString = EmojiFilter.filterEmoji(dataString);
+        dataString = JSONStorageUtils.encode(dataString);
+
+        List<StorageField[]> result = this.storage.executeQuery(this.scaleReportTable, this.scaleReportFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("sn", scaleReport.sn)
+                });
+        if (result.isEmpty()) {
+            return this.storage.executeInsert(this.scaleReportTable, new StorageField[] {
+                    new StorageField("sn", scaleReport.sn),
+                    new StorageField("contact_id", scaleReport.contactId),
+                    new StorageField("timestamp", scaleReport.timestamp),
+                    new StorageField("name", scaleReport.getName()),
+                    new StorageField("gender", scaleReport.getAttribute().gender),
+                    new StorageField("age", scaleReport.getAttribute().age),
+                    new StorageField("role", scaleReport.getAttribute().role),
+                    new StorageField("language", scaleReport.getAttribute().language.simplified),
+                    new StorageField("strict", scaleReport.getAttribute().strict ? 1 : 0),
+                    new StorageField("factor_data", dataString),
+                    new StorageField("state", scaleReport.getState().code),
+                    new StorageField("remark", scaleReport.getRemark())
+            });
+        }
+        else {
+            return this.storage.executeUpdate(this.scaleReportTable, new StorageField[] {
+                    new StorageField("contact_id", scaleReport.contactId),
+                    new StorageField("timestamp", scaleReport.timestamp),
+                    new StorageField("name", scaleReport.getName()),
+                    new StorageField("gender", scaleReport.getAttribute().gender),
+                    new StorageField("age", scaleReport.getAttribute().age),
+                    new StorageField("role", scaleReport.getAttribute().role),
+                    new StorageField("language", scaleReport.getAttribute().language.simplified),
+                    new StorageField("strict", scaleReport.getAttribute().strict ? 1 : 0),
+                    new StorageField("factor_data", dataString),
+                    new StorageField("state", scaleReport.getState().code),
+                    new StorageField("remark", scaleReport.getRemark())
+            }, new Conditional[] {
+                    Conditional.createEqualTo("sn", scaleReport.sn)
+            });
+        }
+    }
+
+    public List<PaintingLabel> readPaintingLabels(long sn) {
+        List<PaintingLabel> list = new ArrayList<>();
+        List<StorageField[]> result = this.storage.executeQuery(this.paintingLabelTable, this.paintingLabelFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("sn", sn)
+                });
+
+        if (result.isEmpty()) {
+            return list;
+        }
+
+        for (StorageField[] fields : result) {
+            Map<String, StorageField> data = StorageFields.get(fields);
+            JSONArray evaluationScores = JSONStorageUtils.decodeArray(data.get("evaluation_scores").getString());
+            if (null == evaluationScores) {
+                Logger.w(this.getClass(), "#readPaintingLabels - `evaluation_scores` data error: " + data.get("sn").getLong());
+                continue;
+            }
+
+            PaintingLabel label = new PaintingLabel(data.get("sn").getLong(), data.get("timestamp").getLong(),
+                    data.get("description").getString(), evaluationScores);
+
+            if (!data.get("representations").isNullValue()) {
+                JSONArray representations = JSONStorageUtils.decodeArray(data.get("representations").getString());
+                if (null != representations) {
+                    label.setRepresentations(representations);
+                }
+                else {
+                    Logger.w(this.getClass(), "#readPaintingLabels - `representations` data error: " + data.get("sn").getLong());
+                }
+            }
+
+            list.add(label);
+        }
+
+        return list;
+    }
+
+    public boolean deletePaintingLabel(long sn) {
+        return this.storage.executeDelete(this.paintingLabelTable, new Conditional[] {
+                Conditional.createEqualTo("sn", sn)
+        });
+    }
+
+    public boolean writePaintingLabels(List<PaintingLabel> labels) {
+        if (labels.isEmpty()) {
+            return false;
+        }
+
+        for (PaintingLabel label : labels) {
+            this.storage.executeInsert(this.paintingLabelTable, new StorageField[] {
+                    new StorageField("sn", label.getSn()),
+                    new StorageField("timestamp", label.getTimestamp()),
+                    new StorageField("description", label.getDescription()),
+                    new StorageField("evaluation_scores", JSONStorageUtils.encode(label.getEvaluationScoresAsJSONArray())),
+                    new StorageField("representations",
+                            JSONStorageUtils.encode(label.getRepresentationsAsJSONArray()))
+            });
+        }
+
+        return true;
+    }
+
+    public int readPaintingManagementState(long reportSn) {
+        List<StorageField[]> result = this.storage.executeQuery(this.paintingReportManagementTable,
+                this.paintingReportManagementFields, new Conditional[] {
+                        Conditional.createEqualTo("report_sn", reportSn)
+                });
+
+        if (result.isEmpty()) {
+            return PaintingLabel.STATE_NORMAL;
+        }
+
+        Map<String, StorageField> data = StorageFields.get(result.get(0));
+        return data.get("state").getInt();
+    }
+
+    public boolean writePaintingManagementState(long reportSn, int state) {
+        return this.storage.executeUpdate(this.paintingReportManagementTable, new StorageField[] {
+                new StorageField("timestamp", System.currentTimeMillis()),
+                new StorageField("state", state)
+        }, new Conditional[] {
+                Conditional.createEqualTo("report_sn", reportSn)
+        });
+    }
+
+    public boolean writeReportArticle(ReportArticle article) {
+        List<StorageField[]> result = this.storage.executeQuery(this.reportArticleTable, new StorageField[] {
+                new StorageField("state", LiteralBase.INT)
+        }, new Conditional[] {
+                Conditional.createEqualTo("sn", article.sn)
+        });
+
+        if (result.isEmpty()) {
+            // 插入
+            return this.storage.executeInsert(this.reportArticleTable, new StorageField[] {
+                    new StorageField("sn", article.sn),
+                    new StorageField("theme", article.theme.code),
+                    new StorageField("template", article.templateName),
+                    new StorageField("timestamp", article.timestamp),
+                    new StorageField("state", article.state.code),
+                    new StorageField("rate", article.rate.value),
+                    new StorageField("title", article.getTitle()),
+                    new StorageField("content", article.getContent()),
+                    new StorageField("paragraph_1", (null != article.getParagraph(0)) ?
+                            JSONStorageUtils.encode(article.getParagraph(0).toJSON().toString()) : null),
+                    new StorageField("paragraph_2", (null != article.getParagraph(1)) ?
+                            JSONStorageUtils.encode(article.getParagraph(1).toJSON().toString()) : null),
+                    new StorageField("paragraph_3", (null != article.getParagraph(2)) ?
+                            JSONStorageUtils.encode(article.getParagraph(2).toJSON().toString()) : null),
+                    new StorageField("paragraph_4", (null != article.getParagraph(3)) ?
+                            JSONStorageUtils.encode(article.getParagraph(3).toJSON().toString()) : null),
+                    new StorageField("paragraph_5", (null != article.getParagraph(4)) ?
+                            JSONStorageUtils.encode(article.getParagraph(4).toJSON().toString()) : null)
+            });
+        }
+        else {
+            // 更新
+            return this.storage.executeUpdate(this.reportArticleTable, new StorageField[] {
+                    new StorageField("state", article.state.code),
+                    new StorageField("rate", article.rate.value),
+                    new StorageField("title", article.getTitle()),
+                    new StorageField("content", article.getContent()),
+                    new StorageField("paragraph_1", (null != article.getParagraph(0)) ?
+                            JSONStorageUtils.encode(article.getParagraph(0).toJSON().toString()) : null),
+                    new StorageField("paragraph_2", (null != article.getParagraph(1)) ?
+                            JSONStorageUtils.encode(article.getParagraph(1).toJSON().toString()) : null),
+                    new StorageField("paragraph_3", (null != article.getParagraph(2)) ?
+                            JSONStorageUtils.encode(article.getParagraph(2).toJSON().toString()) : null),
+                    new StorageField("paragraph_4", (null != article.getParagraph(3)) ?
+                            JSONStorageUtils.encode(article.getParagraph(3).toJSON().toString()) : null),
+                    new StorageField("paragraph_5", (null != article.getParagraph(4)) ?
+                            JSONStorageUtils.encode(article.getParagraph(4).toJSON().toString()) : null)
+            }, new Conditional[] {
+                    Conditional.createEqualTo("sn", article.sn)
+            });
+        }
+    }
+
+    public ReportArticle readReportArticle(long sn) {
+        List<StorageField[]> result = this.storage.executeQuery(this.reportArticleTable, this.reportArticleFields,
+                new Conditional[] {
+                    Conditional.createEqualTo("sn", sn)
+        });
+
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        Map<String, StorageField> data = StorageFields.get(result.get(0));
+        ReportArticle reportArticle = new ReportArticle(data.get("title").getString(),
+                Theme.parse(data.get("theme").getString()), data.get("template").getString(),
+                data.get("timestamp").getLong());
+        reportArticle.sn = sn;
+        reportArticle.state = AIGCStateCode.parse(data.get("state").getInt());
+        reportArticle.rate = IndicatorRate.parse(data.get("rate").getInt());
+        if (!data.get("content").isNullValue()) {
+            reportArticle.setContent(data.get("content").getString());
+        }
+        for (int i = 1; i <= 5; ++i) {
+            String name = "paragraph_" + i;
+            if (data.get(name).isNullValue()) {
+                continue;
+            }
+            JSONObject json = JSONStorageUtils.decodeObject(data.get(name).getString());
+            if (null == json) {
+                Logger.w(this.getClass(), "#readReportArticle - `" + name + "` data error: " + sn);
+                continue;
+            }
+
+            reportArticle.addParagraph(json);
+        }
+        return reportArticle;
+    }
+
+    public ComprehensiveReport readComprehensiveReport(long reportSn) {
+        List<StorageField[]> result = this.storage.executeQuery(this.comprehensiveReportTable,
+                this.comprehensiveReportFields, new Conditional[] {
+                        Conditional.createEqualTo("sn", reportSn)
+                });
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        Map<String, StorageField> data = StorageFields.get(result.get(0));
+        ComprehensiveReport report = new ComprehensiveReport(data.get("sn").getLong(), data.get("timestamp").getLong(),
+                data.get("elapsed").getLong(), Theme.parse(data.get("theme").getString()),
+                AIGCStateCode.parse(data.get("state").getInt()));
+        // 摘要
+        report.setSummary(data.get("summary").getString());
+
+        if (!data.get("sections").isNullValue()) {
+            JSONArray arrayJson = JSONStorageUtils.decodeArray(data.get("sections").getString());
+            if (null == arrayJson) {
+                Logger.w(this.getClass(), "#readComprehensiveReport - `sections` data error: " + reportSn);
+                return null;
+            }
+
+            for (int i = 0; i < arrayJson.length(); ++i) {
+                JSONObject sectionJson = arrayJson.getJSONObject(i);
+                ComprehensiveSection section = new ComprehensiveSection(sectionJson);
+                report.addSection(section);
+            }
+        }
+
+        for (int i = 1; i <= 5; ++i) {
+            String name = "comprehensive_" + i;
+            if (!data.get(name).isNullValue()) {
+                JSONObject json = JSONStorageUtils.decodeObject(data.get(name).getString());
+                if (null == json) {
+                    Logger.w(this.getClass(), "#readComprehensiveReport - `" + name + "` data error: " + reportSn);
+                    return null;
+                }
+
+                Comprehensive comprehensive = new Comprehensive(json);
+                report.addComprehensive(comprehensive);
+            }
+        }
+        return report;
+    }
+
+    public boolean writeComprehensiveReport(long contactId, ComprehensiveReport report) {
+        List<StorageField[]> result = this.storage.executeQuery(this.comprehensiveReportTable,
+                new StorageField[] {
+                        new StorageField("state", LiteralBase.INT)
+                }, new Conditional[] {
+                        Conditional.createEqualTo("sn", report.sn),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo("contact_id", contactId)
+                });
+
+        String sectionsString = report.outputSections().toString();
+        sectionsString = JSONStorageUtils.encode(sectionsString);
+
+        String[] comprehensiveStringArray = new String[5];
+        for (int i = 0; i < comprehensiveStringArray.length && i < report.comprehensives.size(); ++i) {
+            String jsonString = report.comprehensives.get(i).toJSON().toString();
+            comprehensiveStringArray[i] = JSONStorageUtils.encode(jsonString);
+        }
+
+        if (result.isEmpty()) {
+            // 插入
+            return this.storage.executeInsert(this.comprehensiveReportTable, new StorageField[] {
+                    new StorageField("sn", report.sn),
+                    new StorageField("contact_id", contactId),
+                    new StorageField("timestamp", report.timestamp),
+                    new StorageField("elapsed", report.elapsed),
+                    new StorageField("theme", report.theme.code),
+                    new StorageField("state", report.state.code),
+                    new StorageField("summary", report.getSummary()),
+                    new StorageField("sections", sectionsString),
+                    new StorageField("comprehensive_1", comprehensiveStringArray[0]),
+                    new StorageField("comprehensive_2", comprehensiveStringArray[1]),
+                    new StorageField("comprehensive_3", comprehensiveStringArray[2]),
+                    new StorageField("comprehensive_4", comprehensiveStringArray[3]),
+                    new StorageField("comprehensive_5", comprehensiveStringArray[4])
+            });
+        }
+        else {
+            // 更新
+            return this.storage.executeUpdate(this.comprehensiveReportTable, new StorageField[] {
+                            new StorageField("timestamp", report.timestamp),
+                            new StorageField("elapsed", report.elapsed),
+                            new StorageField("theme", report.theme.code),
+                            new StorageField("state", report.state.code),
+                            new StorageField("summary", report.getSummary()),
+                            new StorageField("sections", sectionsString),
+                            new StorageField("comprehensive_1", comprehensiveStringArray[0]),
+                            new StorageField("comprehensive_2", comprehensiveStringArray[1]),
+                            new StorageField("comprehensive_3", comprehensiveStringArray[2]),
+                            new StorageField("comprehensive_4", comprehensiveStringArray[3]),
+                            new StorageField("comprehensive_5", comprehensiveStringArray[4])
+                    },
+                    new Conditional[] {
+                            Conditional.createEqualTo("sn", report.sn),
+                            Conditional.createAnd(),
+                            Conditional.createEqualTo("contact_id", contactId)
+                    });
+        }
+    }
+
+    public boolean writeCustomer(long contactId, Customer customer) {
+        List<StorageField[]> result = this.storage.executeQuery(this.customerTable, new StorageField[] {
+                new StorageField("id", LiteralBase.LONG),
+        }, new Conditional[] {
+                Conditional.createEqualTo("id", customer.id),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("cid", contactId)
+        });
+
+        if (result.isEmpty()) {
+            // 插入
+            return this.storage.executeInsert(this.customerTable, new StorageField[] {
+                    new StorageField("id", customer.id),
+                    new StorageField("cid", contactId),
+                    new StorageField("name", customer.name),
+                    new StorageField("gender", customer.gender.name),
+                    new StorageField("age", customer.age),
+                    new StorageField("mobile", customer.mobile),
+                    new StorageField("comment", customer.comment),
+                    new StorageField("timestamp", customer.timestamp),
+                    new StorageField("state", customer.state),
+                    new StorageField("hexagon_score", (null != customer.hexagonScore) ?
+                            JSONStorageUtils.encode(customer.hexagonScore.toJSON().toString()) : null),
+                    new StorageField("personality", (null != customer.personality) ?
+                            JSONStorageUtils.encode(customer.personality.toJSON().toString()) : null)
+            });
+        }
+        else {
+            // 更新
+            return this.storage.executeUpdate(this.customerTable, new StorageField[] {
+                    new StorageField("name", customer.name),
+                    new StorageField("gender", customer.gender.name),
+                    new StorageField("age", customer.age),
+                    new StorageField("mobile", customer.mobile),
+                    new StorageField("comment", customer.comment),
+                    new StorageField("timestamp", customer.timestamp),
+                    new StorageField("state", customer.state),
+                    new StorageField("hexagon_score", (null != customer.hexagonScore) ?
+                            JSONStorageUtils.encode(customer.hexagonScore.toJSON().toString()) : null),
+                    new StorageField("personality", (null != customer.personality) ?
+                            JSONStorageUtils.encode(customer.personality.toJSON().toString()) : null)
+            }, new Conditional[] {
+                    Conditional.createEqualTo("id", customer.id),
+                    Conditional.createAnd(),
+                    Conditional.createEqualTo("cid", contactId)
+            });
+        }
+    }
+
+    public Customer readCustomer(long contactId, long id) {
+        List<StorageField[]> result = this.storage.executeQuery(this.customerTable, this.customerFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("id", id),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo("cid", contactId)
+                });
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        Map<String, StorageField> data = StorageFields.get(result.get(0));
+        Customer customer = new Customer(data.get("id").getLong(), data.get("name").getString(),
+                Gender.parse(data.get("gender").getString()), data.get("age").getInt(), data.get("mobile").getString(),
+                data.get("comment").getString(), data.get("timestamp").getLong(), data.get("state").getInt());
+        if (!data.get("hexagon_score").isNullValue()) {
+            JSONObject json = JSONStorageUtils.decodeObject(data.get("hexagon_score").getString());
+            if (null != json) {
+                customer.hexagonScore = new HexagonDimensionScore(json);
+            }
+            else {
+                Logger.w(this.getClass(), "#readCustomer - `hexagon_score` data error: " + id);
+            }
+        }
+        if (!data.get("personality").isNullValue()) {
+            JSONObject json = JSONStorageUtils.decodeObject(data.get("personality").getString());
+            if (null != json) {
+                customer.personality = new BigFivePersonality(json);
+            }
+            else {
+                Logger.w(this.getClass(), "#readCustomer - `personality` data error: " + id);
+            }
+        }
+        return customer;
+    }
+
+    public List<Customer> readCustomers(long contactId) {
+        List<Customer> list = new ArrayList<>();
+
+        List<StorageField[]> result = this.storage.executeQuery(this.customerTable, this.customerFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("cid", contactId),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo("state", Customer.STATE_NORMAL),
+                });
+
+        if (result.isEmpty()) {
+            return list;
+        }
+
+        for (StorageField[] fields : result) {
+            Map<String, StorageField> data = StorageFields.get(fields);
+            Customer customer = new Customer(data.get("id").getLong(), data.get("name").getString(),
+                    Gender.parse(data.get("gender").getString()), data.get("age").getInt(), data.get("mobile").getString(),
+                    data.get("comment").getString(), data.get("timestamp").getLong(), data.get("state").getInt());
+            if (!data.get("hexagon_score").isNullValue()) {
+                JSONObject json = JSONStorageUtils.decodeObject(data.get("hexagon_score").getString());
+                if (null != json) {
+                    customer.hexagonScore = new HexagonDimensionScore(json);
+                }
+                else {
+                    Logger.w(this.getClass(), "#readCustomers - `hexagon_score` data error: " + data.get("id").getLong());
+                }
+            }
+            if (!data.get("personality").isNullValue()) {
+                JSONObject json = JSONStorageUtils.decodeObject(data.get("personality").getString());
+                if (null != json) {
+                    customer.personality = new BigFivePersonality(json);
+                }
+                else {
+                    Logger.w(this.getClass(), "#readCustomers - `personality` data error: " + data.get("id").getLong());
+                }
+            }
+            list.add(customer);
+        }
+
+        return list;
+    }
+
+    public int countCustomers(long contactId) {
+        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(*) FROM " + this.customerTable +
+                " WHERE `cid`=" + contactId + " AND `state`=" + Customer.STATE_NORMAL);
+        return result.get(0)[0].getInt();
+    }
+
+    public boolean writeSchedule(long contactId, ConsultationSchedule schedule) {
+        List<StorageField[]> result = this.storage.executeQuery(this.scheduleTable, new StorageField[] {
+                new StorageField("id", LiteralBase.LONG),
+        }, new Conditional[] {
+                Conditional.createEqualTo("id", schedule.id),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("cid", contactId)
+        });
+
+        if (result.isEmpty()) {
+            // 插入
+            return this.storage.executeInsert(this.scheduleTable, new StorageField[] {
+                    new StorageField("id", schedule.id),
+                    new StorageField("cid", contactId),
+                    new StorageField("customer_id", schedule.customerId),
+                    new StorageField("appointment_time", schedule.appointmentTime),
+                    new StorageField("appointment_duration", schedule.appointmentDuration),
+                    new StorageField("appointment_theme", schedule.appointmentTheme.code),
+                    new StorageField("appointment_consultation", schedule.appointmentConsultation.code),
+                    new StorageField("state", schedule.state.code),
+                    new StorageField("counseling_time", schedule.counselingTime),
+                    new StorageField("counseling_duration", schedule.counselingDuration),
+                    new StorageField("counseling_theme", schedule.counselingTheme.code),
+                    new StorageField("counseling_consultation", schedule.counselingConsultation.code),
+                    new StorageField("recording_name", schedule.recordingName),
+                    new StorageField("recording_file_code", schedule.recordingFileCode),
+                    new StorageField("voice_diarization_id", schedule.voiceDiarizationId)
+            });
+        }
+        else {
+            // 更新
+            return this.storage.executeUpdate(this.scheduleTable, new StorageField[] {
+                    new StorageField("customer_id", schedule.customerId),
+                    new StorageField("appointment_time", schedule.appointmentTime),
+                    new StorageField("appointment_duration", schedule.appointmentDuration),
+                    new StorageField("appointment_theme", schedule.appointmentTheme.code),
+                    new StorageField("appointment_consultation", schedule.appointmentConsultation.code),
+                    new StorageField("state", schedule.state.code),
+                    new StorageField("counseling_time", schedule.counselingTime),
+                    new StorageField("counseling_duration", schedule.counselingDuration),
+                    new StorageField("counseling_theme", schedule.counselingTheme.code),
+                    new StorageField("counseling_consultation", schedule.counselingConsultation.code),
+                    new StorageField("recording_name", schedule.recordingName),
+                    new StorageField("recording_file_code", schedule.recordingFileCode),
+                    new StorageField("voice_diarization_id", schedule.voiceDiarizationId)
+            }, new Conditional[] {
+                    Conditional.createEqualTo("id", schedule.id),
+                    Conditional.createAnd(),
+                    Conditional.createEqualTo("cid", contactId)
+            });
+        }
+    }
+
+    public ConsultationSchedule readSchedule(long contactId, long id) {
+        List<StorageField[]> result = this.storage.executeQuery(this.scheduleTable, this.scheduleFields, new Conditional[] {
+                Conditional.createEqualTo("id", id),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("cid", contactId)
+        });
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        Map<String, StorageField> data = StorageFields.get(result.get(0));
+        ConsultationSchedule schedule = new ConsultationSchedule(data.get("id").getLong(), data.get("customer_id").getLong());
+        schedule.appointmentTime = data.get("appointment_time").getLong();
+        schedule.appointmentDuration = data.get("appointment_duration").getLong();
+        schedule.appointmentTheme = ConsultationTheme.parse(data.get("appointment_theme").getString());
+        schedule.appointmentConsultation = ConsultationMethod.parse(data.get("appointment_consultation").getInt());
+        schedule.state = ConsultationScheduleState.parse(data.get("state").getInt());
+        schedule.counselingTime = data.get("counseling_time").getLong();
+        schedule.counselingDuration = data.get("counseling_duration").getLong();
+        schedule.counselingTheme = ConsultationTheme.parse(data.get("counseling_theme").getString());
+        schedule.counselingConsultation = ConsultationMethod.parse(data.get("counseling_consultation").getInt());
+        schedule.recordingName = data.get("recording_name").getString();
+        schedule.recordingFileCode = data.get("recording_file_code").getString();
+        schedule.voiceDiarizationId = data.get("voice_diarization_id").isNullValue() ?
+                0 : data.get("voice_diarization_id").getLong();
+        return schedule;
+    }
+
+    public List<ConsultationSchedule> readSchedules(long contactId, long starting, long ending) {
+        List<ConsultationSchedule> list = new ArrayList<>();
+
+        List<StorageField[]> result = this.storage.executeQuery(this.scheduleTable, this.scheduleFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("cid", contactId),
+                        Conditional.createAnd(),
+                        Conditional.createUnequalTo("state", ConsultationScheduleState.Deleted.code),
+                        Conditional.createAnd(),
+                        Conditional.createBracket(new Conditional[] {
+                                Conditional.createGreaterThanEqual(new StorageField("appointment_time", starting)),
+                                Conditional.createOr(),
+                                Conditional.createGreaterThanEqual(new StorageField("counseling_time", starting))
+                        }),
+                        Conditional.createAnd(),
+                        Conditional.createBracket(new Conditional[] {
+                                Conditional.createLessThanEqual(new StorageField("appointment_time", ending)),
+                                Conditional.createOr(),
+                                Conditional.createLessThanEqual(new StorageField("counseling_time", ending))
+                        }),
+                });
+
+        if (result.isEmpty()) {
+            return list;
+        }
+
+        for (StorageField[] fields : result) {
+            Map<String, StorageField> data = StorageFields.get(fields);
+            ConsultationSchedule schedule = new ConsultationSchedule(data.get("id").getLong(), data.get("customer_id").getLong());
+            schedule.appointmentTime = data.get("appointment_time").getLong();
+            schedule.appointmentDuration = data.get("appointment_duration").getLong();
+            schedule.appointmentTheme = ConsultationTheme.parse(data.get("appointment_theme").getString());
+            schedule.appointmentConsultation = ConsultationMethod.parse(data.get("appointment_consultation").getInt());
+            schedule.state = ConsultationScheduleState.parse(data.get("state").getInt());
+            schedule.counselingTime = data.get("counseling_time").getLong();
+            schedule.counselingDuration = data.get("counseling_duration").getLong();
+            schedule.counselingTheme = ConsultationTheme.parse(data.get("counseling_theme").getString());
+            schedule.counselingConsultation = ConsultationMethod.parse(data.get("counseling_consultation").getInt());
+            schedule.recordingName = data.get("recording_name").getString();
+            schedule.recordingFileCode = data.get("recording_file_code").getString();
+            schedule.voiceDiarizationId = data.get("voice_diarization_id").isNullValue() ?
+                    0 : data.get("voice_diarization_id").getLong();
+
+            list.add(schedule);
+        }
+
+        return list;
+    }
+
+    public int countSchedules(long contactId, long starting, long ending) {
+        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(*) FROM " + this.scheduleTable +
+                " WHERE `cid`=" + contactId + " AND `state`<>" + ConsultationScheduleState.Deleted.code +
+                " AND (`appointment_time`>=" + starting + " OR `counseling_time`>=" + starting + ")" +
+                " AND (`appointment_time`<=" + ending + " OR `counseling_time`<=" + ending + ")");
+        return result.get(0)[0].getInt();
+    }
+
+    public boolean writeAppointment(Appointment appointment) {
+        List<StorageField[]> result = this.storage.executeQuery(this.appointmentTable, this.appointmentFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("uid", appointment.getUserId())
+                });
+        if (result.isEmpty()) {
+            // 插入
+            return this.storage.executeInsert(this.appointmentTable, new StorageField[] {
+                    new StorageField("uid", appointment.getUserId()),
+                    new StorageField("theme", appointment.getConsultationTheme().code),
+                    new StorageField("date", appointment.getConsultationDate()),
+                    new StorageField("timestamp", appointment.getTimestamp())
+            });
+        }
+        else {
+            // 更新
+            return this.storage.executeUpdate(this.appointmentTable, new StorageField[] {
+                    new StorageField("theme", appointment.getConsultationTheme().code),
+                    new StorageField("date", appointment.getConsultationDate()),
+                    new StorageField("timestamp", appointment.getTimestamp())
+            }, new Conditional[] {
+                    Conditional.createEqualTo("uid", appointment.getUserId())
+            });
+        }
+    }
+
+    public Appointment readAppointment(long id) {
+        List<StorageField[]> result = this.storage.executeQuery(this.appointmentTable, this.appointmentFields,
+                new Conditional[] {
+                        Conditional.createEqualTo("uid", id)
+                });
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        Map<String, StorageField> data = StorageFields.get(result.get(0));
+        Appointment appointment = new Appointment(id);
+        appointment.setConsultationTheme(ConsultationTheme.parse(data.get("theme").getString()));
+        appointment.setConsultationDate(data.get("date").getLong());
+        appointment.setTimestamp(data.get("timestamp").getLong());
+        return appointment;
+    }
+
+//    public boolean writeUsage(long cid, String token, long timestamp, String remote, String query,
+//                              String queryType, long queryTokens, long completionTokens, long completionSN) {
+//        return this.storage.executeInsert(this.usageTable, new StorageField[] {
+//                new StorageField("cid", cid),
+//                new StorageField("token", token),
+//                new StorageField("timestamp", timestamp),
+//                new StorageField("remote", remote),
+//                new StorageField("query", query),
+//                new StorageField("query_type", queryType),
+//                new StorageField("query_tokens", queryTokens),
+//                new StorageField("completion_tokens", completionTokens),
+//                new StorageField("completion_sn", completionSN),
+//        });
+//    }
+
+    /**
+     * 生成六维得分描述。
+     *
+     * <p>实际的描述算法依赖宿主 {@code service} 模块的分词器与 TF-IDF 语料，
+     * 由宿主在启动时以 {@link #setHexagonDescriber} 注入，本方法只负责调用与降级。</p>
+     *
+     * <p>未注入生成器时记 WARN 并跳过，结果等同于「描述为空」。这一降级与
+     * 「分词器为 {@code null} 时生成过程抛空指针并被 {@code makeReport} 的
+     * catch-all 吞掉」的结果一致，因此不会引入新的行为差异。</p>
+     *
+     * @param dimensionScore 六维得分。
+     * @param language 会话语言。
+     */
+    private void fillHexagonScoreDescription(HexagonDimensionScore dimensionScore, Language language) {
+        BiConsumer<HexagonDimensionScore, Language> describer = this.hexagonDescriber;
+        if (null == describer) {
+            Logger.w(this.getClass(), "#fillHexagonScoreDescription - Describer is NOT set, skip description");
+            return;
+        }
+
+        describer.accept(dimensionScore, language);
+    }
+
+    private PaintingReport makeReport(StorageField[] storageFields) {
+        Map<String, StorageField> data = StorageFields.get(storageFields);
+
+        PaintingReport report = new PaintingReport(data.get("sn").getLong(), data.get("contact_id").getLong(),
+                data.get("timestamp").getLong(), data.get("name").getString(),
+                new Attribute(data.get("gender").getString(), data.get("age").getInt(),
+                        data.get("role").isNullValue() ? "" : data.get("role").getString(),
+                        data.get("language").isNullValue() ? Language.Chinese : Language.parse(data.get("language").getString()),
+                        data.get("strict").getInt() == 1),
+                data.get("file_code").getString(), Theme.parse(data.get("theme").getString()),
+                data.get("finished_timestamp").getLong());
+
+        if (!data.get("summary").isNullValue()) {
+            report.setSummary(data.get("summary").getString());
+        }
+
+        if (!data.get("remark").isNullValue()) {
+            report.setRemark(data.get("remark").getString());
+        }
+
+        if (!data.get("extension").isNullValue()) {
+            JSONObject dataJson = JSONStorageUtils.decodeObject(data.get("extension").getString());
+            if (null != dataJson) {
+                report.setExtension(dataJson);
+            }
+            else {
+                Logger.w(this.getClass(), "#makeReport - `extension` data error: " + report.sn);
+            }
+        }
+
+        EvaluationReport evaluationReport = null;
+
+        if (!data.get("evaluation_data").isNullValue()) {
+            JSONObject dataJson = JSONStorageUtils.decodeObject(data.get("evaluation_data").getString());
+            if (null == dataJson) {
+                Logger.w(this.getClass(), "#makeReport - `evaluation_data` data error: " + report.sn);
+                return null;
+            }
+
+            if (null == dataJson) {
+                Logger.w(this.getClass(), "#makeReport - `evaluation_data` data error: " + report.sn);
+                return null;
+            }
+
+            try {
+                evaluationReport = new EvaluationReport(dataJson);
+                report.setEvaluationReport(evaluationReport);
+            } catch (Exception e) {
+                Logger.w(this.getClass(), "#makeReport - `evaluation_data` data error: " + report.sn, e);
+                return null;
+            }
+        }
+
+        List<StorageField[]> fields = null;
+
+        fields = this.storage.executeQuery(this.reportTextTable,
+                this.reportTextFields, new Conditional[] {
+                        Conditional.createEqualTo("report_sn", report.sn)
+                });
+        List<ReportSection> sectionList = new ArrayList<>();
+        for (StorageField[] sectionFields : fields) {
+            Map<String, StorageField> tf = StorageFields.get(sectionFields);
+            ReportSection rs = new ReportSection(
+                    Indicator.parse(tf.get("indicator").getString()),
+                    tf.get("title").getString(),
+                    tf.get("report").getString(),
+                    tf.get("suggestion").getString(),
+                    IndicatorRate.parse(tf.get("rate").getInt())
+            );
+            sectionList.add(rs);
+        }
+        report.setReportSectionList(sectionList);
+
+        try {
+            HexagonDimensionScore normDimensionScore = new HexagonDimensionScore(
+                    80, 80, 80, 80, 80, 80);
+
+            fields = this.storage.executeQuery(this.reportHexagonTable, this.reportHexagonFields, new Conditional[] {
+                    Conditional.createEqualTo("sn", report.sn)
+            });
+            if (fields.isEmpty()) {
+                HexagonDimensionScore dimensionScore = new HexagonDimensionScore(evaluationReport.getAttention(),
+                        evaluationReport.getFullEvaluationScores(),
+                        evaluationReport.getPaintingConfidence(), evaluationReport.getFactorSet());
+
+                // 描述
+                this.fillHexagonScoreDescription(dimensionScore, report.getAttribute().language);
+
+                report.setDimensionalScore(dimensionScore, normDimensionScore);
+            }
+            else {
+                HexagonDimensionScore dimensionScore = new HexagonDimensionScore();
+                Map<String, StorageField> map = StorageFields.get(fields.get(0));
+
+                String[] hexagonFields = new String[] {
+                        "mood", "cognition", "behavior",
+                        "interpersonal_relationship", "self_assessment", "mental_health"
+                };
+                for (String hexagonField : hexagonFields) {
+                    JSONObject json = JSONStorageUtils.decodeObject(map.get(hexagonField).getString());
+                    if (null == json) {
+                        Logger.w(this.getClass(), "#makeReport - `" + hexagonField + "` data error: " + report.sn);
+                        continue;
+                    }
+
+                    dimensionScore.setFactor(json);
+                }
+
+                report.setDimensionalScore(dimensionScore, normDimensionScore);
+            }
+        } catch (Exception e) {
+            Logger.e(this.getClass(), "#makeReport", e);
+        }
+
+        // 权限
+        ReportPermission permission = this.readReportPermission(report.contactId, report.sn);
+        if (null != permission) {
+            report.setPermission(permission);
+        }
+
+        // 生成 Markdown
+        report.makeMarkdown();
+
+        return report;
+    }
+
+    // ───────── 咨询录音归档 ─────────
+
+    /**
+     * 写入一条咨询录音记录。
+     *
+     * @param authToken 访问令牌。
+     * @param streamName 录音流名。
+     * @param timestamp 起始时间戳。
+     * @param duration 时长（毫秒）。
+     * @param attribute 受测人属性。
+     * @param theme 咨询主题。
+     * @param fileCode 录音文件码。
+     * @return 写入成功返回 <code>true</code>。
+     */
+    public boolean writeCounselingRecording(AuthToken authToken, String streamName, long timestamp,
+            long duration, Attribute attribute, ConsultationTheme theme, String fileCode) {
+        return (this.storage.executeInsert(this.counselingRecordingTable, new StorageField[] {
+                new StorageField("cid", authToken.getContactId()),
+                new StorageField("domain", authToken.getDomain()),
+                new StorageField("stream", streamName),
+                new StorageField("timestamp", timestamp),
+                new StorageField("duration", duration),
+                new StorageField("gender", attribute.gender),
+                new StorageField("age", attribute.age),
+                new StorageField("theme", theme.code),
+                new StorageField("file_code", fileCode)
+        }));
+    }
+
+    /**
+     * 按流名读取咨询录音记录。
+     *
+     * @param streamName 录音流名。
+     * @return 返回含 {@code stream} / {@code timestamp} / {@code duration} /
+     *         {@code theme} / {@code fileCode} 的对象；无记录时返回 <code>null</code>。
+     */
+    public JSONObject readCounselingRecording(String streamName) {
+        List<StorageField[]> storageFields = this.storage.executeQuery(this.counselingRecordingTable,
+                this.counselingRecordingFields, new Conditional[] {
+                        Conditional.createEqualTo("stream", streamName)
+                });
+        if (storageFields.isEmpty()) {
+            return null;
+        }
+
+        JSONObject result = new JSONObject();
+        Map<String, StorageField> data = StorageFields.get(storageFields.get(0));
+        result.put("stream", data.get("stream").getString());
+        result.put("timestamp", data.get("timestamp").getLong());
+        result.put("duration", data.get("duration").getLong());
+        result.put("theme", data.get("theme").getString());
+        result.put("fileCode", data.get("file_code").getString());
+
+        return result;
+    }
+
+    /**
+     * 按流名读取咨询录音的文件码。
+     *
+     * @param streamName 录音流名。
+     * @return 返回文件码；无记录时返回 <code>null</code>。
+     */
+    public String readCounselingRecordingFileCode(String streamName) {
+        List<StorageField[]> result = this.storage.executeQuery(this.counselingRecordingTable,
+                new StorageField[] {
+                        new StorageField("file_code", LiteralBase.STRING)
+                }, new Conditional[] {
+                        Conditional.createEqualTo("stream", streamName)
+                });
+
+        if (result.isEmpty()) {
+            return null;
+        }
+
+        return result.get(0)[0].getString();
+    }
+
+    private List<EvaluationScore> filter(List<EvaluationScore> indicatorList, List<EvaluationScore> sources) {
+        List<EvaluationScore> result = new ArrayList<>();
+        for (EvaluationScore es : indicatorList) {
+            Indicator indicator = es.getIndicator();
+            for (EvaluationScore score : sources) {
+                if (score.indicator == indicator) {
+                    result.add(score);
+                }
+            }
+
+        }
+        return result;
+    }
+}
