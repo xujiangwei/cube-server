@@ -1,0 +1,36 @@
+{
+	"Auth": {
+		"type": "SQLite",
+		"file": "storage/AuthService.db"
+	},
+
+	"Contact": {
+		"type": "SQLite",
+		"file": "storage/ContactService.db"
+	},
+
+	"Messaging": {
+		"type": "SQLite",
+		"file": "storage/MessagingService.db"
+	},
+
+	"FileStorage": {
+		"type": "SQLite",
+		"file": "storage/FileStorageService.db"
+	},
+
+	"Conference": {
+		"type": "SQLite",
+		"file": "storage/ConferenceService.db"
+	},
+
+	"RiskMgmt": {
+		"type": "SQLite",
+		"file": "storage/RiskMgmt.db"
+	},
+
+	"Ferry": {
+		"type": "SQLite",
+		"file": "storage/Ferry.db"
+	}
+}
