@@ -1,6 +1,8 @@
-# Harness Cellet / N00–N02
+# Harness Cellet / N00–N03
 
 正式服务是 `cube.service.harness.HarnessCellet` + `HarnessService`，NAME=`Harness`。产物 `cube-service-harness-3.0.jar` 只放在 `cellets/`，按标准 Cell XML 安装并交给 Kernel 启停；不注册到 AIGC 插件表。当前只有 CPU scripted 通信能力，业务任务返回 `HARNESS_NOT_READY`。协议见 [CONTRACT.md](CONTRACT.md)，完整验收记录见工作区 `harness/execution-records/g0-20261017/`。
+
+N03 增加可选的独立 JDBC RunStore，详见 [STORE.md](STORE.md)。SQLite 与隔离 MySQL 的并发、租约、事务、Outbox 和用量结算已有本机专项验收；服务启动只校验，不自动迁移。默认关闭存储；业务 API 的 profile/Coordinator 准入仍待后续阶段。N02 原生 Linux 缺项继续保留。
 
 ## 构建与目录
 

@@ -7,3 +7,5 @@ worker.credential=
 api.credential=
 worker.model-1.role=model
 worker.runner-1.role=runner
+# Optional N03 ledger. See STORE.md. No automatic migration or run API enablement.
+store.enabled=false

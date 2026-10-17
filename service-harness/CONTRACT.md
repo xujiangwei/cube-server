@@ -36,6 +36,6 @@ echo 仅为 CPU 通信探针，含 payload.text。drain 令 ready=false 并拒�
 
 用户 API 使用 `/harness/v1`，管理 API `/harness-admin/v1`；管理请求当前拒绝为 403。保留 API 验证身份、方法、路由、Content-Type、schema 和 Idempotency-Key 后，返回 HARNESS_NOT_READY/503。错误结构为 errorCode/requestId/retryable。无效输入 400、未认证 401、无权限 403、未知路由 404、方法不支持 405、超限 413、媒体类型不支持 415。没有虚假的 202 或内存 run。
 
-N03 以后写入成功前，幂等键必须绑定 tenant+subject+operation+目标+载荷摘要；同键同载荷返回原操作结果，异载荷 409。控制操作必须 CAS 检查 expectedVersion；resume 还绑定 waitId，approval 绑定固定参数摘要。默认幂等记录保留至少 24 小时且不短于 run 控制保留期；具体存储保留和过期响应随 N03/N11 的持久实现验收。G0 不把上述保留语义伪装成已实现。
+N03 的内部 RunStore 已将幂等键绑定 tenant+subject+operation+目标+载荷摘要，同键同载荷返回原回执，异载荷冲突；控制意图 CAS 检查 expectedVersion。幂等记录当前不自动清理，保留至少 24 小时且不短于 run 生命周期。HTTP 业务入口仍返回 503；未来成功路径须等待创建事务提交才能返回 202。resume 的 waitId、approval 参数绑定及完整业务策略继续在 N11 验收，不将存储方法当作已开放的控制 API。
 
 终态、eventSeq/runVersion、executionSettlement 由 Java RunStore 提交后权威发布，worker 不可直接推进。取消请求成功不等同于执行终止，unknown settlement 不释放执行配额。相关状态 schema 已作为规划契约保留，实际流转从 N03 开始。

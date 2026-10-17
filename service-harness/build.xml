@@ -14,6 +14,14 @@
     <mkdir dir="${build.dir}/classes"/>
     <javac srcdir="src" destdir="${build.dir}/classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
     <copy todir="${build.dir}/classes/contracts"><fileset dir="contracts"/></copy>
+    <copy todir="${build.dir}/classes"><fileset dir="resources"/></copy>
+  </target>
+  <target name="test-store" depends="test">
+    <java classname="cube.service.harness.test.RunStoreTest" fork="true" failonerror="true">
+      <classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath>
+      <sysproperty key="store.test.config" value="${store.test.config}"/>
+      <sysproperty key="store.test.output" value="${store.test.output}"/>
+    </java>
   </target>
   <target name="build" depends="compile"><jar destfile="${build.dir}/cube-service-harness-3.0.jar" basedir="${build.dir}/classes"/></target>
   <target name="build-debug" depends="build"><copy file="${build.dir}/cube-service-harness-3.0.jar" todir="../build"/></target>

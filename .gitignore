@@ -111,3 +111,4 @@ deploy/config/psychology.json.template
 deploy/config/aigc-modules.properties
 compile-check.sh
 .github/workflows/harness.yml
+.github/workflows/harness-store.yml

@@ -13,6 +13,8 @@ import cube.core.Kernel;
 import cube.plugin.PluginSystem;
 import cube.service.harness.protocol.Contract;
 import cube.service.harness.protocol.StrictJson;
+import cube.service.harness.store.JdbcRunStore;
+import cube.service.harness.store.StoreConfig;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -33,7 +35,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * G0 infrastructure only. A run is never accepted without its future durable store.
+ * G0 transport with an optional N03 ledger. Run admission awaits profiles/coordinator.
  */
 public final class HarnessService extends AbstractModule {
     public static final String NAME = "Harness";
@@ -42,6 +44,7 @@ public final class HarnessService extends AbstractModule {
     private ThreadPoolExecutor executor, httpExecutor;
     private HttpServer http;
     private volatile String startupError;
+    private JdbcRunStore store;
 
     public HarnessService() {
     }
@@ -63,6 +66,9 @@ public final class HarnessService extends AbstractModule {
         if (started.get()) return;
         try {
             if (config == null) config = HarnessConfig.load();
+            // N03 is optional and fail-closed. DDL is only available in the explicit migration CLI.
+            if (Boolean.parseBoolean(config.values.getProperty("store.enabled", "false")))
+                store = new JdbcRunStore(new StoreConfig(config.values));
             registry = new WorkerRegistry(config.leaseMillis());
             executor = pool("harness-cell", 2, 64);
             httpExecutor = pool("harness-http", 2, 32);
@@ -97,7 +103,10 @@ public final class HarnessService extends AbstractModule {
                 }
             }
         if (registry != null) registry.clear();
+        store = null;
     }
+
+    public JdbcRunStore runStore() { return store; }
 
     public ExecutorService executor() {
         return executor;
