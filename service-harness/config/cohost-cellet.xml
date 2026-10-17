@@ -1,0 +1,5 @@
+<!-- Merge this element into the reviewed host Cell XML's cellets section.
+     Keep the host ServiceCarpet. Select the host's Talk port explicitly. -->
+<cellet port="6000" jar="cellets/cube-service-harness-3.0.jar">
+  <class>cube.service.harness.HarnessCellet</class>
+</cellet>

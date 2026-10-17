@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cell>
+  <listeners><class>cube.service.harness.HarnessCarpet</class></listeners>
+  <nucleus>
+    <heartbeat>60000</heartbeat>
+    <talk><server><host>127.0.0.1</host><port>7600</port><max-connection>64</max-connection></server><ws-server/><wss-server/><ssl/></talk>
+    <log><level>INFO</level></log>
+  </nucleus>
+  <cellets><cellet port="7600" jar="cellets/cube-service-harness-3.0.jar"><class>cube.service.harness.HarnessCellet</class></cellet></cellets>
+  <adapters/>
+</cell>

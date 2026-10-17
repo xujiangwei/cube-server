@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="cube-service-harness" default="build" basedir=".">
+  <property name="build.dir" location="build"/>
+  <property name="lib.dir" location="../deploy/libs"/>
+  <property name="cell.jar" location="../deploy/bin/cell.jar"/>
+  <property name="common.jar" location="../build/cube-common-3.0.jar"/>
+  <property name="stage.dir" location="build/stage"/>
+  <path id="cp"><pathelement location="${cell.jar}"/><pathelement location="${common.jar}"/><fileset dir="${lib.dir}" includes="*.jar"/><pathelement location="${build.dir}/classes"/></path>
+  <target name="check">
+    <fail message="Harness requires an actual JDK 8 (java.version=1.8)"><condition><not><matches string="${java.version}" pattern="^1\.8\."/></not></condition></fail>
+    <available file="${common.jar}" property="common.present"/><fail unless="common.present" message="Build common with JDK 8 first, or set -Dcommon.jar to a verified cube-common-3.0.jar"/>
+  </target>
+  <target name="compile" depends="check">
+    <mkdir dir="${build.dir}/classes"/>
+    <javac srcdir="src" destdir="${build.dir}/classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
+    <copy todir="${build.dir}/classes/contracts"><fileset dir="contracts"/></copy>
+  </target>
+  <target name="build" depends="compile"><jar destfile="${build.dir}/cube-service-harness-3.0.jar" basedir="${build.dir}/classes"/></target>
+  <target name="build-debug" depends="build"><copy file="${build.dir}/cube-service-harness-3.0.jar" todir="../build"/></target>
+  <target name="build-release" depends="build-debug"/>
+  <target name="test" depends="build">
+    <mkdir dir="${build.dir}/test-classes"/>
+    <javac srcdir="test" destdir="${build.dir}/test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
+    <java classname="cube.service.harness.test.ContractTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
+  </target>
+  <target name="stage" depends="build">
+    <mkdir dir="${stage.dir}/cellets"/>
+    <copy file="${build.dir}/cube-service-harness-3.0.jar" todir="${stage.dir}/cellets"/>
+    <copy todir="${stage.dir}/config"><fileset dir="config" excludes="*.local.properties"/></copy>
+    <copy file="config/standalone.xml" tofile="${stage.dir}/cell.xml"/>
+    <copy todir="${stage.dir}/scripts"><fileset dir="scripts"/></copy>
+  </target>
+  <target name="clean"><delete dir="${build.dir}"/></target>
+</project>

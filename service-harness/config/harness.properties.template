@@ -1,0 +1,9 @@
+# G0 only: private development configuration. Empty credentials refuse startup.
+mode=development
+http.host=127.0.0.1
+http.port=7088
+lease.millis=6000
+worker.credential=
+api.credential=
+worker.model-1.role=model
+worker.runner-1.role=runner

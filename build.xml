@@ -270,6 +270,7 @@
 				<exclude name="*service-multipointcomm*" />
 				<exclude name="*service-conference*" />
 				<exclude name="*service-riskmgmt*" />
+				<exclude name="*service-harness*" />
 			</fileset>
 		</copy>
 		<copy todir="${deploy.dir}/cellets/">
@@ -334,6 +335,7 @@
 				<include name="cube-service-*.jar" />
 				<include name="cube-service-filestorage-*.jar" />
 				<include name="cube-service-fileprocessor-*.jar" />
+				<exclude name="*service-harness*" />
 			</fileset>
 		</delete>
 		<delete failonerror="false" includeemptydirs="true">
@@ -389,6 +391,34 @@
 	<!-- =================================================================== -->
 	<!-- Help                                                                -->
 	<!-- =================================================================== -->
+	<!-- Harness is opt-in during development. The original build/deploy graph stays independent. -->
+	<target name="build-harness-debug">
+		<ant dir="service-harness" target="build-debug" inheritall="false" />
+	</target>
+	<target name="build-harness-release">
+		<ant dir="service-harness" target="build-release" inheritall="false" />
+	</target>
+	<target name="build-service-with-harness-debug" depends="build-service-debug,build-harness-debug" />
+	<target name="build-service-with-harness-release" depends="build-service-release,build-harness-release" />
+	<target name="build-with-harness" depends="build,build-harness-release" />
+	<target name="deploy-with-harness">
+		<fail unless="harness.stage.dir" message="Set -Dharness.stage.dir to a new isolated staging directory" />
+		<ant dir="service-harness" target="build" inheritall="false" />
+		<java classname="cube.service.harness.StagingTool" fork="true" failonerror="true">
+			<classpath><pathelement location="service-harness/build/cube-service-harness-3.0.jar" /></classpath>
+			<arg value="prepare"/><arg file="deploy"/><arg file="${harness.stage.dir}"/>
+		</java>
+		<ant antfile="build.xml" target="deploy" inheritall="false">
+			<property name="deploy.dir" location="${harness.stage.dir}"/>
+		</ant>
+		<ant dir="service-harness" target="stage" inheritall="false">
+			<property name="stage.dir" location="${harness.stage.dir}"/>
+		</ant>
+		<java classname="cube.service.harness.StagingTool" fork="true" failonerror="true">
+			<classpath><pathelement location="service-harness/build/cube-service-harness-3.0.jar" /></classpath>
+			<arg value="configure"/><arg file="deploy"/><arg file="${harness.stage.dir}"/>
+		</java>
+	</target>
 	<target name="help">
 		<echo>Cube server 3.0</echo>
 		<echo>Please use `make target`, where 'target' is one of</echo>

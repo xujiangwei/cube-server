@@ -1,0 +1,266 @@
+[
+  {
+    "name": "worker-register",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "OK"
+  },
+  {
+    "name": "worker-version",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":2,\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "worker-role",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"AIGC\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "unknown-field",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"],\"grant\":\"arbitrary\"}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "missing-protocolVersion",
+    "schema": "worker-request",
+    "raw": "{\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "missing-action",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "missing-requestId",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"register\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "missing-credential",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"register\",\"requestId\":\"req-1\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "missing-workerId",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "missing-instanceId",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "missing-role",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "missing-capabilities",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\"}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "new-run",
+    "schema": "create-run",
+    "raw": "{\"taskProfileId\":\"cube-server-status.readonly.v1\",\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]}}",
+    "expected": "OK"
+  },
+  {
+    "name": "legacy-chat",
+    "schema": "create-run",
+    "raw": "{\"taskProfileId\":\"cube-server-status.readonly.v1\",\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"channelCode\":\"legacy\"}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "wrong-attachment",
+    "schema": "create-run",
+    "raw": "{\"taskProfileId\":\"cube-server-status.readonly.v1\",\"input\":{\"instruction\":\"x\",\"attachmentIds\":[\"../secret\"]}}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "cancel",
+    "schema": "cancel-run",
+    "raw": "{\"expectedVersion\":1}",
+    "expected": "OK"
+  },
+  {
+    "name": "cancel-negative",
+    "schema": "cancel-run",
+    "raw": "{\"expectedVersion\":-1}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "duplicate",
+    "schema": "create-run",
+    "raw": "{\"a\":1,\"a\":2}",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "nested-duplicate",
+    "schema": "create-run",
+    "raw": "{\"a\":{\"x\":1,\"x\":2}}",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "nan",
+    "schema": "create-run",
+    "raw": "{\"a\":NaN}",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "infinity",
+    "schema": "create-run",
+    "raw": "{\"a\":1e999}",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "truncated",
+    "schema": "create-run",
+    "raw": "{\"a\":",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "comment",
+    "schema": "create-run",
+    "raw": "{/*x*/\"a\":1}",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "trailing",
+    "schema": "create-run",
+    "raw": "{}{}",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "single-quote",
+    "schema": "create-run",
+    "raw": "{'a':1}",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "control",
+    "schema": "create-run",
+    "raw": "{\"a\":\"\u0001\"}",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "depth",
+    "schema": "create-run",
+    "raw": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[0]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "fence",
+    "schema": "create-run",
+    "raw": "```json\n{}\n```",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "trailing-comma",
+    "schema": "create-run",
+    "raw": "{\"a\":1,}",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "decision",
+    "schema": "model-decision",
+    "raw": "{\"kind\":\"final\",\"text\":\"done\"}",
+    "expected": "OK"
+  },
+  {
+    "name": "artifact",
+    "schema": "artifact",
+    "raw": "{\"artifactId\":\"a1\",\"runId\":\"r1\",\"fileName\":\"x.txt\",\"mediaType\":\"text/plain\",\"size\":2,\"sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"expiresAt\":1}",
+    "expected": "OK"
+  },
+  {
+    "name": "heartbeat-no-session",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"heartbeat\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "register-with-session",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"],\"sessionId\":\"stale\"}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "echo-no-payload",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"echo\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"],\"sessionId\":\"s1\"}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "heartbeat",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":1,\"action\":\"heartbeat\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"],\"sessionId\":\"s1\"}",
+    "expected": "OK"
+  },
+  {
+    "name": "bool-version",
+    "schema": "worker-request",
+    "raw": "{\"protocolVersion\":true,\"action\":\"register\",\"requestId\":\"req-1\",\"credential\":\"fixture-only\",\"workerId\":\"model-1\",\"instanceId\":\"instance-1\",\"role\":\"model\",\"capabilities\":[\"scripted.echo\"]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "missing-final-text",
+    "schema": "model-decision",
+    "raw": "{\"kind\":\"final\"}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "mixed-decision",
+    "schema": "model-decision",
+    "raw": "{\"kind\":\"final\",\"text\":\"x\",\"calls\":[]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "empty-tool-calls",
+    "schema": "model-decision",
+    "raw": "{\"kind\":\"tool_calls\",\"calls\":[]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "empty-question",
+    "schema": "model-decision",
+    "raw": "{\"kind\":\"need_input\",\"question\":\"\"}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "integer-as-string",
+    "schema": "cancel-run",
+    "raw": "{\"expectedVersion\":\"1\"}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "boolean-as-integer",
+    "schema": "cancel-run",
+    "raw": "{\"expectedVersion\":true}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "non-ascii-escape",
+    "schema": "create-run",
+    "raw": "{\"x\":\"\\uＦＦＦＦ\"}",
+    "expected": "INVALID_JSON"
+  },
+  {
+    "name": "escaped-duplicate-key",
+    "schema": "create-run",
+    "raw": "{\"a\":1,\"\\u0061\":2}",
+    "expected": "INVALID_JSON"
+  }
+]

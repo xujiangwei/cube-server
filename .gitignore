@@ -110,3 +110,4 @@ deploy/config/psychology.local.json
 deploy/config/psychology.json.template
 deploy/config/aigc-modules.properties
 compile-check.sh
+.github/workflows/harness.yml

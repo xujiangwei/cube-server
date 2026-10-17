@@ -1,0 +1,95 @@
+{
+  "type": "object",
+  "properties": {
+    "service": {
+      "type": "string",
+      "enum": [
+        "Harness"
+      ]
+    },
+    "protocolVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "registeredWorkers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "workerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "instanceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "model",
+              "runner"
+            ]
+          },
+          "registered": {
+            "type": "boolean"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "scripted.echo"
+              ]
+            },
+            "maxItems": 64
+          }
+        },
+        "required": [
+          "workerId",
+          "instanceId",
+          "role",
+          "registered",
+          "ready",
+          "capabilities"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 64
+    },
+    "infrastructureReady": {
+      "type": "boolean"
+    },
+    "runsReady": {
+      "type": "boolean",
+      "enum": [
+        false
+      ]
+    },
+    "execution": {
+      "type": "string",
+      "enum": [
+        "scripted"
+      ]
+    }
+  },
+  "required": [
+    "service",
+    "protocolVersion",
+    "registeredWorkers",
+    "infrastructureReady",
+    "runsReady",
+    "execution"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
