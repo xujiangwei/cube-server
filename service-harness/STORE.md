@@ -42,7 +42,7 @@ java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrat
 java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrations verify C:/private/runtime.local.properties
 ```
 
-`initialize-empty` 仅接受空库，随后写身份、版本和迁移 SHA256；重复执行只校验。任何外来表、错误身份、版本、摘要或不完整 schema 都会拒绝。MySQL 使用 GET_LOCK 协调迁移，但其 DDL 不是可回滚事务；中途失败保留现场，由管理员在专用测试库重建或通过审核的前向修复恢复。不提供 DROP、自动 down migration 或旧表 DDL。
+当前 schema=2，新增包、profile、工作区和上下文表。`initialize-empty` 接受新空库，写身份、版本和迁移 SHA256；对于完整受信的已知旧版本，它与显式 `upgrade` 都只执行缺少的前向迁移；相同版本重复执行只校验。已有 v1 库建议明确执行 `StoreMigrations upgrade <private.properties>`，启动不升级。任何外来表、错误身份、版本、摘要或不完整 schema 都会拒绝。MySQL 使用 GET_LOCK 协调迁移，但其 DDL 不是可回滚事务；中途失败保留现场，由管理员在专用测试库重建或通过审核的前向修复恢复。不提供 DROP、自动 down migration 或旧表 DDL。v1 旧二进制不能打开 v2；撤回保留 v2 兼容恢复程序和账本。详见 [RUNTIME.md](RUNTIME.md)。
 
 ## 权威数据和提交语义
 

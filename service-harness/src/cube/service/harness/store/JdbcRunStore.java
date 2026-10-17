@@ -28,7 +28,7 @@ public final class JdbcRunStore {
         void at(String boundary);
     }
 
-    private interface Work<T> {
+    interface Work<T> {
         T run(Connection c) throws Exception;
     }
 
@@ -65,7 +65,7 @@ public final class JdbcRunStore {
         }
     }
 
-    private <T> T tx(Work<T> work) {
+    <T> T tx(Work<T> work) {
         for (int attempt = 0; ; attempt++) {
             boolean committed = false, commitAttempted = false;
             try (Connection c = config.connect()) {
@@ -160,13 +160,13 @@ public final class JdbcRunStore {
         return s;
     }
 
-    private static int update(Connection c, String sql, Object... args) throws SQLException {
+    static int update(Connection c, String sql, Object... args) throws SQLException {
         try (PreparedStatement s = statement(c, sql, args)) {
             return s.executeUpdate();
         }
     }
 
-    private static JSONArray rows(Connection c, String sql, Object... args) throws SQLException {
+    static JSONArray rows(Connection c, String sql, Object... args) throws SQLException {
         JSONArray out = new JSONArray();
         try (PreparedStatement s = statement(c, sql, args); ResultSet r = s.executeQuery()) {
             ResultSetMetaData meta = r.getMetaData();
@@ -181,11 +181,11 @@ public final class JdbcRunStore {
         return out;
     }
 
-    private static JSONObject first(JSONArray rows) {
+    static JSONObject first(JSONArray rows) {
         return rows.length() == 0 ? null : rows.getJSONObject(0);
     }
 
-    private long now(Connection c) throws SQLException {
+    long now(Connection c) throws SQLException {
         try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(config.mysql()
                 ? "SELECT CAST(UNIX_TIMESTAMP(CURRENT_TIMESTAMP(3))*1000 AS SIGNED)"
                 : "SELECT CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)")) {
@@ -194,7 +194,7 @@ public final class JdbcRunStore {
         }
     }
 
-    private JSONObject run(Connection c, String tenant, String subject, String runId, boolean lock) throws SQLException {
+    JSONObject run(Connection c, String tenant, String subject, String runId, boolean lock) throws SQLException {
         JSONObject run = first(rows(c, "SELECT * FROM harness_run WHERE tenant=? AND subject_id=? AND run_id=?"
                 + (lock && config.mysql() ? " FOR UPDATE" : ""), id(tenant), id(subject), id(runId)));
         if (run == null) throw new StoreException("RUN_NOT_FOUND");
@@ -205,12 +205,12 @@ public final class JdbcRunStore {
         return Arrays.asList("succeeded", "failed", "cancelled", "timed_out").contains(state);
     }
 
-    private void owner(Connection c, JSONObject r, Lease lease) throws SQLException {
+    void owner(Connection c, JSONObject r, Lease lease) throws SQLException {
         if (!lease.owner.equals(r.optString("owner_id")) || lease.fence != r.getLong("fence")
                 || r.getLong("lease_until") <= now(c)) throw new StoreException("STALE_OWNER");
     }
 
-    private static void version(JSONObject r, long expected) {
+    static void version(JSONObject r, long expected) {
         if (r.getLong("version") != expected) throw new StoreException("VERSION_CONFLICT");
     }
 
@@ -224,7 +224,7 @@ public final class JdbcRunStore {
     /**
      * Atomically advances the version, appends the event and records its send intent.
      */
-    private JSONObject emit(Connection c, JSONObject r, String type, JSONObject data, String topic) throws SQLException {
+    JSONObject emit(Connection c, JSONObject r, String type, JSONObject data, String topic) throws SQLException {
         long v = r.getLong("version"), seq = r.getLong("event_seq") + 1, time = now(c);
         int changed = update(c, "UPDATE harness_run SET version=?,event_seq=?,updated_at=? WHERE run_id=? AND tenant=? AND version=?",
                 v + 1, seq, time, r.getString("run_id"), r.getString("tenant"), v);
@@ -261,6 +261,12 @@ public final class JdbcRunStore {
     }
 
     public JSONObject create(String tenant, String subject, String key, String profileVersion, JSONObject request) {
+        return createResolved(tenant, subject, key, profileVersion, request, null);
+    }
+
+    interface ConfigResolver { JSONObject resolve(java.sql.Connection connection) throws Exception; }
+
+    JSONObject createResolved(String tenant, String subject, String key, String profileVersion, JSONObject request, ConfigResolver resolver) {
         id(profileVersion);
         String k = requestKey(tenant, subject, "create", "runs", key);
         String digest = hash(new JSONObject().put("profileVersion", profileVersion).put("request", request));
@@ -269,8 +275,14 @@ public final class JdbcRunStore {
             if (old != null) return old;
             String runId = UUID.randomUUID().toString();
             long time = now(c);
+            JSONObject pinned = resolver == null ? null : resolver.resolve(c);
             update(c, "INSERT INTO harness_run VALUES (?,?,?,?,?,0,0,NULL,0,0,?,?,?,?)",
-                    runId, tenant, subject, profileVersion, "queued", "pending", "settled", time, time);
+                    runId, tenant, subject, pinned == null ? profileVersion : pinned.getJSONObject("task").getString("version"), "queued", "pending", "settled", time, time);
+            if (pinned != null) {
+                update(c, "INSERT INTO harness_run_config VALUES (?,?,?,?,?)", runId, tenant, subject, hash(pinned), canonical(pinned));
+                JSONArray releases = pinned.getJSONArray("releases");
+                for (int i = 0; i < releases.length(); i++) update(c, "INSERT INTO harness_release_ref VALUES (?,?,?)", tenant, releases.getJSONObject(i).getString("digest"), runId);
+            }
             JSONObject response = emit(c, run(c, tenant, subject, runId, true), "run.created", request, "coordinator");
             receipt(c, k, tenant, subject, "create", "runs", digest, response);
             return response;

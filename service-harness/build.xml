@@ -24,6 +24,15 @@
     </java>
   </target>
   <target name="build" depends="compile"><jar destfile="${build.dir}/cube-service-harness-3.0.jar" basedir="${build.dir}/classes"/></target>
+  <target name="test-runtime" depends="test">
+    <java classname="cube.service.harness.test.RuntimeTest" fork="true" failonerror="true">
+      <classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath>
+      <sysproperty key="runtime.test.config" value="${runtime.test.config}"/>
+      <sysproperty key="runtime.test.migrator" value="${runtime.test.migrator}"/>
+      <sysproperty key="runtime.test.output" value="${runtime.test.output}"/>
+      <sysproperty key="runtime.test.root" value="${runtime.test.root}"/>
+    </java>
+  </target>
   <target name="build-debug" depends="build"><copy file="${build.dir}/cube-service-harness-3.0.jar" todir="../build"/></target>
   <target name="build-release" depends="build-debug"/>
   <target name="test" depends="build">

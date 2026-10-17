@@ -21,12 +21,13 @@ import java.util.Set;
  * Explicit, additive migration only; runtime startup never initializes a database.
  */
 public final class StoreMigrations {
+    public static final int VERSION = 2;
     static final Set<String> TABLES = new HashSet<>(Arrays.asList("harness_store_identity", "harness_run",
             "harness_lease", "harness_request", "harness_event", "harness_outbox", "harness_inbox",
             "harness_round", "harness_tool_call", "harness_result", "harness_usage", "harness_usage_adjustment"));
 
-    private static byte[] source(StoreConfig config) throws Exception {
-        try (InputStream in = StoreMigrations.class.getResourceAsStream("/store/migrations/" + config.dialect + "/001.sql")) {
+    private static byte[] source(StoreConfig config, int version) throws Exception {
+        try (InputStream in = StoreMigrations.class.getResourceAsStream("/store/migrations/" + config.dialect + "/00" + version + ".sql")) {
             if (in == null) throw new StoreException("STORE_MIGRATION_MISSING");
             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
             byte[] b = new byte[4096];
@@ -37,8 +38,14 @@ public final class StoreMigrations {
     }
 
     public static String digest(StoreConfig config) throws Exception {
+        return digest(config, VERSION);
+    }
+
+    private static String digest(StoreConfig config, int version) throws Exception {
         StringBuilder out = new StringBuilder();
-        for (byte b : MessageDigest.getInstance("SHA-256").digest(source(config)))
+        MessageDigest hash = MessageDigest.getInstance("SHA-256");
+        for (int i = 1; i <= version; i++) hash.update(source(config, i));
+        for (byte b : hash.digest())
             out.append(String.format("%02x", b & 255));
         return out.toString();
     }
@@ -54,11 +61,18 @@ public final class StoreMigrations {
     }
 
     public static void verify(Connection c, StoreConfig config) throws Exception {
-        if (!tables(c, config).equals(TABLES)) throw new StoreException("STORE_SCHEMA_MISMATCH");
+        verify(c, config, VERSION);
+    }
+
+    private static void verify(Connection c, StoreConfig config, int version) throws Exception {
+        Set<String> expected = new HashSet<>(TABLES);
+        if (version >= 2) expected.addAll(Arrays.asList("harness_release", "harness_binding", "harness_profile", "harness_run_config",
+                "harness_release_ref", "harness_run_skill", "harness_workspace", "harness_context"));
+        if (!tables(c, config).equals(expected)) throw new StoreException("STORE_SCHEMA_MISMATCH");
         try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(
                 "SELECT store_id, schema_version, migration_hash FROM harness_store_identity WHERE singleton=1")) {
-            if (!r.next() || !config.identity.equals(r.getString(1)) || r.getInt(2) != 1
-                    || !digest(config).equals(r.getString(3))) throw new StoreException("STORE_IDENTITY_MISMATCH");
+            if (!r.next() || !config.identity.equals(r.getString(1)) || r.getInt(2) != version
+                    || !digest(config, version).equals(r.getString(3))) throw new StoreException("STORE_IDENTITY_MISMATCH");
         }
     }
 
@@ -75,18 +89,28 @@ public final class StoreMigrations {
             try {
                 Set<String> existing = tables(c, config);
                 if (!existing.isEmpty()) {
+                    int old;
+                    if (!existing.contains("harness_store_identity")) throw new StoreException("STORE_SCHEMA_MISMATCH");
+                    try (Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT schema_version FROM harness_store_identity WHERE singleton=1")) {
+                        if (!r.next()) throw new StoreException("STORE_IDENTITY_MISMATCH");
+                        old = r.getInt(1);
+                    }
+                    if (old < 1 || old > VERSION) throw new StoreException("STORE_IDENTITY_MISMATCH");
+                    verify(c, config, old);
+                    for (int version = old + 1; version <= VERSION; version++) {
+                        execute(c, config, version);
+                        try (PreparedStatement s = c.prepareStatement("UPDATE harness_store_identity SET schema_version=?,migration_hash=? WHERE singleton=1 AND schema_version=?")) {
+                            s.setInt(1, version); s.setString(2, digest(config, version)); s.setInt(3, version - 1);
+                            if (s.executeUpdate() != 1) throw new StoreException("STORE_MIGRATION_BUSY");
+                        }
+                    }
                     verify(c, config);
                 } else {
                     if (!initializeEmpty) throw new StoreException("STORE_INITIALIZE_REQUIRED");
-                    String sql = new String(source(config), StandardCharsets.UTF_8);
-                    for (String part : sql.split(";"))
-                        if (!part.trim().isEmpty())
-                            try (Statement s = c.createStatement()) {
-                                s.execute(part.trim());
-                            }
-                    try (PreparedStatement s = c.prepareStatement("INSERT INTO harness_store_identity VALUES (1,?,1,?)")) {
+                    for (int version = 1; version <= VERSION; version++) execute(c, config, version);
+                    try (PreparedStatement s = c.prepareStatement("INSERT INTO harness_store_identity VALUES (1,?,?,?)")) {
                         s.setString(1, config.identity);
-                        s.setString(2, digest(config));
+                        s.setInt(2, VERSION); s.setString(3, digest(config));
                         s.executeUpdate();
                     }
                     verify(c, config);
@@ -104,18 +128,24 @@ public final class StoreMigrations {
         }
     }
 
+    private static void execute(Connection c, StoreConfig config, int version) throws Exception {
+        for (String part : new String(source(config, version), StandardCharsets.UTF_8).split(";"))
+            if (!part.trim().isEmpty()) try (Statement s = c.createStatement()) { s.execute(part.trim()); }
+    }
+
     public static void main(String[] args) throws Exception {
-        if (args.length != 2 || !(args[0].equals("verify") || args[0].equals("initialize-empty")))
-            throw new IllegalArgumentException("StoreMigrations verify|initialize-empty <private.properties>");
+        if (args.length != 2 || !(args[0].equals("verify") || args[0].equals("initialize-empty") || args[0].equals("upgrade")))
+            throw new IllegalArgumentException("StoreMigrations verify|initialize-empty|upgrade <private.properties>");
         Properties p = new Properties();
         try (InputStream in = Files.newInputStream(Paths.get(args[1]))) {
             p.load(in);
         }
         StoreConfig config = new StoreConfig(p);
         if (args[0].equals("initialize-empty")) migrate(config, true);
+        else if (args[0].equals("upgrade")) migrate(config, false);
         else try (Connection c = config.connect()) {
             verify(c, config);
         }
-        System.out.println("PASS: Harness store " + args[0] + " " + config.dialect + " schema=1");
+        System.out.println("PASS: Harness store " + args[0] + " " + config.dialect + " schema=" + VERSION);
     }
 }

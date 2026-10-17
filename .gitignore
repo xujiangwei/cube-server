@@ -112,3 +112,4 @@ deploy/config/aigc-modules.properties
 compile-check.sh
 .github/workflows/harness.yml
 .github/workflows/harness-store.yml
+.github/workflows/harness-runtime.yml
