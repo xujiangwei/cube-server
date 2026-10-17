@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness.store;
 
 import java.io.InputStream;
@@ -6,9 +12,14 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.sql.*;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Properties;
+import java.util.Set;
 
-/** Explicit, additive migration only; runtime startup never initializes a database. */
+/**
+ * Explicit, additive migration only; runtime startup never initializes a database.
+ */
 public final class StoreMigrations {
     static final Set<String> TABLES = new HashSet<>(Arrays.asList("harness_store_identity", "harness_run",
             "harness_lease", "harness_request", "harness_event", "harness_outbox", "harness_inbox",
@@ -18,7 +29,8 @@ public final class StoreMigrations {
         try (InputStream in = StoreMigrations.class.getResourceAsStream("/store/migrations/" + config.dialect + "/001.sql")) {
             if (in == null) throw new StoreException("STORE_MIGRATION_MISSING");
             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-            byte[] b = new byte[4096]; int n;
+            byte[] b = new byte[4096];
+            int n;
             while ((n = in.read(b)) != -1) out.write(b, 0, n);
             return out.toByteArray();
         }
@@ -26,7 +38,8 @@ public final class StoreMigrations {
 
     public static String digest(StoreConfig config) throws Exception {
         StringBuilder out = new StringBuilder();
-        for (byte b : MessageDigest.getInstance("SHA-256").digest(source(config))) out.append(String.format("%02x", b & 255));
+        for (byte b : MessageDigest.getInstance("SHA-256").digest(source(config)))
+            out.append(String.format("%02x", b & 255));
         return out.toString();
     }
 
@@ -66,10 +79,15 @@ public final class StoreMigrations {
                 } else {
                     if (!initializeEmpty) throw new StoreException("STORE_INITIALIZE_REQUIRED");
                     String sql = new String(source(config), StandardCharsets.UTF_8);
-                    for (String part : sql.split(";")) if (!part.trim().isEmpty())
-                        try (Statement s = c.createStatement()) { s.execute(part.trim()); }
+                    for (String part : sql.split(";"))
+                        if (!part.trim().isEmpty())
+                            try (Statement s = c.createStatement()) {
+                                s.execute(part.trim());
+                            }
                     try (PreparedStatement s = c.prepareStatement("INSERT INTO harness_store_identity VALUES (1,?,1,?)")) {
-                        s.setString(1, config.identity); s.setString(2, digest(config)); s.executeUpdate();
+                        s.setString(1, config.identity);
+                        s.setString(2, digest(config));
+                        s.executeUpdate();
                     }
                     verify(c, config);
                 }
@@ -90,10 +108,14 @@ public final class StoreMigrations {
         if (args.length != 2 || !(args[0].equals("verify") || args[0].equals("initialize-empty")))
             throw new IllegalArgumentException("StoreMigrations verify|initialize-empty <private.properties>");
         Properties p = new Properties();
-        try (InputStream in = Files.newInputStream(Paths.get(args[1]))) { p.load(in); }
+        try (InputStream in = Files.newInputStream(Paths.get(args[1]))) {
+            p.load(in);
+        }
         StoreConfig config = new StoreConfig(p);
         if (args[0].equals("initialize-empty")) migrate(config, true);
-        else try (Connection c = config.connect()) { verify(c, config); }
+        else try (Connection c = config.connect()) {
+            verify(c, config);
+        }
         System.out.println("PASS: Harness store " + args[0] + " " + config.dialect + " schema=1");
     }
 }

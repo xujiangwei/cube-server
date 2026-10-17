@@ -1,6 +1,14 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness.store;
 
-/** Stable internal errors. SQL text and credentials must not reach API/log responses. */
+/**
+ * Stable internal errors. SQL text and credentials must not reach API/log responses.
+ */
 public final class StoreException extends RuntimeException {
     public final String code;
 

@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness.store;
 
 import java.nio.file.Files;
@@ -6,7 +12,9 @@ import java.nio.file.Paths;
 import java.sql.*;
 import java.util.Properties;
 
-/** Only dedicated Harness databases are accepted. No legacy Storage/config fallback. */
+/**
+ * Only dedicated Harness databases are accepted. No legacy Storage/config fallback.
+ */
 public final class StoreConfig {
     public final String dialect, database, identity;
     private final String url, user, password;
@@ -21,7 +29,8 @@ public final class StoreConfig {
             Class.forName("org.sqlite.JDBC");
             Path root = Paths.get(p.getProperty("store.sqlite.root", ""));
             Path file = Paths.get(p.getProperty("store.sqlite.file", ""));
-            if (!root.isAbsolute() || !file.isAbsolute() || !Files.isDirectory(root)) throw new StoreException("STORE_TARGET_REFUSED");
+            if (!root.isAbsolute() || !file.isAbsolute() || !Files.isDirectory(root))
+                throw new StoreException("STORE_TARGET_REFUSED");
             root = root.toRealPath();
             Path parent = file.getParent().toRealPath();
             if (!parent.startsWith(root) || !file.getFileName().toString().equals(database + ".db")
@@ -49,7 +58,9 @@ public final class StoreConfig {
         } else throw new StoreException("STORE_DIALECT_REFUSED");
     }
 
-    public boolean mysql() { return dialect.equals("mysql"); }
+    public boolean mysql() {
+        return dialect.equals("mysql");
+    }
 
     public Connection connect() throws SQLException {
         Connection c = DriverManager.getConnection(url, user, password);
@@ -66,7 +77,8 @@ public final class StoreConfig {
                         String grant = r.getString(1).replace("\\_", "_");
                         if (grant.startsWith("GRANT USAGE ON *.* TO ")) continue;
                         if (!grant.startsWith("GRANT ") || !grant.contains(" ON `" + database + "`.* TO ")
-                                || grant.contains("WITH GRANT OPTION")) throw new StoreException("STORE_ACCOUNT_REFUSED");
+                                || grant.contains("WITH GRANT OPTION"))
+                            throw new StoreException("STORE_ACCOUNT_REFUSED");
                         own = true;
                     }
                     if (!own) throw new StoreException("STORE_ACCOUNT_REFUSED");
@@ -87,11 +99,17 @@ public final class StoreConfig {
 
     static void begin(Connection c, boolean mysql) throws SQLException {
         if (mysql) c.setAutoCommit(false);
-        else try (Statement s = c.createStatement()) { s.execute("BEGIN IMMEDIATE"); }
+        else try (Statement s = c.createStatement()) {
+            s.execute("BEGIN IMMEDIATE");
+        }
     }
 
     static void end(Connection c, boolean mysql, boolean commit) throws SQLException {
-        if (mysql) { if (commit) c.commit(); else c.rollback(); }
-        else try (Statement s = c.createStatement()) { s.execute(commit ? "COMMIT" : "ROLLBACK"); }
+        if (mysql) {
+            if (commit) c.commit();
+            else c.rollback();
+        } else try (Statement s = c.createStatement()) {
+            s.execute(commit ? "COMMIT" : "ROLLBACK");
+        }
     }
 }
