@@ -12,6 +12,7 @@
       <module fileurl="file://$PROJECT_DIR$/service-conference/service-conference.iml" filepath="$PROJECT_DIR$/service-conference/service-conference.iml" />
       <module fileurl="file://$PROJECT_DIR$/service-fileprocessor/service-fileprocessor.iml" filepath="$PROJECT_DIR$/service-fileprocessor/service-fileprocessor.iml" />
       <module fileurl="file://$PROJECT_DIR$/service-filestorage/service-filestorage.iml" filepath="$PROJECT_DIR$/service-filestorage/service-filestorage.iml" />
+      <module fileurl="file://$PROJECT_DIR$/service-harness/service-harness.iml" filepath="$PROJECT_DIR$/service-harness/service-harness.iml" />
       <module fileurl="file://$PROJECT_DIR$/service-messaging/service-messaging.iml" filepath="$PROJECT_DIR$/service-messaging/service-messaging.iml" />
       <module fileurl="file://$PROJECT_DIR$/service-multipointcomm/service-multipointcomm.iml" filepath="$PROJECT_DIR$/service-multipointcomm/service-multipointcomm.iml" />
       <module fileurl="file://$PROJECT_DIR$/service-psychology/service-psychology.iml" filepath="$PROJECT_DIR$/service-psychology/service-psychology.iml" />
