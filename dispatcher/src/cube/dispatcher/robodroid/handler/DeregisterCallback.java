@@ -25,11 +25,11 @@ import java.util.ArrayList;
 public class DeregisterCallback extends ContextHandler {
 
     public DeregisterCallback(Performer performer) {
-        super("/robot/deregister/");
+        super("/robodroid/deregister/");
         setHandler(new Handler(performer));
     }
 
-    private class Handler extends RobotHandler {
+    private class Handler extends RobodroidHandler {
 
         public Handler(Performer performer) {
             super(performer);

@@ -9,8 +9,8 @@ package cube.dispatcher.robodroid.handler;
 import cell.core.talk.dialect.ActionDialect;
 import cube.dispatcher.Performer;
 import cube.dispatcher.robodroid.RobodroidCellet;
-import cube.robodroid.RobotAction;
-import cube.robodroid.RobotStateCode;
+import cube.robodroid.RobodroidAction;
+import cube.robodroid.RobodroidStateCode;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.handler.ContextHandler;
 import org.json.JSONObject;
@@ -26,11 +26,11 @@ import java.io.IOException;
 public class GetOnlineList extends ContextHandler {
 
     public GetOnlineList(Performer performer) {
-        super("/robot/online/");
+        super("/robodroid/online/");
         setHandler(new Handler(performer));
     }
 
-    private class Handler extends RobotHandler {
+    private class Handler extends RobodroidHandler {
 
         public Handler(Performer performer) {
             super(performer);
@@ -46,7 +46,7 @@ public class GetOnlineList extends ContextHandler {
                 return;
             }
 
-            ActionDialect actionDialect = new ActionDialect(RobotAction.GetOnlineList.name);
+            ActionDialect actionDialect = new ActionDialect(RobodroidAction.GetOnlineList.name);
             ActionDialect responseDialect = this.performer.syncTransmit(RobodroidCellet.NAME, actionDialect);
             if (null == responseDialect) {
                 this.respond(response, HttpStatus.BAD_REQUEST_400);
@@ -55,7 +55,7 @@ public class GetOnlineList extends ContextHandler {
             }
 
             int stateCode = responseDialect.getParamAsInt("code");
-            if (stateCode != RobotStateCode.Ok.code) {
+            if (stateCode != RobodroidStateCode.Ok.code) {
                 this.respond(response, HttpStatus.BAD_REQUEST_400);
                 this.complete();
                 return;

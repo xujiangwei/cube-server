@@ -7,9 +7,9 @@
 package cube.robodroid;
 
 /**
- * Robot 模块状态码。
+ * Robodroid 模块状态码。
  */
-public enum RobotStateCode {
+public enum RobodroidStateCode {
 
     /**
      * 成功。
@@ -60,17 +60,17 @@ public enum RobotStateCode {
 
     public final int code;
 
-    RobotStateCode(int code) {
+    RobodroidStateCode(int code) {
         this.code = code;
     }
 
-    public static RobotStateCode parse(int code) {
-        for (RobotStateCode stateCode : RobotStateCode.values()) {
+    public static RobodroidStateCode parse(int code) {
+        for (RobodroidStateCode stateCode : RobodroidStateCode.values()) {
             if (stateCode.code == code) {
                 return stateCode;
             }
         }
 
-        return RobotStateCode.Unknown;
+        return RobodroidStateCode.Unknown;
     }
 }

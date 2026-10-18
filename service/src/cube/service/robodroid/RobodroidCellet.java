@@ -25,7 +25,7 @@ import java.util.List;
  */
 public class RobodroidCellet extends AbstractCellet {
 
-    public final static String NAME = "Robot";
+    public final static String NAME = "Robodroid";
 
     private RobodroidService service;
 
@@ -57,13 +57,13 @@ public class RobodroidCellet extends AbstractCellet {
         ActionDialect dialect = DialectFactory.getInstance().createActionDialect(primitive);
         String action = dialect.getName();
 
-        if (RobotAction.Event.name.equals(action)) {
+        if (RobodroidAction.Event.name.equals(action)) {
             // 来自 Dispatcher 的事件
             String name = dialect.getParamAsString("name");
             JSONObject data = dialect.getParamAsJson("data");
             this.service.transferEvent(name, data);
         }
-        else if (RobotAction.Perform.name.equals(action)) {
+        else if (RobodroidAction.Perform.name.equals(action)) {
             final String name = dialect.getParamAsString("name");
             final JSONObject parameter = dialect.containsParam("parameter")
                     ? dialect.getParamAsJson("parameter") : new JSONObject();
@@ -81,12 +81,12 @@ public class RobodroidCellet extends AbstractCellet {
                     }
 
                     Responder responder = new Responder(dialect, RobodroidCellet.this, talkContext);
-                    responder.respond(success ? RobotStateCode.Ok.code : RobotStateCode.Failure.code,
+                    responder.respond(success ? RobodroidStateCode.Ok.code : RobodroidStateCode.Failure.code,
                             new JSONObject());
                 }
             });
         }
-        else if (RobotAction.GetReportFile.name.equals(action)) {
+        else if (RobodroidAction.GetReportFile.name.equals(action)) {
             // 来自 Client 的操作
             final String filename = dialect.getParamAsString("filename");
 
@@ -97,7 +97,7 @@ public class RobodroidCellet extends AbstractCellet {
                 }
             });
         }
-        else if (RobotAction.ListScriptFiles.name.equals(action)) {
+        else if (RobodroidAction.ListScriptFiles.name.equals(action)) {
             // 来自 Client 的操作
             this.execute(new Runnable() {
                 @Override
@@ -113,11 +113,11 @@ public class RobodroidCellet extends AbstractCellet {
                     data.put("list", array);
 
                     Responder responder = new Responder(dialect, RobodroidCellet.this, talkContext);
-                    responder.respond(RobotStateCode.Ok.code, data);
+                    responder.respond(RobodroidStateCode.Ok.code, data);
                 }
             });
         }
-        else if (RobotAction.DownloadScriptFile.name.equals(action)) {
+        else if (RobodroidAction.DownloadScriptFile.name.equals(action)) {
             // 来自 Client 的操作
             this.execute(new Runnable() {
                 @Override
@@ -126,15 +126,15 @@ public class RobodroidCellet extends AbstractCellet {
                     ScriptFile file = service.transmitScriptFile(talkContext, relativePath);
                     Responder responder = new Responder(dialect, RobodroidCellet.this, talkContext);
                     if (null != file) {
-                        responder.respond(RobotStateCode.Ok.code, file.toJSON());
+                        responder.respond(RobodroidStateCode.Ok.code, file.toJSON());
                     }
                     else {
-                        responder.respond(RobotStateCode.Failure.code, new JSONObject());
+                        responder.respond(RobodroidStateCode.Failure.code, new JSONObject());
                     }
                 }
             });
         }
-        else if (RobotAction.UploadScriptFile.name.equals(action)) {
+        else if (RobodroidAction.UploadScriptFile.name.equals(action)) {
             // 来自 Client 的操作
             this.execute(new Runnable() {
                 @Override
@@ -143,11 +143,11 @@ public class RobodroidCellet extends AbstractCellet {
                     // 备份原文件
                     service.backupScriptFile(relativePath);
                     Responder responder = new Responder(dialect, RobodroidCellet.this, talkContext);
-                    responder.respond(RobotStateCode.Ok.code, new JSONObject());
+                    responder.respond(RobodroidStateCode.Ok.code, new JSONObject());
                 }
             });
         }
-        else if (RobotAction.Cancel.name.equals(action)) {
+        else if (RobodroidAction.Cancel.name.equals(action)) {
             this.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -156,12 +156,12 @@ public class RobodroidCellet extends AbstractCellet {
                     // 取消任务
                     Schedule schedule = service.cancel(accountId, name);
                     Responder responder = new Responder(dialect, RobodroidCellet.this, talkContext);
-                    responder.respond((null != schedule) ? RobotStateCode.Ok.code : RobotStateCode.Failure.code,
+                    responder.respond((null != schedule) ? RobodroidStateCode.Ok.code : RobodroidStateCode.Failure.code,
                             (null != schedule) ? schedule.toJSON() : new JSONObject());
                 }
             });
         }
-        else if (RobotAction.GetAccount.name.equals(action)) {
+        else if (RobodroidAction.GetAccount.name.equals(action)) {
             this.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -169,15 +169,15 @@ public class RobodroidCellet extends AbstractCellet {
                     Account account = service.getAccount(accountId);
                     Responder responder = new Responder(dialect, RobodroidCellet.this, talkContext);
                     if (null != account) {
-                        responder.respond(RobotStateCode.Ok.code, account.toJSON());
+                        responder.respond(RobodroidStateCode.Ok.code, account.toJSON());
                     }
                     else {
-                        responder.respond(RobotStateCode.Failure.code, new JSONObject());
+                        responder.respond(RobodroidStateCode.Failure.code, new JSONObject());
                     }
                 }
             });
         }
-        else if (RobotAction.GetOnlineList.name.equals(action)) {
+        else if (RobodroidAction.GetOnlineList.name.equals(action)) {
             this.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -190,11 +190,11 @@ public class RobodroidCellet extends AbstractCellet {
                     data.put("total", accounts.size());
                     data.put("list", array);
                     Responder responder = new Responder(dialect, RobodroidCellet.this, talkContext);
-                    responder.respond(RobotStateCode.Ok.code, data);
+                    responder.respond(RobodroidStateCode.Ok.code, data);
                 }
             });
         }
-        else if (RobotAction.GetAccountList.name.equals(action)) {
+        else if (RobodroidAction.GetAccountList.name.equals(action)) {
             this.execute(new Runnable() {
                 @Override
                 public void run() {
@@ -210,24 +210,24 @@ public class RobodroidCellet extends AbstractCellet {
                     data.put("end", end);
                     data.put("list", array);
                     Responder responder = new Responder(dialect, RobodroidCellet.this, talkContext);
-                    responder.respond(RobotStateCode.Ok.code, data);
+                    responder.respond(RobodroidStateCode.Ok.code, data);
                 }
             });
         }
-        else if (RobotAction.RegisterListener.name.equals(action)) {
+        else if (RobodroidAction.RegisterListener.name.equals(action)) {
             // 来自 Client 的操作
             final String name = dialect.getParamAsString("name");
 
             this.execute(new Runnable() {
                 @Override
                 public void run() {
-                    int code = RobotStateCode.Unknown.code;
+                    int code = RobodroidStateCode.Unknown.code;
 
                     if (service.registerListener(name, talkContext)) {
-                        code = RobotStateCode.Ok.code;
+                        code = RobodroidStateCode.Ok.code;
                     }
                     else {
-                        code = RobotStateCode.Failure.code;
+                        code = RobodroidStateCode.Failure.code;
                     }
 
                     Responder responder = new Responder(dialect, RobodroidCellet.this, talkContext);
@@ -238,20 +238,20 @@ public class RobodroidCellet extends AbstractCellet {
                 }
             });
         }
-        else if (RobotAction.DeregisterListener.name.equals(action)) {
+        else if (RobodroidAction.DeregisterListener.name.equals(action)) {
             // 来自 Client 的操作
             final String name = dialect.getParamAsString("name");
 
             this.execute(new Runnable() {
                 @Override
                 public void run() {
-                    int code = RobotStateCode.Unknown.code;
+                    int code = RobodroidStateCode.Unknown.code;
 
                     if (service.deregisterListener(name, talkContext)) {
-                        code = RobotStateCode.Ok.code;
+                        code = RobodroidStateCode.Ok.code;
                     }
                     else {
-                        code = RobotStateCode.Failure.code;
+                        code = RobodroidStateCode.Failure.code;
                     }
 
                     Responder responder = new Responder(dialect, RobodroidCellet.this, talkContext);

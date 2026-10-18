@@ -7,9 +7,9 @@
 package cube.robodroid;
 
 /**
- * Robot 动作。
+ * Robodroid 动作。
  */
-public enum RobotAction {
+public enum RobodroidAction {
 
     /**
      * 触发事件。
@@ -75,7 +75,7 @@ public enum RobotAction {
 
     public final String name;
 
-    RobotAction(String name) {
+    RobodroidAction(String name) {
         this.name = name;
     }
 }

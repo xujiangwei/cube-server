@@ -13,13 +13,13 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 /**
- * Robot HTTP handler
+ * Robodroid HTTP handler
  */
-public abstract class RobotHandler extends CrossDomainHandler {
+public abstract class RobodroidHandler extends CrossDomainHandler {
 
     protected Performer performer;
 
-    public RobotHandler(Performer performer) {
+    public RobodroidHandler(Performer performer) {
         super();
         this.performer = performer;
     }

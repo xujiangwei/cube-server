@@ -26,9 +26,9 @@ import java.util.List;
  */
 public abstract class AbstractMission {
 
-    public final static Path sWorkingPath = Paths.get("assets/robot/");
+    public final static Path sWorkingPath = Paths.get("assets/robodroid/");
 
-    public final static Path sModulePath = Paths.get("assets/robot/modules/");
+    public final static Path sModulePath = Paths.get("assets/robodroid/modules/");
 
     protected String taskName;
 
@@ -131,8 +131,7 @@ public abstract class AbstractMission {
         content.append("module.exports = ");
         if (null != this.realtimeParameter) {
             content.append(this.realtimeParameter.toString());
-        }
-        else {
+        } else {
             content.append("{}");
         }
         content.append("\n");

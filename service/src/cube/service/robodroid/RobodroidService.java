@@ -39,7 +39,7 @@ import java.util.*;
  */
 public class RobodroidService extends AbstractModule {
 
-    public final static String NAME = "Robot";
+    public final static String NAME = "Robodroid";
 
     private final static String EVENT_REPORT = "Report";
 
@@ -126,8 +126,7 @@ public class RobodroidService extends AbstractModule {
                 list = new ArrayList<>();
                 list.add(client);
                 this.eventNameClientMap.put(name, list);
-            }
-            else {
+            } else {
                 if (!list.contains(client)) {
                     list.add(client);
                 }
@@ -215,7 +214,7 @@ public class RobodroidService extends AbstractModule {
                                 continue;
                             }
 
-                            ActionDialect dialect = new ActionDialect(RobotAction.Event.name);
+                            ActionDialect dialect = new ActionDialect(RobodroidAction.Event.name);
                             dialect.addParam("name", name);
                             dialect.addParam("data", data);
                             this.cellet.speak(context, dialect);
@@ -225,8 +224,7 @@ public class RobodroidService extends AbstractModule {
             } catch (Exception e) {
                 Logger.w(this.getClass(), "#transferEvent - event: " + name, e);
             }
-        }
-        else {
+        } else {
             Logger.w(this.getClass(), "#transferEvent - Unknown event: " + name);
         }
     }
@@ -234,11 +232,9 @@ public class RobodroidService extends AbstractModule {
     private AbstractMission createMission(String name) {
         if (TaskNames.DouYinAccountData.equals(name)) {
             return new DouYinAccountData(this.roboengine);
-        }
-        else if (TaskNames.DouYinDailyOperation.equals(name)) {
+        } else if (TaskNames.DouYinDailyOperation.equals(name)) {
             return new DouYinDailyOperation(this.roboengine);
-        }
-        else if (TaskNames.WeiXinMessageList.equals(name)) {
+        } else if (TaskNames.WeiXinMessageList.equals(name)) {
             return new WeiXinMessageList(this.roboengine);
         }
 
@@ -269,8 +265,7 @@ public class RobodroidService extends AbstractModule {
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
-                }
-                else {
+                } else {
                     if (path.toString().toLowerCase().endsWith(".js")) {
                         files.add(path);
                     }
@@ -422,7 +417,7 @@ public class RobodroidService extends AbstractModule {
             schedule = this.roboengine.newSchedule(mission.getTask().id, account.id, System.currentTimeMillis());
             if (null == schedule) {
                 Logger.w(this.getClass(), "New schedule failed - task: " + mission.getTask().id
-                    + " , account: " + account.id);
+                        + " , account: " + account.id);
                 return false;
             }
         }
