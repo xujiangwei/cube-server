@@ -165,10 +165,10 @@ public final class ResourceTools {
      * Called by a trusted coordinator after admission; this method executes resource reads only.
      */
     public Object invoke(ProfileRegistry.Identity identity, String run, String name, JSONObject arguments) throws Exception {
-        return invoke(identity,run,name,arguments,null);
+        return invoke(identity, run, name, arguments, null);
     }
 
-    public Object invoke(ProfileRegistry.Identity identity,String run,String name,JSONObject arguments,cube.service.harness.store.JdbcRunStore.Lease lease)throws Exception {
+    public Object invoke(ProfileRegistry.Identity identity, String run, String name, JSONObject arguments, cube.service.harness.store.JdbcRunStore.Lease lease) throws Exception {
         JSONArray available = tools(identity, run);
         JSONObject definition = null;
         for (int i = 0; i < available.length(); i++)
@@ -178,8 +178,13 @@ public final class ResourceTools {
         if (name.equals("skill.list")) return skills(identity, run);
         String digest = arguments.optString("release");
         if (name.equals("skill.activate")) {
-            if(lease==null)activate(identity,run,digest);
-            else {if(!lease.tenant.equals(identity.tenant)||!lease.subject.equals(identity.subject)||!lease.runId.equals(run))throw RuntimeSupport.error("RESOURCE_FORBIDDEN");manifest(identity,run,digest,"skill.activate",false);catalog.activate(lease,digest);}
+            if (lease == null) activate(identity, run, digest);
+            else {
+                if (!lease.tenant.equals(identity.tenant) || !lease.subject.equals(identity.subject) || !lease.runId.equals(run))
+                    throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+                manifest(identity, run, digest, "skill.activate", false);
+                catalog.activate(lease, digest);
+            }
             return new JSONObject().put("activated", digest);
         }
         if (name.equals("resource.list")) return resources(identity, run, digest);

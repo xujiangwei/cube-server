@@ -82,10 +82,12 @@ public class ChatCompletionService {
 
     private AIGCUnit select(String name) {
         AIGCUnit selected = service.selectUnitByName(name);
-        if (selected != null && !quarantined(selected) && selected.getCapability().getChatCompletion().optBoolean("text", false)) return selected;
+        if (selected != null && !quarantined(selected) && selected.getCapability().getChatCompletion().optBoolean("text", false))
+            return selected;
         for (AIGCUnit unit : service.getAllUnits()) {
             if (name.equals(unit.getCapability().getName()) && unit.getContext() != null && unit.getContext().isValid()
-                    && !quarantined(unit) && unit.getCapability().getChatCompletion().optBoolean("text", false)) return unit;
+                    && !quarantined(unit) && unit.getCapability().getChatCompletion().optBoolean("text", false))
+                return unit;
         }
         return null;
     }
@@ -102,7 +104,8 @@ public class ChatCompletionService {
         }
         for (AIGCUnit candidate : service.getAllUnits()) {
             if (!name.equals(candidate.getCapability().getName()) || candidate == initial
-                    || candidate.getContext() == null || !candidate.getContext().isValid() || quarantined(candidate)) continue;
+                    || candidate.getContext() == null || !candidate.getContext().isValid() || quarantined(candidate))
+                continue;
             try {
                 CompletionRequest.checkCapabilities(request, candidate.getCapability().getChatCompletion());
                 return candidate;
@@ -146,8 +149,11 @@ public class ChatCompletionService {
         for (AIGCUnit unit : service.getAllUnits()) {
             if (!name.equals(unit.getCapability().getName()) || unit.getContext() == null
                     || !unit.getContext().isValid() || unit.isRunning() || reserved(unit)) continue;
-            try { CompletionRequest.checkCapabilities(request, unit.getCapability().getChatCompletion()); return unit; }
-            catch (CompletionError ignored) { }
+            try {
+                CompletionRequest.checkCapabilities(request, unit.getCapability().getChatCompletion());
+                return unit;
+            } catch (CompletionError ignored) {
+            }
         }
         return null;
     }
@@ -168,7 +174,9 @@ public class ChatCompletionService {
         generate(code, origin, dialect, null);
     }
 
-    /** Same authorization, queue, capability checks and accounting as REST, without a fake TalkContext. */
+    /**
+     * Same authorization, queue, capability checks and accounting as REST, without a fake TalkContext.
+     */
     public void generateInternal(String code, String id, JSONObject request, long timeout, CompletionProvider.Listener listener) {
         if (listener == null) throw new IllegalArgumentException("Listener required");
         ActionDialect dialect = new Packet(AIGCAction.ChatCompletion.name, new JSONObject()
@@ -379,8 +387,12 @@ public class ChatCompletionService {
                 // Every exit path, including a failed send/callback, preserves the Unit's serial queue.
                 boolean interrupted = false;
                 while (listener != null && attempted && !actualFinished && !stopped) {
-                    try { done.await(); break; }
-                    catch (InterruptedException e) { interrupted = true; }
+                    try {
+                        done.await();
+                        break;
+                    } catch (InterruptedException e) {
+                        interrupted = true;
+                    }
                 }
                 if (interrupted) Thread.currentThread().interrupt();
                 unit.setRunning(false);
@@ -392,7 +404,9 @@ public class ChatCompletionService {
             if (!terminal) service.submitChatCompletion(this);
         }
 
-        String unitKey() { return unit.getQueryKey(); }
+        String unitKey() {
+            return unit.getQueryKey();
+        }
 
         synchronized void accept(JSONObject event) {
             boolean observing = terminal && listener != null && !actualFinished;

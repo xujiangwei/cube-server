@@ -1,11 +1,20 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.aigc.completion;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import java.util.Map;
 import java.util.TreeMap;
 
-/** Strict single-choice OpenAI JSON/SSE decoder shared by Java inference backends. */
+/**
+ * Strict single-choice OpenAI JSON/SSE decoder shared by Java inference backends.
+ */
 public final class OpenAIResponseAccumulator {
     private final StringBuilder text = new StringBuilder(), refusal = new StringBuilder();
     private final Map<Integer, JSONObject> calls = new TreeMap<>();
@@ -29,7 +38,8 @@ public final class OpenAIResponseAccumulator {
         if (!delta.isNull("refusal")) refusal.append(delta.getString("refusal"));
         JSONArray parts = delta.optJSONArray("tool_calls");
         if (parts != null) for (int n = 0; n < parts.length(); n++) {
-            JSONObject part = parts.getJSONObject(n); int index = part.getInt("index");
+            JSONObject part = parts.getJSONObject(n);
+            int index = part.getInt("index");
             if (index < 0 || index >= 16 || !"function".equals(part.optString("type", "function"))) throw invalid();
             JSONObject call = calls.get(index);
             if (call == null) {
@@ -50,13 +60,16 @@ public final class OpenAIResponseAccumulator {
 
     public JSONObject result() {
         if (finish == null) throw invalid();
-        JSONArray tools = new JSONArray(); for (JSONObject call : calls.values()) tools.put(call);
+        JSONArray tools = new JSONArray();
+        for (JSONObject call : calls.values()) tools.put(call);
         JSONObject message = new JSONObject().put("role", "assistant").put("content", text.toString());
         if (tools.length() > 0) message.put("tool_calls", tools);
         if (refusal.length() > 0) message.put("refusal", refusal.toString());
         JSONObject result = new JSONObject().put("message", message).put("finish_reason", finish);
         if (usage == null) throw new CompletionError(502, "usage_missing", "Model response omitted usage", null);
-        result.put("usage", usage); CompletionResult.validate(result); return result;
+        result.put("usage", usage);
+        CompletionResult.validate(result);
+        return result;
     }
 
     public static JSONObject json(JSONObject response) {
@@ -69,7 +82,8 @@ public final class OpenAIResponseAccumulator {
         if (response.optJSONObject("usage") == null)
             throw new CompletionError(502, "usage_missing", "Model response omitted usage", null);
         result.put("usage", response.getJSONObject("usage"));
-        CompletionResult.validate(result); return result;
+        CompletionResult.validate(result);
+        return result;
     }
 
     private static CompletionError invalid() {

@@ -70,7 +70,7 @@ public final class ProfileRegistry {
             JSONObject task = catalog.profile(c, identity.tenant, "task", ref[0], ref[1]);
             JSONObject mr = task.getJSONObject("model"), rr = task.getJSONObject("runtime");
             JSONObject model = catalog.profile(c, identity.tenant, "model", mr.getString("id"), mr.getString("version"));
-            if(model.optInt("schemaVersion",1)==2)throw RuntimeSupport.error("LEGACY_DIRECT_MODEL_DISABLED");
+            if (model.optInt("schemaVersion", 1) == 2) throw RuntimeSupport.error("LEGACY_DIRECT_MODEL_DISABLED");
             JSONObject runtime = catalog.profile(c, identity.tenant, "runtime", rr.getString("id"), rr.getString("version"));
             Set<String> available = RuntimeSupport.strings(model.getJSONArray("capabilities"));
             available.addAll(RuntimeSupport.strings(runtime.getJSONArray("capabilities")));

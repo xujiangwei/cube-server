@@ -1,11 +1,21 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness.store;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import java.nio.charset.StandardCharsets;
+
 import static cube.service.harness.store.JdbcRunStore.*;
 
-/** Java owns inference side effects and completion evidence, independently of Python processing. */
+/**
+ * Java owns inference side effects and completion evidence, independently of Python processing.
+ */
 public final class InferenceStore {
     private final JdbcRunStore store;
     private final String lock;
@@ -57,7 +67,9 @@ public final class InferenceStore {
         return store.tx(c -> rows(c, "SELECT * FROM harness_inference WHERE status='queued' ORDER BY created_at,inference_id LIMIT 32"));
     }
 
-    /** Commit the reservation BEFORE dispatch. A crash in the send window can never cause a resend. */
+    /**
+     * Commit the reservation BEFORE dispatch. A crash in the send window can never cause a resend.
+     */
     public boolean claim(String inference, String node, String owner) {
         return store.tx(c -> {
             JSONObject i = first(rows(c, "SELECT * FROM harness_inference WHERE inference_id=?" + lock, inference));
@@ -100,7 +112,8 @@ public final class InferenceStore {
     public void finish(String inference, JSONObject response, String error, boolean actualFinished, String unit) {
         String raw = response == null ? null : canonical(response);
         if (raw != null && raw.getBytes(StandardCharsets.UTF_8).length > 65536) {
-            raw = null; error = "MODEL_OUTPUT_TOO_LARGE";
+            raw = null;
+            error = "MODEL_OUTPUT_TOO_LARGE";
         }
         final String result = raw, code = error;
         store.tx(c -> {
@@ -130,9 +143,12 @@ public final class InferenceStore {
             long end = first(rows(c, "SELECT COALESCE(MAX(event_seq),0) AS n FROM harness_inference_event WHERE inference_id=?", id)).getLong("n");
             if (after < 0 || after > end) throw new StoreException("INVALID_INFERENCE_CURSOR");
             JSONArray events = rows(c, "SELECT event_seq,event_json FROM harness_inference_event WHERE inference_id=? AND event_seq>? ORDER BY event_seq LIMIT 16", id, after);
-            JSONArray page = new JSONArray(); long cursor = after; int bytes = 0;
+            JSONArray page = new JSONArray();
+            long cursor = after;
+            int bytes = 0;
             for (int n = 0; n < events.length(); n++) {
-                JSONObject e = events.getJSONObject(n); String value = e.getString("event_json");
+                JSONObject e = events.getJSONObject(n);
+                String value = e.getString("event_json");
                 bytes += value.getBytes(StandardCharsets.UTF_8).length;
                 if (bytes > 131072) break;
                 cursor = e.getLong("event_seq");
@@ -142,18 +158,22 @@ public final class InferenceStore {
                     .put("actualFinished", i.getInt("actual_finished") == 1).put("cancelRequested", i.getInt("cancel_requested") == 1)
                     .put("events", page).put("nextCursor", cursor).put("hasMore", cursor < end);
             if (!i.isNull("error_code")) out.put("errorCode", i.getString("error_code"));
-            if (!i.isNull("response_json") && cursor == end) out.put("response", new JSONObject(i.getString("response_json")));
+            if (!i.isNull("response_json") && cursor == end)
+                out.put("response", new JSONObject(i.getString("response_json")));
             return out;
         });
     }
 
-    /** Ignore worker claims about physical completion and usage; only Java backend evidence can settle them. */
+    /**
+     * Ignore worker claims about physical completion and usage; only Java backend evidence can settle them.
+     */
     public JSONObject reconcile(String job, JSONObject outcome) {
         return store.tx(c -> {
             JSONArray attempts = rows(c, "SELECT * FROM harness_inference WHERE job_id=? ORDER BY wire_attempt", job);
             if (attempts.length() == 0 && outcome.getString("status").equals("success"))
                 throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
-            long input = 0, output = 0; boolean known = attempts.length() > 0;
+            long input = 0, output = 0;
+            boolean known = attempts.length() > 0;
             JSONArray audit = new JSONArray();
             for (int n = 0; n < attempts.length(); n++) {
                 JSONObject i = attempts.getJSONObject(n);
@@ -167,16 +187,19 @@ public final class InferenceStore {
                     JSONObject u = response.optJSONObject("usage");
                     if (u == null) known = false;
                     else {
-                        input = Math.addExact(input, u.getLong("prompt_tokens")); output = Math.addExact(output, u.getLong("completion_tokens"));
+                        input = Math.addExact(input, u.getLong("prompt_tokens"));
+                        output = Math.addExact(output, u.getLong("completion_tokens"));
                         record.put("usage", new JSONObject().put("input", u.getLong("prompt_tokens")).put("output", u.getLong("completion_tokens")));
                     }
                 } else {
                     known = false;
-                    if (outcome.getString("status").equals("success")) throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
+                    if (outcome.getString("status").equals("success"))
+                        throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
                 }
                 audit.put(record);
             }
-            JSONObject result = new JSONObject(outcome.toString()).put("audit", audit); result.remove("usage");
+            JSONObject result = new JSONObject(outcome.toString()).put("audit", audit);
+            result.remove("usage");
             if (known) result.put("usage", new JSONObject().put("input", input).put("output", output));
             return result;
         });

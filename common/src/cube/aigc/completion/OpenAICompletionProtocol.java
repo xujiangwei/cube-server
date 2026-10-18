@@ -6,9 +6,6 @@
 
 package cube.aigc.completion;
 
-import cube.aigc.completion.CompletionError;
-import cube.aigc.completion.CompletionRequest;
-import cube.aigc.completion.CompletionResult;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -343,9 +340,13 @@ public class OpenAICompletionProtocol {
         private int nextBlock;
         private Integer textBlock;
         private final Map<Integer, ToolState> tools = new TreeMap<>();
-        /** 当前仍打开的块；Claude 流式要求块严格嵌套，故同一时刻至多一个。 */
+        /**
+         * 当前仍打开的块；Claude 流式要求块严格嵌套，故同一时刻至多一个。
+         */
         private Integer open;
-        /** 已开启块的签名序列，用于与终态结果对账。 */
+        /**
+         * 已开启块的签名序列，用于与终态结果对账。
+         */
         private final List<String> streamed = new ArrayList<>();
         private int textBlocks;
         private final MessageDigest textDigest;
@@ -485,7 +486,9 @@ public class OpenAICompletionProtocol {
             return frames.toString();
         }
 
-        /** 关闭当前打开的块；无打开块时返回空串。 */
+        /**
+         * 关闭当前打开的块；无打开块时返回空串。
+         */
         private String closeOpen() {
             if (null == open) return "";
             Integer index = open;

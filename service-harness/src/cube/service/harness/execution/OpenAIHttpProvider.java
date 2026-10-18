@@ -1,21 +1,39 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness.execution;
 
-import cube.aigc.completion.*;
+import cube.aigc.completion.CompletionError;
+import cube.aigc.completion.CompletionProvider;
+import cube.aigc.completion.OpenAIResponseAccumulator;
 import cube.service.harness.protocol.StrictJson;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import java.io.*;
-import java.net.*;
-import java.nio.charset.*;
+import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
+import java.net.URI;
+import java.net.URL;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
 
-/** Explicit Java-only external backend. Cancellation observes; it never claims a closed socket stopped a model. */
+/**
+ * Explicit Java-only external backend. Cancellation observes; it never claims a closed socket stopped a model.
+ */
 public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseable {
     private final URL endpoint;
     private final String model, token;
     private final ThreadPoolExecutor executor;
     private final ScheduledExecutorService deadlines = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread t = new Thread(r, "harness-openai-deadline"); t.setDaemon(true); return t;
+        Thread t = new Thread(r, "harness-openai-deadline");
+        t.setDaemon(true);
+        return t;
     });
 
     public OpenAIHttpProvider(String baseUrl, String model, String token, int capacity) throws Exception {
@@ -25,29 +43,38 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
                 || model == null || model.isEmpty() || token == null || token.contains("\r") || token.contains("\n"))
             throw new IllegalArgumentException("INVALID_EXTERNAL_BACKEND");
         endpoint = new URL(baseUrl.replaceAll("/+$", "") + "/chat/completions");
-        this.model = model; this.token = token;
+        this.model = model;
+        this.token = token;
         executor = new ThreadPoolExecutor(capacity, capacity, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(32), r -> {
-            Thread t = new Thread(r, "harness-openai"); t.setDaemon(true); return t;
+            Thread t = new Thread(r, "harness-openai");
+            t.setDaemon(true);
+            return t;
         }, new ThreadPoolExecutor.AbortPolicy());
     }
 
-    @Override public JSONArray completionModels(String ignored) {
+    @Override
+    public JSONArray completionModels(String ignored) {
         return new JSONArray().put(new JSONObject().put("id", model));
     }
 
-    @Override public JSONObject completionCapacity(String ignored, String requestedModel, boolean nativeTools) {
+    @Override
+    public JSONObject completionCapacity(String ignored, String requestedModel, boolean nativeTools) {
         return new JSONObject().put("registered", executor.getMaximumPoolSize())
                 .put("available", executor.isShutdown() ? 0 : Math.max(0, executor.getMaximumPoolSize() - executor.getActiveCount()));
     }
 
-    @Override public void submitCompletion(String ignored, String id, JSONObject canonical, long timeout, Listener listener) {
+    @Override
+    public void submitCompletion(String ignored, String id, JSONObject canonical, long timeout, Listener listener) {
         JSONObject wire = new JSONObject(canonical.getJSONObject("options").toString())
                 .put("model", model).put("messages", canonical.getJSONArray("messages"))
                 .put("stream", canonical.getBoolean("stream"));
         if (canonical.has("tools")) wire.put("tools", canonical.getJSONArray("tools"));
         if (wire.getBoolean("stream")) wire.put("stream_options", new JSONObject().put("include_usage", true));
-        try { executor.execute(() -> execute(id, wire, timeout, listener)); }
-        catch (RejectedExecutionException e) { listener.onEvent(error(id, 1, "MODEL_BACKEND_BUSY", true)); }
+        try {
+            executor.execute(() -> execute(id, wire, timeout, listener));
+        } catch (RejectedExecutionException e) {
+            listener.onEvent(error(id, 1, "MODEL_BACKEND_BUSY", true));
+        }
     }
 
     private static JSONObject event(String id, long seq, String kind, JSONObject payload, boolean finished) {
@@ -60,27 +87,35 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
     }
 
     private void execute(String id, JSONObject wire, long timeout, Listener listener) {
-        HttpURLConnection connection = null; boolean attempted = false, finished = false; long seq = 0;
+        HttpURLConnection connection = null;
+        boolean attempted = false, finished = false;
+        long seq = 0;
         ScheduledFuture<?> deadlineTask = null;
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeout);
         try {
             connection = (HttpURLConnection) endpoint.openConnection();
             final HttpURLConnection active = connection;
             deadlineTask = deadlines.schedule(active::disconnect, timeout, TimeUnit.MILLISECONDS);
-            connection.setInstanceFollowRedirects(false); connection.setRequestMethod("POST"); connection.setDoOutput(true);
-            connection.setConnectTimeout((int)Math.min(timeout, 10000)); connection.setReadTimeout((int)Math.min(timeout, 600000));
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setConnectTimeout((int) Math.min(timeout, 10000));
+            connection.setReadTimeout((int) Math.min(timeout, 600000));
             connection.setRequestProperty("Content-Type", "application/json");
             connection.setRequestProperty("Accept", wire.getBoolean("stream") ? "text/event-stream" : "application/json");
             if (!token.isEmpty()) connection.setRequestProperty("Authorization", "Bearer " + token);
             byte[] body = wire.toString().getBytes(StandardCharsets.UTF_8);
             connection.setFixedLengthStreamingMode(body.length);
             attempted = true;
-            try (OutputStream out = connection.getOutputStream()) { out.write(body); }
+            try (OutputStream out = connection.getOutputStream()) {
+                out.write(body);
+            }
             int status = connection.getResponseCode();
             if (status != 200) {
                 // Only definite pre-inference rejections are safe to release.
                 finished = status == 400 || status == 401 || status == 403 || status == 404 || status == 413 || status == 429;
-                listener.onEvent(error(id, ++seq, "MODEL_HTTP_" + status, finished)); return;
+                listener.onEvent(error(id, ++seq, "MODEL_HTTP_" + status, finished));
+                return;
             }
             JSONObject result, rawResponse = null;
             try (InputStream input = connection.getInputStream()) {
@@ -101,18 +136,27 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
                     OpenAIResponseAccumulator accumulator = new OpenAIResponseAccumulator();
                     CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
                             .onUnmappableCharacter(CodingErrorAction.REPORT);
-                    Reader reader = new InputStreamReader(input, decoder); StringBuilder data = new StringBuilder();
-                    int total = 0; boolean done = false;
+                    Reader reader = new InputStreamReader(input, decoder);
+                    StringBuilder data = new StringBuilder();
+                    int total = 0;
+                    boolean done = false;
                     while (true) {
                         checkDeadline(deadline);
-                        String line = line(reader, deadline); if (line == null) break;
-                        total += line.length(); if (total > 1048576) throw new IOException("SSE too large");
+                        String line = line(reader, deadline);
+                        if (line == null) break;
+                        total += line.length();
+                        if (total > 1048576) throw new IOException("SSE too large");
                         if (line.isEmpty() && data.length() > 0) {
-                            String raw = data.toString(); data.setLength(0);
+                            String raw = data.toString();
+                            data.setLength(0);
                             if (done) throw new IOException("Trailing SSE data");
-                            if (raw.equals("[DONE]")) { done = true; break; }
+                            if (raw.equals("[DONE]")) {
+                                done = true;
+                                break;
+                            }
                             JSONObject delta = accumulator.add(StrictJson.object(raw.getBytes(StandardCharsets.UTF_8)));
-                            if (delta.length() > 0) listener.onEvent(event(id, ++seq, "delta", new JSONObject().put("delta", delta), false));
+                            if (delta.length() > 0)
+                                listener.onEvent(event(id, ++seq, "delta", new JSONObject().put("delta", delta), false));
                         } else if (line.startsWith("data:")) {
                             if (data.length() > 0) data.append('\n');
                             data.append(line.substring(5).replaceFirst("^ ", ""));
@@ -120,17 +164,21 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
                         }
                     }
                     if (!done || data.length() > 0) throw new IOException("Truncated SSE");
-                    finished = true; result = accumulator.result();
+                    finished = true;
+                    result = accumulator.result();
                 }
             }
             JSONObject completed = event(id, ++seq, "completed", new JSONObject().put("result", result), true);
             if (rawResponse != null) completed.put("rawResponse", rawResponse);
             listener.onEvent(completed);
         } catch (Exception e) {
-            String code = e instanceof CompletionError && "usage_missing".equals(((CompletionError)e).code)
+            String code = e instanceof CompletionError && "usage_missing".equals(((CompletionError) e).code)
                     ? "MODEL_USAGE_MISSING" : "MODEL_COMPLETION_UNKNOWN";
             listener.onEvent(error(id, ++seq, code, finished || !attempted));
-        } finally { if (deadlineTask != null) deadlineTask.cancel(false); if (connection != null) connection.disconnect(); }
+        } finally {
+            if (deadlineTask != null) deadlineTask.cancel(false);
+            if (connection != null) connection.disconnect();
+        }
     }
 
     private static void checkDeadline(long deadline) throws IOException {
@@ -138,22 +186,33 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
     }
 
     private static byte[] read(InputStream input, int limit, long deadline) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream(); byte[] b = new byte[4096]; int n;
-        while ((n = input.read(b)) != -1) { checkDeadline(deadline); if (out.size() + n > limit) throw new IOException("Response too large"); out.write(b, 0, n); }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] b = new byte[4096];
+        int n;
+        while ((n = input.read(b)) != -1) {
+            checkDeadline(deadline);
+            if (out.size() + n > limit) throw new IOException("Response too large");
+            out.write(b, 0, n);
+        }
         return out.toByteArray();
     }
 
     private static String line(Reader reader, long deadline) throws IOException {
-        StringBuilder line = new StringBuilder(); int ch;
+        StringBuilder line = new StringBuilder();
+        int ch;
         while ((ch = reader.read()) != -1 && ch != '\n') {
             checkDeadline(deadline);
             if (line.length() >= 65536) throw new IOException("SSE line too large");
-            line.append((char)ch);
+            line.append((char) ch);
         }
         if (ch == -1 && line.length() == 0) return null;
         if (line.length() > 0 && line.charAt(line.length() - 1) == '\r') line.setLength(line.length() - 1);
         return line.toString();
     }
 
-    @Override public void close() { executor.shutdown(); deadlines.shutdown(); }
+    @Override
+    public void close() {
+        executor.shutdown();
+        deadlines.shutdown();
+    }
 }

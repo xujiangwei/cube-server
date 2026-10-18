@@ -167,15 +167,17 @@ public final class CatalogStore {
     }
 
     public void activate(String tenant, String subject, String runId, String digest) {
-        activate(tenant,subject,runId,digest,null);
+        activate(tenant, subject, runId, digest, null);
     }
 
-    public void activate(JdbcRunStore.Lease lease,String digest) {activate(lease.tenant,lease.subject,lease.runId,digest,lease);}
+    public void activate(JdbcRunStore.Lease lease, String digest) {
+        activate(lease.tenant, lease.subject, lease.runId, digest, lease);
+    }
 
-    private void activate(String tenant,String subject,String runId,String digest,JdbcRunStore.Lease lease) {
+    private void activate(String tenant, String subject, String runId, String digest, JdbcRunStore.Lease lease) {
         store.tx(c -> {
-            JSONObject run=store.run(c,tenant,subject,runId,true);
-            if(lease!=null)store.owner(c,run,lease);
+            JSONObject run = store.run(c, tenant, subject, runId, true);
+            if (lease != null) store.owner(c, run, lease);
             JSONObject pin = pinned(c, tenant, subject, runId);
             requireRelease(pin, digest);
             if (!RuntimeSupport.strings(pin.getJSONArray("permissions")).contains("skill.activate"))
@@ -287,10 +289,12 @@ public final class CatalogStore {
         });
     }
 
-    /** Authorized service identity selects one tenant; clients cannot supply it. */
+    /**
+     * Authorized service identity selects one tenant; clients cannot supply it.
+     */
     public JSONArray taskProfiles(String tenant) {
-        return store.tx(c -> rows(c,"SELECT p.definition_json FROM harness_binding b JOIN harness_profile p ON p.tenant=b.tenant AND p.profile_kind=b.binding_kind AND p.profile_id=b.binding_name AND b.target_ref="
-            + (mysql?"CONCAT(p.profile_id,'@',p.profile_version)":"p.profile_id || '@' || p.profile_version")
-            + " WHERE b.tenant=? AND b.binding_kind='task' ORDER BY b.binding_name LIMIT 64",tenant));
+        return store.tx(c -> rows(c, "SELECT p.definition_json FROM harness_binding b JOIN harness_profile p ON p.tenant=b.tenant AND p.profile_kind=b.binding_kind AND p.profile_id=b.binding_name AND b.target_ref="
+                + (mysql ? "CONCAT(p.profile_id,'@',p.profile_version)" : "p.profile_id || '@' || p.profile_version")
+                + " WHERE b.tenant=? AND b.binding_kind='task' ORDER BY b.binding_name LIMIT 64", tenant));
     }
 }

@@ -66,15 +66,17 @@ public final class StoreMigrations {
 
     private static void verify(Connection c, StoreConfig config, int version) throws Exception {
         Set<String> expected = new HashSet<>(TABLES);
-        if (version >= 2) expected.addAll(Arrays.asList("harness_release", "harness_binding", "harness_profile", "harness_run_config",
-                "harness_release_ref", "harness_run_skill", "harness_workspace", "harness_context"));
+        if (version >= 2)
+            expected.addAll(Arrays.asList("harness_release", "harness_binding", "harness_profile", "harness_run_config",
+                    "harness_release_ref", "harness_run_skill", "harness_workspace", "harness_context"));
         if (version >= 3) expected.addAll(Arrays.asList("harness_model_backend", "harness_model_job"));
         if (version >= 4) expected.addAll(Arrays.asList("harness_inference", "harness_inference_event"));
         if (!tables(c, config).equals(expected)) throw new StoreException("STORE_SCHEMA_MISMATCH");
         try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(
                 "SELECT store_id, schema_version, migration_hash FROM harness_store_identity WHERE singleton=1")) {
             if (!r.next() || !config.identity.equals(r.getString(1)) || r.getInt(2) != version
-                    || !digest(config, version).equals(r.getString(3))) throw new StoreException("STORE_IDENTITY_MISMATCH");
+                    || !digest(config, version).equals(r.getString(3)))
+                throw new StoreException("STORE_IDENTITY_MISMATCH");
         }
     }
 
@@ -102,7 +104,9 @@ public final class StoreMigrations {
                     for (int version = old + 1; version <= VERSION; version++) {
                         execute(c, config, version);
                         try (PreparedStatement s = c.prepareStatement("UPDATE harness_store_identity SET schema_version=?,migration_hash=? WHERE singleton=1 AND schema_version=?")) {
-                            s.setInt(1, version); s.setString(2, digest(config, version)); s.setInt(3, version - 1);
+                            s.setInt(1, version);
+                            s.setString(2, digest(config, version));
+                            s.setInt(3, version - 1);
                             if (s.executeUpdate() != 1) throw new StoreException("STORE_MIGRATION_BUSY");
                         }
                     }
@@ -112,7 +116,8 @@ public final class StoreMigrations {
                     for (int version = 1; version <= VERSION; version++) execute(c, config, version);
                     try (PreparedStatement s = c.prepareStatement("INSERT INTO harness_store_identity VALUES (1,?,?,?)")) {
                         s.setString(1, config.identity);
-                        s.setInt(2, VERSION); s.setString(3, digest(config));
+                        s.setInt(2, VERSION);
+                        s.setString(3, digest(config));
                         s.executeUpdate();
                     }
                     verify(c, config);
@@ -132,7 +137,9 @@ public final class StoreMigrations {
 
     private static void execute(Connection c, StoreConfig config, int version) throws Exception {
         for (String part : new String(source(config, version), StandardCharsets.UTF_8).split(";"))
-            if (!part.trim().isEmpty()) try (Statement s = c.createStatement()) { s.execute(part.trim()); }
+            if (!part.trim().isEmpty()) try (Statement s = c.createStatement()) {
+                s.execute(part.trim());
+            }
     }
 
     public static void main(String[] args) throws Exception {
@@ -146,8 +153,8 @@ public final class StoreMigrations {
         if (args[0].equals("initialize-empty")) migrate(config, true);
         else if (args[0].equals("upgrade")) migrate(config, false);
         else try (Connection c = config.connect()) {
-            verify(c, config);
-        }
+                verify(c, config);
+            }
         System.out.println("PASS: Harness store " + args[0] + " " + config.dialect + " schema=" + VERSION);
     }
 }

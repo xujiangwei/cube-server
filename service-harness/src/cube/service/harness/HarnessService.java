@@ -11,12 +11,14 @@ import com.sun.net.httpserver.HttpServer;
 import cube.core.AbstractModule;
 import cube.core.Kernel;
 import cube.plugin.PluginSystem;
+import cube.service.harness.execution.ExecutionRuntime;
+import cube.service.harness.execution.JettyExchange;
+import cube.service.harness.execution.ModelProtocol;
 import cube.service.harness.protocol.Contract;
 import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.store.JdbcRunStore;
 import cube.service.harness.store.StoreConfig;
 import cube.service.harness.store.StoreException;
-import cube.service.harness.execution.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -74,21 +76,23 @@ public final class HarnessService extends AbstractModule {
             if (Boolean.parseBoolean(config.values.getProperty("store.enabled", "false")))
                 store = new JdbcRunStore(new StoreConfig(config.values));
             registry = new WorkerRegistry(config.leaseMillis());
-            if(Boolean.parseBoolean(config.values.getProperty("execution.enabled","false"))) {
-                if(store==null)throw new IllegalArgumentException("STORE_REQUIRED");
-                execution=new ExecutionRuntime(store,config.values,config.leaseMillis(),()-> {
-                    Object module=getKernel()==null?null:getKernel().getModule("AIGC");
-                    return module instanceof cube.aigc.completion.CompletionProvider?(cube.aigc.completion.CompletionProvider)module:null;
+            if (Boolean.parseBoolean(config.values.getProperty("execution.enabled", "false"))) {
+                if (store == null) throw new IllegalArgumentException("STORE_REQUIRED");
+                execution = new ExecutionRuntime(store, config.values, config.leaseMillis(), () -> {
+                    Object module = getKernel() == null ? null : getKernel().getModule("AIGC");
+                    return module instanceof cube.aigc.completion.CompletionProvider ? (cube.aigc.completion.CompletionProvider) module : null;
                 });
             }
             executor = pool("harness-cell", 2, 64);
             started.set(true);
-            if(execution==null){
+            if (execution == null) {
                 httpExecutor = pool("harness-http", 2, 32);
                 http = HttpServer.create(new InetSocketAddress(config.host(), config.port()), 32);
-                http.createContext("/", this::handleHttp);http.setExecutor(httpExecutor);http.start();
-            }else executionHttp=JettyExchange.start(config.host(),config.port(),this::handleHttp);
-            if(execution!=null)execution.start();
+                http.createContext("/", this::handleHttp);
+                http.setExecutor(httpExecutor);
+                http.start();
+            } else executionHttp = JettyExchange.start(config.host(), config.port(), this::handleHttp);
+            if (execution != null) execution.start();
             startupError = null;
         } catch (Exception e) {
             startupError = "HARNESS_CONFIGURATION_ERROR";
@@ -100,8 +104,17 @@ public final class HarnessService extends AbstractModule {
     @Override
     public synchronized void stop() {
         started.set(false);
-        if(execution!=null){execution.close();execution=null;}
-        if(executionHttp!=null){try{executionHttp.stop();}catch(Exception ignored){}executionHttp=null;}
+        if (execution != null) {
+            execution.close();
+            execution = null;
+        }
+        if (executionHttp != null) {
+            try {
+                executionHttp.stop();
+            } catch (Exception ignored) {
+            }
+            executionHttp = null;
+        }
         if (http != null) {
             http.stop(1);
             http = null;
@@ -120,7 +133,9 @@ public final class HarnessService extends AbstractModule {
         store = null;
     }
 
-    public JdbcRunStore runStore() { return store; }
+    public JdbcRunStore runStore() {
+        return store;
+    }
 
     public ExecutorService executor() {
         return executor;
@@ -151,18 +166,23 @@ public final class HarnessService extends AbstractModule {
 
     public JSONObject process(byte[] raw, long transport, java.util.function.BooleanSupplier valid) {
         String id = "";
-        int protocol=1;
+        int protocol = 1;
         try {
             if (!started.get()) throw new IllegalArgumentException("HARNESS_NOT_READY");
             JSONObject request = StrictJson.object(raw);
-            if(request.optInt("protocolVersion",0)==2 || request.optInt("protocolVersion",0)==3)protocol=request.getInt("protocolVersion");
+            if (request.optInt("protocolVersion", 0) == 2 || request.optInt("protocolVersion", 0) == 3)
+                protocol = request.getInt("protocolVersion");
             if (request.opt("requestId") instanceof String && request.getString("requestId").length() <= 128)
                 id = request.getString("requestId");
-            if(protocol==2 || protocol==3) {
-                if(execution==null){protocol=1;throw new IllegalArgumentException("PROTOCOL_MISMATCH");}
-                ModelProtocol.parse(protocol==3?"model-worker-v3-request":"model-worker-request",raw);
-                if(!equal(config.values.getProperty("worker.credential"),request.getString("credential")))throw new IllegalArgumentException("UNAUTHORIZED");
-                return execution.workers.apply(request,transport,valid);
+            if (protocol == 2 || protocol == 3) {
+                if (execution == null) {
+                    protocol = 1;
+                    throw new IllegalArgumentException("PROTOCOL_MISMATCH");
+                }
+                ModelProtocol.parse(protocol == 3 ? "model-worker-v3-request" : "model-worker-request", raw);
+                if (!equal(config.values.getProperty("worker.credential"), request.getString("credential")))
+                    throw new IllegalArgumentException("UNAUTHORIZED");
+                return execution.workers.apply(request, transport, valid);
             }
             if (request.has("protocolVersion") && (!(request.get("protocolVersion") instanceof Number) || ((Number) request.get("protocolVersion")).doubleValue() != 1))
                 throw new IllegalArgumentException("PROTOCOL_MISMATCH");
@@ -173,11 +193,11 @@ public final class HarnessService extends AbstractModule {
                 throw new IllegalArgumentException("FORBIDDEN");
             return registry.apply(request, transport, valid).put("protocolVersion", 1).put("requestId", id).put("ok", true);
         } catch (StoreException e) {
-            return error(id,e.code).put("protocolVersion",protocol);
+            return error(id, e.code).put("protocolVersion", protocol);
         } catch (IllegalArgumentException e) {
-            return error(id, e.getMessage()).put("protocolVersion",protocol);
+            return error(id, e.getMessage()).put("protocolVersion", protocol);
         } catch (Exception e) {
-            return error(id, "INTERNAL_ERROR").put("protocolVersion",protocol);
+            return error(id, "INTERNAL_ERROR").put("protocolVersion", protocol);
         }
     }
 
@@ -186,8 +206,9 @@ public final class HarnessService extends AbstractModule {
     }
 
     private JSONObject capabilities() {
-        if(execution!=null)return new JSONObject().put("service",NAME).put("protocolVersion",3).put("registeredWorkers",execution.workers.snapshot()).put("infrastructureReady",true)
-            .put("runsReady",execution.workers.ready()).put("execution","resource-loop").put("capacity",execution.workers.capacity());
+        if (execution != null)
+            return new JSONObject().put("service", NAME).put("protocolVersion", 3).put("registeredWorkers", execution.workers.snapshot()).put("infrastructureReady", true)
+                    .put("runsReady", execution.workers.ready()).put("execution", "resource-loop").put("capacity", execution.workers.capacity());
         return new JSONObject().put("service", NAME).put("protocolVersion", 1).put("registeredWorkers", registry.snapshot()).put("infrastructureReady", registry.ready()).put("runsReady", false).put("execution", "scripted");
     }
 
@@ -210,9 +231,9 @@ public final class HarnessService extends AbstractModule {
             String path = x.getRequestURI().getPath(), method = x.getRequestMethod();
             if (path.equals("/healthz") || path.equals("/readyz")) {
                 if (!method.equals("GET")) throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                boolean ok = started.get() && (path.equals("/healthz") || (execution!=null?execution.workers.ready():registry.ready()));
+                boolean ok = started.get() && (path.equals("/healthz") || (execution != null ? execution.workers.ready() : registry.ready()));
                 status = ok ? 200 : 503;
-                result = new JSONObject().put("service", NAME).put("ready", ok).put("runsReady", execution!=null&&execution.workers.ready());
+                result = new JSONObject().put("service", NAME).put("ready", ok).put("runsReady", execution != null && execution.workers.ready());
             } else {
                 if (!path.startsWith("/harness/v1/") && !path.startsWith("/harness-admin/v1/"))
                     throw new HttpFailure(404, "NOT_FOUND");
@@ -224,7 +245,7 @@ public final class HarnessService extends AbstractModule {
                     result = capabilities();
                 } else if (method.equals("GET") && path.equals("/harness/v1/task-profiles")) {
                     status = 200;
-                    result = execution==null?new JSONObject().put("profiles",new JSONArray()):execution.taskProfiles();
+                    result = execution == null ? new JSONObject().put("profiles", new JSONArray()) : execution.taskProfiles();
                 } else {
                     String normalized = path.replaceAll("/(runs|inputs|artifacts|task-profiles)/[A-Za-z0-9_.:-]+", "/$1/{id}");
                     String schema = null;
@@ -263,32 +284,62 @@ public final class HarnessService extends AbstractModule {
                         if (key == null || !key.matches("[A-Za-z0-9_.:-]{1,128}"))
                             throw new HttpFailure(400, "IDEMPOTENCY_KEY_REQUIRED");
                     }
-                    JSONObject parsed=null;
+                    JSONObject parsed = null;
                     if (schema != null) {
                         if (!Objects.toString(x.getRequestHeaders().getFirst("Content-Type"), "").toLowerCase(Locale.ROOT).startsWith("application/json"))
                             throw new HttpFailure(415, "UNSUPPORTED_MEDIA_TYPE");
-                        parsed=Contract.parse(schema, body(x.getRequestBody()));
+                        parsed = Contract.parse(schema, body(x.getRequestBody()));
                     }
-                    if(execution!=null) {
-                        if(path.equals("/harness/v1/runs")&&method.equals("POST")) {
-                            result=execution.create(x.getRequestHeaders().getFirst("Idempotency-Key"),parsed);status=202;
-                            send(x,status,result);return;
+                    if (execution != null) {
+                        if (path.equals("/harness/v1/runs") && method.equals("POST")) {
+                            result = execution.create(x.getRequestHeaders().getFirst("Idempotency-Key"), parsed);
+                            status = 202;
+                            send(x, status, result);
+                            return;
                         }
-                        if(path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+")&&method.equals("GET")) {
-                            result=execution.read(path.substring(path.lastIndexOf('/')+1));send(x,200,result);return;
+                        if (path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+") && method.equals("GET")) {
+                            result = execution.read(path.substring(path.lastIndexOf('/') + 1));
+                            send(x, 200, result);
+                            return;
                         }
-                        if(path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+/events")&&method.equals("GET")) {
-                            String run=path.split("/")[4];long after=0;int limit=100;
-                            String query=Objects.toString(x.getRequestURI().getRawQuery(),"");java.util.Set<String> seen=new java.util.HashSet<>();
-                            if(!query.isEmpty())for(String pair:query.split("&",-1)){String[] kv=pair.split("=",-1);if(kv.length!=2||!seen.add(kv[0])||!kv[1].matches("[0-9]{1,15}"))throw new HttpFailure(400,"INVALID_EVENT_CURSOR");if(kv[0].equals("after"))after=Long.parseLong(kv[1]);else if(kv[0].equals("limit"))limit=Integer.parseInt(kv[1]);else throw new HttpFailure(400,"INVALID_EVENT_CURSOR");}
-                            String last=x.getRequestHeaders().getFirst("Last-Event-ID");if(last!=null){if(!last.matches("[0-9]{1,15}")||(seen.contains("after")&&after!=Long.parseLong(last)))throw new HttpFailure(400,"INVALID_EVENT_CURSOR");after=Long.parseLong(last);}
-                            if(limit<1||limit>100)throw new HttpFailure(400,"INVALID_EVENT_LIMIT");
-                            result=execution.events(run,after,limit);
-                            if(Objects.toString(x.getRequestHeaders().getFirst("Accept"),"").contains("text/event-stream")){execution.stream(x,result);return;}
-                            send(x,200,result);return;
+                        if (path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+/events") && method.equals("GET")) {
+                            String run = path.split("/")[4];
+                            long after = 0;
+                            int limit = 100;
+                            String query = Objects.toString(x.getRequestURI().getRawQuery(), "");
+                            java.util.Set<String> seen = new java.util.HashSet<>();
+                            if (!query.isEmpty()) for (String pair : query.split("&", -1)) {
+                                String[] kv = pair.split("=", -1);
+                                if (kv.length != 2 || !seen.add(kv[0]) || !kv[1].matches("[0-9]{1,15}"))
+                                    throw new HttpFailure(400, "INVALID_EVENT_CURSOR");
+                                if (kv[0].equals("after")) after = Long.parseLong(kv[1]);
+                                else if (kv[0].equals("limit")) limit = Integer.parseInt(kv[1]);
+                                else throw new HttpFailure(400, "INVALID_EVENT_CURSOR");
+                            }
+                            String last = x.getRequestHeaders().getFirst("Last-Event-ID");
+                            if (last != null) {
+                                if (!last.matches("[0-9]{1,15}") || (seen.contains("after") && after != Long.parseLong(last)))
+                                    throw new HttpFailure(400, "INVALID_EVENT_CURSOR");
+                                after = Long.parseLong(last);
+                            }
+                            if (limit < 1 || limit > 100) throw new HttpFailure(400, "INVALID_EVENT_LIMIT");
+                            result = execution.events(run, after, limit);
+                            if (Objects.toString(x.getRequestHeaders().getFirst("Accept"), "").contains("text/event-stream")) {
+                                execution.stream(x, result);
+                                return;
+                            }
+                            send(x, 200, result);
+                            return;
                         }
-                        if(path.matches("/harness/v1/task-profiles/[A-Za-z0-9_.:-]+")&&method.equals("GET")) {
-                            String profile=path.substring(path.lastIndexOf('/')+1);JSONArray list=execution.taskProfiles().getJSONArray("profiles");for(int i=0;i<list.length();i++)if(list.getJSONObject(i).getString("profileId").equals(profile)){send(x,200,list.getJSONObject(i));return;}throw new HttpFailure(404,"PROFILE_NOT_FOUND");
+                        if (path.matches("/harness/v1/task-profiles/[A-Za-z0-9_.:-]+") && method.equals("GET")) {
+                            String profile = path.substring(path.lastIndexOf('/') + 1);
+                            JSONArray list = execution.taskProfiles().getJSONArray("profiles");
+                            for (int i = 0; i < list.length(); i++)
+                                if (list.getJSONObject(i).getString("profileId").equals(profile)) {
+                                    send(x, 200, list.getJSONObject(i));
+                                    return;
+                                }
+                            throw new HttpFailure(404, "PROFILE_NOT_FOUND");
                         }
                     }
                     throw new HttpFailure(503, "HARNESS_NOT_READY");
@@ -298,18 +349,18 @@ public final class HarnessService extends AbstractModule {
             status = e.status;
             result = httpError(requestId, e.code, status == 503);
         } catch (StoreException e) {
-            status=e.code.endsWith("NOT_FOUND")?404:e.code.equals("HARNESS_BUSY")?429:e.code.equals("IDEMPOTENCY_CONFLICT")||e.code.equals("EVENT_GAP")?409:e.code.startsWith("STORE_")?503:400;
-            result=httpError(requestId,e.code,status==429||status==503);
+            status = e.code.endsWith("NOT_FOUND") ? 404 : e.code.equals("HARNESS_BUSY") ? 429 : e.code.equals("IDEMPOTENCY_CONFLICT") || e.code.equals("EVENT_GAP") ? 409 : e.code.startsWith("STORE_") ? 503 : 400;
+            result = httpError(requestId, e.code, status == 429 || status == 503);
         } catch (IllegalArgumentException e) {
             status = e.getMessage().equals("PAYLOAD_TOO_LARGE") ? 413 : 400;
             result = httpError(requestId, e.getMessage(), false);
         } catch (Exception e) {
             result = httpError(requestId, "INTERNAL_ERROR", false);
         }
-        send(x,status,result);
+        send(x, status, result);
     }
 
-    private static void send(HttpExchange x,int status,JSONObject result)throws IOException {
+    private static void send(HttpExchange x, int status, JSONObject result) throws IOException {
         byte[] bytes = result.toString().getBytes(StandardCharsets.UTF_8);
         x.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
         x.getResponseHeaders().set("Cache-Control", "no-store");
