@@ -39,3 +39,10 @@ echo 仅为 CPU 通信探针，含 payload.text。drain 令 ready=false 并拒�
 N03 的内部 RunStore 已将幂等键绑定 tenant+subject+operation+目标+载荷摘要，同键同载荷返回原回执，异载荷冲突；控制意图 CAS 检查 expectedVersion。幂等记录当前不自动清理，保留至少 24 小时且不短于 run 生命周期。HTTP 业务入口仍返回 503；未来成功路径须等待创建事务提交才能返回 202。resume 的 waitId、approval 参数绑定及完整业务策略继续在 N11 验收，不将存储方法当作已开放的控制 API。
 
 终态、eventSeq/runVersion、executionSettlement 由 Java RunStore 提交后权威发布，worker 不可直接推进。取消请求成功不等同于执行终止，unknown settlement 不释放执行配额。相关状态 schema 已作为规划契约保留，实际流转从 N03 开始。
+
+
+## N08/N09 增量协议（Cell v4）
+
+G0 v1 规则作为历史兼容保留。v2 scripted 与 v3 Java 推理协议之后，新增 role=runner/capability=tool.execute 的 v4；源和 SHA256 manifest 在 `contracts/runner/`，生成器为 `scripts/generate_runner_contracts.py --python-root <root>`。旧契约文件不重生成。v4 describe 绑定 runner 源码摘要、持久 runtimeId 和固定容量，其余动作绑定 transport/instance/session：heartbeat、poll、accepted、status、result、broker_query、drain、unregister。
+
+jobHash 对不含 jobHash/grant 的完整 job 使用既有跨语言规范摘要；参数单独摘要。grant 的规范 bodyJson 使用 HMAC-SHA256，只有 Java 持有 key。resultHash 对完整原 report 求摘要，Java 即使将坏输出规范为 TOOL_OUTPUT_INVALID 也回执原 report 的摘要。ACK 只说明证据已持久保存；actualFinished 与 effectStatus 分别表示物理执行和业务效果。细节、权限和边界见 [TOOLS.md](TOOLS.md)。

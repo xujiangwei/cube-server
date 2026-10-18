@@ -18,7 +18,7 @@ import java.util.*;
  */
 public final class ProfileRegistry {
     public static final Set<String> PLATFORM_PERMISSIONS = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(
-            "skill.list", "skill.activate", "resource.list", "resource.read", "resource.search")));
+            "skill.list", "skill.activate", "resource.list", "resource.read", "resource.search", "console.status.read")));
     private final CatalogStore catalog;
 
     public ProfileRegistry(CatalogStore catalog) {

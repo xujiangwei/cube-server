@@ -70,3 +70,8 @@ ant -f service-harness/build.xml '-Dstore.test.config=C:/private/mysql-runtime.l
 本机可用 `scripts/n03_mysql_fixture.py start --mysql-home <专用解压目录> --runtime <新建私有目录>` 创建临时实例，脚本只绑定 loopback，生成独立端口/账户/配置并验证运行账户不能写隔离的模拟旧库。结束后用同参数 `stop`；不按进程名或系统服务名停止。不对真实旧库进行测试写入。
 
 撤回时停止专用 Harness 写入者、关闭新入口，保留数据库/账本及备份。仅可删除确认可丢弃的测试库。新 SQL 资源随正式 jar 分发，旧构建和旧发布不依赖数据库或新测试通过。N03 没有启用业务 run API，仍返回 HARNESS_NOT_READY；profile/Coordinator 与完整控制能力分别在后续阶段验收。
+
+
+## N08/N09 schema5
+
+当前显式迁移目标为 schema5。新增 runner identity、tool job、durable revocation、Broker exchange 四张表；001～004 保持原摘要。运行启动仍不执行 DDL。SQLite/MySQL 工具专项覆盖提交前失败、提交后响应丢失和结果提交对账；unknown 不删除、不重执行。schema4 二进制拒绝新库，降级须恢复停机前专用备份，不能删表回退。部署和保留策略见 [TOOLS.md](TOOLS.md)。

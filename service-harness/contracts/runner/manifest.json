@@ -1,0 +1,7 @@
+{
+  "schemas/runner-request.json": "44c594ada4120e1d9026cb4783015927ae54aa795c864d0578fd3ac9eb8b40ad",
+  "schemas/runner-response.json": "2cbf2f6c4383bda99dcc79e358e059d4eb51c1ae2cb06593d4b0538871701cc7",
+  "schemas/runner-job.json": "336a92d0a424c0aea7cf8bdb27e6073656c490e8a1e2280ab1d10b9d107caa21",
+  "schemas/runner-report.json": "21588e0ee4d416c6a235e4b061911a44aef133f06c8485057f62c3c7914a5fc6",
+  "runtime.json": "44f87e991ccebd80d87fafd6c63cff9454755f1e1bd3b19aa42040cced54068f"
+}

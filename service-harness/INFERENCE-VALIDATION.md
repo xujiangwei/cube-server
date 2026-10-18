@@ -2,6 +2,8 @@
 
 实现范围为 Java/Python 两仓的源码、契约、迁移、模板与文档；未修改运行中的模型部署，未自动发布 active profile。默认链路经 Cell 调用同 JVM AIGCService，外部 OpenAI HTTP 后端需显式配置。新 model/task 版本均为 2，ModelProfile schemaVersion=3，Cell protocolVersion=3，存储 schema=4。
 
+持久证据现归入 [10-18 证据包](../../harness/execution-records/inference-20261018/N06-N07/report.md)，[manifest](../../harness/execution-records/inference-20261018/manifest.json) 绑定命令、结果、产物/契约摘要和 L1～L5 前后清单。下表原轮次结论已另行补跑复核；原轮次的部分 cache 结果/日志已归档，提交树差异由 Git 重建。原命令元数据和未提交工作树快照未留存，明确记为无法追溯，不以补跑结果冒充原始记录。
+
 ## 已通过
 
 | 范围 | 结果及边界 |
@@ -37,7 +39,7 @@ python -B -m unittest discover -s harness/tests -v
 
 MySQL 使用 `n03_mysql_fixture.py` 创建新的隔离数据目录；向 InferenceTest JVM 传入 `-Dinference.test.config=<migrator.local.properties>` 与 `-Dexecution.test.runtime=<runtime.local.properties>`，测试后按 fixture 私有凭据停止该实例。不能指向业务库或复用包含测试行的库。
 
-本机详细跨进程证据：`C:/Users/hermi/.cache/cube-harness/inference-final-20261018/report.json` 与对应 cell.log；旧循环证据位于 `inference-legacy-evidence-20261018`。私有连接配置只留本机 cache，不进入仓库。
+跨进程证据可直接审阅：[原轮次归档索引](../../harness/execution-records/inference-20261018/N06-N07/original/index.json)、[本次 v3 三进程结果](../../harness/execution-records/inference-20261018/N06-N07/rerun/v3/report.json)、[Cell 日志](../../harness/execution-records/inference-20261018/N06-N07/rerun/v3/cell.log) 和 [v2 scripted 资源循环结果](../../harness/execution-records/inference-20261018/N06-N07/rerun/v2-evidence/results.json)。[commands.json](../../harness/execution-records/inference-20261018/N06-N07/commands.json) 保存本次实际命令、环境引用、起止时间与退出码，[legacy-protection.json](../../harness/execution-records/inference-20261018/N06-N07/legacy-protection.json) 区分原轮次证据缺口和本次保护结果。阅读这些证据无需本机 cache；私有配置与凭据不归档，仅保存配置摘要。
 
 ## 未执行及限制
 

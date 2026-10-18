@@ -36,6 +36,7 @@ public final class RunCoordinator implements AutoCloseable {
     private final CatalogStore catalog;
     private final ProfileRegistry.Identity identity;
     private final ResourceTools resources;
+    private final ToolBroker broker;
     private final ContextEngine contexts;
     private final String owner = "coordinator-" + UUID.randomUUID();
     private final Map<String, JdbcRunStore.Lease> leases = new HashMap<>();
@@ -43,6 +44,11 @@ public final class RunCoordinator implements AutoCloseable {
     private volatile String lastError;
 
     public RunCoordinator(JdbcRunStore store, ModelJobStore jobs, CatalogStore catalog, ProfileRegistry.Identity identity, ResourceTools resources) {
+        this(store, jobs, catalog, identity, resources, null);
+    }
+
+    public RunCoordinator(JdbcRunStore store, ModelJobStore jobs, CatalogStore catalog, ProfileRegistry.Identity identity, ResourceTools resources, ToolBroker broker) {
+        this.broker = broker;
         this.store = store;
         this.jobs = jobs;
         this.catalog = catalog;
@@ -110,13 +116,34 @@ public final class RunCoordinator implements AutoCloseable {
         finish(l, "failed", "confirmed", new JSONObject().put("errorCode", code));
     }
 
-    private void tool(JdbcRunStore.Lease l, JSONObject row) throws Exception {
+    private void tool(JdbcRunStore.Lease l, JSONObject row, boolean expired, boolean terminal) throws Exception {
         JSONObject call = new JSONObject(row.getString("payload_json")), result = new JSONObject().put("artifacts", new JSONArray());
         try {
+            JSONObject job = broker == null ? null : broker.jobs.find(l.runId, row.getString("intent_id"), row.getInt("attempt"));
+            if (job == null && !terminal && !expired && broker != null) {
+                JSONObject definition = resources.executable(identity, l.runId, call.getString("tool"));
+                if(definition != null) job = broker.enqueue(l, row, definition);
+            }
+            if(job != null) {
+                if(job.getInt("actual_finished") == 0) {
+                    if(expired || terminal) broker.jobs.cancel(l, job.getString("job_id"));
+                    if(!terminal && (expired || job.getString("status").equals("unknown")))
+                        finish(l, expired ? "timed_out" : "failed", "unknown", new JSONObject().put("errorCode", expired ? "RUN_LIFETIME_EXCEEDED" : "TOOL_EXECUTION_UNKNOWN"));
+                    return;
+                }
+                if(job.getString("effect_status").equals("unknown")) {
+                    if(!terminal) finish(l, "failed", "unknown", new JSONObject().put("errorCode", "TOOL_EFFECT_UNKNOWN"));
+                    return;
+                }
+                confirm(l, "call", row, new JSONObject(job.getString("result_json")));
+                return;
+            }
+            if(terminal || expired) {confirm(l, "call", row, cube.service.harness.store.ToolJobStore.error("TOOL_CANCELLED"));return;}
             Object value = resources.invoke(identity, l.runId, call.getString("tool"), StrictJson.object(call.getString("argumentsJson").getBytes(java.nio.charset.StandardCharsets.UTF_8)), l);
             result.put("status", "success").put("dataJson", JdbcRunStore.canonical(value));
             Contract.parse("tool-result", RuntimeSupport.bytes(result));
         } catch (Exception e) {
+            if(e instanceof StoreException && Arrays.asList("STORE_UNAVAILABLE", "STORE_COMMIT_OUTCOME_UNKNOWN", "STALE_OWNER", "VERSION_CONFLICT", "TOOL_QUEUE_FULL").contains(((StoreException)e).code)) throw e;
             result = new JSONObject().put("status", "error").put("artifacts", new JSONArray()).put("errorCode", e instanceof StoreException ? ((StoreException) e).code : "TOOL_OUTPUT_INVALID");
         }
         confirm(l, "call", row, result);
@@ -183,18 +210,14 @@ public final class RunCoordinator implements AutoCloseable {
                 settle(l, r, j, o);
             }
         }
-        if (terminal) {
-            store.release(l, version(run));
-            leases.remove(run);
-            return;
-        }
         for (int i = 0; i < calls.length(); i++)
             if (!calls.getJSONObject(i).getString("status").equals("confirmed")) {
-                tool(l, calls.getJSONObject(i));
+                tool(l, calls.getJSONObject(i), expired, terminal);
                 return;
             }
+        if (terminal) {store.release(l, version(run)); leases.remove(run); return;}
         if (expired) {
-            fail(l, "RUN_LIFETIME_EXCEEDED");
+            finish(l, "timed_out", "confirmed", new JSONObject().put("errorCode", "RUN_LIFETIME_EXCEEDED"));
             return;
         }
         if (repairs > limits.getInt("maxRepairs")) {

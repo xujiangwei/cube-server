@@ -119,7 +119,7 @@ public final class ResourceTools {
         permissions.retainAll(identity.permissions);
         JSONArray out = new JSONArray();
         for (String name : ProfileRegistry.PLATFORM_PERMISSIONS)
-            if (permissions.contains(name)) {
+            if (permissions.contains(name) && !name.equals("console.status.read")) {
                 JSONObject properties = new JSONObject();
                 JSONArray required = new JSONArray();
                 if (!name.equals("skill.list")) {
@@ -153,7 +153,7 @@ public final class ResourceTools {
                 JSONObject tool = declared.getJSONObject(j);
                 if (!allowed.contains(tool.getString("permission"))) continue;
                 out.put(new JSONObject().put("name", tool.getString("name")).put("permission", tool.getString("permission"))
-                        .put("description", "Read immutable resource " + tool.getString("resourcePath"))
+                        .put("description", tool.getString("kind").equals("resource") ? "Read immutable resource " + tool.getString("resourcePath") : "Query authorized server status through the controlled Broker")
                         .put("resultSchema", cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("outputSchema"))))
                         .put("parameters", cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("inputSchema")))));
             }
@@ -200,11 +200,41 @@ public final class ResourceTools {
             for (int j = 0; j < declared.length(); j++)
                 if (declared.getJSONObject(j).getString("name").equals(name)) {
                     JSONObject tool = declared.getJSONObject(j);
+                    if (!tool.getString("kind").equals("resource")) throw RuntimeSupport.error("EXECUTABLE_REQUIRES_RUNNER");
                     JSONObject result = read(identity, run, release.getString("digest"), tool.getString("resourcePath"), arguments.optInt("offset", 0), arguments.optInt("limit", 1024));
                     cube.service.harness.protocol.Contract.validate(result, definition.getJSONObject("resultSchema"));
                     return result;
                 }
         }
         throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+    }
+
+    /** Trusted coordinator metadata; never sent as model-selected execution parameters. */
+    public JSONObject executable(ProfileRegistry.Identity identity, String run, String name) throws Exception {
+        JSONObject pin = pin(identity, run);
+        Set<String> active = new HashSet<>();
+        JSONArray activeRows = catalog.activeSkills(identity.tenant, identity.subject, run);
+        for (int i=0;i<activeRows.length();i++) active.add(activeRows.getJSONObject(i).getString("digest"));
+        for (int i=0;i<pin.getJSONArray("releases").length();i++) {
+            JSONObject release=pin.getJSONArray("releases").getJSONObject(i), manifest=release.getJSONObject("manifest");
+            for(int n=0;n<manifest.getJSONArray("tools").length();n++) {
+                JSONObject tool=manifest.getJSONArray("tools").getJSONObject(n);
+                if(!tool.getString("name").equals(name)||!tool.getString("kind").equals("executable")) continue;
+                manifest(identity,run,release.getString("digest"),tool.getString("permission"),true);
+                if(!active.contains(release.getString("digest"))) throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+                JSONArray files=new JSONArray();
+                for(int f=0;f<manifest.getJSONArray("files").length();f++) {
+                    JSONObject entry=manifest.getJSONArray("files").getJSONObject(f);
+                    files.put(new JSONObject().put("path",entry.getString("path")).put("data",java.util.Base64.getEncoder().encodeToString(repository.readVerified(manifest,entry.getString("path")))));
+                }
+                JSONObject bundle=new JSONObject().put("manifest",manifest).put("files",files);
+                if(RuntimeSupport.bytes(bundle).length>120000) throw RuntimeSupport.error("EXECUTABLE_PACKAGE_TOO_LARGE");
+                return new JSONObject().put("release",release.getString("digest")).put("tool",tool).put("bundleJson",cube.service.harness.store.JdbcRunStore.canonical(bundle))
+                    .put("parameters",cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest,tool.getString("inputSchema"))))
+                    .put("resultSchema",cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest,tool.getString("outputSchema"))))
+                    .put("runtime",pin.getJSONObject("runtime"));
+            }
+        }
+        return null;
     }
 }

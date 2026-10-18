@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="cube-service-harness" default="build" basedir=".">
+  <property name="tools.test.config" value=""/>
   <property name="build.dir" location="build"/>
   <property name="lib.dir" location="../deploy/libs"/>
   <property name="cell.jar" location="../deploy/bin/cell.jar"/>
@@ -37,6 +38,9 @@
     <java classname="cube.service.harness.test.ExecutionTest" fork="true" failonerror="true">
       <classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath>
     </java>
+  </target>
+  <target name="test-tools" depends="test">
+    <java classname="cube.service.harness.test.ToolTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="tools.test.config" value="${tools.test.config}"/></java>
   </target>
   <target name="test-inference" depends="test">
     <java classname="cube.service.harness.test.InferenceTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>

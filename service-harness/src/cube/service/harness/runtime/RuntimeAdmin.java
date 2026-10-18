@@ -44,7 +44,7 @@ public final class RuntimeAdmin {
         for (String key : p.stringPropertyNames())
             if (key.startsWith("runtime.signer."))
                 keys.put(key.substring("runtime.signer.".length()), KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(p.getProperty(key)))));
-        PackageRepository repo = new PackageRepository(catalog, new AssetFiles(Paths.get(p.getProperty("runtime.repository.root")), Long.parseLong(p.getProperty("runtime.repository.maxBytes")), p.getProperty("runtime.repository.identity")), keys, Boolean.parseBoolean(p.getProperty("runtime.allowUnsignedLocal", "false")));
+        PackageRepository repo = new PackageRepository(catalog, new AssetFiles(Paths.get(p.getProperty("runtime.repository.root")), Long.parseLong(p.getProperty("runtime.repository.maxBytes")), p.getProperty("runtime.repository.identity")), keys, Boolean.parseBoolean(p.getProperty("runtime.allowUnsignedLocal", "false")), Boolean.parseBoolean(p.getProperty("runtime.allowTrustedExecutables", "false")));
         Object result;
         switch (args[1]) {
             case "validate":

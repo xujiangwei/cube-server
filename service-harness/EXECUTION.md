@@ -1,6 +1,6 @@
 # Harness 资源循环与 Java 推理网关
 
-启用 `store.enabled=true`、`execution.enabled=true` 后提供独立 development 资源任务入口。Java 必须使用 JDK 8；独立数据库显式迁移到 schema=4。当前身份固定为受信 development tenant/subject，生产身份源及业务工具仍待后续接入。
+启用 `store.enabled=true`、`execution.enabled=true` 后提供独立 development 资源任务入口。Java 必须使用 JDK 8；独立数据库显式迁移到 schema=5。当前身份固定为受信 development tenant/subject，生产身份源和真实 Console 工具仍待后续接入；N08/N09 可信 CPU MockConsole 工具需显式启用，见 [TOOLS.md](TOOLS.md)。
 
 ## 推理链路与边界
 
@@ -27,7 +27,7 @@ common `CompletionProvider` 是异步内部接口，AIGCService 复用 ChatCompl
 
 ## 多单元、容量及执行证据
 
-一个 JVM 可接多个 Python worker，包括同角色多个实例。每个实例独占 workerId、runtimeDir、实例身份、journal 和租约，当前每进程一个处理槽。Java 配置 worker 的 model/backend 白名单，按模型/profile、能力、健康与可用处理槽分配。模型 Unit 的健康、能力和忙闲另行检查。
+一个 JVM 可接多个 Python worker，包括同角色多个实例。每个实例独占 workerId、runtimeDir、实例身份、journal 和租约，模型 worker 当前每进程一个处理槽；CPU Runner 的独立容量配置见 TOOLS.md。Java 配置 worker 的 model/backend 白名单，按模型/profile、能力、健康与可用处理槽分配。模型 Unit 的健康、能力和忙闲另行检查。
 
 共享同一物理引擎的所有模型/Unit/worker 必须使用同一 backendId 和可信 `backend.<id>.capacity`。数据库锁定 backend 行认领推理槽；先持久化 dispatched，再调用提供方。Python 处理期不占物理推理槽，实际推理期间占用；能力接口分别报告 processingSlots、processingAvailable、occupied、inferenceAvailable。Unit 忙时推理留在持久队列中，Cell 与心跳线程不等待推理。
 
@@ -39,7 +39,7 @@ Python 重启可以回放同一原 attempt 读取 Java 证据；没有既存推�
 
 ## 部署和迁移
 
-1. 按 [STORE.md](STORE.md) 显式执行 `StoreMigrations upgrade` 到 schema=4。004 增加推理/事件表与 job.execution_protocol，保留全部旧行；MySQL 迁移账户另需专用库 ALTER 权限，运行账户仍只需 DML。
+1. 按 [STORE.md](STORE.md) 显式执行 `StoreMigrations upgrade` 到 schema=5。004 增加推理/事件表与 job.execution_protocol，保留全部旧行；MySQL 迁移账户另需专用库 ALTER 权限，运行账户仍只需 DML。
 2. Java 使用 `config/execution.properties.template`，Python 使用 `harness/config/model-baize*.template.json`。workerCredential、Harness API credential 与 Java 后端模型 token 分别配置。
 3. 默认 Unit 后端要求 Harness 和 AIGCService 位于同一 Kernel/JVM。沿用宿主 ServiceCarpet 和 `config/cohost-cellet.xml`；独立 G0 standalone.xml 只有 Harness，没有 AIGCService，默认推理保持未就绪。外部模型必须显式 type=openai，并设置 baseUrl、model、token、capacity、timeoutSeconds。
 4. `ExecutionAdmin <new-directory>` 导出 ModelProfile schemaVersion=3/version=2 与 TaskProfile version=2。填写已 ready 的资源 release、权限与限额，显式 publish 后再切 active 绑定。旧直连 schemaVersion=2 model 禁止新建 run（LEGACY_DIRECT_MODEL_DISABLED），旧契约、profile、pin 和在途证据保留供对账。

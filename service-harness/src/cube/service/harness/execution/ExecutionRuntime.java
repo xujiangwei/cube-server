@@ -26,6 +26,8 @@ public final class ExecutionRuntime implements AutoCloseable {
     public final ModelDispatcher workers;
     public final RunCoordinator coordinator;
     public final InferenceGateway inference;
+    public final ToolBroker broker;
+    public final RunnerDispatcher runners;
     public final ProfileRegistry profiles;
     public final ProfileRegistry.Identity identity;
     private final CatalogStore catalog;
@@ -51,11 +53,13 @@ public final class ExecutionRuntime implements AutoCloseable {
         if (maxActive < 1 || maxActive > 256) throw new IllegalArgumentException("INVALID_ADMISSION_LIMIT");
         store.admissionLimit(maxActive);
         Path path = Paths.get(Objects.requireNonNull(p.getProperty("execution.repository"), "execution.repository"));
-        PackageRepository repo = new PackageRepository(catalog, new AssetFiles(path, Long.parseLong(p.getProperty("execution.repository.max.bytes", "67108864")), p.getProperty("execution.repository.namespace", "harness-resources")), Collections.emptyMap(), true);
+        PackageRepository repo = new PackageRepository(catalog, new AssetFiles(path, Long.parseLong(p.getProperty("execution.repository.max.bytes", "67108864")), p.getProperty("execution.repository.namespace", "harness-resources")), Collections.emptyMap(), true, Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false")));
         jobs = new ModelJobStore(store, sc.mysql());
         inference = new InferenceGateway(new InferenceStore(store, sc.mysql()), p, provider);
         workers = new ModelDispatcher(jobs, p, lease, inference);
-        coordinator = new RunCoordinator(store, jobs, catalog, identity, new ResourceTools(catalog, repo));
+        broker = Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false")) ? new ToolBroker(new ToolJobStore(store, sc.mysql()), identity, p) : null;
+        runners = broker == null ? null : new RunnerDispatcher(broker, p, lease);
+        coordinator = new RunCoordinator(store, jobs, catalog, identity, new ResourceTools(catalog, repo), broker);
     }
 
     public void start() {
@@ -115,5 +119,6 @@ public final class ExecutionRuntime implements AutoCloseable {
     public void close() {
         coordinator.close();
         inference.close();
+        if (broker != null) broker.close();
     }
 }

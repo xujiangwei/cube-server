@@ -143,7 +143,7 @@ public final class HarnessService extends AbstractModule {
 
     public void disconnect(long transport) {
         if (registry != null) registry.disconnect(transport);
-        if (execution != null) execution.workers.disconnect(transport);
+        if (execution != null) { execution.workers.disconnect(transport); if(execution.runners != null) execution.runners.disconnect(transport); }
     }
 
     @Override
@@ -170,10 +170,16 @@ public final class HarnessService extends AbstractModule {
         try {
             if (!started.get()) throw new IllegalArgumentException("HARNESS_NOT_READY");
             JSONObject request = StrictJson.object(raw);
-            if (request.optInt("protocolVersion", 0) == 2 || request.optInt("protocolVersion", 0) == 3)
+            if (request.optInt("protocolVersion", 0) == 2 || request.optInt("protocolVersion", 0) == 3 || request.optInt("protocolVersion", 0) == 4)
                 protocol = request.getInt("protocolVersion");
             if (request.opt("requestId") instanceof String && request.getString("requestId").length() <= 128)
                 id = request.getString("requestId");
+            if (protocol == 4) {
+                cube.service.harness.execution.ToolProtocol.parse("runner-request", raw);
+                if (!equal(config.values.getProperty("worker.credential"), request.getString("credential"))) throw new IllegalArgumentException("UNAUTHORIZED");
+                if (execution == null || execution.runners == null) throw new IllegalArgumentException("RUNNER_DISABLED");
+                return execution.runners.apply(request, transport, valid);
+            }
             if (protocol == 2 || protocol == 3) {
                 if (execution == null) {
                     protocol = 1;
@@ -206,9 +212,12 @@ public final class HarnessService extends AbstractModule {
     }
 
     private JSONObject capabilities() {
-        if (execution != null)
-            return new JSONObject().put("service", NAME).put("protocolVersion", 3).put("registeredWorkers", execution.workers.snapshot()).put("infrastructureReady", true)
-                    .put("runsReady", execution.workers.ready()).put("execution", "resource-loop").put("capacity", execution.workers.capacity());
+        if (execution != null) {
+            JSONArray all = execution.workers.snapshot();
+            if(execution.runners != null) {JSONArray runners = execution.runners.snapshot(); for(int i=0;i<runners.length();i++) all.put(runners.get(i));}
+            return new JSONObject().put("service", NAME).put("protocolVersion", execution.runners == null ? 3 : 4).put("registeredWorkers", all).put("infrastructureReady", true)
+                    .put("runsReady", execution.workers.ready()).put("execution", execution.runners == null ? "resource-loop" : "trusted-tool-loop").put("capacity", execution.workers.capacity());
+        }
         return new JSONObject().put("service", NAME).put("protocolVersion", 1).put("registeredWorkers", registry.snapshot()).put("infrastructureReady", registry.ready()).put("runsReady", false).put("execution", "scripted");
     }
 

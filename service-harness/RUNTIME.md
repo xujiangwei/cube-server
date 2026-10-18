@@ -1,10 +1,10 @@
 # N04 / N05：包、固定配置、资源与上下文
 
-本模块使用实际 JDK 8。N04/N05 的 Java 内部 API、离线管理 CLI 和两库专项已实现。N06/N07 的可选创建/资源循环入口、Baize/Baize2 adapter 与部署见 [EXECUTION.md](EXECUTION.md)；默认关闭 execution 时继续返回 `HARNESS_NOT_READY`，控制 API 留 N11。本文 scripted profile 仅作离线确定性验证，不代表真实模型 tokenizer/template/工具在线认证。
+本模块使用实际 JDK 8。N04/N05 的 Java 内部 API、离线管理 CLI 和两库专项已实现。N06/N07 的可选创建/资源循环入口、Java InferenceGateway、Baize/Baize2 决策 adapter 与部署见 [EXECUTION.md](EXECUTION.md)；默认关闭 execution 时继续返回 `HARNESS_NOT_READY`，控制 API 留 N11。本文 scripted profile 仅作离线确定性验证，不代表真实模型 tokenizer/template/工具在线认证。
 
 ## 存储与独立目录
 
-先按 [STORE.md](STORE.md) 配置专用数据库。正式 jar 同时包含不可变的 `001.sql` 和新增 `002.sql`，当前 schema=2。新空库用 `initialize-empty`，完整 v1 库显式用 `upgrade`；服务启动只校验，不执行 DDL。
+先按 [STORE.md](STORE.md) 配置专用数据库。正式 jar 同时包含不可变的 `001.sql` 和新增 `002.sql`，当前显式迁移目标为 schema5；本节八表为 N04 的历史 schema2 增量，后续 003～005 迁移同时打包。新空库用 `initialize-empty`，完整 v1 库显式用 `upgrade`；服务启动只校验，不执行 DDL。
 
 ```powershell
 java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrations upgrade C:/private/migrator.local.properties
@@ -19,7 +19,7 @@ v2 增加 release、binding、profile、run_config、release_ref、run_skill、w
 
 作者样例位于工作区 `skill/harness-packages/`，独立于旧 SKILL 教程。包包含 `manifest.json`、`SKILL.md`、`dependencies.lock.json` 及完整白名单。release digest 是规范化 manifest 的 SHA256，manifest 固定每个文件的 SHA256、长度、role 和媒体类型。只接受本地声明的 schema、锁定的 ready 依赖和已注册 runtime；不拉取远程依赖、不读取未声明文件。
 
-ZIP 最多 65 项、每项 256 KiB、总解压 2 MiB、压缩包 8 MiB，超过 1 KiB 的项目压缩比不得超过 100。拒绝重复/大小写冲突路径、穿越、绝对路径、反斜线、DOS 设备名、Unix symlink/special attrs、目录项、加密及不支持的 ZIP 格式。当前仅 `resources-only`，任何 executable/entrypoint 都拒绝，模型输出的代码不会执行。
+ZIP 最多 65 项、每项 256 KiB、总解压 2 MiB、压缩包 8 MiB，超过 1 KiB 的项目压缩比不得超过 100。拒绝重复/大小写冲突路径、穿越、绝对路径、反斜线、DOS 设备名、Unix symlink/special attrs、目录项、加密及不支持的 ZIP 格式。默认使用 `resources-only`，拒绝 executable/entrypoint。N08/N09 增加需显式启用的可信标准库 executable v2、64 KiB 包上限和 Cell v4 CPU Runner，部署/授权/配额/撤回以 [TOOLS.md](TOOLS.md) 为准。模型生成的代码不进入该执行路径。
 
 在私有 Store 配置中增加：
 

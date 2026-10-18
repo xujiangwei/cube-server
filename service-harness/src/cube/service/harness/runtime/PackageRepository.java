@@ -27,19 +27,25 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 /**
- * Immutable content-addressed, resource-only releases. No package code is executed.
+ * Immutable content-addressed releases. Trusted CPU execution requires explicit opt-in.
  */
 public final class PackageRepository {
     private final CatalogStore catalog;
     private final AssetFiles files;
     private final Map<String, PublicKey> trustedKeys;
     private final boolean unsignedLocalDevelopment;
+    private final boolean trustedExecutables;
 
     public PackageRepository(CatalogStore catalog, AssetFiles files, Map<String, PublicKey> keys, boolean unsignedLocalDevelopment) {
+        this(catalog, files, keys, unsignedLocalDevelopment, false);
+    }
+
+    public PackageRepository(CatalogStore catalog, AssetFiles files, Map<String, PublicKey> keys, boolean unsignedLocalDevelopment, boolean trustedExecutables) {
         this.catalog = catalog;
         this.files = files;
         this.trustedKeys = new HashMap<>(keys);
         this.unsignedLocalDevelopment = unsignedLocalDevelopment;
+        this.trustedExecutables = trustedExecutables;
     }
 
     private static int u16(byte[] b, int p) {
@@ -128,7 +134,11 @@ public final class PackageRepository {
         }
         if (!entries.keySet().equals(central) || !entries.containsKey("manifest.json"))
             throw RuntimeSupport.error("PACKAGE_MANIFEST_MISSING");
-        JSONObject manifest = RuntimeSupport.parse("manifest-v1", entries.remove("manifest.json"));
+        JSONObject manifest = StrictJson.object(entries.remove("manifest.json"));
+        int schemaVersion = manifest.getInt("schemaVersion");
+        if (schemaVersion != 1 && schemaVersion != 2) throw RuntimeSupport.error("UNKNOWN_PACKAGE_SCHEMA");
+        RuntimeSupport.validate("manifest-v" + schemaVersion, manifest);
+        if (schemaVersion == 2 && (!trustedExecutables || total > 65536)) throw RuntimeSupport.error("EXECUTABLE_RUNTIME_NOT_CERTIFIED");
         Set<String> declared = new HashSet<>();
         int skills = 0, locks = 0;
         JSONArray list = manifest.getJSONArray("files");
@@ -151,12 +161,13 @@ public final class PackageRepository {
                 if (!name.equals("dependencies.lock.json")) throw RuntimeSupport.error("PACKAGE_LOCK_INVALID");
             }
             if (file.getString("role").equals("schema")) RuntimeSupport.toolSchema(StrictJson.object(data));
-            if (file.getString("role").equals("entrypoint"))
+            if (file.getString("role").equals("entrypoint") && (!trustedExecutables || schemaVersion != 2 || !name.endsWith(".py")))
                 throw RuntimeSupport.error("EXECUTABLE_RUNTIME_NOT_CERTIFIED");
         }
         if (!declared.equals(entries.keySet()) || skills != 1 || locks != 1)
             throw RuntimeSupport.error("UNDECLARED_PACKAGE_FILE");
-        RuntimeSupport.parse("dependencies-v1", entries.get("dependencies.lock.json"));
+        JSONObject dependencies = RuntimeSupport.parse("dependencies-v1", entries.get("dependencies.lock.json"));
+        if(schemaVersion == 2 && dependencies.getJSONArray("dependencies").length() != 0) throw RuntimeSupport.error("RUNNER_STDLIB_ONLY");
         RuntimeSupport.strings(manifest.getJSONArray("permissions"));
         Set<String> tools = new HashSet<>();
         for (int i = 0; i < manifest.getJSONArray("tools").length(); i++) {
@@ -164,7 +175,8 @@ public final class PackageRepository {
             String name = tool.getString("name");
             if (!name.startsWith(manifest.getString("name").replace('/', '.') + ".") || !tools.add(name))
                 throw RuntimeSupport.error("RESERVED_TOOL_NAME");
-            if (!tool.getString("kind").equals("resource"))
+            boolean executable = tool.getString("kind").equals("executable");
+            if (executable && (!trustedExecutables || schemaVersion != 2))
                 throw RuntimeSupport.error("EXECUTABLE_RUNTIME_NOT_CERTIFIED");
             for (String field : Arrays.asList("inputSchema", "outputSchema")) {
                 String path = RuntimeSupport.path(tool.getString(field));
@@ -173,10 +185,17 @@ public final class PackageRepository {
                     throw RuntimeSupport.error("PACKAGE_SCHEMA_MISSING");
                 RuntimeSupport.toolSchema(StrictJson.object(entries.get(path)));
             }
-            if (!tool.has("resourcePath") || !declared.contains(RuntimeSupport.path(tool.getString("resourcePath"))) || tool.has("entrypoint"))
-                throw RuntimeSupport.error("PACKAGE_RESOURCE_TOOL_INVALID");
-            if (!Arrays.asList("skill", "resource").contains(file(manifest, tool.getString("resourcePath")).getString("role")) || !tool.getString("permission").equals("resource.read"))
-                throw RuntimeSupport.error("PACKAGE_RESOURCE_TOOL_INVALID");
+            if (executable) {
+                if (tool.has("resourcePath") || !tool.has("entrypoint") || !declared.contains(RuntimeSupport.path(tool.getString("entrypoint")))
+                        || !file(manifest, tool.getString("entrypoint")).getString("role").equals("entrypoint")
+                        || !tool.getString("permission").equals("console.status.read") || !tool.getString("effect").equals("read-only")
+                        || !tool.getString("brokerOperation").equals("mockconsole.query_status")) throw RuntimeSupport.error("PACKAGE_EXECUTABLE_INVALID");
+            } else {
+                if (schemaVersion != 1 || !tool.has("resourcePath") || !declared.contains(RuntimeSupport.path(tool.getString("resourcePath"))) || tool.has("entrypoint"))
+                    throw RuntimeSupport.error("PACKAGE_RESOURCE_TOOL_INVALID");
+                if (!Arrays.asList("skill", "resource").contains(file(manifest, tool.getString("resourcePath")).getString("role")) || !tool.getString("permission").equals("resource.read"))
+                    throw RuntimeSupport.error("PACKAGE_RESOURCE_TOOL_INVALID");
+            }
             if (!RuntimeSupport.strings(manifest.getJSONArray("permissions")).contains(tool.getString("permission")))
                 throw RuntimeSupport.error("PACKAGE_PERMISSION_UNDECLARED");
         }

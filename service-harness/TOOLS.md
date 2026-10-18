@@ -1,0 +1,53 @@
+# N08/N09：可信 CPU Runner 与 MockConsole Broker
+
+本实现面向经管理员审核的 Python 标准库工具包，使用实际 JDK 8、Python 3.11、独立数据库 schema5 和 Cell v4。一个 Java Harness JVM 可连接多个同角色 Runner；每个单元独占 workerId、runtimeDir、journal、实例身份和租约。原 v1 注册、v2 scripted 模型及 v3 Java 推理网关保持各自协议。
+
+目前唯一业务操作是 `mockconsole.query_status`，effect=`read-only`，permission=`console.status.read`。只允许 loopback 私有 MockConsole；真实 Console adapter、登录态和真实模型纵向认证属于 N10。此实现不能执行模型生成代码，也不是 N14 的动态代码沙箱。
+
+## 显式启用
+
+保留 [EXECUTION.md](EXECUTION.md) 的独立身份、模型、仓库和存储配置，增加下列私有配置。先用专用迁移账户运行现有 `StoreMigrations` CLI，显式升级到 schema5；运行账户不执行 DDL。新增加四张 `harness_*` 表，001～004 迁移不变。
+
+```properties
+execution.tools.enabled=true
+execution.permissions=skill.list,skill.activate,resource.list,resource.read,resource.search,console.status.read
+worker.runner-a.role=runner
+worker.runner-a.capacity=1
+worker.runner-b.role=runner
+worker.runner-b.capacity=1
+runner.grant.key=replace-with-private-random-key-at-least-32-characters
+broker.node.id=unique-stable-harness-node-id
+broker.mock.enabled=true
+broker.mock.url=http://127.0.0.1:18090/status
+broker.mock.token=replace-with-private-random-token-at-least-24-characters
+broker.mock.targets=node-a,node-b
+broker.mock.fields=cpuPercent,memoryMiB
+```
+
+多个 Java 节点必须使用不同且重启后稳定的 `broker.node.id`。构造 Broker 时只将该节点原有 dispatched 窗口转为 unknown，避免重发可能已发送的上游请求。Java 保存的 grant 使用 HMAC-SHA256；key、上游 token 和地址均不进入脚本或模型上下文。开发 API 的身份仍由可信配置固定，尚无生产身份源。
+
+Python 使用原 `harness/requirements.txt` 的六个固定版本依赖，无 torch、模型库或额外 Runner 包。配置参见 Python `harness/config/runner-cpu.template.json`，一个进程可配置 1～8 个槽，必须与 Java 白名单一致。`requestTimeout` 不超过 3 秒。以非管理员/非 root 身份运行，提升身份直接拒绝；未提供提升身份绕过开关。旧无 `runner` 配置的 G0 runner 保留 scripted.echo。
+
+## 发布与执行
+
+新包使用 manifest schemaVersion=2，固定审核后的 `.py` entrypoint、文件 SHA256、空 `dependencies.lock.json` 和明确的输入/输出 schema。包内容不超过 64 KiB；工具的参数/结果 schema 必须与服务端注册完全一致。发布端必须显式配置 `runtime.allowTrustedExecutables=true` 才能 validate/upload；原签名、公钥和本地 unsigned 开关继续生效。默认拒绝 executable。
+
+作者样例在工作区 `skill/harness-packages/mock-status/`。用既有 `build_package.py` 生成 ZIP，再通过 `RuntimeAdmin` validate/upload。先发布 schemaVersion=2 的 `trusted-python-v1` RuntimeProfile，再发布引用该 runtime/release 的新 TaskProfile；toolSetVersion=`mock-tools-v1`，requiredCapabilities 包含 `tool.execute`。模型仍先 `skill.activate`，然后才能提议该包工具；不会读取旁边任意脚本后自动执行。
+
+唯一 RunCoordinator 写入 call intent；Broker 验证固定 profile、权限交集、effect、schema、目标和字段，然后进入持久化有界队列（256）。Runner pull 仅选择健康、未 drain 且具有实际容量的单元，先提交本地 SQLite FULL journal，再请求 Java durable accepted。grant 固定 run/call/attempt/release/参数摘要/目标/字段/tenant/subject/原 fence/worker/runtime/60 秒 TTL；accepted 和上游派发前重新授权。
+
+Runner 用固定解释器 `-I -S -B` 运行已校验包，子环境仅含必要的系统目录和独立临时目录。脚本只有 arguments、packageRoot、workspace；stdin/stdout 使用严格逐行 JSON IPC。SDK `query_status` 只传目标和字段；Broker 固定 URL，先投影目标/字段，再返回脚本。stdout 调试文本、重复字段、额外消息、超限或无合法结果均失败；stderr 有界。Python worker 的网络等待与进程监督分离，丢失 Cell 响应不会阻止监督线程检查超时/取消。
+
+每任务最多 30 秒、stdout/stderr 各 32 KiB、工作区最多 10 MiB/256 项，并进一步收紧到 RuntimeProfile 的配额。工作区按周期扫描，超额后终止整树；这不是恶意进程的 OS 硬磁盘配额。审核策略默认拒绝 socket/native 注册表访问、任意 subprocess 和工作区外写入。SDK 只允许启动同包声明的子 entrypoint。Windows 在交付脚本 context 前绑定 kill-on-close Job Object，取消后核验活动进程数为零；POSIX 使用独立进程组，原生 Linux 验收仍待完成。
+
+结果先进入 Runner journal，再重送给 Java；Java 校验严格 tool-result、包输出 schema 及授权投影后保存，才返回原 report 摘要作为 ACK。无效输出保存 `TOOL_OUTPUT_INVALID` 并 ACK，坏输出不进入模型。传输重送不增加 attempt。Broker 有 2 个 HTTP 线程、32 个排队项和最多 34 个执行/待提交结果；HTTP 超时、大小及截止限制独立于 Cell 回调。结果 DB 提交失败只重试提交内存中的同一结果，不重复 HTTP。
+
+## 故障、保留与撤回
+
+断线、租约过期、drain、取消请求或 ACK 都不能证明执行结束。真实树收尾前保留 Java 槽；journal 中 running 在重启后转 unknown，不自动重跑，即使 unknown report 已 ACK 也不恢复健康。workerId 持久绑定原 runtimeId 和容量；换目录或换实例不能绕开未决任务。Runner 可注册为 ready=false 并重送 unknown 证据，启动 CLI 会保留这种隔离状态。
+
+执行结束而 Broker 效果仍未知时，物理槽可以依据实际结束释放，但 run 的 executionSettlement 保持 unknown，禁止下一模型轮或自动补执行。当前 owner 可以接收原 intent/fence 的历史结果；旧 fence 无权发起新的 Broker 操作。不承诺通用 exactly-once。尚未开放 N11 的公共撤权/控制接口，当前使用内部 durable revoke/cancel 方法。
+
+保留 journal、结果未 ACK 的工作区和 Java 未决账本。当前不自动 GC；为独立运行根配置磁盘预算并按已 ACK/已结算清单维护，不能删除 unknown 记录以恢复容量。撤回先禁用 executable profile/新派发，定向停止各 Runner 并保存 journal；不要直接用 `execution.tools.enabled=false` 切断仍需报告的未决 Runner。结算后再关闭入口。schema5 是加法迁移，旧 schema4 二进制会拒绝新库；需要回旧版本时使用停机前专用库备份，不删除新表伪造降级。
+
+验证使用 `ant test-tools`、既有 test-store/runtime/execution/inference、Python unittest 及 `scripts/n08_n09_smoke.py`。本轮完整命令、两库结果、真实多进程记录与撤回边界见工作区 `harness/execution-records/n08-n09-20261018/N08-N09/report.md`。Windows 本机专项通过不替代 N02 原生 Linux、N06 在线、N10 或 G2 门槛。
