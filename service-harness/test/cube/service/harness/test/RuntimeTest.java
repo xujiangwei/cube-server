@@ -74,7 +74,7 @@ public final class RuntimeTest {
         try{new JdbcRunStore(config);throw new AssertionError("v1 startup accepted");}catch(StoreException expected){}
         StoreMigrations.migrate(config,false);StoreMigrations.migrate(config,false);
         try(Connection c=config.connect();Statement s=c.createStatement();ResultSet r=s.executeQuery("SELECT data_json FROM harness_event WHERE run_id='v1-retained'")){check(r.next()&&r.getString(1).equals("{\"original\":true}"),"v1 data lost");StoreMigrations.verify(c,config);}
-        pass("explicit v1-to-v2 upgrade preserves original run/event; repeat safe; v1 startup refused");
+        pass("explicit v1-to-current upgrade preserves original run/event; repeat safe; v1 startup refused");
     }
     static void setup() throws Exception {
         store=new JdbcRunStore(config);catalog=new CatalogStore(store,config.mysql());profiles=new ProfileRegistry(catalog);

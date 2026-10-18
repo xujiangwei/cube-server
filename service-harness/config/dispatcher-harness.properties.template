@@ -1,0 +1,6 @@
+# Explicitly merge into the dispatcher's private properties. Development only.
+harness.rest.enabled=false
+harness.rest.mode=development
+harness.rest.backend=http://127.0.0.1:7088
+harness.rest.client.credential=
+harness.rest.backend.credential=

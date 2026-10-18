@@ -43,7 +43,7 @@ public final class ProfileRegistry {
         String kind = definition.getString("kind");
         if (!Arrays.asList("model", "runtime", "task").contains(kind))
             throw RuntimeSupport.error("UNKNOWN_PROFILE_KIND");
-        RuntimeSupport.validate(kind + "-profile-v1", definition);
+        RuntimeSupport.validate(kind + "-profile-v" + definition.getInt("schemaVersion"), definition);
         if (definition.has("capabilities")) RuntimeSupport.strings(definition.getJSONArray("capabilities"));
         if (kind.equals("task")) {
             RuntimeSupport.strings(definition.getJSONArray("skillReleases"));

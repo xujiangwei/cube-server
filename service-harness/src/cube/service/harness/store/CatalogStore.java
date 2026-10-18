@@ -167,14 +167,22 @@ public final class CatalogStore {
     }
 
     public void activate(String tenant, String subject, String runId, String digest) {
+        activate(tenant,subject,runId,digest,null);
+    }
+
+    public void activate(JdbcRunStore.Lease lease,String digest) {activate(lease.tenant,lease.subject,lease.runId,digest,lease);}
+
+    private void activate(String tenant,String subject,String runId,String digest,JdbcRunStore.Lease lease) {
         store.tx(c -> {
+            JSONObject run=store.run(c,tenant,subject,runId,true);
+            if(lease!=null)store.owner(c,run,lease);
             JSONObject pin = pinned(c, tenant, subject, runId);
             requireRelease(pin, digest);
             if (!RuntimeSupport.strings(pin.getJSONArray("permissions")).contains("skill.activate"))
                 throw new StoreException("RESOURCE_FORBIDDEN");
             if (first(rows(c, "SELECT digest FROM harness_run_skill WHERE run_id=? AND digest=?", runId, digest)) == null) {
                 update(c, "INSERT INTO harness_run_skill VALUES (?,?)", runId, digest);
-                store.emit(c, store.run(c, tenant, subject, runId, true), "skill.activated", new JSONObject().put("digest", digest), "coordinator");
+                store.emit(c, run, "skill.activated", new JSONObject().put("digest", digest), "coordinator");
             }
             return null;
         });
@@ -277,5 +285,12 @@ public final class CatalogStore {
             if (row == null) throw new StoreException("CONTEXT_NOT_FOUND");
             return row.getString("digest");
         });
+    }
+
+    /** Authorized service identity selects one tenant; clients cannot supply it. */
+    public JSONArray taskProfiles(String tenant) {
+        return store.tx(c -> rows(c,"SELECT p.definition_json FROM harness_binding b JOIN harness_profile p ON p.tenant=b.tenant AND p.profile_kind=b.binding_kind AND p.profile_id=b.binding_name AND b.target_ref="
+            + (mysql?"CONCAT(p.profile_id,'@',p.profile_version)":"p.profile_id || '@' || p.profile_version")
+            + " WHERE b.tenant=? AND b.binding_kind='task' ORDER BY b.binding_name LIMIT 64",tenant));
     }
 }

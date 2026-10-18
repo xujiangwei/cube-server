@@ -1,0 +1,23 @@
+# Merge into a private Harness configuration after reviewing EXECUTION.md.
+# Explicitly initialize/upgrade the dedicated store to schema v3 first.
+execution.enabled=false
+execution.tenant=development
+execution.subject=developer
+execution.permissions=skill.list,skill.activate,resource.list,resource.read,resource.search
+execution.max.active=128
+execution.repository=C:/private/harness/resources
+execution.repository.namespace=harness-resources
+execution.repository.max.bytes=67108864
+
+worker.baize-1.role=model
+worker.baize-1.model=Baize
+worker.baize-1.backend=baize-dedicated
+worker.baize2-1.role=model
+worker.baize2-1.model=Baize2
+worker.baize2-1.backend=baize2-dedicated
+worker.baize2-2.role=model
+worker.baize2-2.model=Baize2
+worker.baize2-2.backend=baize2-dedicated
+backend.baize-dedicated.capacity=1
+# Both Baize2 units share this ONE physical backend capacity.
+backend.baize2-dedicated.capacity=1

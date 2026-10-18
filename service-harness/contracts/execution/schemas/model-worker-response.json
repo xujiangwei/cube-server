@@ -1,0 +1,190 @@
+{
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            2
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "ok": {
+          "type": "boolean",
+          "enum": [
+            true
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "leaseMillis": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 60000
+        },
+        "registered": {
+          "type": "boolean"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "job": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "runId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "roundId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "attempt": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1
+            },
+            "originFence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000000000
+            },
+            "intentHash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "requestHash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "requestJson": {
+              "type": "string",
+              "maxLength": 65536
+            },
+            "workerId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "instanceId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "sessionId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "model": {
+              "type": "string",
+              "enum": [
+                "Baize",
+                "Baize2",
+                "scripted"
+              ]
+            }
+          },
+          "required": [
+            "jobId",
+            "runId",
+            "roundId",
+            "attempt",
+            "originFence",
+            "intentHash",
+            "requestHash",
+            "requestJson",
+            "workerId",
+            "instanceId",
+            "sessionId",
+            "model"
+          ],
+          "additionalProperties": false
+        },
+        "cancellations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "maxItems": 32
+        },
+        "capacity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "occupied": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "ok",
+        "sessionId",
+        "leaseMillis",
+        "registered",
+        "ready",
+        "cancellations"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            2
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "ok": {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        },
+        "errorCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "ok",
+        "errorCode"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

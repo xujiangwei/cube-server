@@ -1,0 +1,183 @@
+{
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        2
+      ]
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "model"
+      ]
+    },
+    "backend": {
+      "type": "string",
+      "enum": [
+        "openai-compatible",
+        "ninfer",
+        "transformers"
+      ]
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9_.:-]+$"
+      },
+      "maxItems": 64
+    },
+    "tokenizer": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "template": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "templateOverhead": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8192
+    },
+    "maxContextTokens": {
+      "type": "integer",
+      "minimum": 128,
+      "maximum": 1048576
+    },
+    "certification": {
+      "type": "string",
+      "enum": [
+        "offline-adapter",
+        "online-certified"
+      ]
+    },
+    "adapter": {
+      "type": "string",
+      "enum": [
+        "baize-json-v1",
+        "baize2-tools-v1"
+      ]
+    },
+    "adapterDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nativeTools": {
+      "type": "boolean"
+    },
+    "generation": {
+      "type": "object",
+      "properties": {
+        "temperature": {
+          "type": "integer",
+          "enum": [
+            0
+          ]
+        },
+        "topP": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
+        "stream": {
+          "type": "boolean"
+        },
+        "maxRepairs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "temperature",
+        "topP",
+        "stream",
+        "maxRepairs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "kind",
+    "backend",
+    "capabilities",
+    "tokenizer",
+    "template",
+    "templateOverhead",
+    "maxContextTokens",
+    "certification",
+    "adapter",
+    "adapterDigest",
+    "nativeTools",
+    "generation"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

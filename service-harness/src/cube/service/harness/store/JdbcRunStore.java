@@ -23,6 +23,9 @@ import java.util.*;
 public final class JdbcRunStore {
     private final StoreConfig config;
     private final Faults faults;
+    private volatile int admissionLimit = Integer.MAX_VALUE;
+
+    public void admissionLimit(int limit) {if(limit<1||limit>256)throw new StoreException("INVALID_ADMISSION_LIMIT");admissionLimit=limit;}
 
     public interface Faults {
         void at(String boundary);
@@ -264,6 +267,12 @@ public final class JdbcRunStore {
         return createResolved(tenant, subject, key, profileVersion, request, null);
     }
 
+    public JSONObject findCreate(String tenant,String subject,String key,String profileVersion,JSONObject request) {
+        String k=requestKey(tenant,subject,"create","runs",key);
+        String digest=hash(new JSONObject().put("profileVersion",profileVersion).put("request",request));
+        return tx(c -> replay(c,k,digest));
+    }
+
     interface ConfigResolver { JSONObject resolve(java.sql.Connection connection) throws Exception; }
 
     JSONObject createResolved(String tenant, String subject, String key, String profileVersion, JSONObject request, ConfigResolver resolver) {
@@ -271,8 +280,12 @@ public final class JdbcRunStore {
         String k = requestKey(tenant, subject, "create", "runs", key);
         String digest = hash(new JSONObject().put("profileVersion", profileVersion).put("request", request));
         return tx(c -> {
+            // A store identity row is the admission mutex across service replicas. Replay remains legal when full.
+            if(resolver!=null&&config.mysql())rows(c,"SELECT singleton FROM harness_store_identity WHERE singleton=1 FOR UPDATE");
             JSONObject old = replay(c, k, digest);
             if (old != null) return old;
+            if(resolver!=null&&first(rows(c,"SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input')",tenant)).getLong("n")>=admissionLimit)
+                throw new StoreException("HARNESS_BUSY");
             String runId = UUID.randomUUID().toString();
             long time = now(c);
             JSONObject pinned = resolver == null ? null : resolver.resolve(c);
@@ -618,6 +631,7 @@ public final class JdbcRunStore {
             JSONArray out = new JSONArray();
             for (int i = 0; i < found.length(); i++) {
                 JSONObject e = found.getJSONObject(i);
+                if(e.getLong("event_seq")!=after+i+1)throw new StoreException("EVENT_GAP");
                 out.put(new JSONObject().put("runId", runId).put("eventSeq", e.getLong("event_seq"))
                         .put("runVersion", e.getLong("run_version")).put("type", e.getString("event_type"))
                         .put("occurredAt", e.getLong("occurred_at")).put("schemaVersion", e.getInt("schema_version")).put("dataJson", e.getString("data_json")));

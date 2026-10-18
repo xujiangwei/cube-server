@@ -1,0 +1,70 @@
+name: Harness (independent)
+on:
+  push:
+    paths: ['service-harness/**', 'dispatcher/src/cube/dispatcher/harness/**', 'dispatcher/src/cube/dispatcher/Performer.java', 'build.xml', '.github/workflows/harness.yml']
+  pull_request:
+    paths: ['service-harness/**', 'dispatcher/src/cube/dispatcher/harness/**', 'dispatcher/src/cube/dispatcher/Performer.java', 'build.xml', '.github/workflows/harness.yml']
+  workflow_dispatch:
+    inputs:
+      python_ref:
+        description: 'cube Python repository revision containing the matching Harness contracts'
+        required: true
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '8'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python service-harness/scripts/ci_dependencies.py "$RUNNER_TEMP/harness-deps"
+      - run: ant -f common/build.xml -Dlib.dir="$RUNNER_TEMP/harness-deps" build-debug
+      - run: ant -f service-harness/build.xml test-store test-runtime test-execution stage
+      - run: ant -f dispatcher/build.xml -Dlib.dir="$RUNNER_TEMP/harness-deps" debug
+      - run: java -cp "service-harness/build/test-classes:dispatcher/build/classes:build/cube-common-3.0.jar:deploy/bin/cell.jar:deploy/libs/*" cube.service.harness.test.HarnessGatewayTest
+      - run: python service-harness/scripts/check_build_graph.py
+  cell-roundtrip:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: xujiangwei/cube
+          ref: ${{ inputs.python_ref }}
+          path: python-worker
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '8'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python service-harness/scripts/ci_dependencies.py "$RUNNER_TEMP/harness-deps"
+      - run: ant -f common/build.xml -Dlib.dir="$RUNNER_TEMP/harness-deps" build-debug
+      - run: ant -f service-harness/build.xml test
+      - run: python -m pip install -r python-worker/harness/requirements.txt
+      - run: >-
+          python -B service-harness/scripts/g0_smoke.py
+          --java "$JAVA_HOME/bin/java" --common-jar build/cube-common-3.0.jar
+          --cell-jar deploy/bin/cell.jar --libs deploy/libs --python-root python-worker
+          --runtime "$RUNNER_TEMP/harness-runtime" --evidence "$RUNNER_TEMP/harness-evidence"
+      - run: >-
+          python -B service-harness/scripts/n06_n07_smoke.py
+          --java "$JAVA_HOME/bin/java" --common-jar build/cube-common-3.0.jar
+          --cell-jar deploy/bin/cell.jar --libs deploy/libs --python-root python-worker
+          --runtime "$RUNNER_TEMP/harness-execution-runtime" --evidence "$RUNNER_TEMP/harness-execution-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: harness-cell-evidence
+          path: |
+            ${{ runner.temp }}/harness-evidence
+            ${{ runner.temp }}/harness-execution-evidence

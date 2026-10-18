@@ -33,6 +33,11 @@
       <sysproperty key="runtime.test.root" value="${runtime.test.root}"/>
     </java>
   </target>
+  <target name="test-execution" depends="test">
+    <java classname="cube.service.harness.test.ExecutionTest" fork="true" failonerror="true">
+      <classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath>
+    </java>
+  </target>
   <target name="build-debug" depends="build"><copy file="${build.dir}/cube-service-harness-3.0.jar" todir="../build"/></target>
   <target name="build-release" depends="build-debug"/>
   <target name="test" depends="build">

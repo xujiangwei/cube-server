@@ -1,6 +1,6 @@
 # N04 / N05：包、固定配置、资源与上下文
 
-本模块使用实际 JDK 8。N04/N05 的 Java 内部 API、离线管理 CLI 和两库专项已实现；业务 HTTP 创建/控制入口继续返回 `HARNESS_NOT_READY`，等待 N07 Coordinator。真实模型 tokenizer/template/工具认证属于 N06，本文 scripted profile 仅作离线确定性验证。
+本模块使用实际 JDK 8。N04/N05 的 Java 内部 API、离线管理 CLI 和两库专项已实现。N06/N07 的可选创建/资源循环入口、Baize/Baize2 adapter 与部署见 [EXECUTION.md](EXECUTION.md)；默认关闭 execution 时继续返回 `HARNESS_NOT_READY`，控制 API 留 N11。本文 scripted profile 仅作离线确定性验证，不代表真实模型 tokenizer/template/工具在线认证。
 
 ## 存储与独立目录
 

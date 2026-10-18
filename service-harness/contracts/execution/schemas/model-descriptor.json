@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "properties": {
+    "model": {
+      "type": "string",
+      "enum": [
+        "Baize",
+        "Baize2",
+        "scripted"
+      ]
+    },
+    "backendId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "adapter": {
+      "type": "string",
+      "enum": [
+        "scripted-v1",
+        "baize-json-v1",
+        "baize2-tools-v1"
+      ]
+    },
+    "capacity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 32
+    },
+    "nativeTools": {
+      "type": "boolean"
+    },
+    "cancellation": {
+      "type": "string",
+      "enum": [
+        "observe-only"
+      ]
+    },
+    "budget": {
+      "type": "string",
+      "enum": [
+        "transport-bytes-v1"
+      ]
+    },
+    "profileDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "model",
+    "backendId",
+    "adapter",
+    "capacity",
+    "nativeTools",
+    "cancellation",
+    "budget",
+    "profileDigest"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

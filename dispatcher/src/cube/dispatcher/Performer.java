@@ -70,6 +70,7 @@ public class Performer implements TalkListener, Tickable {
      * HTTP 服务。
      */
     private HttpServer httpServer;
+    private cube.dispatcher.harness.HarnessGateway harnessGateway;
 
     /**
      * 服务主机列表。
@@ -591,6 +592,8 @@ public class Performer implements TalkListener, Tickable {
         }
 
         // 启动 HTTP 服务器
+        if (this.harnessGateway == null)
+            this.harnessGateway = cube.dispatcher.harness.HarnessGateway.install(this.httpServer, this.properties);
         this.httpServer.start();
 
         // 启动流服务器

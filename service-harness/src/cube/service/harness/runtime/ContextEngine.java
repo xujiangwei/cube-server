@@ -43,6 +43,17 @@ public final class ContextEngine {
     }
 
     private static void certify(JSONObject model) {
+        if (model.optInt("schemaVersion",1)==2) {
+            String adapter=model.getString("adapter");
+            if(!Arrays.asList("Baize","Baize2").contains(model.getString("id"))
+                ||!adapter.equals(model.getString("id").equals("Baize")?"baize-json-v1":"baize2-tools-v1")
+                ||!cube.service.harness.execution.ModelProfiles.adapterDigest(adapter).equals(model.getString("adapterDigest"))
+                ||model.getBoolean("nativeTools")!=model.getString("id").equals("Baize2")
+                ||!JdbcRunStore.canonical(cube.service.harness.execution.ModelProfiles.tokenizer()).equals(JdbcRunStore.canonical(model.getJSONObject("tokenizer"))))
+                throw RuntimeSupport.error("TOKENIZER_MISMATCH");
+            if(!JdbcRunStore.canonical(template()).equals(JdbcRunStore.canonical(model.getJSONObject("template"))))throw RuntimeSupport.error("TEMPLATE_MISMATCH");
+            return;
+        }
         if (!model.getString("backend").equals("scripted") || !model.getString("certification").equals("offline-scripted")
                 || !JdbcRunStore.canonical(tokenizer()).equals(JdbcRunStore.canonical(model.getJSONObject("tokenizer"))))
             throw RuntimeSupport.error("TOKENIZER_MISMATCH");
@@ -98,7 +109,7 @@ public final class ContextEngine {
     public JSONObject assemble(ProfileRegistry.Identity identity, String run, JSONArray handles) throws Exception {
         JSONObject basis = catalog.contextBasis(identity.tenant, identity.subject, run), pin = basis.getJSONObject("pin"), task = pin.getJSONObject("task"), model = pin.getJSONObject("model"), policy = task.getJSONObject("contextPolicy");
         certify(model);
-        if (!policy.getString("budgetVersion").equals("full-json-bytes-v1") || !policy.getString("version").equals("context-v1")
+        if (!policy.getString("budgetVersion").equals(model.optInt("schemaVersion",1)==2?"transport-bytes-v1":"full-json-bytes-v1") || !policy.getString("version").equals("context-v1")
                 || !task.getString("toolSetVersion").equals("resource-tools-v1"))
             throw RuntimeSupport.error("CONTEXT_POLICY_UNSUPPORTED");
         Set<String> granted = RuntimeSupport.strings(pin.getJSONArray("permissions"));
@@ -210,6 +221,7 @@ public final class ContextEngine {
         messages.put(message("system", "platform:ledger-facts", factSummary));
         JSONObject modelRequest = new JSONObject().put("messages", messages).put("tools", resources.tools(identity, run))
                 .put("responseSchema", StrictJson.object(Contract.resource("schemas/model-decision.json"))).put("outputReserve", policy.getInt("outputReserve"));
+        if(model.optInt("schemaVersion",1)==2)modelRequest.put("generation",model.getJSONObject("generation"));
         long tokens;
         String rendered;
         for (; ; ) {

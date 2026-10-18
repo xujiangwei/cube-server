@@ -3,5 +3,7 @@
   "manifest-v1.json": "8138c2ca7c8e7fd924466715f2155b887877e99f7deebbd1be176f07b398326e",
   "model-profile-v1.json": "f45fd0ae3ff1de8c6fc02991ca8db3de0be6908d9d4a5ddfb7beebc1dd58a949",
   "runtime-profile-v1.json": "d1144f53ba36b346083eb12f4ad4fe9309c7b4b0df2568ca09f062358c8edf46",
-  "task-profile-v1.json": "a6aa9c85c92748ad0c050518adc9e5fc800cd2da0c647ad61ad130244673ac05"
+  "task-profile-v1.json": "a6aa9c85c92748ad0c050518adc9e5fc800cd2da0c647ad61ad130244673ac05",
+  "model-profile-v2.json": "2ad128708153f9dc778efd8a251a53042159acd75b137a98974f200d05440996",
+  "task-profile-v2.json": "88831ef045c859ce9a16b4f3dff8796e3b938ed6fc12e803e35057a504890ad7"
 }

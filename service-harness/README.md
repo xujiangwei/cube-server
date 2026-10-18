@@ -1,10 +1,10 @@
-# Harness Cellet / N00–N05
+# Harness Cellet / N00–N07
 
-正式服务是 `cube.service.harness.HarnessCellet` + `HarnessService`，NAME=`Harness`。产物 `cube-service-harness-3.0.jar` 只放在 `cellets/`，按标准 Cell XML 安装并交给 Kernel 启停；不注册到 AIGC 插件表。当前只有 CPU scripted 通信能力，业务任务返回 `HARNESS_NOT_READY`。协议见 [CONTRACT.md](CONTRACT.md)，完整验收记录见工作区 `harness/execution-records/g0-20261017/`。
+正式服务是 `cube.service.harness.HarnessCellet` + `HarnessService`，NAME=`Harness`。产物 `cube-service-harness-3.0.jar` 只放在 `cellets/`，按标准 Cell XML 安装并交给 Kernel 启停；不注册到 AIGC 插件表。默认 G0 入口只启用 CPU scripted 通信，业务任务返回 `HARNESS_NOT_READY`；N06/N07 的独立模型单元与资源循环需显式启用，见 [EXECUTION.md](EXECUTION.md)。协议见 [CONTRACT.md](CONTRACT.md)，G0 验收记录见工作区 `harness/execution-records/g0-20261017/`。
 
-N03 增加可选的独立 JDBC RunStore，详见 [STORE.md](STORE.md)。SQLite 与隔离 MySQL 的并发、租约、事务、Outbox 和用量结算已有本机专项验收；服务启动只校验，不自动迁移。默认关闭存储；业务 API 的 Coordinator 准入仍待后续阶段。N02 原生 Linux 缺项继续保留。
+N03 增加可选的独立 JDBC RunStore，详见 [STORE.md](STORE.md)。SQLite 与隔离 MySQL 的并发、租约、事务、Outbox 和用量结算已有本机专项验收；服务启动只校验，不自动迁移。默认关闭存储。N02 原生 Linux 缺项继续保留。
 
-N04/N05 增加资源包、固定 profile、工作区、完整上下文预算及可恢复快照，提供 Java 内部 API 与离线管理 CLI，详见 [RUNTIME.md](RUNTIME.md)。固定 schema 随正式 jar 分发；独立库当前为 schema=2，v1 需显式 upgrade。两库本机专项已通过，真实模型认证与业务循环分别留 N06/N07；HTTP 任务入口继续拒绝未就绪能力。
+N04/N05 增加资源包、固定 profile、工作区、完整上下文预算及可恢复快照，提供 Java 内部 API 与离线管理 CLI，详见 [RUNTIME.md](RUNTIME.md)。固定 schema 随正式 jar 分发；独立库当前为 schema=3，v1/v2 需显式 upgrade。N06/N07 增加 Baize/Baize2 adapter、模型 journal、按物理后端计容的多单元调度，以及唯一 Coordinator 和 create/get/events/资源工具循环。离线与本机跨进程验收独立于真实模型在线认证；详见 [EXECUTION.md](EXECUTION.md)。
 
 ## 构建与目录
 
