@@ -211,6 +211,42 @@
         },
         "actualFinished": {
           "type": "boolean"
+        },
+        "cleanup": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "jobId": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "maxLength": 64
+              },
+              "jobHash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "maxLength": 64
+              },
+              "runtimeId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                "maxLength": 128
+              },
+              "resultHash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "jobId",
+              "jobHash",
+              "runtimeId",
+              "resultHash"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 32
         }
       },
       "required": [

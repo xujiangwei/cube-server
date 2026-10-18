@@ -141,9 +141,9 @@ public final class PackageRepository {
             throw RuntimeSupport.error("PACKAGE_MANIFEST_MISSING");
         JSONObject manifest = StrictJson.object(entries.remove("manifest.json"));
         int schemaVersion = manifest.getInt("schemaVersion");
-        if (schemaVersion != 1 && schemaVersion != 2) throw RuntimeSupport.error("UNKNOWN_PACKAGE_SCHEMA");
+        if (schemaVersion < 1 || schemaVersion > 3) throw RuntimeSupport.error("UNKNOWN_PACKAGE_SCHEMA");
         RuntimeSupport.validate("manifest-v" + schemaVersion, manifest);
-        if (schemaVersion == 2 && (!trustedExecutables || total > 65536))
+        if (schemaVersion >= 2 && (!trustedExecutables || total > 65536))
             throw RuntimeSupport.error("EXECUTABLE_RUNTIME_NOT_CERTIFIED");
         Set<String> declared = new HashSet<>();
         int skills = 0, locks = 0;
@@ -167,23 +167,25 @@ public final class PackageRepository {
                 if (!name.equals("dependencies.lock.json")) throw RuntimeSupport.error("PACKAGE_LOCK_INVALID");
             }
             if (file.getString("role").equals("schema")) RuntimeSupport.toolSchema(StrictJson.object(data));
-            if (file.getString("role").equals("entrypoint") && (!trustedExecutables || schemaVersion != 2 || !name.endsWith(".py")))
+            if (file.getString("role").equals("entrypoint") && (!trustedExecutables || schemaVersion < 2 || !name.endsWith(".py")))
                 throw RuntimeSupport.error("EXECUTABLE_RUNTIME_NOT_CERTIFIED");
         }
         if (!declared.equals(entries.keySet()) || skills != 1 || locks != 1)
             throw RuntimeSupport.error("UNDECLARED_PACKAGE_FILE");
         JSONObject dependencies = RuntimeSupport.parse("dependencies-v1", entries.get("dependencies.lock.json"));
-        if (schemaVersion == 2 && dependencies.getJSONArray("dependencies").length() != 0)
+        if (schemaVersion >= 2 && dependencies.getJSONArray("dependencies").length() != 0)
             throw RuntimeSupport.error("RUNNER_STDLIB_ONLY");
         RuntimeSupport.strings(manifest.getJSONArray("permissions"));
         Set<String> tools = new HashSet<>();
         for (int i = 0; i < manifest.getJSONArray("tools").length(); i++) {
             JSONObject tool = manifest.getJSONArray("tools").getJSONObject(i);
             String name = tool.getString("name");
-            if (!name.startsWith(manifest.getString("name").replace('/', '.') + ".") || !tools.add(name))
+            boolean consoleBuiltin = schemaVersion == 3 && manifest.getString("name").equals("cube/server-status-readonly")
+                    && name.equals("cube_console.query_status");
+            if ((!consoleBuiltin && !name.startsWith(manifest.getString("name").replace('/', '.') + ".")) || !tools.add(name))
                 throw RuntimeSupport.error("RESERVED_TOOL_NAME");
             boolean executable = tool.getString("kind").equals("executable");
-            if (executable && (!trustedExecutables || schemaVersion != 2))
+            if (executable && (!trustedExecutables || schemaVersion < 2))
                 throw RuntimeSupport.error("EXECUTABLE_RUNTIME_NOT_CERTIFIED");
             for (String field : Arrays.asList("inputSchema", "outputSchema")) {
                 String path = RuntimeSupport.path(tool.getString(field));
@@ -196,7 +198,7 @@ public final class PackageRepository {
                 if (tool.has("resourcePath") || !tool.has("entrypoint") || !declared.contains(RuntimeSupport.path(tool.getString("entrypoint")))
                         || !file(manifest, tool.getString("entrypoint")).getString("role").equals("entrypoint")
                         || !tool.getString("permission").equals("console.status.read") || !tool.getString("effect").equals("read-only")
-                        || !tool.getString("brokerOperation").equals("mockconsole.query_status"))
+                        || !tool.getString("brokerOperation").equals(schemaVersion==2?"mockconsole.query_status":"cube_console.query_status"))
                     throw RuntimeSupport.error("PACKAGE_EXECUTABLE_INVALID");
             } else {
                 if (schemaVersion != 1 || !tool.has("resourcePath") || !declared.contains(RuntimeSupport.path(tool.getString("resourcePath"))) || tool.has("entrypoint"))

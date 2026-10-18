@@ -70,7 +70,7 @@ public final class ToolJobStore {
             if (existing != null) return new JSONObject(existing.getString("wire_json"));
             if (!healthy || first(rows(c, "SELECT COUNT(*) AS n FROM harness_tool_job WHERE worker_id=? AND actual_finished=0 AND status<>'queued'", worker)).getInt("n") >= identity.getInt("capacity"))
                 return null;
-            JSONObject job = first(rows(c, "SELECT * FROM harness_tool_job WHERE status='queued' AND cancel_requested=0 ORDER BY created_at,job_id LIMIT 1" + lock));
+            JSONObject job = first(rows(c, "SELECT * FROM harness_tool_job WHERE status='queued' AND cancel_requested=0 AND EXISTS (SELECT run_id FROM harness_run r WHERE r.run_id=harness_tool_job.run_id AND r.state='running') ORDER BY created_at,job_id LIMIT 1" + lock));
             if (job == null) return null;
             JSONObject wire = factory.create(job, worker, runtime, instance);
             if (update(c, "UPDATE harness_tool_job SET worker_id=?,runtime_id=?,instance_id=?,job_hash=?,wire_json=?,status='assigned' WHERE job_id=? AND status='queued'", worker, runtime, instance, wire.getString("jobHash"), canonical(wire), job.getString("job_id")) != 1)
@@ -90,6 +90,16 @@ public final class ToolJobStore {
             return j;
         });
     }
+    public JSONArray cleanups(String worker,String runtime,long grace) {
+        return store.tx(c->{long now=store.now(c);
+            update(c,"UPDATE harness_tool_job SET cleanup_after=? WHERE worker_id=? AND runtime_id=? AND job_hash IS NOT NULL AND report_hash IS NOT NULL AND actual_finished=1 AND effect_status<>'unknown' AND cleanup_after=0 AND EXISTS (SELECT intent_id FROM harness_tool_call q WHERE q.run_id=harness_tool_job.run_id AND q.intent_id=harness_tool_job.call_id AND q.attempt=harness_tool_job.attempt AND q.status='confirmed')",now+grace,worker,runtime);
+            JSONArray rows=rows(c,"SELECT * FROM harness_tool_job WHERE worker_id=? AND runtime_id=? AND actual_finished=1 AND effect_status<>'unknown' AND cleanup_after>0 AND cleanup_after<=? AND cleanup_done=0 LIMIT 32",worker,runtime,now),out=new JSONArray();
+            for(int i=0;i<rows.length();i++){JSONObject j=rows.getJSONObject(i);out.put(new JSONObject().put("jobId",j.getString("job_id")).put("jobHash",j.getString("job_hash")).put("runtimeId",runtime).put("resultHash",j.getString("report_hash")));}return out;});
+    }
+    public void cleaned(String worker,String runtime,String job,String hash,String reportHash){store.tx(c->{
+        JSONObject j=first(rows(c,"SELECT * FROM harness_tool_job WHERE job_id=?"+lock,job));
+        if(j==null||!worker.equals(j.optString("worker_id"))||!runtime.equals(j.optString("runtime_id"))||!hash.equals(j.optString("job_hash"))||!reportHash.equals(j.optString("report_hash"))||j.getInt("actual_finished")!=1||j.getLong("cleanup_after")==0||j.getLong("cleanup_after")>store.now(c))throw new StoreException("CLEANUP_EVIDENCE_MISMATCH");
+        update(c,"UPDATE harness_tool_job SET cleanup_done=1 WHERE job_id=?",job);return null;});}
 
     public JSONObject evidence(String worker, String runtime, String job, String digest) {
         JSONObject j = job(job);

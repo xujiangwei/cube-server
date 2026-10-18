@@ -1,0 +1,13 @@
+CREATE TABLE harness_wait (wait_id VARCHAR(128) PRIMARY KEY, run_id VARCHAR(128) NOT NULL, kind VARCHAR(32) NOT NULL, status VARCHAR(32) NOT NULL, payload_json MEDIUMTEXT NOT NULL, arguments_hash VARCHAR(64) NOT NULL, expires_at BIGINT NOT NULL, created_at BIGINT NOT NULL) ENGINE=InnoDB;
+CREATE INDEX harness_wait_run ON harness_wait(run_id, status);
+CREATE TABLE harness_control_receipt (receipt_id VARCHAR(64) PRIMARY KEY, payload_hash VARCHAR(64) NOT NULL, response_json MEDIUMTEXT NOT NULL, created_at BIGINT NOT NULL) ENGINE=InnoDB;
+CREATE TABLE harness_file (file_id VARCHAR(128) PRIMARY KEY, tenant VARCHAR(128) NOT NULL, subject_id VARCHAR(128) NOT NULL, kind VARCHAR(32) NOT NULL, run_id VARCHAR(128), storage_key VARCHAR(64) NOT NULL UNIQUE, root_id VARCHAR(128) NOT NULL, file_name VARCHAR(256) NOT NULL, media_type VARCHAR(128) NOT NULL, size_bytes BIGINT NOT NULL, sha256 VARCHAR(64) NOT NULL, status VARCHAR(32) NOT NULL, created_at BIGINT NOT NULL, ready_at BIGINT, expires_at BIGINT NOT NULL, policy_hash VARCHAR(64) NOT NULL, upload_hash VARCHAR(64), owner_id VARCHAR(128), claim_fence BIGINT NOT NULL DEFAULT 0, claim_until BIGINT NOT NULL DEFAULT 0, next_attempt BIGINT NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0, last_error VARCHAR(128), deleted_at BIGINT) ENGINE=InnoDB;
+CREATE INDEX harness_file_expiry ON harness_file(root_id, status, expires_at);
+CREATE TABLE harness_file_request (request_id VARCHAR(64) PRIMARY KEY, payload_hash VARCHAR(64) NOT NULL, file_id VARCHAR(128) NOT NULL) ENGINE=InnoDB;
+CREATE TABLE harness_file_pin (pin_id VARCHAR(128) PRIMARY KEY, file_id VARCHAR(128) NOT NULL, run_id VARCHAR(128), owner_id VARCHAR(128) NOT NULL, kind VARCHAR(32) NOT NULL, expires_at BIGINT NOT NULL) ENGINE=InnoDB;
+CREATE INDEX harness_file_pin_file ON harness_file_pin(file_id);
+CREATE TABLE harness_file_binding (run_id VARCHAR(128) NOT NULL, file_id VARCHAR(128) NOT NULL, PRIMARY KEY (run_id, file_id)) ENGINE=InnoDB;
+CREATE TABLE harness_file_policy (node_id VARCHAR(128) PRIMARY KEY, root_id VARCHAR(128) NOT NULL, policy_hash VARCHAR(64) NOT NULL, lease_until BIGINT NOT NULL DEFAULT 0) ENGINE=InnoDB;
+ALTER TABLE harness_tool_job ADD COLUMN cleanup_after BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE harness_tool_job ADD COLUMN cleanup_done INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE harness_file_root (root_id VARCHAR(128) PRIMARY KEY, instance_id VARCHAR(128) NOT NULL) ENGINE=InnoDB;

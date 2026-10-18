@@ -5,15 +5,15 @@
       "protocolVersion": 3,
       "nativeTools": false,
       "sources": {
-        "model_adapter.py": "561bf316b09ad31d83f38e05e3a5157410b0409379691e8bb702a21c2af6cba7",
-        "model_worker.py": "aa6dc1693944010cd571d7cadfc0468c88c951c974cd70c1aff27e752e0cb06a",
-        "inference_client.py": "ccb20aa97255319088a585e36691c94e803d013e6f188da7efb70a2e9cb69786"
+        "model_adapter.py": "bae181e12ef3bc147189fbfe69a35ef0039412e04294b15d9aa6fbeb36adaf22",
+        "model_worker.py": "3579f0965a1ca7eeedcd337048d767f57e01c31af1b9da0dd745cb3670affb60",
+        "inference_client.py": "3f643302edb9886d32fc2ae3ed552b2ac2f25efa868b766f2191920c36955907"
       },
       "transport": "cell-java-inference",
       "cancellation": "observe-only",
       "maxRepairs": 1
     },
-    "digest": "6649bf5ebce1c9d78dc350fba6aa17a6406b3af58cd12f92ab2d3c62f62528d3"
+    "digest": "a0bf96cbafd73d1c3fc57d0daef890689e3b27c219b9ba5b2d1962cabce17f14"
   },
   "openai-tools-v2": {
     "spec": {
@@ -21,14 +21,14 @@
       "protocolVersion": 3,
       "nativeTools": true,
       "sources": {
-        "model_adapter.py": "561bf316b09ad31d83f38e05e3a5157410b0409379691e8bb702a21c2af6cba7",
-        "model_worker.py": "aa6dc1693944010cd571d7cadfc0468c88c951c974cd70c1aff27e752e0cb06a",
-        "inference_client.py": "ccb20aa97255319088a585e36691c94e803d013e6f188da7efb70a2e9cb69786"
+        "model_adapter.py": "bae181e12ef3bc147189fbfe69a35ef0039412e04294b15d9aa6fbeb36adaf22",
+        "model_worker.py": "3579f0965a1ca7eeedcd337048d767f57e01c31af1b9da0dd745cb3670affb60",
+        "inference_client.py": "3f643302edb9886d32fc2ae3ed552b2ac2f25efa868b766f2191920c36955907"
       },
       "transport": "cell-java-inference",
       "cancellation": "observe-only",
       "maxRepairs": 1
     },
-    "digest": "3608e89e80324593e75d42b645873396cc90cfe19b3d6bfddc35c576a62911d7"
+    "digest": "295b4a00d91f8359d662980b8a5c1b7865899093b419f6b0e6870207fb35a145"
   }
 }

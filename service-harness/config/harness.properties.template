@@ -9,3 +9,44 @@ worker.model-1.role=model
 worker.runner-1.role=runner
 # Optional N03 ledger. See STORE.md. No automatic migration or run API enablement.
 store.enabled=false
+
+# Optional N11/N12. Requires execution.enabled and explicit schema6 migration.
+# See CONTROL-FILES.md. Create an independent empty root before enabling files.
+files.enabled=false
+# files.root=C:/private/harness-files
+# files.root.id=harness-files-1
+# files.download.key=REPLACE_WITH_AT_LEAST_32_PRIVATE_CHARACTERS
+# files.max.file.bytes=10485760
+# files.max.bytes=1073741824
+# control.approver.credential=REPLACE_WITH_DISTINCT_PRIVATE_CREDENTIAL
+# control.approver.subject=independent-reviewer
+# control.approval.tools=artifact.write_text
+# control.wait.millis=300000
+# control.cancel.grace.millis=10000
+# Optional N10 dedicated Console, independent of dispatcher/business REST.
+# broker.type=console
+# broker.console.baseUrl=http://127.0.0.1:7000
+# broker.console.cookie=CubeConsoleToken=REPLACE_WITH_PRIVATE_COOKIE
+# broker.console.targets=node-a
+# broker.console.target.node-a.kind=service
+# broker.console.target.node-a.tag=service-a
+# broker.console.target.node-a.path=C:/isolated/service-a
+# broker.console.target.node-a.reportName=service-a
+# broker.console.qps=2
+# broker.console.timeout.millis=1500
+# broker.console.report.max.age.millis=120000
+# TTL and cleanup defaults:
+# Add to the SAME private file selected by -Dharness.config (harness.properties).
+# cleanup.enabled controls physical deletion; logical expiry is always enforced by N12.
+# cleanup.enabled=true
+# cleanup.scan.interval.seconds=60
+# cleanup.scan.batch.size=100
+# cleanup.temp.grace.seconds=60
+# cleanup.upload.ttl.seconds=86400
+# retention.input.ttl.seconds=604800
+# retention.artifact.ttl.seconds=2592000
+# file.download.lease.seconds=300
+# cleanup.claim.lease.seconds=120
+# cleanup.retry.initial.seconds=30
+# cleanup.retry.max.seconds=3600
+# Restart required. TTL changes apply to NEW ready files, not existing expiresAt.

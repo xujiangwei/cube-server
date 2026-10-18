@@ -125,7 +125,7 @@ public final class ContextEngine {
         JSONObject basis = catalog.contextBasis(identity.tenant, identity.subject, run), pin = basis.getJSONObject("pin"), task = pin.getJSONObject("task"), model = pin.getJSONObject("model"), policy = task.getJSONObject("contextPolicy");
         certify(model);
         if (!policy.getString("budgetVersion").equals(model.optInt("schemaVersion", 1) >= 2 ? "transport-bytes-v1" : "full-json-bytes-v1") || !policy.getString("version").equals("context-v1")
-                || !(task.getString("toolSetVersion").equals("resource-tools-v1") || (task.getString("toolSetVersion").equals("mock-tools-v1") && pin.getJSONObject("runtime").getString("mode").equals("trusted-python-v1"))))
+                || !(Arrays.asList("resource-tools-v1", "file-tools-v1").contains(task.getString("toolSetVersion")) || (Arrays.asList("mock-tools-v1", "console-tools-v1").contains(task.getString("toolSetVersion")) && pin.getJSONObject("runtime").getString("mode").equals("trusted-python-v1"))))
             throw RuntimeSupport.error("CONTEXT_POLICY_UNSUPPORTED");
         Set<String> granted = RuntimeSupport.strings(pin.getJSONArray("permissions"));
         if (!identity.permissions.containsAll(granted)) throw RuntimeSupport.error("CONTEXT_AUTHORIZATION_CHANGED");
@@ -169,6 +169,10 @@ public final class ContextEngine {
         for (int i = 0; i < events.length(); i++) {
             JSONObject event = events.getJSONObject(i);
             String type = event.getString("event_type");
+            if (type.equals("control.resume")) {
+                messages.put(message("user", "control.resume", new JSONObject(event.getString("data_json")).getJSONObject("payload").getJSONObject("input")));
+                continue;
+            }
             if (!type.equals("round.intent") && !type.equals("call.intent")) continue;
             JSONObject ev = new JSONObject(event.getString("data_json"));
             String k = ev.getString("intentId") + "/" + ev.getInt("attempt");

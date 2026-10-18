@@ -1,10 +1,10 @@
 # N04 / N05：包、固定配置、资源与上下文
 
-本模块使用实际 JDK 8。N04/N05 的 Java 内部 API、离线管理 CLI 和两库专项已实现。N06/N07 的可选创建/资源循环入口、Java InferenceGateway、Baize/Baize2 决策 adapter 与部署见 [EXECUTION.md](EXECUTION.md)；默认关闭 execution 时继续返回 `HARNESS_NOT_READY`，控制 API 留 N11。本文 scripted profile 仅作离线确定性验证，不代表真实模型 tokenizer/template/工具在线认证。
+本模块使用实际 JDK 8。N04/N05 的 Java 内部 API、离线管理 CLI 和两库专项已实现。N06/N07 的可选创建/资源循环入口、Java InferenceGateway、Baize/Baize2 决策 adapter 与部署见 [EXECUTION.md](EXECUTION.md)；默认关闭 execution 时继续返回 `HARNESS_NOT_READY`，控制与文件 API 见 [CONTROL-FILES.md](CONTROL-FILES.md)。本文 scripted profile 仅作离线确定性验证，不代表真实模型 tokenizer/template/工具在线认证。
 
 ## 存储与独立目录
 
-先按 [STORE.md](STORE.md) 配置专用数据库。正式 jar 同时包含不可变的 `001.sql` 和新增 `002.sql`，当前显式迁移目标为 schema5；本节八表为 N04 的历史 schema2 增量，后续 003～005 迁移同时打包。新空库用 `initialize-empty`，完整 v1 库显式用 `upgrade`；服务启动只校验，不执行 DDL。
+先按 [STORE.md](STORE.md) 配置专用数据库。正式 jar 同时包含不可变的 `001.sql` 和新增 `002.sql`，当前显式迁移目标为 schema6；本节八表为 N04 的历史 schema2 增量，后续 003～006 迁移同时打包。新空库用 `initialize-empty`，完整 v1 库显式用 `upgrade`；服务启动只校验，不执行 DDL。
 
 ```powershell
 java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrations upgrade C:/private/migrator.local.properties
@@ -14,6 +14,8 @@ java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrat
 v2 增加 release、binding、profile、run_config、release_ref、run_skill、workspace、context 八表，沿用专用库身份和事务边界。升级保留 v1 run/event/usage。SQLite 事务回滚；MySQL DDL 中断可能留下部分 schema，必须保留现场并做审核过的前向恢复，自动重试会拒绝不完整 schema。旧 N03 二进制拒绝 v2；撤回时停止新写入者、保留 v2 兼容恢复程序和账本，不能直接换回只支持 v1 的 jar。
 
 资源仓库和工作区使用两个事先建立的绝对目录，每个目录有独立 identity/总字节配额。拒绝无标记的非空目录、符号链接和越界真实路径。每个根采用 JVM 锁及 OS 文件锁；写入采用临时文件、force 和原子移动。失败遗留的 blob/临时文件仍计入配额；目前保守保留引用和内容，不提供自动 GC。目录必须由可信服务账户独占，不能与客户可直接写入的 OS 目录共享。
+
+N12 已补充 [文件生命周期与自动清理设计](../../harness/FILE-LIFECYCLE-DESIGN.md)：安全收尾后删除过程文件，用户输入与产物分别按 ready 起算 TTL，逻辑到期禁止新访问、物理回收尊重在途/恢复引用。TTL、扫描和重试等参数统一置于 `-Dharness.config` 指定的私有 `harness.properties`；[模板](config/harness.properties.template) 列出可选参数，默认 files.enabled=false；实现、部署边界与专项证据见 [CONTROL-FILES.md](CONTROL-FILES.md)，unknown 工作区或 journal 不得手工清空。
 
 ## 包与管理 CLI
 
@@ -49,7 +51,7 @@ java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.runtime.RuntimeAd
 
 ## 固定 profile、资源与工作区 API
 
-`ProfileRegistry.publish` 用五个封闭 schema 校验 Model/Runtime/TaskProfile、包和依赖锁。同 kind/id/version 异内容拒绝。`createRun(Identity, key, taskId, request)` 在创建事务内解析 active task、固定 model/runtime/release/权限及引用，提交后返回；幂等重试即使 active 已切换也返回原 run。初期支持 N01 文本 input，非空 attachmentIds 明确拒绝，后续输入/反馈策略属于 N11。
+`ProfileRegistry.publish` 用五个封闭 schema 校验 Model/Runtime/TaskProfile、包和依赖锁。同 kind/id/version 异内容拒绝。`createRun(Identity, key, taskId, request)` 在创建事务内解析 active task、固定 model/runtime/release/权限及引用，提交后返回；幂等重试即使 active 已切换也返回原 run。默认 files 关闭时拒绝非空 attachmentIds；显式开启 N12 后在创建事务中验证并绑定本主体 ready、未到期 Input。
 
 Identity 由可信身份源构造，不能从客户端请求字段映射。有效权限是 task、可信身份与平台支持权限的交集；相同技能名的多个 release 不能同时固定。客户工具名限定在包命名空间。资源能力只有 `skill.list/activate`、`resource.list/read/search`；激活产生版本化事件，不增加权限。`ResourceTools.invoke` 对每次调用复查权限、参数 schema、激活和固定 release；自定义资源工具只读 manifest 固定路径，并验证输出 schema，不运行代码。
 

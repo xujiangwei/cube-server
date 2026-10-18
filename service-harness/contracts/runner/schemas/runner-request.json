@@ -692,6 +692,97 @@
         "action": {
           "type": "string",
           "enum": [
+            "cleanup_ack"
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "maxLength": 128
+        },
+        "credential": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "workerId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "maxLength": 128
+        },
+        "instanceId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "runner"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "tool.execute"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "maxLength": 128
+        },
+        "healthy": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "maxLength": 64
+        },
+        "jobHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "maxLength": 64
+        },
+        "resultHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "action",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "sessionId",
+        "jobId",
+        "jobHash",
+        "resultHash"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            4
+          ]
+        },
+        "action": {
+          "type": "string",
+          "enum": [
             "broker_query"
           ]
         },

@@ -86,7 +86,7 @@ public final class ModelJobStore {
             int own = first(rows(c, "SELECT COUNT(*) AS n FROM harness_model_job WHERE worker_id=? AND actual_finished=0 AND status<>'queued'", worker)).getInt("n");
             if ((descriptor.optInt("protocolVersion", 2) == 2 && occupied >= b.getInt("capacity")) || own >= workerCapacity)
                 return null;
-            JSONObject job = first(rows(c, "SELECT * FROM harness_model_job WHERE status='queued' AND cancel_requested=0 AND model_id=? AND profile_digest=? ORDER BY created_at,job_id LIMIT 1" + lock,
+            JSONObject job = first(rows(c, "SELECT * FROM harness_model_job WHERE status='queued' AND cancel_requested=0 AND model_id=? AND profile_digest=? AND run_id IN (SELECT run_id FROM harness_run WHERE state='running') ORDER BY created_at,job_id LIMIT 1" + lock,
                     descriptor.getString("model"), descriptor.getString("profileDigest")));
             if (job == null) return null;
             if (update(c, "UPDATE harness_model_job SET backend_id=?,worker_id=?,instance_id=?,session_id=?,execution_protocol=?,status='assigned' WHERE job_id=? AND status='queued'",
@@ -162,11 +162,11 @@ public final class ModelJobStore {
     }
 
     public JSONArray runnable(String tenant, int limit) {
-        return store.tx(c -> rows(c, "SELECT r.run_id,r.subject_id FROM harness_run r WHERE r.tenant=? AND (r.state IN ('queued','running','reconciling','waiting_input') OR EXISTS (SELECT j.job_id FROM harness_model_job j JOIN harness_round q ON q.run_id=j.run_id AND q.intent_id=j.round_id AND q.attempt=j.attempt JOIN harness_usage u ON u.run_id=q.run_id AND u.round_id=q.intent_id AND u.attempt=q.attempt WHERE j.run_id=r.run_id AND j.actual_finished=1 AND (q.status<>'confirmed' OR (u.actual_input IS NULL AND j.outcome_json LIKE '%\"usage\":%')))) ORDER BY r.created_at,r.run_id LIMIT " + Math.max(1, Math.min(256, limit)), id(tenant)));
+        return store.tx(c -> rows(c, "SELECT r.run_id,r.subject_id FROM harness_run r WHERE r.tenant=? AND (r.state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling') OR EXISTS (SELECT j.job_id FROM harness_model_job j JOIN harness_round q ON q.run_id=j.run_id AND q.intent_id=j.round_id AND q.attempt=j.attempt JOIN harness_usage u ON u.run_id=q.run_id AND u.round_id=q.intent_id AND u.attempt=q.attempt WHERE j.run_id=r.run_id AND j.actual_finished=1 AND (q.status<>'confirmed' OR (u.actual_input IS NULL AND j.outcome_json LIKE '%\"usage\":%'))) OR EXISTS (SELECT j.job_id FROM harness_tool_job j JOIN harness_tool_call q ON q.run_id=j.run_id AND q.intent_id=j.call_id AND q.attempt=j.attempt WHERE j.run_id=r.run_id AND j.actual_finished=1 AND q.status<>'confirmed')) ORDER BY r.created_at,r.run_id LIMIT " + Math.max(1, Math.min(256, limit)), id(tenant)));
     }
 
     public int active(String tenant) {
-        return store.tx(c -> first(rows(c, "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input')", tenant)).getInt("n"));
+        return store.tx(c -> first(rows(c, "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')", tenant)).getInt("n"));
     }
 
     public long created(Lease lease) {

@@ -45,6 +45,7 @@ def generate(python_root):
         "describe": dict(descriptor=descriptor), "heartbeat": {}, "poll": {}, "drain": {}, "unregister": {},
         "accepted": dict(jobId=digest, jobHash=digest), "status": dict(jobId=digest, jobHash=digest),
         "result": dict(report=report),
+        "cleanup_ack": dict(jobId=digest, jobHash=digest, resultHash=digest),
         "broker_query": dict(jobId=digest, jobHash=digest, grant=grant, targets=strings, fields=strings),
     }.items():
         properties = copy.deepcopy(common)
@@ -56,7 +57,8 @@ def generate(python_root):
         branches.append(obj(properties, required + list(extra)))
     success = obj(dict(protocolVersion=dict(type="integer", enum=[4]), requestId=text(128), ok=dict(type="boolean", enum=[True]),
         sessionId=ident, leaseMillis=integer, registered=boolean, ready=boolean, cancellations=dict(type="array", items=digest,maxItems=64),
-        job=job, dataJson=text(65536), status=text(32), resultHash=digest, actualFinished=boolean),
+        job=job, dataJson=text(65536), status=text(32), resultHash=digest, actualFinished=boolean,
+        cleanup=dict(type="array",items=obj(dict(jobId=digest,jobHash=digest,runtimeId=ident,resultHash=digest)),maxItems=32)),
         ["protocolVersion", "requestId", "ok", "sessionId", "leaseMillis", "registered", "ready", "cancellations"])
     error = obj(dict(protocolVersion=dict(type="integer", enum=[4]), requestId=text(128), ok=dict(type="boolean", enum=[False]), errorCode=text(128)))
     schemas = {"runner-request": dict(oneOf=branches), "runner-response": dict(oneOf=[success,error]), "runner-job": job, "runner-report": report}

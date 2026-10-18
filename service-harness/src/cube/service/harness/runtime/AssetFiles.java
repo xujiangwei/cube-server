@@ -16,13 +16,14 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 /**
  * Dedicated private roots, cross-process serialization, quotas and immutable blobs.
  */
 public final class AssetFiles {
-    private static final Map<Path, Object> LOCKS = new ConcurrentHashMap<>();
+    private static final Map<Path, ReentrantLock> LOCKS = new ConcurrentHashMap<>();
     public final Path root;
     public final long maxBytes;
 
@@ -53,12 +54,28 @@ public final class AssetFiles {
     }
 
     public <T> T locked(Action<T> action) throws Exception {
-        synchronized (LOCKS.computeIfAbsent(root, p -> new Object())) {
+        return locked(action, false);
+    }
+
+    /** Bounded admission for live file operations; never park API/coordinator threads behind a stream. */
+    public <T> T tryLocked(Action<T> action) throws Exception {
+        return locked(action, true);
+    }
+
+    private <T> T locked(Action<T> action, boolean immediate) throws Exception {
+        ReentrantLock local = LOCKS.computeIfAbsent(root, p -> new ReentrantLock());
+        if (immediate) {
+            if (!local.tryLock()) throw RuntimeSupport.error("FILE_BUSY");
+        } else local.lock();
+        try {
             Path lock = root.resolve(".harness-lock");
             if (Files.isSymbolicLink(lock)) throw RuntimeSupport.error("UNSAFE_ASSET_PATH");
-            try (FileChannel channel = FileChannel.open(lock, StandardOpenOption.CREATE, StandardOpenOption.WRITE); FileLock ignored = channel.lock()) {
+            try (FileChannel channel = FileChannel.open(lock, StandardOpenOption.CREATE, StandardOpenOption.WRITE); FileLock ignored = immediate ? channel.tryLock() : channel.lock()) {
+                if (ignored == null) throw RuntimeSupport.error("FILE_BUSY");
                 return action.run();
             }
+        } finally {
+            local.unlock();
         }
     }
 

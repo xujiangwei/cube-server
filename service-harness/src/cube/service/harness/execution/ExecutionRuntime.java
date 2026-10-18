@@ -38,6 +38,8 @@ public final class ExecutionRuntime implements AutoCloseable {
     public final ProfileRegistry profiles;
 
     public final ProfileRegistry.Identity identity;
+    public final ControlStore controls;
+    public final cube.service.harness.files.FileService files;
 
     private final CatalogStore catalog;
 
@@ -56,11 +58,13 @@ public final class ExecutionRuntime implements AutoCloseable {
         this.store = store;
         StoreConfig sc = new StoreConfig(p);
         catalog = new CatalogStore(store, sc.mysql());
-        profiles = new ProfileRegistry(catalog);
         Set<String> permissions = new TreeSet<>(Arrays.asList(p.getProperty("execution.permissions", "skill.list,skill.activate,resource.list,resource.read,resource.search").split(",")));
         if (!ProfileRegistry.PLATFORM_PERMISSIONS.containsAll(permissions))
             throw new IllegalArgumentException("RESOURCE_PERMISSIONS_REQUIRED");
         identity = new ProfileRegistry.Identity(p.getProperty("execution.tenant", "development"), p.getProperty("execution.subject", "developer"), permissions);
+        files = Boolean.parseBoolean(p.getProperty("files.enabled","false")) ? new cube.service.harness.files.FileService(store,p,identity) : null;
+        profiles = new ProfileRegistry(catalog,files==null?null:files.ledger);
+        controls = new ControlStore(store,sc.mysql()).files(files==null?null:files.ledger);
         maxActive = Integer.parseInt(p.getProperty("execution.max.active", "128"));
         if (maxActive < 1 || maxActive > 256) throw new IllegalArgumentException("INVALID_ADMISSION_LIMIT");
         store.admissionLimit(maxActive);
@@ -71,10 +75,11 @@ public final class ExecutionRuntime implements AutoCloseable {
         workers = new ModelDispatcher(jobs, p, lease, inference);
         broker = Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false")) ? new ToolBroker(new ToolJobStore(store, sc.mysql()), identity, p) : null;
         runners = broker == null ? null : new RunnerDispatcher(broker, p, lease);
-        coordinator = new RunCoordinator(store, jobs, catalog, identity, new ResourceTools(catalog, repo), broker);
+        coordinator = new RunCoordinator(store, jobs, catalog, identity, new ResourceTools(catalog, repo).files(files), broker).controls(controls,files,p);
     }
 
     public void start() {
+        if(files!=null)files.start();
         inference.start();
         coordinator.start();
     }
@@ -91,7 +96,13 @@ public final class ExecutionRuntime implements AutoCloseable {
 
     public JSONObject read(String run) {
         JSONObject row = store.read(identity.tenant, identity.subject, RuntimeSupport.id(run));
-        return new JSONObject().put("snapshot", row.getJSONObject("snapshot")).put("usageSettlement", row.getString("usageSettlement")).put("usage", row.getJSONObject("usage")).put("result", row.get("result"));
+        JSONObject result = new JSONObject().put("snapshot", row.getJSONObject("snapshot")).put("usageSettlement", row.getString("usageSettlement")).put("usage", row.getJSONObject("usage")).put("result", row.get("result"));
+        JSONObject wait=controls.current(identity.tenant,identity.subject,run);
+        if(wait!=null)result.put("interaction",wait);
+        return result;
+    }
+    public JSONObject control(String run,String key,String operation,String wait,JSONObject payload,String actor,boolean approver) {
+        return controls.apply(identity.tenant,identity.subject,actor,RuntimeSupport.id(run),key,operation,wait,payload,approver);
     }
 
     public JSONObject taskProfiles() {
@@ -132,5 +143,6 @@ public final class ExecutionRuntime implements AutoCloseable {
         coordinator.close();
         inference.close();
         if (broker != null) broker.close();
+        if(files!=null)files.close();
     }
 }

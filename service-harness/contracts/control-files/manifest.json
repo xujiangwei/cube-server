@@ -1,0 +1,14 @@
+{
+  "schemas/run-read.json": "8aae0fcc47050a8dbe8711f91456e2d7d78ad48e152d64b4f46f9485d595bd78",
+  "schemas/interaction.json": "b53799b84fe820c4c1d2e5fad985739e4592aa5334b0df036d608e0ee1c17c41",
+  "schemas/artifact-metadata.json": "bd37015f51e9941165c9264ce3256db9658107351d6e6c4facabac79fab816aa",
+  "schemas/input-metadata.json": "e8fe4e67ab0a156b98745dc15e8585db114bb35969b75c7af04bba5b216b957c",
+  "schemas/artifacts-list.json": "5856364a9d1945ea7f88e3e5b1ac99b729cc9a15727c00b202ede97e15e38a57",
+  "schemas/download-handle.json": "ec53eccac979cf85457a7d2484b541cb62221d6705f9b6b045f538bae1aa6957",
+  "schemas/resume-run.json": "fef6aff5db76b0e095592fc0889a90a997d335a853ee6a88bd5c4630504e6448",
+  "schemas/cancel-run.json": "174f1bc5b9e7576e51aaa42e1096fcedc6174cd4444f12ef696f09ffec4f03dd",
+  "schemas/approval.json": "ffb7223b288c2137e27fa2f25082aa4620e8957f4c7894ca7beb4f6467081fd4",
+  "schemas/input-create.json": "cc88fdad0999da723f0fc930666792dea93d7bfb27a9d178a8c51cecfe437686",
+  "schemas/input-complete.json": "d1b2ca7cdbb82e8e23a214ee3039155455cfd311f1e69185664501ca4aa636bd",
+  "openapi.json": "9c995db7b597846c2cc4b011d707d0db7cd4fa948f7367b7bda3a07d40180e35"
+}

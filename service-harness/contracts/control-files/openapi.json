@@ -1,0 +1,768 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Harness controls and files",
+    "version": "N10-N12"
+  },
+  "paths": {
+    "/harness/v1/runs/{runId}": {
+      "get": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Durable response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas/run-read.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected without new execution"
+          },
+          "401": {
+            "description": "Rejected without new execution"
+          },
+          "403": {
+            "description": "Rejected without new execution"
+          },
+          "404": {
+            "description": "Rejected without new execution"
+          },
+          "409": {
+            "description": "Rejected without new execution"
+          },
+          "410": {
+            "description": "Rejected without new execution"
+          },
+          "429": {
+            "description": "Rejected without new execution"
+          },
+          "503": {
+            "description": "Rejected without new execution"
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ]
+      }
+    },
+    "/harness/v1/runs/{runId}/resume": {
+      "post": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durable response"
+          },
+          "400": {
+            "description": "Rejected without new execution"
+          },
+          "401": {
+            "description": "Rejected without new execution"
+          },
+          "403": {
+            "description": "Rejected without new execution"
+          },
+          "404": {
+            "description": "Rejected without new execution"
+          },
+          "409": {
+            "description": "Rejected without new execution"
+          },
+          "410": {
+            "description": "Rejected without new execution"
+          },
+          "429": {
+            "description": "Rejected without new execution"
+          },
+          "503": {
+            "description": "Rejected without new execution"
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas/resume-run.json"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/runs/{runId}/cancel": {
+      "post": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durable response"
+          },
+          "400": {
+            "description": "Rejected without new execution"
+          },
+          "401": {
+            "description": "Rejected without new execution"
+          },
+          "403": {
+            "description": "Rejected without new execution"
+          },
+          "404": {
+            "description": "Rejected without new execution"
+          },
+          "409": {
+            "description": "Rejected without new execution"
+          },
+          "410": {
+            "description": "Rejected without new execution"
+          },
+          "429": {
+            "description": "Rejected without new execution"
+          },
+          "503": {
+            "description": "Rejected without new execution"
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas/cancel-run.json"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/runs/{runId}/approvals/{waitId}/decision": {
+      "post": {
+        "security": [
+          {
+            "ApproverBearer": []
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Durable response"
+          },
+          "400": {
+            "description": "Rejected without new execution"
+          },
+          "401": {
+            "description": "Rejected without new execution"
+          },
+          "403": {
+            "description": "Rejected without new execution"
+          },
+          "404": {
+            "description": "Rejected without new execution"
+          },
+          "409": {
+            "description": "Rejected without new execution"
+          },
+          "410": {
+            "description": "Rejected without new execution"
+          },
+          "429": {
+            "description": "Rejected without new execution"
+          },
+          "503": {
+            "description": "Rejected without new execution"
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "waitId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas/approval.json"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/inputs": {
+      "post": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Durable response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas/input-metadata.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected without new execution"
+          },
+          "401": {
+            "description": "Rejected without new execution"
+          },
+          "403": {
+            "description": "Rejected without new execution"
+          },
+          "404": {
+            "description": "Rejected without new execution"
+          },
+          "409": {
+            "description": "Rejected without new execution"
+          },
+          "410": {
+            "description": "Rejected without new execution"
+          },
+          "429": {
+            "description": "Rejected without new execution"
+          },
+          "503": {
+            "description": "Rejected without new execution"
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas/input-create.json"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/inputs/{inputId}/complete": {
+      "post": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Durable response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas/input-metadata.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected without new execution"
+          },
+          "401": {
+            "description": "Rejected without new execution"
+          },
+          "403": {
+            "description": "Rejected without new execution"
+          },
+          "404": {
+            "description": "Rejected without new execution"
+          },
+          "409": {
+            "description": "Rejected without new execution"
+          },
+          "410": {
+            "description": "Rejected without new execution"
+          },
+          "429": {
+            "description": "Rejected without new execution"
+          },
+          "503": {
+            "description": "Rejected without new execution"
+          }
+        },
+        "parameters": [
+          {
+            "name": "inputId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas/input-complete.json"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/inputs/{inputId}": {
+      "get": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Durable response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas/input-metadata.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected without new execution"
+          },
+          "401": {
+            "description": "Rejected without new execution"
+          },
+          "403": {
+            "description": "Rejected without new execution"
+          },
+          "404": {
+            "description": "Rejected without new execution"
+          },
+          "409": {
+            "description": "Rejected without new execution"
+          },
+          "410": {
+            "description": "Rejected without new execution"
+          },
+          "429": {
+            "description": "Rejected without new execution"
+          },
+          "503": {
+            "description": "Rejected without new execution"
+          }
+        },
+        "parameters": [
+          {
+            "name": "inputId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ]
+      }
+    },
+    "/harness/v1/artifacts/{artifactId}": {
+      "get": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Durable response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas/artifact-metadata.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected without new execution"
+          },
+          "401": {
+            "description": "Rejected without new execution"
+          },
+          "403": {
+            "description": "Rejected without new execution"
+          },
+          "404": {
+            "description": "Rejected without new execution"
+          },
+          "409": {
+            "description": "Rejected without new execution"
+          },
+          "410": {
+            "description": "Rejected without new execution"
+          },
+          "429": {
+            "description": "Rejected without new execution"
+          },
+          "503": {
+            "description": "Rejected without new execution"
+          }
+        },
+        "parameters": [
+          {
+            "name": "artifactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ]
+      }
+    },
+    "/harness/v1/runs/{runId}/artifacts": {
+      "get": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Durable response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas/artifacts-list.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected without new execution"
+          },
+          "401": {
+            "description": "Rejected without new execution"
+          },
+          "403": {
+            "description": "Rejected without new execution"
+          },
+          "404": {
+            "description": "Rejected without new execution"
+          },
+          "409": {
+            "description": "Rejected without new execution"
+          },
+          "410": {
+            "description": "Rejected without new execution"
+          },
+          "429": {
+            "description": "Rejected without new execution"
+          },
+          "503": {
+            "description": "Rejected without new execution"
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ]
+      }
+    },
+    "/harness/v1/artifacts/{artifactId}/download-handle": {
+      "get": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Durable response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas/download-handle.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected without new execution"
+          },
+          "401": {
+            "description": "Rejected without new execution"
+          },
+          "403": {
+            "description": "Rejected without new execution"
+          },
+          "404": {
+            "description": "Rejected without new execution"
+          },
+          "409": {
+            "description": "Rejected without new execution"
+          },
+          "410": {
+            "description": "Rejected without new execution"
+          },
+          "429": {
+            "description": "Rejected without new execution"
+          },
+          "503": {
+            "description": "Rejected without new execution"
+          }
+        },
+        "parameters": [
+          {
+            "name": "artifactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ]
+      }
+    },
+    "/harness/v1/inputs/{inputId}/content": {
+      "put": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "inputId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded binary stream"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/artifacts/{artifactId}/content": {
+      "get": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "artifactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "handle",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded binary stream"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "HarnessBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "ApproverBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

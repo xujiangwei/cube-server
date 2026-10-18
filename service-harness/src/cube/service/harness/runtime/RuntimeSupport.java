@@ -119,7 +119,7 @@ public final class RuntimeSupport {
         Set<String> words = new HashSet<>(Arrays.asList("type", "properties", "required", "additionalProperties", "enum", "minLength", "maxLength", "pattern", "minimum", "maximum", "items", "maxItems", "minItems"));
         for (String key : schema.keySet()) if (!words.contains(key)) throw error("UNSUPPORTED_TOOL_SCHEMA");
         String type = schema.optString("type");
-        if (!Arrays.asList("object", "array", "string", "integer", "boolean").contains(type))
+        if (!Arrays.asList("object", "array", "string", "integer", "number", "boolean").contains(type))
             throw error("UNSUPPORTED_TOOL_SCHEMA");
         if (type.equals("object")) {
             if (schema.optBoolean("additionalProperties", true)) throw error("OPEN_TOOL_SCHEMA");
@@ -143,6 +143,8 @@ public final class RuntimeSupport {
     public static Path safeRoot(Path root) throws IOException {
         if (!root.isAbsolute() || !Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(root))
             throw error("UNSAFE_ASSET_ROOT");
+        if (!root.toRealPath(LinkOption.NOFOLLOW_LINKS).equals(root.toRealPath()))
+            throw error("UNSAFE_ASSET_ROOT");
         return root.toRealPath();
     }
 
@@ -153,7 +155,7 @@ public final class RuntimeSupport {
         for (Path part : root.relativize(result)) {
             cursor = cursor.resolve(part);
             if (Files.exists(cursor, LinkOption.NOFOLLOW_LINKS)) {
-                if (Files.isSymbolicLink(cursor) || !cursor.toRealPath().startsWith(root))
+                if (Files.isSymbolicLink(cursor) || !cursor.toRealPath(LinkOption.NOFOLLOW_LINKS).equals(cursor.toRealPath()) || !cursor.toRealPath().startsWith(root))
                     throw error("UNSAFE_ASSET_PATH");
             } else if (createParents && !cursor.equals(result)) Files.createDirectory(cursor);
         }

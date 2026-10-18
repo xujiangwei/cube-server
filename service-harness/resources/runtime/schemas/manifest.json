@@ -8,5 +8,6 @@
   "task-profile-v2.json": "88831ef045c859ce9a16b4f3dff8796e3b938ed6fc12e803e35057a504890ad7",
   "model-profile-v3.json": "05f027bf8d0fd698034f52efbf4e84c9fd49933ac58fa1140790cfc6a18c6c5c",
   "runtime-profile-v2.json": "7984eb17db51b55dafe2955f039dc683c5209751ffa4096a0189f9f05bee426e",
-  "manifest-v2.json": "e704b71d3f6d7d27eac508373293015d2774b1998a80cc2e1a8058f0228c2131"
+  "manifest-v2.json": "e704b71d3f6d7d27eac508373293015d2774b1998a80cc2e1a8058f0228c2131",
+  "manifest-v3.json": "daf9aa3d38857ded65be985977ac256b5328edeee6bb485fcb3199af24fa116d"
 }

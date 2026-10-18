@@ -71,7 +71,7 @@ Dispatcher 在 `harness.rest.enabled=true` 时通过 `cube.dispatcher.harness` �
 {"taskProfileId":"resources-Baize2","input":{"instruction":"列出并阅读已授权的技能资源","attachmentIds":[]}}
 ```
 
-Coordinator 以租约/fence/checkpoint 推进资源循环，只执行 ResourceTools 注册的读/激活能力，不执行模型生成的代码。need_input 停止生成，resume/cancel 等 HTTP 控制仍留后续阶段。
+Coordinator 以租约/fence/checkpoint 推进资源循环，只执行 ResourceTools 注册的读/激活能力，不执行模型生成的代码。need_input 持久化等待问题与期限；N11 已接通 resume/approval/cancel，N12 文件服务与清理见 [CONTROL-FILES.md](CONTROL-FILES.md)。
 
 ## 验证与回退
 
