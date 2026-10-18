@@ -79,4 +79,6 @@ python -B scripts/g0_smoke.py --java C:/jdk8/bin/java.exe --common-jar C:/isolat
 
 ## 推理网关修正
 
-Python Harness 经 Cell v3 发送 OpenAI 请求，默认调用同 JVM AIGCService 注册的 Unit。合部署使用现有 ServiceCarpet；独立 G0 XML 没有 AIGCService，默认 Unit 后端未就绪。外部 HTTP 后端必须在 Java 显式配置。推理账本 schema=4、新版 model/task profile 与 `contracts/inference/` 同步升级；详见 [EXECUTION.md](EXECUTION.md)。
+Python Harness 经 Cell v3 发送 OpenAI 请求，默认调用同 JVM AIGCService 注册的 Unit。合部署使用现有 ServiceCarpet；独立 G0 XML 没有 AIGCService，默认 Unit 后端未就绪。外部 HTTP 后端必须在 Java 显式配置。推理网关在 schema4 引入，当前权威库为 schema7；新版 model/task profile 与 `contracts/inference/` 同步升级；详见 [EXECUTION.md](EXECUTION.md)。
+
+N16 提供服务级接单/严格 drain、冻结 SLO 的 Cell 多单元负载、文件回收与历史 JAR 升级回滚演练。命令、独立管理凭据、部署关闭接单及认证边界见 [RESILIENCE.md](RESILIENCE.md)。本机专项通过不等于生产 G4。

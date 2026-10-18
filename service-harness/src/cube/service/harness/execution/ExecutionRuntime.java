@@ -9,14 +9,13 @@ package cube.service.harness.execution;
 import com.sun.net.httpserver.HttpExchange;
 import cube.service.harness.runtime.*;
 import cube.service.harness.store.*;
-import org.json.JSONArray;
-import org.json.JSONObject;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Semaphore;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
  * Opt-in development execution runtime, with a trusted fixed identity and private resource
@@ -48,6 +47,7 @@ public final class ExecutionRuntime implements AutoCloseable {
     private final JdbcRunStore store;
 
     private final int maxActive;
+    private volatile boolean accepting;
 
     private final Semaphore streams = new Semaphore(2);
 
@@ -91,16 +91,21 @@ public final class ExecutionRuntime implements AutoCloseable {
         if (maxActive < 1 || maxActive > 256)
             throw new IllegalArgumentException("INVALID_ADMISSION_LIMIT");
         store.admissionLimit(maxActive);
+        accepting = Boolean.parseBoolean(p.getProperty("execution.accepting", "true"));
         Path path =
                 Paths.get(
-                        Objects.requireNonNull(p.getProperty("execution.repository"), "execution.repository"));
+                        Objects.requireNonNull(
+                                p.getProperty("execution.repository"), "execution.repository"));
         PackageRepository repo =
                 new PackageRepository(
                         catalog,
                         new AssetFiles(
                                 path,
-                                Long.parseLong(p.getProperty("execution.repository.max.bytes", "67108864")),
-                                p.getProperty("execution.repository.namespace", "harness-resources")),
+                                Long.parseLong(
+                                        p.getProperty(
+                                                "execution.repository.max.bytes", "67108864")),
+                                p.getProperty(
+                                        "execution.repository.namespace", "harness-resources")),
                         Collections.emptyMap(),
                         true,
                         Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false")));
@@ -109,17 +114,18 @@ public final class ExecutionRuntime implements AutoCloseable {
         workers = new ModelDispatcher(jobs, p, lease, inference);
         broker =
                 Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false"))
-                        ? new ToolBroker(new ToolJobStore(store, sc.mysql()), identity, p).files(files)
+                        ? new ToolBroker(new ToolJobStore(store, sc.mysql()), identity, p)
+                                .files(files)
                         : null;
         runners = broker == null ? null : new RunnerDispatcher(broker, p, lease);
         coordinator =
                 new RunCoordinator(
-                        store,
-                        jobs,
-                        catalog,
-                        identity,
-                        new ResourceTools(catalog, repo).files(files),
-                        broker)
+                                store,
+                                jobs,
+                                catalog,
+                                identity,
+                                new ResourceTools(catalog, repo).files(files),
+                                broker)
                         .controls(controls, files, p);
     }
 
@@ -130,15 +136,41 @@ public final class ExecutionRuntime implements AutoCloseable {
     }
 
     public synchronized JSONObject create(String key, JSONObject request) {
+        if (!accepting) {
+            JSONObject prior =
+                    store.findCreate(
+                            identity.tenant,
+                            identity.subject,
+                            key,
+                            request.getString("taskProfileId"),
+                            request);
+            if (prior != null) return prior;
+            throw new StoreException("HARNESS_DRAINING");
+        }
         // Durable create replay precedes admission inside the catalog/store (including when full).
         if (jobs.active(identity.tenant) >= maxActive) {
             JSONObject prior =
                     store.findCreate(
-                            identity.tenant, identity.subject, key, request.getString("taskProfileId"), request);
+                            identity.tenant,
+                            identity.subject,
+                            key,
+                            request.getString("taskProfileId"),
+                            request);
             if (prior != null) return prior;
             throw new StoreException("HARNESS_BUSY");
         }
         return profiles.createRun(identity, key, request.getString("taskProfileId"), request);
+    }
+
+    public boolean accepting() {
+        return accepting;
+    }
+
+    public synchronized JSONObject admission(Boolean enabled) {
+        if (enabled != null) accepting = enabled;
+        return jobs.drainStatus(identity.tenant)
+                .put("accepting", accepting)
+                .put("scope", "this-jvm; ledger counts cover tenant");
     }
 
     public JSONObject read(String run) {
@@ -202,7 +234,8 @@ public final class ExecutionRuntime implements AutoCloseable {
     public JSONObject events(String run, long after, int limit) {
         JSONArray events = store.events(identity.tenant, identity.subject, run, after, limit);
         long cursor = after;
-        if (events.length() > 0) cursor = events.getJSONObject(events.length() - 1).getLong("eventSeq");
+        if (events.length() > 0)
+            cursor = events.getJSONObject(events.length() - 1).getLong("eventSeq");
         return new JSONObject().put("events", events).put("nextCursor", cursor);
     }
 
@@ -213,7 +246,8 @@ public final class ExecutionRuntime implements AutoCloseable {
     public void stream(HttpExchange x, JSONObject page) throws IOException {
         if (!streams.tryAcquire()) throw new StoreException("HARNESS_BUSY");
         try {
-            if (!(x instanceof JettyExchange)) throw new StoreException("SSE_REQUIRES_NONBLOCKING_HTTP");
+            if (!(x instanceof JettyExchange))
+                throw new StoreException("SSE_REQUIRES_NONBLOCKING_HTTP");
             ((JettyExchange) x).stream(page, streams::release);
         } catch (IOException | RuntimeException e) {
             streams.release();

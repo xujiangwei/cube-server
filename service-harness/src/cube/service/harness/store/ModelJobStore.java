@@ -6,14 +6,12 @@
 
 package cube.service.harness.store;
 
+import static cube.service.harness.store.JdbcRunStore.*;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import static cube.service.harness.store.JdbcRunStore.*;
-
-/**
- * Durable admission and physical backend reservations. Transport expiry never releases a slot.
- */
+/** Durable admission and physical backend reservations. Transport expiry never releases a slot. */
 public final class ModelJobStore {
 
     private final JdbcRunStore store;
@@ -32,7 +30,8 @@ public final class ModelJobStore {
                             first(
                                     rows(
                                             c,
-                                            "SELECT * FROM harness_model_backend WHERE backend_id=?" + lock,
+                                            "SELECT * FROM harness_model_backend WHERE backend_id=?"
+                                                    + lock,
                                             id(backend)));
                     String digest = hash(descriptor);
                     boolean gateway = descriptor.has("type");
@@ -48,7 +47,8 @@ public final class ModelJobStore {
                         if (old.getInt("capacity") != capacity)
                             throw new StoreException("BACKEND_IDENTITY_CONFLICT");
                         if (gateway) {
-                            // Preserve the frozen v2 worker identity for in-flight drain/reconciliation.
+                            // Preserve the frozen v2 worker identity for in-flight
+                            // drain/reconciliation.
                             if (old.isNull("routing_hash"))
                                 update(
                                         c,
@@ -64,9 +64,7 @@ public final class ModelJobStore {
                 });
     }
 
-    /**
-     * Reconstructible from the already committed intent after a crash at the enqueue boundary.
-     */
+    /** Reconstructible from the already committed intent after a crash at the enqueue boundary. */
     public JSONObject enqueue(Lease lease, JSONObject intent, JSONObject model) {
         return store.tx(
                 c -> {
@@ -82,10 +80,12 @@ public final class ModelJobStore {
                                             lease.runId,
                                             round,
                                             attempt));
-                    if (authoritative == null || !canonical(authoritative).equals(canonical(intent)))
+                    if (authoritative == null
+                            || !canonical(authoritative).equals(canonical(intent)))
                         throw new StoreException("INTENT_EVIDENCE_MISMATCH");
                     String job = hash(new JSONArray().put(lease.runId).put(round).put(attempt));
-                    JSONObject old = first(rows(c, "SELECT * FROM harness_model_job WHERE job_id=?", job));
+                    JSONObject old =
+                            first(rows(c, "SELECT * FROM harness_model_job WHERE job_id=?", job));
                     if (old != null) return old;
                     JSONObject payload = new JSONObject(intent.getString("payload_json"));
                     String request = canonical(payload.getJSONObject("request"));
@@ -105,7 +105,8 @@ public final class ModelJobStore {
                             model.getString("id"),
                             model.optString(
                                     "adapterDigest",
-                                    cube.service.harness.execution.ModelProfiles.adapterDigest("scripted-v1")),
+                                    cube.service.harness.execution.ModelProfiles.adapterDigest(
+                                            "scripted-v1")),
                             hash(payload.getJSONObject("request")),
                             request,
                             store.now(c));
@@ -130,7 +131,10 @@ public final class ModelJobStore {
                     JSONObject b =
                             first(
                                     rows(
-                                            c, "SELECT * FROM harness_model_backend WHERE backend_id=?" + lock, backend));
+                                            c,
+                                            "SELECT * FROM harness_model_backend WHERE backend_id=?"
+                                                    + lock,
+                                            backend));
                     if (b == null) throw new StoreException("BACKEND_UNKNOWN");
                     JSONObject existing =
                             first(
@@ -143,19 +147,20 @@ public final class ModelJobStore {
                     if (!healthy) return null;
                     int occupied =
                             first(
-                                    rows(
-                                            c,
-                                            "SELECT COUNT(*) AS n FROM harness_model_job WHERE backend_id=? AND status<>'queued' AND actual_finished=0",
-                                            backend))
+                                            rows(
+                                                    c,
+                                                    "SELECT COUNT(*) AS n FROM harness_model_job WHERE backend_id=? AND status<>'queued' AND actual_finished=0",
+                                                    backend))
                                     .getInt("n");
                     int own =
                             first(
-                                    rows(
-                                            c,
-                                            "SELECT COUNT(*) AS n FROM harness_model_job WHERE worker_id=? AND actual_finished=0 AND status<>'queued'",
-                                            worker))
+                                            rows(
+                                                    c,
+                                                    "SELECT COUNT(*) AS n FROM harness_model_job WHERE worker_id=? AND actual_finished=0 AND status<>'queued'",
+                                                    worker))
                                     .getInt("n");
-                    if ((descriptor.optInt("protocolVersion", 2) == 2 && occupied >= b.getInt("capacity"))
+                    if ((descriptor.optInt("protocolVersion", 2) == 2
+                                    && occupied >= b.getInt("capacity"))
                             || own >= workerCapacity) return null;
                     JSONObject job =
                             first(
@@ -167,14 +172,14 @@ public final class ModelJobStore {
                                             descriptor.getString("profileDigest")));
                     if (job == null) return null;
                     if (update(
-                            c,
-                            "UPDATE harness_model_job SET backend_id=?,worker_id=?,instance_id=?,session_id=?,execution_protocol=?,status='assigned' WHERE job_id=? AND status='queued'",
-                            backend,
-                            worker,
-                            instance,
-                            session,
-                            descriptor.optInt("protocolVersion", 2),
-                            job.getString("job_id"))
+                                    c,
+                                    "UPDATE harness_model_job SET backend_id=?,worker_id=?,instance_id=?,session_id=?,execution_protocol=?,status='assigned' WHERE job_id=? AND status='queued'",
+                                    backend,
+                                    worker,
+                                    instance,
+                                    session,
+                                    descriptor.optInt("protocolVersion", 2),
+                                    job.getString("job_id"))
                             != 1) throw new StoreException("JOB_CLAIM_CONFLICT");
                     job.put("worker_id", worker)
                             .put("instance_id", instance)
@@ -224,13 +229,16 @@ public final class ModelJobStore {
                     String result =
                             canonical(
                                     cube.service.harness.execution.ModelProtocol.outcome(
-                                            report.getString("outcomeJson"), report.getBoolean("actualFinished")));
+                                            report.getString("outcomeJson"),
+                                            report.getBoolean("actualFinished")));
                     if (j.getInt("actual_finished") == 1) {
-                        if (!j.getString("outcome_json").equals(result) || !report.getBoolean("actualFinished"))
+                        if (!j.getString("outcome_json").equals(result)
+                                || !report.getBoolean("actualFinished"))
                             throw new StoreException("JOB_RESULT_CONFLICT");
                         return null;
                     }
-                    // Unknown is quarantined. A later durable completion may resolve it; repeated unknown
+                    // Unknown is quarantined. A later durable completion may resolve it; repeated
+                    // unknown
                     // must agree.
                     if (j.getString("status").equals("unknown")
                             && !report.getBoolean("actualFinished")
@@ -288,7 +296,9 @@ public final class ModelJobStore {
                                     .put("errorCode", "MODEL_NOT_DISPATCHED")
                                     .put("audit", new JSONArray())
                                     .put("cancellationObserved", true)
-                                    .put("usage", new JSONObject().put("input", 0).put("output", 0));
+                                    .put(
+                                            "usage",
+                                            new JSONObject().put("input", 0).put("output", 0));
                     update(
                             c,
                             "UPDATE harness_model_job SET status='finished',actual_finished=1,outcome_json=? WHERE job_id=? AND run_id=? AND status='queued'",
@@ -344,16 +354,59 @@ public final class ModelJobStore {
         return store.tx(
                 c ->
                         first(
-                                rows(
-                                        c,
-                                        "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')",
-                                        tenant))
+                                        rows(
+                                                c,
+                                                "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')",
+                                                tenant))
                                 .getInt("n"));
     }
 
     public long created(Lease lease) {
         return store.tx(
-                c -> store.run(c, lease.tenant, lease.subject, lease.runId, false).getLong("created_at"));
+                c ->
+                        store.run(c, lease.tenant, lease.subject, lease.runId, false)
+                                .getLong("created_at"));
+    }
+
+    /** Physical unknowns and unreconciled receipts must block an operational drain. */
+    public JSONObject drainStatus(String tenant) {
+        return store.tx(
+                c -> {
+                    int active =
+                            first(
+                                            rows(
+                                                    c,
+                                                    "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')",
+                                                    tenant))
+                                    .getInt("n");
+                    int model =
+                            first(
+                                            rows(
+                                                    c,
+                                                    "SELECT COUNT(*) AS n FROM harness_model_job j JOIN harness_round q ON q.run_id=j.run_id AND q.intent_id=j.round_id AND q.attempt=j.attempt WHERE j.tenant=? AND (j.actual_finished=0 OR q.status<>'confirmed')",
+                                                    tenant))
+                                    .getInt("n");
+                    int tool =
+                            first(
+                                            rows(
+                                                    c,
+                                                    "SELECT COUNT(*) AS n FROM harness_tool_job j JOIN harness_tool_call q ON q.run_id=j.run_id AND q.intent_id=j.call_id AND q.attempt=j.attempt WHERE j.tenant=? AND (j.actual_finished=0 OR q.status<>'confirmed')",
+                                                    tenant))
+                                    .getInt("n");
+                    int unknown =
+                            first(
+                                            rows(
+                                                    c,
+                                                    "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND execution_settlement='unknown'",
+                                                    tenant))
+                                    .getInt("n");
+                    return new JSONObject()
+                            .put("activeRuns", active)
+                            .put("unsettledModelJobs", model)
+                            .put("unsettledToolJobs", tool)
+                            .put("unknownRuns", unknown)
+                            .put("drained", active == 0 && model == 0 && tool == 0 && unknown == 0);
+                });
     }
 
     public long created(String tenant, String subject, String run) {
@@ -363,7 +416,9 @@ public final class ModelJobStore {
     public boolean expired(String tenant, String subject, String run, long lifetime) {
         return store.tx(
                 c ->
-                        store.now(c) - store.run(c, tenant, subject, run, false).getLong("created_at")
+                        store.now(c)
+                                        - store.run(c, tenant, subject, run, false)
+                                                .getLong("created_at")
                                 > lifetime);
     }
 }

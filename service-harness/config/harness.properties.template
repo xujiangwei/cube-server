@@ -9,6 +9,11 @@ worker.model-1.role=model
 worker.runner-1.role=runner
 # Optional N03 ledger. See STORE.md. No automatic migration or run API enablement.
 store.enabled=false
+# Deploy with accepting=false; enable each new JVM explicitly after verification.
+# Admin changes are node-local and reset to this startup value on restart.
+execution.accepting=true
+# Optional independent credential, >=24 characters; API/worker credentials are refused.
+# admission.admin.credential=<private-independent-administrator-credential>
 
 # Optional N11/N12. Requires execution.enabled and explicit current-schema migration.
 # See CONTROL-FILES.md. Create an independent empty root before enabling files.

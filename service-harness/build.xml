@@ -55,6 +55,10 @@
   <target name="test-trace" depends="test">
     <java classname="cube.service.harness.test.TraceTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="trace.test.output" value="${trace.test.output}"/><sysproperty key="trace.test.config" value="${trace.test.config}"/></java>
   </target>
+  <target name="test-resilience" depends="test">
+    <fail unless="n16.test.output" message="Set -Dn16.test.output to a new dedicated evidence directory"/>
+    <java classname="cube.service.harness.test.N16Test" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="n16.test.output" value="${n16.test.output}"/></java>
+  </target>
   <target name="build-debug" depends="build"><copy file="${build.dir}/cube-service-harness-3.0.jar" todir="../build"/></target>
   <target name="build-release" depends="build-debug"/>
   <target name="test" depends="build">
