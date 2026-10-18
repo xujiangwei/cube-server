@@ -198,7 +198,7 @@ public final class PackageRepository {
                 if (tool.has("resourcePath") || !tool.has("entrypoint") || !declared.contains(RuntimeSupport.path(tool.getString("entrypoint")))
                         || !file(manifest, tool.getString("entrypoint")).getString("role").equals("entrypoint")
                         || !tool.getString("permission").equals("console.status.read") || !tool.getString("effect").equals("read-only")
-                        || !tool.getString("brokerOperation").equals(schemaVersion==2?"mockconsole.query_status":"cube_console.query_status"))
+                        || !tool.getString("brokerOperation").equals(schemaVersion == 2 ? "mockconsole.query_status" : "cube_console.query_status"))
                     throw RuntimeSupport.error("PACKAGE_EXECUTABLE_INVALID");
             } else {
                 if (schemaVersion != 1 || !tool.has("resourcePath") || !declared.contains(RuntimeSupport.path(tool.getString("resourcePath"))) || tool.has("entrypoint"))

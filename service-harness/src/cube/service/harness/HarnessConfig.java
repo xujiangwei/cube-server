@@ -31,8 +31,9 @@ public final class HarnessConfig {
         if (values.getProperty("worker.credential").equals(values.getProperty("api.credential")))
             throw new IOException("API and worker credentials must differ");
         if (leaseMillis() < 1000 || leaseMillis() > 60000) throw new IOException("lease.millis out of range");
-        String approver=values.getProperty("control.approver.credential","");
-        if(!approver.isEmpty()&&(approver.length()<24||approver.equals(values.getProperty("api.credential"))||approver.equals(values.getProperty("worker.credential"))||values.getProperty("control.approver.subject","approver").equals(values.getProperty("execution.subject","developer"))))throw new IOException("Independent approver required");
+        String approver = values.getProperty("control.approver.credential", "");
+        if (!approver.isEmpty() && (approver.length() < 24 || approver.equals(values.getProperty("api.credential")) || approver.equals(values.getProperty("worker.credential")) || values.getProperty("control.approver.subject", "approver").equals(values.getProperty("execution.subject", "developer"))))
+            throw new IOException("Independent approver required");
     }
 
     public static HarnessConfig load() throws IOException {

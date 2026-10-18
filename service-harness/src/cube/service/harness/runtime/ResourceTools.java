@@ -24,7 +24,11 @@ public final class ResourceTools {
 
     private final PackageRepository repository;
     private cube.service.harness.files.FileService files;
-    public ResourceTools files(cube.service.harness.files.FileService files) { this.files = files; return this; }
+
+    public ResourceTools files(cube.service.harness.files.FileService files) {
+        this.files = files;
+        return this;
+    }
 
     public ResourceTools(CatalogStore catalog, PackageRepository repository) {
         this.catalog = catalog;
@@ -144,7 +148,10 @@ public final class ResourceTools {
                 out.put(new JSONObject().put("name", name).put("permission", name).put("description", "Read pinned skill resources: " + name)
                         .put("parameters", new JSONObject().put("type", "object").put("properties", properties).put("required", required).put("additionalProperties", false)));
             }
-        if (files != null) { JSONArray extra = cube.service.harness.files.FileService.tools(permissions); for(int i=0;i<extra.length();i++)out.put(extra.get(i)); }
+        if (files != null) {
+            JSONArray extra = cube.service.harness.files.FileService.tools(permissions);
+            for (int i = 0; i < extra.length(); i++) out.put(extra.get(i));
+        }
         Set<String> active = new HashSet<>();
         JSONArray activeRows = catalog.activeSkills(identity.tenant, identity.subject, run);
         for (int i = 0; i < activeRows.length(); i++) active.add(activeRows.getJSONObject(i).getString("digest"));

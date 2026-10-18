@@ -32,6 +32,7 @@ public final class ProfileRegistry {
     public ProfileRegistry(CatalogStore catalog) {
         this(catalog, null);
     }
+
     public ProfileRegistry(CatalogStore catalog, cube.service.harness.store.FileStore files) {
         this.catalog = catalog;
         this.files = files;
@@ -77,7 +78,8 @@ public final class ProfileRegistry {
         if (files == null && request.getJSONObject("input").getJSONArray("attachmentIds").length() != 0)
             throw RuntimeSupport.error("ATTACHMENTS_NOT_IMPLEMENTED");
         return catalog.createRun(identity.tenant, identity.subject, key, RuntimeSupport.id(taskId), request, c -> {
-            if (files != null) files.validateBindings(c, identity.tenant, identity.subject, request.getJSONObject("input").getJSONArray("attachmentIds"));
+            if (files != null)
+                files.validateBindings(c, identity.tenant, identity.subject, request.getJSONObject("input").getJSONArray("attachmentIds"));
             String binding = catalog.active(c, identity.tenant, "task", taskId).getString("target_ref");
             String[] ref = binding.split("@", -1);
             JSONObject task = catalog.profile(c, identity.tenant, "task", ref[0], ref[1]);

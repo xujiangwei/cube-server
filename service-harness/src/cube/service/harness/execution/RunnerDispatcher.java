@@ -85,9 +85,10 @@ public final class RunnerDispatcher {
         JSONArray cancel = new JSONArray(), rows = jobs.cancellations(id);
         for (int i = 0; i < rows.length(); i++) cancel.put(rows.getJSONObject(i).getString("job_id"));
         out.put("cancellations", cancel);
-        if(Boolean.parseBoolean(config.getProperty("files.enabled","false"))&&Boolean.parseBoolean(config.getProperty("cleanup.enabled","true")))
-            out.put("cleanup",jobs.cleanups(id,w.runtime,Long.parseLong(config.getProperty("cleanup.temp.grace.seconds","60"))*1000));
-        if(action.equals("cleanup_ack")) jobs.cleaned(id,w.runtime,r.getString("jobId"),r.getString("jobHash"),r.getString("resultHash"));
+        if (Boolean.parseBoolean(config.getProperty("files.enabled", "false")) && Boolean.parseBoolean(config.getProperty("cleanup.enabled", "true")))
+            out.put("cleanup", jobs.cleanups(id, w.runtime, Long.parseLong(config.getProperty("cleanup.temp.grace.seconds", "60")) * 1000));
+        if (action.equals("cleanup_ack"))
+            jobs.cleaned(id, w.runtime, r.getString("jobId"), r.getString("jobHash"), r.getString("resultHash"));
         if (action.equals("poll") && !w.draining) {
             JSONObject job = jobs.poll(id, w.runtime, w.instance, w.healthy, broker::wire);
             if (job != null) out.put("job", job);

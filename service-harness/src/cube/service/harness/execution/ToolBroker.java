@@ -59,18 +59,18 @@ public final class ToolBroker implements AutoCloseable {
         key = p.getProperty("runner.grant.key", "");
         node = RuntimeSupport.id(p.getProperty("broker.node.id", ""));
         if (key.length() < 32) throw new IllegalArgumentException("RUNNER_GRANT_KEY_REQUIRED");
-        console="console".equals(p.getProperty("broker.type"))?new ConsoleStatusAdapter(p):null;
-        if (console==null&&!"true".equals(p.getProperty("broker.mock.enabled")))
+        console = "console".equals(p.getProperty("broker.type")) ? new ConsoleStatusAdapter(p) : null;
+        if (console == null && !"true".equals(p.getProperty("broker.mock.enabled")))
             throw new IllegalArgumentException("MOCK_BROKER_EXPLICIT_ENABLE_REQUIRED");
-        endpoint = console==null?new URL(p.getProperty("broker.mock.url", "")):null;
-        if (console==null&&(!endpoint.getProtocol().equals("http") || !InetAddress.getByName(endpoint.getHost()).isLoopbackAddress()
+        endpoint = console == null ? new URL(p.getProperty("broker.mock.url", "")) : null;
+        if (console == null && (!endpoint.getProtocol().equals("http") || !InetAddress.getByName(endpoint.getHost()).isLoopbackAddress()
                 || endpoint.getUserInfo() != null || endpoint.getQuery() != null || endpoint.getRef() != null))
             throw new IllegalArgumentException("MOCK_BROKER_LOOPBACK_REQUIRED");
         token = p.getProperty("broker.mock.token", "");
-        if (console==null&&token.length() < 24) throw new IllegalArgumentException("BROKER_PRIVATE_TOKEN_REQUIRED");
-        targets = console==null?set(p.getProperty("broker.mock.targets", "")):console.targets();
-        fields = set(p.getProperty(console==null?"broker.mock.fields":"broker.console.fields", console==null?"cpuPercent,memoryMiB":"running,version,jvm,host"));
-        if (targets.isEmpty() || fields.isEmpty() || !(console==null?new HashSet<>(Arrays.asList("cpuPercent", "memoryMiB")):new HashSet<>(Arrays.asList("running","version","jvm","host"))).containsAll(fields))
+        if (console == null && token.length() < 24) throw new IllegalArgumentException("BROKER_PRIVATE_TOKEN_REQUIRED");
+        targets = console == null ? set(p.getProperty("broker.mock.targets", "")) : console.targets();
+        fields = set(p.getProperty(console == null ? "broker.mock.fields" : "broker.console.fields", console == null ? "cpuPercent,memoryMiB" : "running,version,jvm,host"));
+        if (targets.isEmpty() || fields.isEmpty() || !(console == null ? new HashSet<>(Arrays.asList("cpuPercent", "memoryMiB")) : new HashSet<>(Arrays.asList("running", "version", "jvm", "host"))).containsAll(fields))
             throw new IllegalArgumentException("BROKER_SCOPE_REQUIRED");
         queries = new ThreadPoolExecutor(2, 2, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(32), r -> {
             Thread t = new Thread(r, "harness-broker-query");
@@ -117,7 +117,8 @@ public final class ToolBroker implements AutoCloseable {
     }
 
     private void arguments(JSONObject a) {
-        if(console==null)Contract.validate(a, parameters());else console.validate(a);
+        if (console == null) Contract.validate(a, parameters());
+        else console.validate(a);
         Set<String> t = RuntimeSupport.strings(a.getJSONArray("targets")), f = RuntimeSupport.strings(a.getJSONArray("fields"));
         if (!targets.containsAll(t) || !fields.containsAll(f)) throw new StoreException("BROKER_SCOPE_FORBIDDEN");
     }
@@ -126,10 +127,10 @@ public final class ToolBroker implements AutoCloseable {
         JSONObject tool = definition.getJSONObject("tool"), runtime = definition.getJSONObject("runtime");
         if (!runtime.getString("mode").equals("trusted-python-v1") || !runtime.getString("certification").equals("offline-trusted-runner")
                 || !RuntimeSupport.strings(runtime.getJSONArray("capabilities")).contains("tool.execute") || !tool.getString("effect").equals("read-only")
-                || !tool.getString("brokerOperation").equals(console==null?"mockconsole.query_status":"cube_console.query_status") || !tool.getString("permission").equals("console.status.read")
+                || !tool.getString("brokerOperation").equals(console == null ? "mockconsole.query_status" : "cube_console.query_status") || !tool.getString("permission").equals("console.status.read")
                 || !identity.permissions.contains("console.status.read"))
             throw new StoreException("TOOL_PROFILE_FORBIDDEN");
-        if (!canonical(console==null?parameters():ConsoleStatusAdapter.parameters()).equals(canonical(definition.getJSONObject("parameters"))) || !canonical(console==null?outputSchema():ConsoleStatusAdapter.outputSchema()).equals(canonical(definition.getJSONObject("resultSchema"))))
+        if (!canonical(console == null ? parameters() : ConsoleStatusAdapter.parameters()).equals(canonical(definition.getJSONObject("parameters"))) || !canonical(console == null ? outputSchema() : ConsoleStatusAdapter.outputSchema()).equals(canonical(definition.getJSONObject("resultSchema"))))
             throw new StoreException("TOOL_REGISTRY_SCHEMA_MISMATCH");
         JSONObject args = StrictJson.object(new JSONObject(intent.getString("payload_json")).getString("argumentsJson").getBytes(StandardCharsets.UTF_8));
         arguments(args);
@@ -204,7 +205,13 @@ public final class ToolBroker implements AutoCloseable {
         try {
             // Recheck revocation after queue wait, before touching the upstream service.
             authorize(jobs.job(j.getString("job_id")), new JSONObject(j.getString("wire_json")).getJSONObject("grant"));
-            if(console!=null){response=console.query(args);validateData(j,response);pending.put(j.getString("job_id"),new JSONObject().put("response",response).put("unknown",false));flush();return;}
+            if (console != null) {
+                response = console.query(args);
+                validateData(j, response);
+                pending.put(j.getString("job_id"), new JSONObject().put("response", response).put("unknown", false));
+                flush();
+                return;
+            }
             connection = (HttpURLConnection) endpoint.openConnection();
             connection.setInstanceFollowRedirects(false);
             connection.setConnectTimeout(1500);
@@ -265,7 +272,8 @@ public final class ToolBroker implements AutoCloseable {
         Set<String> allowedFields = RuntimeSupport.strings(args.getJSONArray("fields")), allowedTargets = RuntimeSupport.strings(args.getJSONArray("targets"));
         allowedFields.add("target");
         allowedFields.add("queriedAt");
-        if(console!=null)allowedFields.addAll(Arrays.asList("source","reportTimestamp","reportState","errorCode"));
+        if (console != null)
+            allowedFields.addAll(Arrays.asList("source", "reportTimestamp", "reportState", "errorCode"));
         Set<String> seen = new HashSet<>();
         JSONArray nodes = data.getJSONArray("nodes");
         for (int i = 0; i < nodes.length(); i++) {

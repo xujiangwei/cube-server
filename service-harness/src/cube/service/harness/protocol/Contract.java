@@ -64,7 +64,7 @@ public final class Contract {
         boolean good = type.equals("object") ? value instanceof JSONObject : type.equals("array") ? value instanceof JSONArray :
                 type.equals("string") ? value instanceof String : type.equals("boolean") ? value instanceof Boolean :
                         type.equals("number") ? value instanceof Number && Double.isFinite(((Number) value).doubleValue()) :
-                        type.equals("integer") ? value instanceof Number && Double.isFinite(((Number) value).doubleValue()) && ((Number) value).doubleValue() == Math.rint(((Number) value).doubleValue()) : false;
+                                type.equals("integer") ? value instanceof Number && Double.isFinite(((Number) value).doubleValue()) && ((Number) value).doubleValue() == Math.rint(((Number) value).doubleValue()) : false;
         if (!good) bad();
         JSONArray choices = schema.optJSONArray("enum");
         if (choices != null) {

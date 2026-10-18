@@ -57,7 +57,9 @@ public final class AssetFiles {
         return locked(action, false);
     }
 
-    /** Bounded admission for live file operations; never park API/coordinator threads behind a stream. */
+    /**
+     * Bounded admission for live file operations; never park API/coordinator threads behind a stream.
+     */
     public <T> T tryLocked(Action<T> action) throws Exception {
         return locked(action, true);
     }

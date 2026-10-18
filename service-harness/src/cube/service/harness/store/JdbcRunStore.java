@@ -303,7 +303,8 @@ public final class JdbcRunStore {
                 for (int i = 0; i < releases.length(); i++)
                     update(c, "INSERT INTO harness_release_ref VALUES (?,?,?)", tenant, releases.getJSONObject(i).getString("digest"), runId);
                 JSONArray attachments = request.getJSONObject("input").getJSONArray("attachmentIds");
-                for (int i=0;i<attachments.length();i++) update(c,"INSERT INTO harness_file_binding VALUES (?,?)",runId,attachments.getString(i));
+                for (int i = 0; i < attachments.length(); i++)
+                    update(c, "INSERT INTO harness_file_binding VALUES (?,?)", runId, attachments.getString(i));
             }
             JSONObject response = emit(c, run(c, tenant, subject, runId, true), "run.created", request, "coordinator");
             receipt(c, k, tenant, subject, "create", "runs", digest, response);
@@ -578,7 +579,7 @@ public final class JdbcRunStore {
             for (int i = 0; i < actualUsage.length(); i++) usage(c, lease, actualUsage.getJSONObject(i));
             update(c, "INSERT INTO harness_result VALUES (?,?,?,?,?,?)", lease.runId, lease.tenant, state, json(envelope), digest, now(c));
             update(c, "UPDATE harness_run SET state=?,execution_settlement=? WHERE run_id=?", state, executionSettlement, lease.runId);
-              update(c, "UPDATE harness_wait SET status='expired' WHERE run_id=? AND status='pending'", lease.runId);
+            update(c, "UPDATE harness_wait SET status='expired' WHERE run_id=? AND status='pending'", lease.runId);
             r.put("state", state).put("execution_settlement", executionSettlement);
             emit(c, r, "run." + state, new JSONObject().put("resultHash", digest), "result");
             return new JSONObject(json(envelope));
