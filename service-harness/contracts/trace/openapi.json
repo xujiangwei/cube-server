@@ -1,0 +1,140 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Harness independent redacted Trace and append-only feedback",
+    "version": "N13.1"
+  },
+  "paths": {
+    "/harness/v1/runs/{runId}/trace": {
+      "get": {
+        "security": [
+          {
+            "TraceReader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded diagnostic export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas/trace.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Disabled, invalid or expired diagnostic request; TRACE_EXPIRED is currently HTTP 400"
+          },
+          "401": {
+            "description": "Invalid API credential"
+          },
+          "403": {
+            "description": "Separate reader credential required; reader cannot perform mutations"
+          },
+          "404": {
+            "description": "Run not owned by configured tenant/subject"
+          },
+          "409": {
+            "description": "Idempotency conflict"
+          },
+          "503": {
+            "description": "Store unavailable"
+          }
+        }
+      }
+    },
+    "/harness/v1/runs/{runId}/feedback": {
+      "post": {
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Append-only durable receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "schemas/feedback-receipt.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Disabled, invalid or expired diagnostic request; TRACE_EXPIRED is currently HTTP 400"
+          },
+          "401": {
+            "description": "Invalid API credential"
+          },
+          "403": {
+            "description": "Separate reader credential required; reader cannot perform mutations"
+          },
+          "404": {
+            "description": "Run not owned by configured tenant/subject"
+          },
+          "409": {
+            "description": "Idempotency conflict"
+          },
+          "503": {
+            "description": "Store unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "schemas/feedback.json"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "TraceReader": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "HarnessBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

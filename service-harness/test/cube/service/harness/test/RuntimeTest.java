@@ -20,7 +20,9 @@ public final class RuntimeTest {
     static final JSONArray checks=new JSONArray();
     static StoreConfig config;static JdbcRunStore store;static CatalogStore catalog;static ProfileRegistry profiles;
     static PackageRepository repo;static ResourceTools resources;static ContextEngine contexts;static Workspaces workspaces;
-    static ProfileRegistry.Identity identity=new ProfileRegistry.Identity(T,S,ProfileRegistry.PLATFORM_PERMISSIONS);
+    static final Set<String> TEST_PERMISSIONS=new HashSet<>(ProfileRegistry.PLATFORM_PERMISSIONS);
+    static {TEST_PERMISSIONS.add("console.status.read");TEST_PERMISSIONS.add("server-status.read");}
+    static ProfileRegistry.Identity identity=new ProfileRegistry.Identity(T,S,TEST_PERMISSIONS);
     static Path root;static String release;static JSONObject runtime,model;
     static byte[] bytes(String s){return s.getBytes(StandardCharsets.UTF_8);}
     static String key(){return UUID.randomUUID().toString();}
@@ -33,7 +35,7 @@ public final class RuntimeTest {
     static JSONObject request(String text){return new JSONObject().put("taskProfileId","task").put("input",new JSONObject().put("instruction",text).put("attachmentIds",new JSONArray()));}
     static JSONObject task(String ver,String digest,String modelId,int maxChars){return new JSONObject().put("schemaVersion",1).put("id","task").put("version",ver).put("kind","task")
         .put("model",ref(modelId)).put("runtime",ref("resources")).put("skillReleases",new JSONArray().put(digest))
-        .put("permissions",new JSONArray(ProfileRegistry.PLATFORM_PERMISSIONS)).put("requiredCapabilities",new JSONArray().put("resources"))
+        .put("permissions",new JSONArray(TEST_PERMISSIONS)).put("requiredCapabilities",new JSONArray().put("resources"))
         .put("toolSetVersion","resource-tools-v1").put("contextPolicy",new JSONObject().put("version","context-v1").put("budgetVersion","full-json-bytes-v1")
             .put("outputReserve",256).put("maxSourceChars",maxChars).put("compaction","extractive-v1").put("maxInputBytes",2097152));}
     static String run(String taskVersion,String text) {
@@ -50,7 +52,7 @@ public final class RuntimeTest {
         JSONArray files=new JSONArray();for(Map.Entry<String,byte[]> e:entries.entrySet())files.put(new JSONObject().put("path",e.getKey()).put("sha256",RuntimeSupport.sha(e.getValue())).put("size",e.getValue().length)
             .put("mediaType",e.getKey().endsWith("json")?"application/json":"text/plain").put("role",e.getKey().equals("SKILL.md")?"skill":e.getKey().equals("dependencies.lock.json")?"lock":e.getKey().endsWith("schema.json")?"schema":"resource"));
         return new JSONObject().put("schemaVersion",1).put("name","test/guide").put("version","1").put("runtime",ref("resources")).put("skillFile","SKILL.md")
-            .put("dependencyLock","dependencies.lock.json").put("permissions",new JSONArray(ProfileRegistry.PLATFORM_PERMISSIONS)).put("files",files).put("tools",new JSONArray());
+            .put("dependencyLock","dependencies.lock.json").put("permissions",new JSONArray(TEST_PERMISSIONS)).put("files",files).put("tools",new JSONArray());
     }
     static byte[] zip(JSONObject manifest,Map<String,byte[]> entries) throws Exception {
         ByteArrayOutputStream out=new ByteArrayOutputStream();try(ZipOutputStream z=new ZipOutputStream(out)){Map<String,byte[]> all=new TreeMap<>(entries);all.put("manifest.json",RuntimeSupport.bytes(manifest));

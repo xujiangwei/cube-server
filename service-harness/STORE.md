@@ -74,8 +74,13 @@ ant -f service-harness/build.xml '-Dstore.test.config=C:/private/mysql-runtime.l
 
 ## N08/N09 schema5
 
-N08/N09 历史增量为 schema5，当前显式迁移目标为 schema6。新增 runner identity、tool job、durable revocation、Broker exchange 四张表；001～004 保持原摘要。运行启动仍不执行 DDL。SQLite/MySQL 工具专项覆盖提交前失败、提交后响应丢失和结果提交对账；unknown 不删除、不重执行。schema4 二进制拒绝新库，降级须恢复停机前专用备份，不能删表回退。部署和保留策略见 [TOOLS.md](TOOLS.md)。
+N08/N09 历史增量为 schema5，当前显式迁移目标为 schema7。新增 runner identity、tool job、durable revocation、Broker exchange 四张表；001～004 保持原摘要。运行启动仍不执行 DDL。SQLite/MySQL 工具专项覆盖提交前失败、提交后响应丢失和结果提交对账；unknown 不删除、不重执行。schema4 二进制拒绝新库，降级须恢复停机前专用备份，不能删表回退。部署和保留策略见 [TOOLS.md](TOOLS.md)。
 
 ## N11/N12 schema6
 
 新增 wait/control receipt、file/request/pin/binding/policy/root 八表，tool job 增加 cleanup_after/cleanup_done；001～005 保持不变。文件到期、owner/fence、pin 与删除墓碑保存在专用库，启动不执行 DDL。显式升级、控制/文件接口、默认 TTL 与撤回规则见 [CONTROL-FILES.md](CONTROL-FILES.md)。SQLite/MySQL 本机专项通过，原生 Linux 与生产部署认证待验。
+
+
+## N13～N15 schema7
+
+新增追加式feedback、可回放事件状态投影、模型/工具/推理阶段时间、工具broker_protocol和独立执行器runner_finished证据；001～006保持原字节。当前显式upgrade目标为7，旧历史事件投影为空，回放明确拒绝不完整历史。关闭Trace不删恢复账本。参见 [TRACE.md](TRACE.md) 及工作区 `skill/harness-extensions/README.md`。独立Docker执行器与普通Runner的物理完成分账，重启只对账/清理unknown容器，不重发代码；两份物理证据齐全才释放。旧二进制拒绝schema7，撤回关闭入口并保留兼容节点，不删表降级。

@@ -24,7 +24,7 @@ public final class ProfileRegistry {
             "resource.list",
             "resource.read",
             "resource.search",
-            "console.status.read", "input.read_text", "artifact.write_text")));
+            "input.read_text", "artifact.write_text")));
 
     private final CatalogStore catalog;
     private final cube.service.harness.store.FileStore files;
@@ -93,13 +93,15 @@ public final class ProfileRegistry {
                 throw RuntimeSupport.error("PROFILE_CAPABILITY_MISMATCH");
             Set<String> permissions = RuntimeSupport.strings(task.getJSONArray("permissions"));
             permissions.retainAll(identity.permissions);
-            permissions.retainAll(PLATFORM_PERMISSIONS);
+            Set<String> declaredPermissions = new HashSet<>(PLATFORM_PERMISSIONS);
             JSONArray releases = new JSONArray();
             Set<String> skillNames = new HashSet<>();
             for (String digest : RuntimeSupport.strings(task.getJSONArray("skillReleases"))) {
                 JSONObject row = catalog.release(c, identity.tenant, digest, true);
                 if (!row.getString("state").equals("ready")) throw RuntimeSupport.error("RELEASE_NOT_READY");
                 JSONObject manifest = new JSONObject(row.getString("manifest_json"));
+                if (manifest.getInt("schemaVersion") == 3) throw RuntimeSupport.error("LEGACY_BUILTIN_PACKAGE_DISABLED");
+                declaredPermissions.addAll(RuntimeSupport.strings(manifest.getJSONArray("permissions")));
                 if (!skillNames.add(manifest.getString("name"))) throw RuntimeSupport.error("PROFILE_DUPLICATE_SKILL");
                 if (!JdbcRunStore.canonical(manifest.getJSONObject("runtime")).equals(JdbcRunStore.canonical(rr)))
                     throw RuntimeSupport.error("PACKAGE_RUNTIME_MISMATCH");
@@ -109,6 +111,7 @@ public final class ProfileRegistry {
                     if (!RuntimeSupport.strings(task.getJSONArray("skillReleases")).contains(dep))
                         throw RuntimeSupport.error("DEPENDENCY_NOT_PINNED");
             }
+            permissions.retainAll(declaredPermissions);
             return new JSONObject().put("schemaVersion", 1).put("task", task).put("model", model).put("runtime", runtime)
                     .put("releases", releases).put("permissions", new JSONArray(permissions));
         });

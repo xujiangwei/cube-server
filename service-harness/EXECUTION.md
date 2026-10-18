@@ -1,6 +1,6 @@
 # Harness 资源循环与 Java 推理网关
 
-启用 `store.enabled=true`、`execution.enabled=true` 后提供独立 development 资源任务入口。Java 必须使用 JDK 8；独立数据库显式迁移到 schema=5。当前身份固定为受信 development tenant/subject，生产身份源和真实 Console 工具仍待后续接入；N08/N09 可信 CPU MockConsole 工具需显式启用，见 [TOOLS.md](TOOLS.md)。
+启用 `store.enabled=true`、`execution.enabled=true` 后提供独立 development 资源任务入口。Java 必须使用 JDK 8；独立数据库显式迁移到 schema=5。当前身份固定为受信 development tenant/subject，生产身份源仍待后续接入，业务工具通过独立 SKILL/provider 发布与配置；N08/N09 可信 CPU MockConsole 工具需显式启用，见 [TOOLS.md](TOOLS.md)。
 
 ## 推理链路与边界
 

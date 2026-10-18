@@ -1,0 +1,11 @@
+{
+  "runtime": "trusted-python-v1",
+  "sources": {
+    "runner_worker.py": "a62742a10b28d83a91444613710ce04d4fb3bc30a2248f0d0939b8d38c49cdcc",
+    "runner_journal.py": "1265c8f05ec650c098117bff06d824e48b9836dbb1641b7c968c722bb444cd3e",
+    "runner_process.py": "b0ef67293633b9d6f1c6a3dd30915a2de3beefb1d4482ce5c17344ae23b9537a",
+    "runner_bootstrap.py": "e12c1d8836d448e449b73436a998db74da23924580df41ef0e8af74b49aa4dd0",
+    "runner_sdk.py": "4059ccd5148673fc3232bd9c46ffd5f8d58984d60039c86c08b8fd4be50cc703"
+  },
+  "digest": "db0d53e907277d22f140d8a3d425d6247bda423f08d0c0910b24afdba72a3c96"
+}

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="cube-service-harness" default="build" basedir=".">
+  <property name="trace.test.config" value=""/>
+  <property name="trace.test.output" value=""/>
   <property name="tools.test.config" value=""/>
   <property name="control.test.config" value=""/>
   <property name="build.dir" location="build"/>
@@ -42,13 +44,16 @@
   </target>
   <target name="test-tools" depends="test">
     <java classname="cube.service.harness.test.ToolTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="tools.test.config" value="${tools.test.config}"/></java>
+    <java classname="cube.service.harness.test.QueryProviderTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
   </target>
   <target name="test-inference" depends="test">
     <java classname="cube.service.harness.test.InferenceTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
   </target>
   <target name="test-control-files" depends="test">
     <java classname="cube.service.harness.test.ControlFileTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="control.test.config" value="${control.test.config}"/></java>
-    <java classname="cube.service.harness.test.ConsoleAdapterTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
+  </target>
+  <target name="test-trace" depends="test">
+    <java classname="cube.service.harness.test.TraceTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="trace.test.output" value="${trace.test.output}"/><sysproperty key="trace.test.config" value="${trace.test.config}"/></java>
   </target>
   <target name="build-debug" depends="build"><copy file="${build.dir}/cube-service-harness-3.0.jar" todir="../build"/></target>
   <target name="build-release" depends="build-debug"/>

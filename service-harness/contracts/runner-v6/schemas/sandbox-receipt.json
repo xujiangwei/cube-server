@@ -1,0 +1,71 @@
+{
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "actualFinished": {
+          "type": "boolean",
+          "enum": [
+            true
+          ]
+        },
+        "proofHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "maxLength": 64
+        },
+        "output": {
+          "type": "object",
+          "properties": {
+            "stdout": {
+              "type": "string",
+              "maxLength": 8192
+            },
+            "artifactText": {
+              "type": "string",
+              "maxLength": 8192
+            }
+          },
+          "required": [
+            "stdout",
+            "artifactText"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "actualFinished",
+        "proofHash",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "actualFinished": {
+          "type": "boolean",
+          "enum": [
+            true
+          ]
+        },
+        "proofHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "maxLength": 64
+        },
+        "errorCode": {
+          "type": "string",
+          "pattern": "^[A-Z0-9_]{1,128}$",
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "actualFinished",
+        "proofHash",
+        "errorCode"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

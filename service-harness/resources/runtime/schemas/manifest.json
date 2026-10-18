@@ -9,5 +9,8 @@
   "model-profile-v3.json": "05f027bf8d0fd698034f52efbf4e84c9fd49933ac58fa1140790cfc6a18c6c5c",
   "runtime-profile-v2.json": "7984eb17db51b55dafe2955f039dc683c5209751ffa4096a0189f9f05bee426e",
   "manifest-v2.json": "e704b71d3f6d7d27eac508373293015d2774b1998a80cc2e1a8058f0228c2131",
-  "manifest-v3.json": "daf9aa3d38857ded65be985977ac256b5328edeee6bb485fcb3199af24fa116d"
+  "manifest-v3.json": "daf9aa3d38857ded65be985977ac256b5328edeee6bb485fcb3199af24fa116d",
+  "manifest-v4.json": "80b330a390bbc0cb206f7a93eeb1e6afe75dc4fec440819299da709dcd1f11b9",
+  "manifest-v5.json": "ddbde19be7c4818e524c5fe7943b3bbaa12850702821a94702d72c5722739b0b",
+  "manifest-v6.json": "cb1792ff2d5b82b8b9d894f5eeca40df94ef17c57912f5b54eb4b1b53685797d"
 }

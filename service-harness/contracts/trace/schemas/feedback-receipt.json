@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "feedbackId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "accepted": {
+      "type": "boolean",
+      "enum": [
+        true
+      ]
+    }
+  },
+  "required": [
+    "feedbackId",
+    "accepted"
+  ],
+  "additionalProperties": false
+}

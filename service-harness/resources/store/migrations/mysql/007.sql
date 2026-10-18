@@ -1,0 +1,14 @@
+ALTER TABLE harness_event ADD COLUMN projection_json MEDIUMTEXT;
+CREATE TABLE harness_feedback (feedback_id VARCHAR(64) PRIMARY KEY, run_id VARCHAR(128) NOT NULL, tenant VARCHAR(128) NOT NULL, subject_id VARCHAR(128) NOT NULL, payload_hash VARCHAR(64) NOT NULL, rating VARCHAR(16) NOT NULL, reason_json MEDIUMTEXT NOT NULL, created_at BIGINT NOT NULL, FOREIGN KEY(run_id) REFERENCES harness_run(run_id)) ENGINE=InnoDB;
+CREATE INDEX harness_feedback_run ON harness_feedback(run_id, created_at);
+ALTER TABLE harness_tool_job ADD COLUMN broker_protocol INTEGER NOT NULL DEFAULT 4;
+ALTER TABLE harness_tool_job ADD COLUMN runner_finished INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE harness_model_job ADD COLUMN dispatched_at BIGINT;
+ALTER TABLE harness_model_job ADD COLUMN finished_at BIGINT;
+ALTER TABLE harness_model_job ADD COLUMN cancelled_at BIGINT;
+ALTER TABLE harness_tool_job ADD COLUMN dispatched_at BIGINT;
+ALTER TABLE harness_tool_job ADD COLUMN finished_at BIGINT;
+ALTER TABLE harness_tool_job ADD COLUMN cancelled_at BIGINT;
+ALTER TABLE harness_inference ADD COLUMN dispatched_at BIGINT;
+ALTER TABLE harness_inference ADD COLUMN finished_at BIGINT;
+ALTER TABLE harness_inference ADD COLUMN cancelled_at BIGINT;

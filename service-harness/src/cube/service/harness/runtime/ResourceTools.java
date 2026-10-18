@@ -165,7 +165,7 @@ public final class ResourceTools {
                 JSONObject tool = declared.getJSONObject(j);
                 if (!allowed.contains(tool.getString("permission"))) continue;
                 out.put(new JSONObject().put("name", tool.getString("name")).put("permission", tool.getString("permission"))
-                        .put("description", tool.getString("kind").equals("resource") ? "Read immutable resource " + tool.getString("resourcePath") : "Query authorized server status through the controlled Broker")
+                        .put("description", tool.getString("kind").equals("resource") ? "Read immutable resource " + tool.getString("resourcePath") : "Execute the activated SKILL tool through its authorized provider")
                         .put("resultSchema", cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("outputSchema"))))
                         .put("parameters", cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("inputSchema")))));
             }

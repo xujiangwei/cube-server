@@ -1,4 +1,4 @@
-# N10～N12 控制、状态查询与文件
+# N11/N12 控制与文件
 
 使用实际 JDK 8；这是独立 `service-harness` 的可选开发入口。数据库显式升级至 **schema6**，服务启动只校验。升级前停止新写入并备份专用库，升级后由支持 schema6 的节点恢复；旧 schema5 二进制不能直接读新库。`001`～`005.sql` 不变，新增 `006.sql`（等待/回执与文件/root 身份等八表，加 tool job 清理列）。
 
@@ -35,18 +35,14 @@
 
 Java 在 OS 根锁内执行文件回收，DB claim/fence/CAS 与失败退避记录删除结果；提交回执丢失时根据墓碑/缺失字节恢复，不重做工具。扫描批量有界，指标见 capabilities 中的 files。Runner 按持久化 call.confirmed 事实推导并保存 cleanup_after，经过宽限后下发绑定 runtime/jobHash/resultHash 的清理指令；只有执行树已结束、结果已 ACK 且非 unknown 才删除自己的 calls/jobId 目录，保留 journal。指令和 ACK 可幂等重传。失败仅日志记录脱敏错误码并重试，不清理旧目录、包或仓库证据。
 
-## Console 只读适配器
+## 业务 SKILL 的边界
 
-`broker.type=console` 启用 `cube_console.query_status`，显式配置独立 `broker.console.baseUrl`、私有 `broker.console.cookie=CubeConsoleToken=...` 和允许节点映射。每个 target 固定 kind（service/dispatcher/console-host），服务节点还固定 tag/path/reportName；模型只选择 target 和 running/version/jvm/host 字段。
-
-服务状态使用 Console 现有 POST 表单 tag/path；JVM Report 已是 MiB，保留 reportTimestamp 与 fresh/stale/placeholder/missing。host 仅 Console 本机，CPU 分数转百分比、内存字节转 MiB。Broker 先投影，再把数据交给 Runner；不传 storage/cache、凭据和部署路径。连接不跟随重定向，单请求总期限和 QPS/熔断均有界。默认 QPS=2、timeout=1500ms、报告最大年龄=120000ms。
-
-`N10N12Fixture` 在隔离目录生成新 release ZIP 与 `cube-server-status.readonly.v1`（及两个模型专属 profile），不覆盖旧样例；这是测试作者包，仍需按 RuntimeAdmin 的独立管理与认证流程发布。真实 Console 环境尚缺，当前本地协议夹具和真实模型冒烟均不等于 N10 每模型 50×3 认证。
+Console 状态查询已移至工作区 [server-status SKILL](../../skill/harness-packages/server-status/README.md)，使用独立 provider、私有配置与认证入口。Harness 不包含 Console API/Cookie/节点解释逻辑；通用扩展注册见 [TOOLS.md](TOOLS.md)。是否配置 Console 不影响 N11/N12 控制和文件能力。
 
 ## 验证与撤回
 
-`ant -f service-harness/build.xml test-control-files test-tools test-execution test-inference`；MySQL 专项使用全新专用库及 `-Dcontrol.test.config=<私有 migrator 配置>`。Python 用 `python -B -m unittest discover -s harness/tests -v`；实际 Cell 流程见 `scripts/n10_n12_smoke.py --help`。
+`ant -f service-harness/build.xml test-control-files test-tools test-execution test-inference`；MySQL 专项使用全新专用库及 `-Dcontrol.test.config=<私有 migrator 配置>`。Python 用 `python -B -m unittest discover -s harness/tests -v`；选择状态 SKILL 的 Cell 集成回归见工作区 `skill/harness-packages/server-status/tests/integration_smoke.py --help`。
 
 新增 Runner 契约和源摘要需要两工程同步部署，先 drain 旧实例，保留运行目录与 journal，不能混用旧摘要。撤回仅停止新交互接单/上传/状态 profile，保留兼容 schema6 的恢复节点至在途执行、文件保留和清理收敛。原生 Linux、多主机存储及生产身份未认证；不据 Windows 测试晋级发布。
 
-N10 场景冻结在 `fixtures/n10-scenarios.json`（50 场景、每模型 3 轮）；`scripts/n10_certify.py --help` 在已审阅的专用真实 Console/SQLite 环境执行，逐次保留失败和硬断言，语言质量单列人工审阅。当前尚未执行该认证。
+业务技能的真实数据源与质量认证由相应 SKILL 维护，不纳入控制/文件模块的固定依赖。

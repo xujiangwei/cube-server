@@ -10,7 +10,7 @@ worker.runner-1.role=runner
 # Optional N03 ledger. See STORE.md. No automatic migration or run API enablement.
 store.enabled=false
 
-# Optional N11/N12. Requires execution.enabled and explicit schema6 migration.
+# Optional N11/N12. Requires execution.enabled and explicit current-schema migration.
 # See CONTROL-FILES.md. Create an independent empty root before enabling files.
 files.enabled=false
 # files.root=C:/private/harness-files
@@ -23,18 +23,11 @@ files.enabled=false
 # control.approval.tools=artifact.write_text
 # control.wait.millis=300000
 # control.cancel.grace.millis=10000
-# Optional N10 dedicated Console, independent of dispatcher/business REST.
-# broker.type=console
-# broker.console.baseUrl=http://127.0.0.1:7000
-# broker.console.cookie=CubeConsoleToken=REPLACE_WITH_PRIVATE_COOKIE
-# broker.console.targets=node-a
-# broker.console.target.node-a.kind=service
-# broker.console.target.node-a.tag=service-a
-# broker.console.target.node-a.path=C:/isolated/service-a
-# broker.console.target.node-a.reportName=service-a
-# broker.console.qps=2
-# broker.console.timeout.millis=1500
-# broker.console.report.max.age.millis=120000
+# Optional trusted SKILL query providers, installed separately from Harness.
+# Provider-specific URLs, credentials and policy live in each private provider config.
+# broker.providers=my-skill
+# broker.provider.my-skill.class=your.skills.ReadOnlyProvider
+# broker.provider.my-skill.config=C:/private/my-skill.properties
 # TTL and cleanup defaults:
 # Add to the SAME private file selected by -Dharness.config (harness.properties).
 # cleanup.enabled controls physical deletion; logical expiry is always enforced by N12.
@@ -50,3 +43,19 @@ files.enabled=false
 # cleanup.retry.initial.seconds=30
 # cleanup.retry.max.seconds=3600
 # Restart required. TTL changes apply to NEW ready files, not existing expiresAt.
+
+# N13 independent diagnostics; no external trace sink participates in recovery.
+trace.enabled=false
+trace.reader.credential=
+trace.retention.seconds=604800
+trace.export.max.bytes=262144
+feedback.enabled=false
+# N14/N15 external providers are NOT registered by default. See TRACE.md and
+# workspace skill/harness-extensions/README.md; default Runner protocol is v4,
+# opt-in runner JSON protocolVersion=5 supports reviewed generic IPC entrypoints.
+
+# Optional certified Python sandbox Runner (Cell v6); no local controller/KVM paths in Java.
+# worker.sandbox-a.role=runner
+# worker.sandbox-a.capacity=1
+# worker.sandbox-a.sandbox.profile.sha256=REPLACE_WITH_PROFILE_DIGEST
+# worker.sandbox-a.sandbox.certificate.sha256=REPLACE_WITH_CERTIFICATE_SHA256

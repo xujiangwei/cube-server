@@ -53,7 +53,7 @@ java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.runtime.RuntimeAd
 
 `ProfileRegistry.publish` 用五个封闭 schema 校验 Model/Runtime/TaskProfile、包和依赖锁。同 kind/id/version 异内容拒绝。`createRun(Identity, key, taskId, request)` 在创建事务内解析 active task、固定 model/runtime/release/权限及引用，提交后返回；幂等重试即使 active 已切换也返回原 run。默认 files 关闭时拒绝非空 attachmentIds；显式开启 N12 后在创建事务中验证并绑定本主体 ready、未到期 Input。
 
-Identity 由可信身份源构造，不能从客户端请求字段映射。有效权限是 task、可信身份与平台支持权限的交集；相同技能名的多个 release 不能同时固定。客户工具名限定在包命名空间。资源能力只有 `skill.list/activate`、`resource.list/read/search`；激活产生版本化事件，不增加权限。`ResourceTools.invoke` 对每次调用复查权限、参数 schema、激活和固定 release；自定义资源工具只读 manifest 固定路径，并验证输出 schema，不运行代码。
+Identity 由可信身份源构造，不能从客户端请求字段映射。有效权限是 task、可信身份与已固定 release 声明/核心权限的交集，执行工具还须匹配部署端 provider 策略；相同技能名的多个 release 不能同时固定。客户工具名限定在包命名空间。资源能力只有 `skill.list/activate`、`resource.list/read/search`；激活产生版本化事件，不增加权限。`ResourceTools.invoke` 对每次调用复查权限、参数 schema、激活和固定 release；自定义资源工具只读 manifest 固定路径，并验证输出 schema，不运行代码。
 
 `read` offset/limit 按 Unicode codepoint 分页，最大 8192，返回 release/path/sha256/handle/nextOffset；只能读 skill/resource role。`search` 是有界字面量匹配。每次操作重新校验 tenant、subject、当前可信身份权限及包权限，不能通过 activation 读取未授权内容。
 
@@ -80,3 +80,5 @@ ant -f service-harness/build.xml '-Druntime.test.config=C:/private/runtime.local
 ```
 
 外部测试配置必须声明 `store.test.disposable=true`；`test-runtime` 要求空库并建立真实 v1 后验证升级，不能对生产或已有业务测试库执行。源码 fixture 覆盖两个节点的内容分发、签名、ZIP/path/schema 攻击、CAS/pin、资源授权、工作区接管/配额/真实路径逃逸、注入、配对、超长 schema、tokenizer/template 不匹配、重复压缩、未决恢复和精确输入复现。Windows 使用实际 junction 越界测试及 ZIP symlink attrs；普通 OS symlink 创建权限不足有记录。N02 原生 Linux 与 N06 在线认证仍待验，独立 CI 文件存在不表示远端已运行。
+
+业务 SKILL 使用 manifest-v4 与独立 QueryProvider 扩展。平台不枚举 Console 等业务权限；部署端注册的 operation/permission/schema 与技能声明绑定。旧 v3 Console 特例仅保留历史 schema，新发布/新 run 拒绝，先 drain 再发布新 release/profile。扩展与技能发布说明见 [TOOLS.md](TOOLS.md) 和工作区 [server-status](../../skill/harness-packages/server-status/README.md)。

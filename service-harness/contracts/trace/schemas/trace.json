@@ -1,0 +1,786 @@
+{
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "harness-redacted-state-trace"
+      ]
+    },
+    "runId": {
+      "type": "string"
+    },
+    "redaction": {
+      "type": "string",
+      "enum": [
+        "all-content-strings-sha256"
+      ]
+    },
+    "replayComplete": {
+      "type": "boolean"
+    },
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "eventSeq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "running",
+            "waiting_input",
+            "waiting_approval",
+            "cancelling",
+            "reconciling",
+            "succeeded",
+            "failed",
+            "cancelled",
+            "timed_out"
+          ]
+        },
+        "executionSettlement": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "confirmed",
+            "unknown"
+          ]
+        },
+        "taskProfileVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "usageSettlement": {
+          "type": "string",
+          "enum": [
+            "provisional",
+            "settled"
+          ]
+        }
+      },
+      "required": [
+        "runId",
+        "version",
+        "eventSeq",
+        "state",
+        "executionSettlement",
+        "taskProfileVersion",
+        "usageSettlement"
+      ],
+      "additionalProperties": false
+    },
+    "config": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "event_seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "run_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "projection": {
+            "type": "object",
+            "properties": {
+              "runId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "eventSeq": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "waiting_input",
+                  "waiting_approval",
+                  "cancelling",
+                  "reconciling",
+                  "succeeded",
+                  "failed",
+                  "cancelled",
+                  "timed_out"
+                ]
+              },
+              "executionSettlement": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "confirmed",
+                  "unknown"
+                ]
+              },
+              "taskProfileVersion": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "usageSettlement": {
+                "type": "string",
+                "enum": [
+                  "provisional",
+                  "settled"
+                ]
+              }
+            },
+            "required": [
+              "runId",
+              "version",
+              "eventSeq",
+              "state",
+              "executionSettlement",
+              "taskProfileVersion",
+              "usageSettlement"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "event_seq",
+          "run_version",
+          "event_type",
+          "occurred_at"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 1024
+    },
+    "rounds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "intent_id": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "intent_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "origin_fence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string"
+          },
+          "payload_json": {
+            "type": "object"
+          },
+          "result_json": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "result_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload_json_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "result_json_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "argumentsHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent_id",
+          "attempt",
+          "intent_hash",
+          "origin_fence",
+          "status",
+          "payload_json",
+          "result_json",
+          "result_hash",
+          "payload_json_sha256"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 256
+    },
+    "calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "intent_id": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "intent_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "origin_fence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string"
+          },
+          "payload_json": {
+            "type": "object"
+          },
+          "result_json": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "result_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload_json_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "result_json_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "argumentsHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent_id",
+          "attempt",
+          "intent_hash",
+          "origin_fence",
+          "status",
+          "payload_json",
+          "result_json",
+          "result_hash",
+          "payload_json_sha256"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 256
+    },
+    "usage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "round_id": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated_input": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "estimated_output": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "actual_input": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "actual_output": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "round_id",
+          "attempt",
+          "estimated_input",
+          "estimated_output",
+          "actual_input",
+          "actual_output",
+          "revision"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "modelJobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "worker_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "actual_finished": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cancel_requested": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dispatched_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "finished_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "cancelled_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "round_id": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "profile_digest": {
+            "type": "string"
+          },
+          "backend_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "attempt",
+          "worker_id",
+          "status",
+          "actual_finished",
+          "cancel_requested",
+          "created_at",
+          "dispatched_at",
+          "finished_at",
+          "cancelled_at",
+          "round_id",
+          "model_id",
+          "profile_digest",
+          "backend_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "toolJobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "worker_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "actual_finished": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cancel_requested": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dispatched_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "finished_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "cancelled_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "call_id": {
+            "type": "string"
+          },
+          "release_digest": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "effect_status": {
+            "type": "string"
+          },
+          "cleanup_after": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "cleanup_done": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "job_id",
+          "attempt",
+          "worker_id",
+          "status",
+          "actual_finished",
+          "cancel_requested",
+          "created_at",
+          "dispatched_at",
+          "finished_at",
+          "cancelled_at",
+          "call_id",
+          "release_digest",
+          "tool_name",
+          "effect_status",
+          "cleanup_after",
+          "cleanup_done"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "inferences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "inference_id": {
+            "type": "string"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "wire_attempt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "backend_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "actual_finished": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cancel_requested": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "dispatched_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "finished_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "cancelled_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        },
+        "required": [
+          "inference_id",
+          "job_id",
+          "wire_attempt",
+          "backend_id",
+          "status",
+          "actual_finished",
+          "cancel_requested",
+          "error_code",
+          "created_at",
+          "dispatched_at",
+          "finished_at",
+          "cancelled_at"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ready_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "expires_at": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deleted_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "file_id",
+          "kind",
+          "size_bytes",
+          "sha256",
+          "status",
+          "created_at",
+          "ready_at",
+          "expires_at",
+          "deleted_at",
+          "attempts"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "feedback": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "feedback_id": {
+            "type": "string"
+          },
+          "payload_hash": {
+            "type": "string"
+          },
+          "rating": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "feedback_id",
+          "payload_hash",
+          "rating",
+          "created_at"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "resultCommitment": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "timingCoverage": {
+      "type": "string"
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "runId",
+    "redaction",
+    "replayComplete",
+    "snapshot",
+    "config",
+    "events",
+    "rounds",
+    "calls",
+    "usage",
+    "modelJobs",
+    "toolJobs",
+    "inferences",
+    "files",
+    "feedback",
+    "resultCommitment",
+    "timingCoverage",
+    "metrics",
+    "digest"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

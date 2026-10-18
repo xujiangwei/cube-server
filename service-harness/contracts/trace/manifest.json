@@ -1,0 +1,6 @@
+{
+  "schemas/trace.json": "27feb17c748c1427a2b082e597d61cd1b0afe85695fb8a09ed08ad6aa514b1dc",
+  "schemas/feedback.json": "71aa845bf561b7e922b22350b6a2ec7010ebbeae622791bc729e5b94cbe1bbc3",
+  "schemas/feedback-receipt.json": "91dbddc9c618148c329ff65d955c787fcd1889726bbe7a466f1bd2b2f4fbd6d6",
+  "openapi.json": "adfc0dbf5bc78854a7813dd65982481d3e2701511c54a10adc1d8d9eb3d915d6"
+}
