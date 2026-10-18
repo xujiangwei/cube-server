@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 950" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 5 z" fill="#94A3B8"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 5 z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 5 z" fill="#0D9488"/>
+    </marker>
+    <marker id="arrowPurple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 5 z" fill="#7C3AED"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1160" height="950" rx="12" fill="#FFFFFF"/>
+
+  <!-- ============ Layer 1: clients ============ -->
+  <text x="40" y="34" font-size="13" font-weight="600" fill="#64748B">客户端层</text>
+  <rect x="40" y="44" width="1080" height="72" rx="10" fill="#FFFBEB" stroke="#FCD34D" stroke-width="1"/>
+  <g font-size="13" fill="#92400E">
+    <rect x="60" y="62" width="180" height="36" rx="8" fill="#FFFFFF" stroke="#FCD34D"/>
+    <text x="150" y="85" text-anchor="middle">移动 App / SDK</text>
+    <rect x="256" y="62" width="180" height="36" rx="8" fill="#FFFFFF" stroke="#FCD34D"/>
+    <text x="346" y="85" text-anchor="middle">浏览器 / 控制台</text>
+    <rect x="452" y="62" width="200" height="36" rx="8" fill="#FFFFFF" stroke="#FCD34D"/>
+    <text x="552" y="85" text-anchor="middle">第三方系统 / 机器人</text>
+    <rect x="668" y="62" width="200" height="36" rx="8" fill="#FFFFFF" stroke="#FCD34D"/>
+    <text x="768" y="85" text-anchor="middle">Python Harness Worker</text>
+    <rect x="884" y="62" width="216" height="36" rx="8" fill="#FFFFFF" stroke="#FCD34D"/>
+    <text x="992" y="85" text-anchor="middle">OpenAI 兼容客户端 /v1</text>
+  </g>
+
+  <!-- arrows clients -> dispatcher -->
+  <line x1="580" y1="116" x2="580" y2="152" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="596" y="140" font-size="12" fill="#64748B">REST 7010/7017 · WS 7070/7077 · Talk 7000 · Stream 7171</text>
+
+  <!-- ============ Layer 2: dispatcher ============ -->
+  <rect x="40" y="156" width="1080" height="300" rx="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+  <rect x="40" y="156" width="1080" height="40" rx="12" fill="#2563EB"/>
+  <text x="60" y="182" font-size="15" font-weight="700" fill="#FFFFFF">dispatcher · 调度机 —— 集群唯一对外入口（接入 / 鉴权 / 路由 / 转发）</text>
+
+  <!-- component boxes -->
+  <g>
+    <rect x="60" y="212" width="240" height="86" rx="8" fill="#FFFFFF" stroke="#BFDBFE"/>
+    <text x="76" y="234" font-size="13" font-weight="700" fill="#1E40AF">Performer</text>
+    <text x="76" y="254" font-size="11.5" fill="#475569">接入层连接器</text>
+    <text x="76" y="272" font-size="11.5" fill="#475569">Token→Device→Director 映射</text>
+    <text x="76" y="290" font-size="11.5" fill="#475569">同步 / 异步 / 流式三种转发</text>
+
+    <rect x="316" y="212" width="240" height="86" rx="8" fill="#FFFFFF" stroke="#BFDBFE"/>
+    <text x="332" y="234" font-size="13" font-weight="700" fill="#1E40AF">Director / Scope</text>
+    <text x="332" y="254" font-size="11.5" fill="#475569">服务节点抽象 + 作用域</text>
+    <text x="332" y="272" font-size="11.5" fill="#475569">权重切分连续区间</text>
+    <text x="332" y="290" font-size="11.5" fill="#475569">加权随机选路 · 粘性会话</text>
+
+    <rect x="572" y="212" width="240" height="86" rx="8" fill="#FFFFFF" stroke="#BFDBFE"/>
+    <text x="588" y="234" font-size="13" font-weight="700" fill="#1E40AF">Daemon</text>
+    <text x="588" y="254" font-size="11.5" fill="#475569">守护任务（10s 周期）</text>
+    <text x="588" y="272" font-size="11.5" fill="#475569">心跳 · 超时清理</text>
+    <text x="588" y="290" font-size="11.5" fill="#475569">运维报告 · 延迟数据</text>
+
+    <rect x="828" y="212" width="272" height="86" rx="8" fill="#FFFFFF" stroke="#BFDBFE"/>
+    <text x="844" y="234" font-size="13" font-weight="700" fill="#1E40AF">StreamServer</text>
+    <text x="844" y="254" font-size="11.5" fill="#475569">独立端口 7171</text>
+    <text x="844" y="272" font-size="11.5" fill="#475569">大流量双向数据通道</text>
+    <text x="844" y="290" font-size="11.5" fill="#475569">64KB 分块 + MD5/SHA1</text>
+  </g>
+
+  <!-- REST endpoint strip -->
+  <rect x="60" y="314" width="1040" height="66" rx="8" fill="#FFFFFF" stroke="#93C5FD" stroke-dasharray="5 3"/>
+  <text x="76" y="336" font-size="12.5" font-weight="700" fill="#1E40AF">REST 端点装配（Jetty ContextHandler，按路径去重，先注册者保留）</text>
+  <rect x="76" y="346" width="330" height="24" rx="6" fill="#DBEAFE"/>
+  <text x="241" y="363" text-anchor="middle" font-size="11.5" fill="#1E3A8A">宿主 63 条 · Manager#setupHandler 内联</text>
+  <text x="418" y="363" font-size="12" fill="#64748B">＋</text>
+  <rect x="436" y="346" width="420" height="24" rx="6" fill="#EDE9FE"/>
+  <text x="646" y="363" text-anchor="middle" font-size="11.5" fill="#5B21B6">模块 30 条 · DispatcherExtension 反射注入</text>
+  <text x="870" y="363" font-size="11.5" fill="#64748B">＋ /v1 OpenAI/Claude 兼容层</text>
+
+  <!-- cellet chips -->
+  <text x="60" y="408" font-size="11.5" font-weight="600" fill="#3B82F6">Cellets：Auth · Contact · FileStorage · FileProcessor · Messaging · AIGC · CV · Ferry · MultipointComm · Conference · Hub · Robot</text>
+  <text x="60" y="430" font-size="11.5" fill="#64748B">harness.rest.enabled=true 时追加 /harness 代理网关（仅 loopback development，与 Completion/Chat 隔离）</text>
+
+  <!-- arrow dispatcher -> service -->
+  <line x1="580" y1="456" x2="580" y2="492" stroke="#0D9488" stroke-width="1.5" marker-end="url(#arrowTeal)"/>
+  <text x="596" y="480" font-size="12" fill="#0F766E">Cell Talk 协议（6000）· Packet + ActionDialect</text>
+
+  <!-- ============ Layer 3: service ============ -->
+  <rect x="40" y="496" width="1080" height="300" rx="12" fill="#F0FDFA" stroke="#0D9488" stroke-width="1.5"/>
+  <rect x="40" y="496" width="1080" height="40" rx="12" fill="#0D9488"/>
+  <text x="60" y="522" font-size="15" font-weight="700" fill="#FFFFFF">service · 服务单元 —— 业务落点（Cell 容器 + Kernel 模块化）</text>
+
+  <g>
+    <rect x="60" y="552" width="240" height="86" rx="8" fill="#FFFFFF" stroke="#99F6E4"/>
+    <text x="76" y="574" font-size="13" font-weight="700" fill="#0F766E">Kernel / Module</text>
+    <text x="76" y="594" font-size="11.5" fill="#475569">模块容器</text>
+    <text x="76" y="612" font-size="11.5" fill="#475569">install() 注册 / 相互查找</text>
+    <text x="76" y="630" font-size="11.5" fill="#475569">授权校验（license + 签名）</text>
+
+    <rect x="316" y="552" width="240" height="86" rx="8" fill="#FFFFFF" stroke="#99F6E4"/>
+    <text x="332" y="574" font-size="13" font-weight="700" fill="#0F766E">AIGCService</text>
+    <text x="332" y="594" font-size="11.5" fill="#475569">模型单元编排（9 类 UnitMeta）</text>
+    <text x="332" y="612" font-size="11.5" fill="#475569">知识库 · 通道 · 会员 · 分词</text>
+    <text x="332" y="630" font-size="11.5" fill="#475569">72 个宿主 task + SPI 实现</text>
+
+    <rect x="572" y="552" width="240" height="86" rx="8" fill="#FFFFFF" stroke="#99F6E4"/>
+    <text x="588" y="574" font-size="13" font-weight="700" fill="#0F766E">HarnessCellet（可选）</text>
+    <text x="588" y="594" font-size="11.5" fill="#475569">资源循环 · RunStore 账本</text>
+    <text x="588" y="612" font-size="11.5" fill="#475569">worker 注册 / 租约 / 容量</text>
+    <text x="588" y="630" font-size="11.5" fill="#475569">推理网关（Unit / OpenAI）</text>
+
+    <rect x="828" y="552" width="272" height="86" rx="8" fill="#FFFFFF" stroke="#99F6E4"/>
+    <text x="844" y="574" font-size="13" font-weight="700" fill="#0F766E">其余业务 Cellet</text>
+    <text x="844" y="594" font-size="11.5" fill="#475569">Contact · Hub · Ferry · CV</text>
+    <text x="844" y="612" font-size="11.5" fill="#475569">Robot · Signal · Messaging</text>
+    <text x="844" y="630" font-size="11.5" fill="#475569">独立 jar 动态加载（cellets/）</text>
+  </g>
+
+  <!-- plugin strip -->
+  <rect x="60" y="654" width="1040" height="66" rx="8" fill="#FFFFFF" stroke="#C4B5FD" stroke-dasharray="5 3"/>
+  <text x="76" y="676" font-size="12.5" font-weight="700" fill="#5B21B6">业务模块插件（deploy/libs/，与宿主同一 ClassLoader；aigc-modules.properties 声明装载）</text>
+  <rect x="76" y="686" width="470" height="24" rx="6" fill="#EDE9FE"/>
+  <text x="311" y="703" text-anchor="middle" font-size="11.5" fill="#5B21B6">service-psychology · PsychologyModule —— 37 个动作</text>
+  <text x="558" y="703" font-size="11.5" fill="#64748B">宿主零编译期引用，仅经 cube.aigc.spi.* 交互</text>
+  <text x="60" y="748" font-size="11.5" font-weight="600" fill="#0F766E">端口：6000 Cell Talk（服务单元监听） · 6080 文件端点 · 7088/7600 Harness（独立 Cell 形态）</text>
+  <text x="60" y="770" font-size="11.5" fill="#64748B">Daemon：每 60s 上报节点状态 / 能力（UnitReport）与控制台日志</text>
+
+  <!-- arrow service -> storage -->
+  <line x1="580" y1="796" x2="580" y2="832" stroke="#94A3B8" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ============ Layer 4: storage ============ -->
+  <rect x="40" y="836" width="1080" height="72" rx="10" fill="#F8FAFC" stroke="#CBD5E1"/>
+  <g font-size="13" fill="#334155">
+    <rect x="70" y="854" width="240" height="36" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="190" y="877" text-anchor="middle">MySQL（持久化）</text>
+    <rect x="330" y="854" width="240" height="36" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="450" y="877" text-anchor="middle">共享内存缓存（TokenPool 等）</text>
+    <rect x="590" y="854" width="240" height="36" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="710" y="877" text-anchor="middle">本地存储 / 资源目录</text>
+    <rect x="850" y="854" width="240" height="36" rx="8" fill="#FFFFFF" stroke="#CBD5E1"/>
+    <text x="970" y="877" text-anchor="middle">Harness 独立 RunStore（可选）</text>
+  </g>
+
+  <!-- side note: plugin boundary -->
+  <rect x="40" y="640" width="0" height="0"/>
+</svg>
