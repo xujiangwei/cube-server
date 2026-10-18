@@ -6,12 +6,14 @@
 
 package cube.service.harness.store;
 
-import static cube.service.harness.store.JdbcRunStore.*;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Durable admission and physical backend reservations. Transport expiry never releases a slot. */
+import static cube.service.harness.store.JdbcRunStore.*;
+
+/**
+ * Durable admission and physical backend reservations. Transport expiry never releases a slot.
+ */
 public final class ModelJobStore {
 
     private final JdbcRunStore store;
@@ -64,7 +66,9 @@ public final class ModelJobStore {
                 });
     }
 
-    /** Reconstructible from the already committed intent after a crash at the enqueue boundary. */
+    /**
+     * Reconstructible from the already committed intent after a crash at the enqueue boundary.
+     */
     public JSONObject enqueue(Lease lease, JSONObject intent, JSONObject model) {
         return store.tx(
                 c -> {
@@ -147,20 +151,20 @@ public final class ModelJobStore {
                     if (!healthy) return null;
                     int occupied =
                             first(
-                                            rows(
-                                                    c,
-                                                    "SELECT COUNT(*) AS n FROM harness_model_job WHERE backend_id=? AND status<>'queued' AND actual_finished=0",
-                                                    backend))
+                                    rows(
+                                            c,
+                                            "SELECT COUNT(*) AS n FROM harness_model_job WHERE backend_id=? AND status<>'queued' AND actual_finished=0",
+                                            backend))
                                     .getInt("n");
                     int own =
                             first(
-                                            rows(
-                                                    c,
-                                                    "SELECT COUNT(*) AS n FROM harness_model_job WHERE worker_id=? AND actual_finished=0 AND status<>'queued'",
-                                                    worker))
+                                    rows(
+                                            c,
+                                            "SELECT COUNT(*) AS n FROM harness_model_job WHERE worker_id=? AND actual_finished=0 AND status<>'queued'",
+                                            worker))
                                     .getInt("n");
                     if ((descriptor.optInt("protocolVersion", 2) == 2
-                                    && occupied >= b.getInt("capacity"))
+                            && occupied >= b.getInt("capacity"))
                             || own >= workerCapacity) return null;
                     JSONObject job =
                             first(
@@ -172,14 +176,14 @@ public final class ModelJobStore {
                                             descriptor.getString("profileDigest")));
                     if (job == null) return null;
                     if (update(
-                                    c,
-                                    "UPDATE harness_model_job SET backend_id=?,worker_id=?,instance_id=?,session_id=?,execution_protocol=?,status='assigned' WHERE job_id=? AND status='queued'",
-                                    backend,
-                                    worker,
-                                    instance,
-                                    session,
-                                    descriptor.optInt("protocolVersion", 2),
-                                    job.getString("job_id"))
+                            c,
+                            "UPDATE harness_model_job SET backend_id=?,worker_id=?,instance_id=?,session_id=?,execution_protocol=?,status='assigned' WHERE job_id=? AND status='queued'",
+                            backend,
+                            worker,
+                            instance,
+                            session,
+                            descriptor.optInt("protocolVersion", 2),
+                            job.getString("job_id"))
                             != 1) throw new StoreException("JOB_CLAIM_CONFLICT");
                     job.put("worker_id", worker)
                             .put("instance_id", instance)
@@ -354,10 +358,10 @@ public final class ModelJobStore {
         return store.tx(
                 c ->
                         first(
-                                        rows(
-                                                c,
-                                                "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')",
-                                                tenant))
+                                rows(
+                                        c,
+                                        "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')",
+                                        tenant))
                                 .getInt("n"));
     }
 
@@ -368,37 +372,39 @@ public final class ModelJobStore {
                                 .getLong("created_at"));
     }
 
-    /** Physical unknowns and unreconciled receipts must block an operational drain. */
+    /**
+     * Physical unknowns and unreconciled receipts must block an operational drain.
+     */
     public JSONObject drainStatus(String tenant) {
         return store.tx(
                 c -> {
                     int active =
                             first(
-                                            rows(
-                                                    c,
-                                                    "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')",
-                                                    tenant))
+                                    rows(
+                                            c,
+                                            "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')",
+                                            tenant))
                                     .getInt("n");
                     int model =
                             first(
-                                            rows(
-                                                    c,
-                                                    "SELECT COUNT(*) AS n FROM harness_model_job j JOIN harness_round q ON q.run_id=j.run_id AND q.intent_id=j.round_id AND q.attempt=j.attempt WHERE j.tenant=? AND (j.actual_finished=0 OR q.status<>'confirmed')",
-                                                    tenant))
+                                    rows(
+                                            c,
+                                            "SELECT COUNT(*) AS n FROM harness_model_job j JOIN harness_round q ON q.run_id=j.run_id AND q.intent_id=j.round_id AND q.attempt=j.attempt WHERE j.tenant=? AND (j.actual_finished=0 OR q.status<>'confirmed')",
+                                            tenant))
                                     .getInt("n");
                     int tool =
                             first(
-                                            rows(
-                                                    c,
-                                                    "SELECT COUNT(*) AS n FROM harness_tool_job j JOIN harness_tool_call q ON q.run_id=j.run_id AND q.intent_id=j.call_id AND q.attempt=j.attempt WHERE j.tenant=? AND (j.actual_finished=0 OR q.status<>'confirmed')",
-                                                    tenant))
+                                    rows(
+                                            c,
+                                            "SELECT COUNT(*) AS n FROM harness_tool_job j JOIN harness_tool_call q ON q.run_id=j.run_id AND q.intent_id=j.call_id AND q.attempt=j.attempt WHERE j.tenant=? AND (j.actual_finished=0 OR q.status<>'confirmed')",
+                                            tenant))
                                     .getInt("n");
                     int unknown =
                             first(
-                                            rows(
-                                                    c,
-                                                    "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND execution_settlement='unknown'",
-                                                    tenant))
+                                    rows(
+                                            c,
+                                            "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND execution_settlement='unknown'",
+                                            tenant))
                                     .getInt("n");
                     return new JSONObject()
                             .put("activeRuns", active)
@@ -417,8 +423,8 @@ public final class ModelJobStore {
         return store.tx(
                 c ->
                         store.now(c)
-                                        - store.run(c, tenant, subject, run, false)
-                                                .getLong("created_at")
+                                - store.run(c, tenant, subject, run, false)
+                                .getLong("created_at")
                                 > lifetime);
     }
 }

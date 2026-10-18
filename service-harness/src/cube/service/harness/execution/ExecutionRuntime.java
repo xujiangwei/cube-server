@@ -9,13 +9,14 @@ package cube.service.harness.execution;
 import com.sun.net.httpserver.HttpExchange;
 import cube.service.harness.runtime.*;
 import cube.service.harness.store.*;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Semaphore;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 /**
  * Opt-in development execution runtime, with a trusted fixed identity and private resource
@@ -115,17 +116,17 @@ public final class ExecutionRuntime implements AutoCloseable {
         broker =
                 Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false"))
                         ? new ToolBroker(new ToolJobStore(store, sc.mysql()), identity, p)
-                                .files(files)
+                        .files(files)
                         : null;
         runners = broker == null ? null : new RunnerDispatcher(broker, p, lease);
         coordinator =
                 new RunCoordinator(
-                                store,
-                                jobs,
-                                catalog,
-                                identity,
-                                new ResourceTools(catalog, repo).files(files),
-                                broker)
+                        store,
+                        jobs,
+                        catalog,
+                        identity,
+                        new ResourceTools(catalog, repo).files(files),
+                        broker)
                         .controls(controls, files, p);
     }
 

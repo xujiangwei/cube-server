@@ -19,6 +19,9 @@ import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.store.JdbcRunStore;
 import cube.service.harness.store.StoreConfig;
 import cube.service.harness.store.StoreException;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,10 +37,10 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
-/** Run admission awaits profiles/coordinator. */
+/**
+ * Run admission awaits profiles/coordinator.
+ */
 public final class HarnessService extends AbstractModule {
 
     public static final String NAME = "Harness";
@@ -58,7 +61,8 @@ public final class HarnessService extends AbstractModule {
 
     private ExecutionRuntime execution;
 
-    public HarnessService() {}
+    public HarnessService() {
+    }
 
     public HarnessService(HarnessConfig config) {
         this.config = config;
@@ -235,7 +239,7 @@ public final class HarnessService extends AbstractModule {
             }
             if (request.has("protocolVersion")
                     && (!(request.get("protocolVersion") instanceof Number)
-                            || ((Number) request.get("protocolVersion")).doubleValue() != 1))
+                    || ((Number) request.get("protocolVersion")).doubleValue() != 1))
                 throw new IllegalArgumentException("PROTOCOL_MISMATCH");
             Contract.validate(
                     request,
@@ -324,9 +328,9 @@ public final class HarnessService extends AbstractModule {
                 boolean ok =
                         started.get()
                                 && (path.equals("/healthz")
-                                        || (execution != null
-                                                ? execution.accepting() && execution.workers.ready()
-                                                : registry.ready()));
+                                || (execution != null
+                                ? execution.accepting() && execution.workers.ready()
+                                : registry.ready()));
                 status = ok ? 200 : 503;
                 result =
                         new JSONObject()
@@ -389,10 +393,10 @@ public final class HarnessService extends AbstractModule {
                         && !approver) throw new HttpFailure(401, "UNAUTHORIZED");
                 if (approver
                         && !(method.equals("GET")
-                                        && path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+")
-                                || method.equals("POST")
-                                        && path.matches(
-                                                "/harness/v1/runs/[A-Za-z0-9_.:-]+/approvals/[A-Za-z0-9_.:-]+/decision")))
+                        && path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+")
+                        || method.equals("POST")
+                        && path.matches(
+                        "/harness/v1/runs/[A-Za-z0-9_.:-]+/approvals/[A-Za-z0-9_.:-]+/decision")))
                     throw new HttpFailure(403, "FORBIDDEN");
                 if (path.startsWith("/harness-admin/")) throw new HttpFailure(403, "FORBIDDEN");
                 if (method.equals("GET") && path.equals("/harness/v1/capabilities")) {
@@ -479,7 +483,7 @@ public final class HarnessService extends AbstractModule {
                             return;
                         }
                         if (path.matches(
-                                        "/harness/v1/runs/[A-Za-z0-9_.:-]+/(cancel|resume|approvals/[A-Za-z0-9_.:-]+/decision)")
+                                "/harness/v1/runs/[A-Za-z0-9_.:-]+/(cancel|resume|approvals/[A-Za-z0-9_.:-]+/decision)")
                                 && method.equals("POST")) {
                             String[] parts = path.split("/");
                             String operation = parts[5].equals("approvals") ? "approval" : parts[5];
@@ -489,8 +493,8 @@ public final class HarnessService extends AbstractModule {
                                     operation.equals("approval")
                                             ? parts[6]
                                             : operation.equals("resume")
-                                                    ? parsed.getString("waitId")
-                                                    : "";
+                                            ? parsed.getString("waitId")
+                                            : "";
                             result =
                                     execution.control(
                                             parts[4],
@@ -500,7 +504,7 @@ public final class HarnessService extends AbstractModule {
                                             parsed,
                                             approver
                                                     ? config.values.getProperty(
-                                                            "control.approver.subject", "approver")
+                                                    "control.approver.subject", "approver")
                                                     : execution.identity.subject,
                                             approver);
                             send(x, 202, result);
@@ -553,7 +557,7 @@ public final class HarnessService extends AbstractModule {
                                 return;
                             }
                             if (path.matches(
-                                            "/harness/v1/artifacts/[A-Za-z0-9_.:-]+/download-handle")
+                                    "/harness/v1/artifacts/[A-Za-z0-9_.:-]+/download-handle")
                                     && method.equals("GET")) {
                                 send(x, 200, execution.files.handle(parts[4]));
                                 return;
@@ -607,7 +611,7 @@ public final class HarnessService extends AbstractModule {
                             if (last != null) {
                                 if (!last.matches("[0-9]{1,15}")
                                         || (seen.contains("after")
-                                                && after != Long.parseLong(last)))
+                                        && after != Long.parseLong(last)))
                                     throw new HttpFailure(400, "INVALID_EVENT_CURSOR");
                                 after = Long.parseLong(last);
                             }
@@ -645,23 +649,23 @@ public final class HarnessService extends AbstractModule {
                     e.code.endsWith("NOT_FOUND")
                             ? 404
                             : e.code.endsWith("FORBIDDEN")
-                                    ? 403
-                                    : e.code.equals("FILE_EXPIRED") || e.code.equals("WAIT_EXPIRED")
-                                            ? 410
-                                            : e.code.equals("HARNESS_BUSY")
-                                                            || e.code.equals("FILE_BUSY")
-                                                            || e.code.equals("FILE_QUOTA_EXCEEDED")
-                                                    ? 429
-                                                    : e.code.contains("CONFLICT")
-                                                                    || e.code.equals("RUN_TERMINAL")
-                                                                    || e.code.equals(
-                                                                            "APPROVAL_ARGUMENTS_CHANGED")
-                                                            ? 409
-                                                            : e.code.startsWith("STORE_")
-                                                                            || e.code.equals(
-                                                                                    "HARNESS_DRAINING")
-                                                                    ? 503
-                                                                    : 400;
+                            ? 403
+                            : e.code.equals("FILE_EXPIRED") || e.code.equals("WAIT_EXPIRED")
+                            ? 410
+                            : e.code.equals("HARNESS_BUSY")
+                            || e.code.equals("FILE_BUSY")
+                            || e.code.equals("FILE_QUOTA_EXCEEDED")
+                            ? 429
+                            : e.code.contains("CONFLICT")
+                            || e.code.equals("RUN_TERMINAL")
+                            || e.code.equals(
+                            "APPROVAL_ARGUMENTS_CHANGED")
+                            ? 409
+                            : e.code.startsWith("STORE_")
+                            || e.code.equals(
+                            "HARNESS_DRAINING")
+                            ? 503
+                            : 400;
             result = httpError(requestId, e.code, status == 429 || status == 503);
         } catch (IllegalArgumentException e) {
             status = e.getMessage().equals("PAYLOAD_TOO_LARGE") ? 413 : 400;

@@ -14,7 +14,9 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Properties;
 
-/** Private per-container configuration; no defaults containing usable credentials. */
+/**
+ * Private per-container configuration; no defaults containing usable credentials.
+ */
 public final class HarnessConfig {
     final Properties values;
 
@@ -48,19 +50,19 @@ public final class HarnessConfig {
         String trace = values.getProperty("trace.reader.credential", "");
         if ((!trace.isEmpty() || Boolean.parseBoolean(values.getProperty("trace.enabled", "false")))
                 && (trace.length() < 24
-                        || trace.equals(values.getProperty("api.credential"))
-                        || trace.equals(values.getProperty("worker.credential"))
-                        || trace.equals(values.getProperty("control.approver.credential"))))
+                || trace.equals(values.getProperty("api.credential"))
+                || trace.equals(values.getProperty("worker.credential"))
+                || trace.equals(values.getProperty("control.approver.credential"))))
             throw new IOException("Independent trace reader required");
         if (leaseMillis() < 1000 || leaseMillis() > 60000)
             throw new IOException("lease.millis out of range");
         String approver = values.getProperty("control.approver.credential", "");
         if (!approver.isEmpty()
                 && (approver.length() < 24
-                        || approver.equals(values.getProperty("api.credential"))
-                        || approver.equals(values.getProperty("worker.credential"))
-                        || values.getProperty("control.approver.subject", "approver")
-                                .equals(values.getProperty("execution.subject", "developer"))))
+                || approver.equals(values.getProperty("api.credential"))
+                || approver.equals(values.getProperty("worker.credential"))
+                || values.getProperty("control.approver.subject", "approver")
+                .equals(values.getProperty("execution.subject", "developer"))))
             throw new IOException("Independent approver required");
     }
 
