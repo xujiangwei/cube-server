@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness;
 
 import cell.core.talk.dialect.ActionDialect;
@@ -10,15 +16,24 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.OutputStream;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
-/** Transport-independent business dispatch. All caller authority is checked here, not in Jetty. */
+/**
+ * Transport-independent business dispatch. All caller authority is checked here, not in Jetty.
+ */
 final class HarnessBusiness implements AutoCloseable {
+
     private final HarnessService service;
+
     private final HarnessConfig config;
+
     private final ExecutionRuntime execution;
+
     final HarnessTransfers transfers;
 
     HarnessBusiness(HarnessService service, HarnessConfig config, ExecutionRuntime execution) {
@@ -65,10 +80,13 @@ final class HarnessBusiness implements AutoCloseable {
                 case TaskProfile:
                     JSONArray profiles = execution.taskProfiles().getJSONArray("profiles");
                     for (int i = 0; i < profiles.length(); i++)
-                        if (profiles.getJSONObject(i).getString("profileId").equals(id)) return reply(200, profiles.getJSONObject(i));
+                        if (profiles.getJSONObject(i).getString("profileId").equals(id))
+                            return reply(200, profiles.getJSONObject(i));
                     throw new Failure(404, "PROFILE_NOT_FOUND");
-                case CreateRun: return reply(202, execution.create(idem, body));
-                case ReadRun: return reply(200, execution.read(id));
+                case CreateRun:
+                    return reply(202, execution.create(idem, body));
+                case ReadRun:
+                    return reply(200, execution.read(id));
                 case Events:
                     long[] cursor = cursor(data.optString("query", ""), data.optString("lastEventId", ""));
                     return reply(200, execution.events(id, cursor[0], (int) cursor[1]));
@@ -79,33 +97,47 @@ final class HarnessBusiness implements AutoCloseable {
                     String wait = approver ? approval : action == HarnessAction.ResumeRun ? body.getString("waitId") : "";
                     return reply(202, execution.control(id, idem, operation, wait, body,
                             approver ? config.values.getProperty("control.approver.subject", "approver") : execution.identity.subject, approver));
-                case Feedback: return reply(202, execution.traces.feedback(execution.identity.tenant, execution.identity.subject, id, idem, body));
-                case Trace: return reply(200, execution.traces.export(execution.identity.tenant, execution.identity.subject, id));
-                default: break;
+                case Feedback:
+                    return reply(202, execution.traces.feedback(execution.identity.tenant, execution.identity.subject, id, idem, body));
+                case Trace:
+                    return reply(200, execution.traces.export(execution.identity.tenant, execution.identity.subject, id));
+                default:
+                    break;
             }
             if (execution.files == null) throw new Failure(503, "HARNESS_NOT_READY");
             switch (action) {
-                case CreateInput: return reply(201, execution.files.create(idem, body));
-                case ReadInput: return reply(200, execution.files.metadata(id, "input"));
-                case ReadArtifact: return reply(200, execution.files.metadata(id, "artifact"));
-                case CompleteInput: return reply(200, execution.files.complete(id, body.getString("sha256")));
-                case Artifacts: return reply(200, new JSONObject().put("artifacts", execution.files.artifacts(id)));
-                case DownloadHandle: return reply(200, execution.files.handle(id));
+                case CreateInput:
+                    return reply(201, execution.files.create(idem, body));
+                case ReadInput:
+                    return reply(200, execution.files.metadata(id, "input"));
+                case ReadArtifact:
+                    return reply(200, execution.files.metadata(id, "artifact"));
+                case CompleteInput:
+                    return reply(200, execution.files.complete(id, body.getString("sha256")));
+                case Artifacts:
+                    return reply(200, new JSONObject().put("artifacts", execution.files.artifacts(id)));
+                case DownloadHandle:
+                    return reply(200, execution.files.handle(id));
                 case UploadInput:
-                    if (!data.optString("contentType", "").equals("application/octet-stream")) throw new Failure(415, "UNSUPPORTED_MEDIA_TYPE");
+                    if (!data.optString("contentType", "").equals("application/octet-stream"))
+                        throw new Failure(415, "UNSUPPORTED_MEDIA_TYPE");
                     return reply(200, transfers.prepare(id, transport, credential, true, null, valid));
                 case DownloadArtifact:
                     return reply(200, transfers.prepare(id, transport, credential, false, data.optString("query", ""), valid));
                 case StartDownload:
                     transfers.startDownload(data.getString("transferId"), transport, credential, opener);
                     return reply(202, new JSONObject());
-                case TransferResult: return reply(200, transfers.result(data.getString("transferId"), transport, credential));
+                case TransferResult:
+                    return reply(200, transfers.result(data.getString("transferId"), transport, credential));
                 case AbortTransfer:
                     transfers.abort(data.getString("transferId"), transport, credential);
                     return reply(200, new JSONObject());
-                default: throw new Failure(400, "UNKNOWN_ACTION");
+                default:
+                    throw new Failure(400, "UNKNOWN_ACTION");
             }
-        } catch (Exception e) { return failure(e); }
+        } catch (Exception e) {
+            return failure(e);
+        }
     }
 
     static long[] cursor(String query, String last) {
@@ -113,7 +145,8 @@ final class HarnessBusiness implements AutoCloseable {
         Set<String> seen = new HashSet<>();
         if (!query.isEmpty()) for (String pair : query.split("&", -1)) {
             String[] kv = pair.split("=", -1);
-            if (kv.length != 2 || !seen.add(kv[0]) || !kv[1].matches("[0-9]{1,15}")) throw new Failure(400, "INVALID_EVENT_CURSOR");
+            if (kv.length != 2 || !seen.add(kv[0]) || !kv[1].matches("[0-9]{1,15}"))
+                throw new Failure(400, "INVALID_EVENT_CURSOR");
             if (kv[0].equals("after")) after = Long.parseLong(kv[1]);
             else if (kv[0].equals("limit")) limit = Long.parseLong(kv[1]);
             else throw new Failure(400, "INVALID_EVENT_CURSOR");
@@ -166,8 +199,15 @@ final class HarnessBusiness implements AutoCloseable {
 
     static final class Failure extends RuntimeException {
         final int status;
-        Failure(int status, String code) { super(code); this.status = status; }
+
+        Failure(int status, String code) {
+            super(code);
+            this.status = status;
+        }
     }
 
-    @Override public void close() { if (transfers != null) transfers.close(); }
+    @Override
+    public void close() {
+        if (transfers != null) transfers.close();
+    }
 }

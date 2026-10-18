@@ -31,7 +31,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -328,10 +327,12 @@ public final class HarnessService extends AbstractModule {
         return out.toByteArray();
     }
 
-    public ExecutorService businessExecutor() { return businessExecutor; }
+    public ExecutorService businessExecutor() {
+        return businessExecutor;
+    }
 
     public JSONObject processBusiness(cell.core.talk.dialect.ActionDialect request,
-            cell.core.talk.TalkContext context, java.util.function.Function<String, OutputStream> opener) {
+                                      cell.core.talk.TalkContext context, java.util.function.Function<String, OutputStream> opener) {
         HarnessBusiness current = business;
         if (!started.get() || current == null) return HarnessBusiness.error(503, "HARNESS_NOT_READY");
         return current.handle(request, context.getSessionId(), context::isValid, opener);
@@ -340,10 +341,15 @@ public final class HarnessService extends AbstractModule {
     public void receiveFile(cell.core.talk.TalkContext context, cell.core.talk.PrimitiveInputStream stream) {
         HarnessBusiness current = business;
         if (current != null && current.transfers != null) current.transfers.receive(context.getSessionId(), stream);
-        else try { stream.close(); } catch (IOException ignored) { }
+        else try {
+            stream.close();
+        } catch (IOException ignored) {
+        }
     }
 
-    /** The service listener deliberately exposes only health and administration. */
+    /**
+     * The service listener deliberately exposes only health and administration.
+     */
     private void handleHttp(HttpExchange x) throws IOException {
         JSONObject response;
         try {
@@ -370,7 +376,9 @@ public final class HarnessService extends AbstractModule {
                 } else if (!method.equals("GET")) throw new HarnessBusiness.Failure(405, "METHOD_NOT_ALLOWED");
                 response = HarnessBusiness.reply(200, execution.admission(accepting));
             } else throw new HarnessBusiness.Failure(404, "NOT_FOUND");
-        } catch (Exception e) { response = HarnessBusiness.failure(e); }
+        } catch (Exception e) {
+            response = HarnessBusiness.failure(e);
+        }
         send(x, response.getInt("status"), response.getJSONObject("body"));
     }
 

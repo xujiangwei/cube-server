@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness;
 
 import cell.core.talk.PrimitiveInputStream;
@@ -5,32 +11,47 @@ import cube.service.harness.files.FileService;
 import cube.service.harness.store.StoreException;
 import org.json.JSONObject;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
-/** Bounded, connection-bound SHM transfers. File bytes never enter an ActionDialect. */
+/**
+ * Bounded, connection-bound SHM transfers. File bytes never enter an ActionDialect.
+ */
 final class HarnessTransfers implements AutoCloseable {
+
     private final FileService files;
+
     private final ConcurrentHashMap<String, Transfer> transfers = new ConcurrentHashMap<>();
+
     private final Semaphore active = new Semaphore(2);
-    private final ThreadPoolExecutor io = new ThreadPoolExecutor(2, 2, 0, TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(2), r -> { Thread t = new Thread(r, "harness-file-stream"); t.setDaemon(true); return t; });
+
+    private final ThreadPoolExecutor io = new ThreadPoolExecutor(2, 2, 0,
+            TimeUnit.SECONDS,
+            new ArrayBlockingQueue<Runnable>(2), r -> {
+        Thread t = new Thread(r, "harness-file-stream");
+        t.setDaemon(true);
+        return t;
+    });
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(r -> {
-        Thread t = new Thread(r, "harness-transfer-expiry"); t.setDaemon(true); return t;
+        Thread t = new Thread(r, "harness-transfer-expiry");
+        t.setDaemon(true);
+        return t;
     });
     private volatile boolean closed;
 
     HarnessTransfers(FileService files) {
         this.files = files;
         timer.scheduleWithFixedDelay(() -> {
-            for (Transfer t : transfers.values()) if (System.currentTimeMillis() >= t.expires || !t.valid.getAsBoolean()) {
-                transfers.remove(t.id, t);
-                t.finish(HarnessBusiness.error(410, "FILE_TRANSFER_EXPIRED"));
-            }
+            for (Transfer t : transfers.values())
+                if (System.currentTimeMillis() >= t.expires || !t.valid.getAsBoolean()) {
+                    transfers.remove(t.id, t);
+                    t.finish(HarnessBusiness.error(410, "FILE_TRANSFER_EXPIRED"));
+                }
         }, 1, 1, TimeUnit.SECONDS);
     }
 
@@ -40,14 +61,21 @@ final class HarnessTransfers implements AutoCloseable {
         try {
             JSONObject metadata;
             if (upload) metadata = files.metadata(file, "input");
-            else { download = files.openDownload(file, query); metadata = download.metadata; }
+            else {
+                download = files.openDownload(file, query);
+                metadata = download.metadata;
+            }
             if (!valid.getAsBoolean()) throw new StoreException("FILE_TRANSFER_ABORTED");
             Transfer t = new Transfer(file, transport, credential, upload, metadata, download, valid);
             transfers.put(t.id, t);
             return new JSONObject().put("transferId", t.id).put("expiresAt", t.expires)
                     .put("metadata", metadata).put("headers", download == null ? new JSONObject() : download.headers);
         } catch (Exception e) {
-            try { if (download != null) download.close(); } finally { active.release(); }
+            try {
+                if (download != null) download.close();
+            } finally {
+                active.release();
+            }
             throw e;
         }
     }
@@ -79,9 +107,15 @@ final class HarnessTransfers implements AutoCloseable {
 
     void receive(long transport, PrimitiveInputStream input) {
         Transfer t = transfers.get(input.getName());
-        if (t == null || t.transport != transport || !t.upload || !t.claim()) { closeQuietly(input); return; }
+        if (t == null || t.transport != transport || !t.upload || !t.claim()) {
+            closeQuietly(input);
+            return;
+        }
         synchronized (t) {
-            if (t.finished.get()) { closeQuietly(input); return; }
+            if (t.finished.get()) {
+                closeQuietly(input);
+                return;
+            }
             t.stream = input;
         }
         try {
@@ -89,9 +123,13 @@ final class HarnessTransfers implements AutoCloseable {
                 try {
                     JSONObject result = files.uploadInput(t.file, input, t::valid);
                     t.finish(HarnessBusiness.reply(200, result));
-                } catch (Exception e) { t.finish(HarnessBusiness.failure(e)); }
+                } catch (Exception e) {
+                    t.finish(HarnessBusiness.failure(e));
+                }
             });
-        } catch (RejectedExecutionException e) { t.finish(HarnessBusiness.error(429, "FILE_BUSY")); }
+        } catch (RejectedExecutionException e) {
+            t.finish(HarnessBusiness.error(429, "FILE_BUSY"));
+        }
     }
 
     void startDownload(String id, long transport, String credential, Function<String, OutputStream> opener) {
@@ -104,40 +142,59 @@ final class HarnessTransfers implements AutoCloseable {
                     OutputStream output = opener.apply(t.id);
                     if (output == null) throw new IOException("Stream unavailable");
                     synchronized (t) {
-                        if (t.finished.get()) { closeQuietly(output); return; }
+                        if (t.finished.get()) {
+                            closeQuietly(output);
+                            return;
+                        }
                         t.stream = output;
                     }
-                    byte[] buffer = new byte[8192]; int n; long size = 0;
+                    byte[] buffer = new byte[8192];
+                    int n;
+                    long size = 0;
                     while ((n = t.download.input.read(buffer)) != -1) {
                         if (!t.valid()) throw new IOException("Transfer cancelled");
-                        output.write(buffer, 0, n); size += n;
+                        output.write(buffer, 0, n);
+                        size += n;
                     }
                     if (size != t.metadata.getLong("size")) throw new IOException("Incomplete file");
                     output.flush();
                     t.finish(HarnessBusiness.reply(200, t.metadata));
-                } catch (Exception e) { t.finish(HarnessBusiness.error(503, "FILE_DOWNLOAD_INTERRUPTED")); }
+                } catch (Exception e) {
+                    t.finish(HarnessBusiness.error(503, "FILE_DOWNLOAD_INTERRUPTED"));
+                }
             });
-        } catch (RejectedExecutionException e) { t.finish(HarnessBusiness.error(429, "FILE_BUSY")); }
-    }
-
-    void disconnect(long transport) {
-        for (Transfer t : transfers.values()) if (t.transport == transport) {
-            transfers.remove(t.id, t);
-            t.finish(HarnessBusiness.error(503, "HARNESS_UNAVAILABLE"));
+        } catch (RejectedExecutionException e) {
+            t.finish(HarnessBusiness.error(429, "FILE_BUSY"));
         }
     }
 
-    @Override public synchronized void close() {
+    void disconnect(long transport) {
+        for (Transfer t : transfers.values())
+            if (t.transport == transport) {
+                transfers.remove(t.id, t);
+                t.finish(HarnessBusiness.error(503, "HARNESS_UNAVAILABLE"));
+            }
+    }
+
+    @Override
+    public synchronized void close() {
         closed = true;
         timer.shutdownNow();
         for (Transfer t : transfers.values()) t.finish(HarnessBusiness.error(503, "HARNESS_UNAVAILABLE"));
         transfers.clear();
         io.shutdownNow();
-        try { io.awaitTermination(3, TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        try {
+            io.awaitTermination(3, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static void closeQuietly(AutoCloseable resource) {
-        if (resource != null) try { resource.close(); } catch (Exception ignored) { }
+        if (resource != null) try {
+            resource.close();
+        } catch (Exception ignored) {
+        }
     }
 
     private final class Transfer {
@@ -152,24 +209,41 @@ final class HarnessTransfers implements AutoCloseable {
         AutoCloseable stream;
 
         Transfer(String file, long transport, String credential, boolean upload, JSONObject metadata,
-                FileService.Download download, BooleanSupplier valid) {
-            this.file = file; this.transport = transport; this.credential = credential; this.upload = upload;
-            this.metadata = metadata; this.download = download; this.valid = valid;
+                 FileService.Download download, BooleanSupplier valid) {
+            this.file = file;
+            this.transport = transport;
+            this.credential = credential;
+            this.upload = upload;
+            this.metadata = metadata;
+            this.download = download;
+            this.valid = valid;
             this.expires = Math.min(metadata.getLong("expiresAt"), System.currentTimeMillis() + files.config.download);
         }
 
-        boolean valid() { return !finished.get() && !closed && System.currentTimeMillis() < expires && valid.getAsBoolean(); }
-        boolean claim() { return valid() && claimed.compareAndSet(false, true); }
+        boolean valid() {
+            return !finished.get() && !closed && System.currentTimeMillis() < expires && valid.getAsBoolean();
+        }
+
+        boolean claim() {
+            return valid() && claimed.compareAndSet(false, true);
+        }
 
         synchronized void finish(JSONObject response) {
             if (!finished.compareAndSet(false, true)) return;
             try {
                 if (response.getInt("status") >= 400 && stream instanceof cell.core.talk.PrimitiveOutputStream)
-                    try { ((cell.core.talk.PrimitiveOutputStream) stream).interrupt(); } catch (Exception ignored) { }
+                    try {
+                        ((cell.core.talk.PrimitiveOutputStream) stream).interrupt();
+                    } catch (Exception ignored) {
+                    }
                 closeQuietly(stream);
             } finally {
-                try { closeQuietly(download); }
-                finally { result = response; active.release(); }
+                try {
+                    closeQuietly(download);
+                } finally {
+                    result = response;
+                    active.release();
+                }
             }
         }
     }

@@ -7,11 +7,7 @@
 package cube.service.harness;
 
 import cell.api.Servable;
-import cell.core.talk.LiteralBase;
-import cell.core.talk.Primitive;
-import cell.core.talk.Stuff;
-import cell.core.talk.TalkContext;
-import cell.core.talk.PrimitiveInputStream;
+import cell.core.talk.*;
 import cell.core.talk.dialect.ActionDialect;
 import cube.common.Packet;
 import cube.common.action.HarnessAction;
@@ -101,15 +97,21 @@ public final class HarnessCellet extends AbstractCellet {
 
     private void onBusiness(TalkContext context, Primitive primitive) {
         ActionDialect request;
-        try { request = new ActionDialect(primitive); }
-        catch (Exception e) { reply(context, HarnessService.error("", "INVALID_ENVELOPE")); return; }
+        try {
+            request = new ActionDialect(primitive);
+        } catch (Exception e) {
+            reply(context, HarnessService.error("", "INVALID_ENVELOPE"));
+            return;
+        }
         // Only a correlated dispatcher envelope can enter the business executor.
         if (!request.containsParam("sn") || !request.containsParam("_performer")) {
-            reply(context, HarnessService.error("", "INVALID_ENVELOPE")); return;
+            reply(context, HarnessService.error("", "INVALID_ENVELOPE"));
+            return;
         }
         final HarnessService current = service;
         if (primitive.length() > HarnessAction.MAX_BODY_BYTES + 65536) {
-            replyBusiness(context, request, HarnessBusiness.error(413, "PAYLOAD_TOO_LARGE")); return;
+            replyBusiness(context, request, HarnessBusiness.error(413, "PAYLOAD_TOO_LARGE"));
+            return;
         }
         try {
             if (current == null || current.businessExecutor() == null) throw new RejectedExecutionException();
@@ -117,13 +119,19 @@ public final class HarnessCellet extends AbstractCellet {
                 if (context.isValid()) replyBusiness(context, request,
                         current.processBusiness(request, context, name -> speakStream(context, name)));
             });
-        } catch (RejectedExecutionException e) { replyBusiness(context, request, HarnessBusiness.error(503, "HARNESS_BUSY")); }
+        } catch (RejectedExecutionException e) {
+            replyBusiness(context, request, HarnessBusiness.error(503, "HARNESS_BUSY"));
+        }
     }
 
-    @Override public void onListened(TalkContext context, PrimitiveInputStream stream) {
+    @Override
+    public void onListened(TalkContext context, PrimitiveInputStream stream) {
         HarnessService current = service;
         if (current != null) current.receiveFile(context, stream);
-        else try { stream.close(); } catch (java.io.IOException ignored) { }
+        else try {
+            stream.close();
+        } catch (java.io.IOException ignored) {
+        }
     }
 
     @Override

@@ -6,9 +6,10 @@
 
 package cube.dispatcher;
 
+import cell.api.Speakable;
 import cell.core.talk.Primitive;
 import cell.core.talk.PrimitiveInputStream;
-import cell.api.Speakable;
+
 import java.io.IOException;
 
 /**
@@ -19,8 +20,12 @@ public interface PerformerListener {
     void onReceived(String cellet, Primitive primitive);
 
     default void onReceivedStream(Speakable source, String cellet, PrimitiveInputStream stream) {
-        try { stream.close(); } catch (IOException ignored) { }
+        try {
+            stream.close();
+        } catch (IOException ignored) {
+        }
     }
 
-    default void onDisconnected(Speakable source) { }
+    default void onDisconnected(Speakable source) {
+    }
 }

@@ -307,7 +307,9 @@ public final class FileService implements AutoCloseable {
                 });
     }
 
-    /** A verified read handle; its pin remains held until close, including slow consumers. */
+    /**
+     * A verified read handle; its pin remains held until close, including slow consumers.
+     */
     public final class Download implements AutoCloseable {
         public final JSONObject metadata, headers;
         public final InputStream input;
@@ -326,20 +328,34 @@ public final class FileService implements AutoCloseable {
         }
 
         private void expire() {
-            deadline = timer.schedule(() -> { try { close(); } catch (Exception ignored) { } }, config.download, TimeUnit.MILLISECONDS);
+            deadline = timer.schedule(() -> {
+                try {
+                    close();
+                } catch (Exception ignored) {
+                }
+            }, config.download, TimeUnit.MILLISECONDS);
         }
 
-        @Override public void close() throws IOException {
+        @Override
+        public void close() throws IOException {
             if (!closed.compareAndSet(false, true)) return;
             if (deadline != null) deadline.cancel(false);
-            try { input.close(); }
-            finally { try { ledger.unpin(pin); } finally { transfers.release(); } }
+            try {
+                input.close();
+            } finally {
+                try {
+                    ledger.unpin(pin);
+                } finally {
+                    transfers.release();
+                }
+            }
         }
     }
 
     public Download openDownload(String id, String query) throws Exception {
         if (query != null && !query.isEmpty()) {
-            if (!query.matches("handle=[A-Za-z0-9_-]+\\.[a-f0-9]{64}")) throw new StoreException("INVALID_DOWNLOAD_HANDLE");
+            if (!query.matches("handle=[A-Za-z0-9_-]+\\.[a-f0-9]{64}"))
+                throw new StoreException("INVALID_DOWNLOAD_HANDLE");
             verifyHandle(id, query.substring(7));
         }
         if (!transfers.tryAcquire()) throw new StoreException("FILE_BUSY");
@@ -354,35 +370,49 @@ public final class FileService implements AutoCloseable {
                     Path content = path(row, ".data");
                     MessageDigest digest = MessageDigest.getInstance("SHA-256");
                     try (InputStream check = Files.newInputStream(content)) {
-                        byte[] buffer = new byte[8192]; int n;
+                        byte[] buffer = new byte[8192];
+                        int n;
                         while ((n = check.read(buffer)) != -1) digest.update(buffer, 0, n);
                     }
-                    if (!hex(digest.digest()).equals(row.getString("sha256"))) throw new StoreException("FILE_DIGEST_MISMATCH");
+                    if (!hex(digest.digest()).equals(row.getString("sha256")))
+                        throw new StoreException("FILE_DIGEST_MISMATCH");
                     input = Files.newInputStream(content);
                     Download download = new Download(row, input, pin);
                     download.expire();
                     return download;
                 } catch (Exception e) {
-                    if (input != null) try { input.close(); } catch (IOException ignored) { }
+                    if (input != null) try {
+                        input.close();
+                    } catch (IOException ignored) {
+                    }
                     ledger.unpin(pin);
                     throw e;
                 }
             });
-        } catch (Exception e) { transfers.release(); throw e; }
+        } catch (Exception e) {
+            transfers.release();
+            throw e;
+        }
     }
 
-    /** Compatibility for in-process callers; no business HTTP listener invokes this adapter. */
+    /**
+     * Compatibility for in-process callers; no business HTTP listener invokes this adapter.
+     */
     public void download(String id, HttpExchange x) throws Exception {
         try (Download download = openDownload(id, x.getRequestURI().getRawQuery())) {
-            for (String key : download.headers.keySet()) x.getResponseHeaders().set(key, download.headers.getString(key));
+            for (String key : download.headers.keySet())
+                x.getResponseHeaders().set(key, download.headers.getString(key));
             x.getResponseHeaders().set("Cache-Control", "no-store");
             long size = download.metadata.getLong("size");
             x.sendResponseHeaders(200, size == 0 ? -1 : size);
             try (OutputStream out = x.getResponseBody()) {
-                byte[] b = new byte[8192]; int n;
+                byte[] b = new byte[8192];
+                int n;
                 while ((n = download.input.read(b)) != -1) out.write(b, 0, n);
             }
-        } finally { x.close(); }
+        } finally {
+            x.close();
+        }
     }
 
     private String sign(String text) throws Exception {

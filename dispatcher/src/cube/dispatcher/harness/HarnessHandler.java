@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.dispatcher.harness;
 
 import cell.core.talk.PrimitiveInputStream;
@@ -8,20 +14,32 @@ import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import javax.servlet.*;
-import javax.servlet.http.*;
-import java.io.*;
+import javax.servlet.ServletOutputStream;
+import javax.servlet.WriteListener;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.concurrent.*;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 
-/** REST/SHM conversion. No AIGC Manager, service HTTP client or service implementation dependency. */
+/**
+ * REST/SHM conversion. No AIGC Manager, service HTTP client or service implementation dependency.
+ */
 final class HarnessHandler extends AbstractHandler {
-    private final HarnessGateway gateway;
-    HarnessHandler(HarnessGateway gateway) { this.gateway = gateway; }
 
-    @Override public void handle(String target, Request base, HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private final HarnessGateway gateway;
+
+    HarnessHandler(HarnessGateway gateway) {
+        this.gateway = gateway;
+    }
+
+    @Override
+    public void handle(String target, Request base, HttpServletRequest request, HttpServletResponse response) throws IOException {
         base.setHandled(true);
         response.setHeader("Cache-Control", "no-store");
         HarnessAction action = null;
@@ -31,58 +49,94 @@ final class HarnessHandler extends AbstractHandler {
             Matcher matcher = candidate.match(request.getRequestURI());
             if (matcher != null && matcher.matches()) {
                 known = true;
-                if (candidate.method.equals(request.getMethod())) { action = candidate; match = matcher; break; }
+                if (candidate.method.equals(request.getMethod())) {
+                    action = candidate;
+                    match = matcher;
+                    break;
+                }
             }
         }
-        if (action == null) { HarnessGateway.error(response, known ? 405 : 404, known ? "METHOD_NOT_ALLOWED" : "NOT_FOUND"); return; }
+        if (action == null) {
+            HarnessGateway.error(response, known ? 405 : 404, known ? "METHOD_NOT_ALLOWED" : "NOT_FOUND");
+            return;
+        }
         JSONObject data = gateway.credential(request.getHeader("Authorization"));
-        if (data == null) { HarnessGateway.error(response, 401, "UNAUTHORIZED"); return; }
+        if (data == null) {
+            HarnessGateway.error(response, 401, "UNAUTHORIZED");
+            return;
+        }
         if (match.groupCount() > 0) data.put("id", match.group(1));
         if (match.groupCount() > 1) data.put("approvalId", match.group(2));
         for (String[] header : new String[][]{{"Idempotency-Key", "key"}, {"Content-Type", "contentType"}, {"Last-Event-ID", "lastEventId"}}) {
             String value = request.getHeader(header[0]);
             if (value != null) {
-                if (value.length() > 4096) { HarnessGateway.error(response, 400, "INVALID_REQUEST"); return; }
+                if (value.length() > 4096) {
+                    HarnessGateway.error(response, 400, "INVALID_REQUEST");
+                    return;
+                }
                 data.put(header[1], value);
             }
         }
         String query = request.getQueryString();
         if (query != null) {
-            if (query.length() > 4096) { HarnessGateway.error(response, 400, "INVALID_REQUEST"); return; }
+            if (query.length() > 4096) {
+                HarnessGateway.error(response, 400, "INVALID_REQUEST");
+                return;
+            }
             data.put("query", query);
         }
         boolean file = action == HarnessAction.UploadInput || action == HarnessAction.DownloadArtifact;
         boolean sse = action == HarnessAction.Events && String.valueOf(request.getHeader("Accept")).contains("text/event-stream");
-        if (!gateway.inflight.tryAcquire()) { HarnessGateway.error(response, 503, "HARNESS_BUSY"); return; }
+        if (!gateway.inflight.tryAcquire()) {
+            HarnessGateway.error(response, 503, "HARNESS_BUSY");
+            return;
+        }
         if (file && !gateway.files.tryAcquire()) {
-            gateway.inflight.release(); HarnessGateway.error(response, 429, "FILE_BUSY"); return;
+            gateway.inflight.release();
+            HarnessGateway.error(response, 429, "FILE_BUSY");
+            return;
         }
         if (sse && !gateway.streams.tryAcquire()) {
-            gateway.inflight.release(); HarnessGateway.error(response, 429, "HARNESS_BUSY"); return;
+            gateway.inflight.release();
+            HarnessGateway.error(response, 429, "HARNESS_BUSY");
+            return;
         }
         HarnessGateway.RequestState state;
-        try { state = gateway.new RequestState(request, response, file, sse); }
-        catch (RuntimeException e) {
-            gateway.inflight.release(); if (file) gateway.files.release(); if (sse) gateway.streams.release(); throw e;
+        try {
+            state = gateway.new RequestState(request, response, file, sse);
+        } catch (RuntimeException e) {
+            gateway.inflight.release();
+            if (file) gateway.files.release();
+            if (sse) gateway.streams.release();
+            throw e;
         }
         state.auth = new JSONObject().put("credential", data.getString("credential"));
         final HarnessAction selected = action;
         try {
             state.setTask((file ? gateway.filePool : gateway.pool).submit(() -> execute(state, selected, data)));
-        } catch (RejectedExecutionException e) { state.fail(503, "HARNESS_BUSY"); }
+        } catch (RejectedExecutionException e) {
+            state.fail(503, "HARNESS_BUSY");
+        }
     }
 
     private void execute(HarnessGateway.RequestState state, HarnessAction action, JSONObject data) {
         try {
             state.selectConnection(gateway.performer.selectDirectorForCellet(HarnessAction.CELLET));
-            if (state.director == null) { state.fail(503, "HARNESS_UNAVAILABLE"); return; }
+            if (state.director == null) {
+                state.fail(503, "HARNESS_UNAVAILABLE");
+                return;
+            }
             byte[] body = null;
             if (action.schema != null) {
                 state.track(state.request.getInputStream());
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
-                byte[] buffer = new byte[4096]; int n;
+                byte[] buffer = new byte[4096];
+                int n;
                 while ((n = ((InputStream) state.io).read(buffer)) != -1) {
-                    if (out.size() + n > HarnessAction.MAX_BODY_BYTES) { state.fail(413, "PAYLOAD_TOO_LARGE"); return; }
+                    if (out.size() + n > HarnessAction.MAX_BODY_BYTES) {
+                        state.fail(413, "PAYLOAD_TOO_LARGE");
+                        return;
+                    }
                     if (state.closed.get()) return;
                     out.write(buffer, 0, n);
                 }
@@ -128,16 +182,22 @@ final class HarnessHandler extends AbstractHandler {
         long expected = descriptor.getJSONObject("metadata").getLong("size"), size = 0;
         InputStream input = state.request.getInputStream();
         PrimitiveOutputStream output = gateway.performer.openStream(state.director, HarnessAction.CELLET, state.transferId);
-        state.track(() -> { HarnessGateway.closeQuietly(input); HarnessGateway.closeQuietly(output); });
+        state.track(() -> {
+            HarnessGateway.closeQuietly(input);
+            HarnessGateway.closeQuietly(output);
+        });
         try {
-            byte[] buffer = new byte[32768]; int n;
+            byte[] buffer = new byte[32768];
+            int n;
             while ((n = input.read(buffer)) != -1) {
                 size += n;
                 if (size > expected || state.closed.get() || System.currentTimeMillis() >= descriptor.getLong("expiresAt"))
                     throw new IOException("Upload size or deadline");
                 output.write(buffer, 0, n);
             }
-        } finally { output.close(); }
+        } finally {
+            output.close();
+        }
         // The service validates the original declared size/digest and commits before reporting success.
         JSONObject reply = result(state, descriptor.getLong("expiresAt"));
         write(state, reply.getInt("status"), "application/json; charset=utf-8", reply.getJSONObject("body").toString().getBytes(StandardCharsets.UTF_8));
@@ -147,7 +207,8 @@ final class HarnessHandler extends AbstractHandler {
         HarnessGateway.Receiver receiver = state.registerReceiver();
         JSONObject start = control(state, HarnessAction.StartDownload);
         if (start.getInt("status") >= 400) {
-            write(state, start.getInt("status"), "application/json; charset=utf-8", start.getJSONObject("body").toString().getBytes(StandardCharsets.UTF_8)); return;
+            write(state, start.getInt("status"), "application/json; charset=utf-8", start.getJSONObject("body").toString().getBytes(StandardCharsets.UTF_8));
+            return;
         }
         PrimitiveInputStream input = receiver.input.get(5, TimeUnit.SECONDS);
         state.track(input);
@@ -159,7 +220,8 @@ final class HarnessHandler extends AbstractHandler {
         state.response.setContentLengthLong(expected);
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         ServletOutputStream output = state.response.getOutputStream();
-        byte[] buffer = new byte[32768]; int n;
+        byte[] buffer = new byte[32768];
+        int n;
         while ((n = input.read(buffer)) != -1) {
             size += n;
             if (state.closed.get() || size > expected || System.currentTimeMillis() >= descriptor.getLong("expiresAt"))
@@ -167,7 +229,8 @@ final class HarnessHandler extends AbstractHandler {
             digest.update(buffer, 0, n);
             output.write(buffer, 0, n);
         }
-        if (size != expected || !hex(digest.digest()).equals(metadata.getString("sha256"))) throw new IOException("Incomplete download");
+        if (size != expected || !hex(digest.digest()).equals(metadata.getString("sha256")))
+            throw new IOException("Incomplete download");
         JSONObject reply = result(state, descriptor.getLong("expiresAt"));
         if (reply.getInt("status") != 200) throw new IOException("Download failed");
         state.complete();
@@ -186,7 +249,8 @@ final class HarnessHandler extends AbstractHandler {
         for (int i = 0; i < events.length(); i++) {
             JSONObject event = events.getJSONObject(i);
             byte[] frame = ("id: " + event.getLong("eventSeq") + "\nevent: " + event.getString("type") + "\ndata: " + event + "\n\n").getBytes(StandardCharsets.UTF_8);
-            if (data.size() + frame.length > HarnessAction.MAX_RESPONSE_BYTES - 32) throw new IOException("Event page limit");
+            if (data.size() + frame.length > HarnessAction.MAX_RESPONSE_BYTES - 32)
+                throw new IOException("Event page limit");
             data.write(frame);
         }
         data.write(": replay-page-complete\n\n".getBytes(StandardCharsets.UTF_8));
@@ -201,14 +265,21 @@ final class HarnessHandler extends AbstractHandler {
         ServletOutputStream output = state.response.getOutputStream();
         output.setWriteListener(new WriteListener() {
             int offset;
-            @Override public void onWritePossible() throws IOException {
+
+            @Override
+            public void onWritePossible() throws IOException {
                 while (!state.closed.get() && output.isReady() && offset < bytes.length) {
                     int n = Math.min(4096, bytes.length - offset);
-                    output.write(bytes, offset, n); offset += n;
+                    output.write(bytes, offset, n);
+                    offset += n;
                 }
                 if (offset == bytes.length) state.complete();
             }
-            @Override public void onError(Throwable error) { state.complete(); }
+
+            @Override
+            public void onError(Throwable error) {
+                state.complete();
+            }
         });
     }
 }
