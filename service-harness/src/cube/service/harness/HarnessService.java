@@ -42,14 +42,23 @@ import java.util.concurrent.TimeUnit;
  * G0 transport with an optional N03 ledger. Run admission awaits profiles/coordinator.
  */
 public final class HarnessService extends AbstractModule {
+
     public static final String NAME = "Harness";
+
     private HarnessConfig config;
+
     private WorkerRegistry registry;
+
     private ThreadPoolExecutor executor, httpExecutor;
+
     private HttpServer http;
+
     private org.eclipse.jetty.server.Server executionHttp;
+
     private volatile String startupError;
+
     private JdbcRunStore store;
+
     private ExecutionRuntime execution;
 
     public HarnessService() {
@@ -75,6 +84,7 @@ public final class HarnessService extends AbstractModule {
             // N03 is optional and fail-closed. DDL is only available in the explicit migration CLI.
             if (Boolean.parseBoolean(config.values.getProperty("store.enabled", "false")))
                 store = new JdbcRunStore(new StoreConfig(config.values));
+
             registry = new WorkerRegistry(config.leaseMillis());
             if (Boolean.parseBoolean(config.values.getProperty("execution.enabled", "false"))) {
                 if (store == null) throw new IllegalArgumentException("STORE_REQUIRED");
@@ -83,7 +93,9 @@ public final class HarnessService extends AbstractModule {
                     return module instanceof cube.aigc.completion.CompletionProvider ? (cube.aigc.completion.CompletionProvider) module : null;
                 });
             }
+
             executor = pool("harness-cell", 2, 64);
+
             started.set(true);
             if (execution == null) {
                 httpExecutor = pool("harness-http", 2, 32);
@@ -143,7 +155,10 @@ public final class HarnessService extends AbstractModule {
 
     public void disconnect(long transport) {
         if (registry != null) registry.disconnect(transport);
-        if (execution != null) { execution.workers.disconnect(transport); if(execution.runners != null) execution.runners.disconnect(transport); }
+        if (execution != null) {
+            execution.workers.disconnect(transport);
+            if (execution.runners != null) execution.runners.disconnect(transport);
+        }
     }
 
     @Override
@@ -176,8 +191,10 @@ public final class HarnessService extends AbstractModule {
                 id = request.getString("requestId");
             if (protocol == 4) {
                 cube.service.harness.execution.ToolProtocol.parse("runner-request", raw);
-                if (!equal(config.values.getProperty("worker.credential"), request.getString("credential"))) throw new IllegalArgumentException("UNAUTHORIZED");
-                if (execution == null || execution.runners == null) throw new IllegalArgumentException("RUNNER_DISABLED");
+                if (!equal(config.values.getProperty("worker.credential"), request.getString("credential")))
+                    throw new IllegalArgumentException("UNAUTHORIZED");
+                if (execution == null || execution.runners == null)
+                    throw new IllegalArgumentException("RUNNER_DISABLED");
                 return execution.runners.apply(request, transport, valid);
             }
             if (protocol == 2 || protocol == 3) {
@@ -214,7 +231,10 @@ public final class HarnessService extends AbstractModule {
     private JSONObject capabilities() {
         if (execution != null) {
             JSONArray all = execution.workers.snapshot();
-            if(execution.runners != null) {JSONArray runners = execution.runners.snapshot(); for(int i=0;i<runners.length();i++) all.put(runners.get(i));}
+            if (execution.runners != null) {
+                JSONArray runners = execution.runners.snapshot();
+                for (int i = 0; i < runners.length(); i++) all.put(runners.get(i));
+            }
             return new JSONObject().put("service", NAME).put("protocolVersion", execution.runners == null ? 3 : 4).put("registeredWorkers", all).put("infrastructureReady", true)
                     .put("runsReady", execution.workers.ready()).put("execution", execution.runners == null ? "resource-loop" : "trusted-tool-loop").put("capacity", execution.workers.capacity());
         }

@@ -30,10 +30,15 @@ import java.util.zip.ZipOutputStream;
  * Immutable content-addressed releases. Trusted CPU execution requires explicit opt-in.
  */
 public final class PackageRepository {
+
     private final CatalogStore catalog;
+
     private final AssetFiles files;
+
     private final Map<String, PublicKey> trustedKeys;
+
     private final boolean unsignedLocalDevelopment;
+
     private final boolean trustedExecutables;
 
     public PackageRepository(CatalogStore catalog, AssetFiles files, Map<String, PublicKey> keys, boolean unsignedLocalDevelopment) {
@@ -138,7 +143,8 @@ public final class PackageRepository {
         int schemaVersion = manifest.getInt("schemaVersion");
         if (schemaVersion != 1 && schemaVersion != 2) throw RuntimeSupport.error("UNKNOWN_PACKAGE_SCHEMA");
         RuntimeSupport.validate("manifest-v" + schemaVersion, manifest);
-        if (schemaVersion == 2 && (!trustedExecutables || total > 65536)) throw RuntimeSupport.error("EXECUTABLE_RUNTIME_NOT_CERTIFIED");
+        if (schemaVersion == 2 && (!trustedExecutables || total > 65536))
+            throw RuntimeSupport.error("EXECUTABLE_RUNTIME_NOT_CERTIFIED");
         Set<String> declared = new HashSet<>();
         int skills = 0, locks = 0;
         JSONArray list = manifest.getJSONArray("files");
@@ -167,7 +173,8 @@ public final class PackageRepository {
         if (!declared.equals(entries.keySet()) || skills != 1 || locks != 1)
             throw RuntimeSupport.error("UNDECLARED_PACKAGE_FILE");
         JSONObject dependencies = RuntimeSupport.parse("dependencies-v1", entries.get("dependencies.lock.json"));
-        if(schemaVersion == 2 && dependencies.getJSONArray("dependencies").length() != 0) throw RuntimeSupport.error("RUNNER_STDLIB_ONLY");
+        if (schemaVersion == 2 && dependencies.getJSONArray("dependencies").length() != 0)
+            throw RuntimeSupport.error("RUNNER_STDLIB_ONLY");
         RuntimeSupport.strings(manifest.getJSONArray("permissions"));
         Set<String> tools = new HashSet<>();
         for (int i = 0; i < manifest.getJSONArray("tools").length(); i++) {
@@ -189,7 +196,8 @@ public final class PackageRepository {
                 if (tool.has("resourcePath") || !tool.has("entrypoint") || !declared.contains(RuntimeSupport.path(tool.getString("entrypoint")))
                         || !file(manifest, tool.getString("entrypoint")).getString("role").equals("entrypoint")
                         || !tool.getString("permission").equals("console.status.read") || !tool.getString("effect").equals("read-only")
-                        || !tool.getString("brokerOperation").equals("mockconsole.query_status")) throw RuntimeSupport.error("PACKAGE_EXECUTABLE_INVALID");
+                        || !tool.getString("brokerOperation").equals("mockconsole.query_status"))
+                    throw RuntimeSupport.error("PACKAGE_EXECUTABLE_INVALID");
             } else {
                 if (schemaVersion != 1 || !tool.has("resourcePath") || !declared.contains(RuntimeSupport.path(tool.getString("resourcePath"))) || tool.has("entrypoint"))
                     throw RuntimeSupport.error("PACKAGE_RESOURCE_TOOL_INVALID");

@@ -22,17 +22,29 @@ import java.util.concurrent.Semaphore;
  * Opt-in development execution runtime, with a trusted fixed identity and private resource repository.
  */
 public final class ExecutionRuntime implements AutoCloseable {
+
     public final ModelJobStore jobs;
+
     public final ModelDispatcher workers;
+
     public final RunCoordinator coordinator;
+
     public final InferenceGateway inference;
+
     public final ToolBroker broker;
+
     public final RunnerDispatcher runners;
+
     public final ProfileRegistry profiles;
+
     public final ProfileRegistry.Identity identity;
+
     private final CatalogStore catalog;
+
     private final JdbcRunStore store;
+
     private final int maxActive;
+
     private final Semaphore streams = new Semaphore(2);
 
     public ExecutionRuntime(JdbcRunStore store, Properties p, long lease) throws Exception {

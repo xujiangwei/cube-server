@@ -28,6 +28,7 @@ import java.util.Properties;
  * Explicit offline administration. Configuration and signer keys are trusted operator inputs.
  */
 public final class RuntimeAdmin {
+
     public static void main(String[] args) throws Exception {
         if (args.length < 3)
             throw new IllegalArgumentException("RuntimeAdmin <private.properties> <validate|upload|export|profile|bind|lifecycle> <arguments...>");
