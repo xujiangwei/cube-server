@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 780" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="arrowG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 5 z" fill="#94A3B8"/>
+    </marker>
+    <marker id="arrowP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 5 z" fill="#7C3AED"/>
+    </marker>
+    <marker id="arrowB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 5 z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 5 z" fill="#0D9488"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1160" height="780" rx="12" fill="#FFFFFF"/>
+
+  <!-- ================= Panel 1: compile-time ================= -->
+  <text x="40" y="34" font-size="15" font-weight="700" fill="#1E293B">① 编译期依赖方向（单向，由编译器强制保证）</text>
+
+  <!-- plugin -->
+  <rect x="40" y="56" width="350" height="128" rx="12" fill="#FAF5FF" stroke="#7C3AED" stroke-width="1.5"/>
+  <text x="60" y="82" font-size="14" font-weight="700" fill="#6D28D9">service-psychology（插件工程）</text>
+  <text x="60" y="104" font-size="11.5" fill="#475569">包名 cube.service.psychology.*</text>
+  <text x="60" y="124" font-size="11.5" fill="#475569">编译期零 cube.service.* 依赖（编译器强制）</text>
+  <text x="60" y="144" font-size="11.5" fill="#475569">PsychologyModule 37 动作 + PsychologyEndpoints 30 端点</text>
+  <text x="60" y="164" font-size="11.5" fill="#475569">产物 cube-service-psychology-3.0.jar → deploy/libs/</text>
+
+  <!-- service -->
+  <rect x="420" y="56" width="320" height="128" rx="12" fill="#F0FDFA" stroke="#0D9488" stroke-width="1.5"/>
+  <text x="440" y="82" font-size="14" font-weight="700" fill="#0F766E">service（宿主工程）</text>
+  <text x="440" y="104" font-size="11.5" fill="#475569">包名 cube.service.*（不含 psychology）</text>
+  <text x="440" y="124" font-size="11.5" fill="#475569">SPI 实现：ModuleRegistry / AIGCHostImpl</text>
+  <text x="440" y="144" font-size="11.5" fill="#475569">ActionRunner / AIGCCellet</text>
+  <text x="440" y="164" font-size="11.5" fill="#475569">对插件零编译期引用</text>
+
+  <!-- dispatcher -->
+  <rect x="770" y="56" width="350" height="128" rx="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+  <text x="790" y="82" font-size="14" font-weight="700" fill="#1D4ED8">dispatcher（网关工程）</text>
+  <text x="790" y="104" font-size="11.5" fill="#475569">包名 cube.dispatcher.*</text>
+  <text x="790" y="124" font-size="11.5" fill="#475569">AIGCHandler 基类 + Jetty ContextHandler</text>
+  <text x="790" y="144" font-size="11.5" fill="#475569">扩展点：DispatcherExtension / DispatcherExtensions</text>
+  <text x="790" y="164" font-size="11.5" fill="#475569">对插件零编译期引用，仅按类名反射装载</text>
+
+  <!-- forbidden arrows between boxes -->
+  <path d="M 390 90 L 416 90" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrowG)"/>
+  <line x1="396" y1="84" x2="410" y2="96" stroke="#DC2626" stroke-width="2"/>
+  <path d="M 740 90 L 766 90" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrowG)"/>
+  <line x1="746" y1="84" x2="760" y2="96" stroke="#DC2626" stroke-width="2"/>
+  <path d="M 390 122 L 416 122" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrowG)"/>
+  <line x1="396" y1="116" x2="410" y2="128" stroke="#DC2626" stroke-width="2"/>
+  <text x="403" y="76" text-anchor="middle" font-size="11" font-weight="700" fill="#DC2626">✗ 零引用</text>
+
+  <!-- common SPI base -->
+  <rect x="330" y="268" width="500" height="64" rx="10" fill="#F1F5F9" stroke="#94A3B8" stroke-width="1.5"/>
+  <text x="580" y="294" text-anchor="middle" font-size="13.5" font-weight="700" fill="#334155">common · cube.aigc.spi.*（唯一共享 SPI）</text>
+  <text x="580" y="316" text-anchor="middle" font-size="11.5" fill="#64748B">ActionModule / AIGCHost / ActionBinding / ModuleDescriptor / AIGCSPI（VERSION=25）</text>
+
+  <!-- arrows to common -->
+  <line x1="215" y1="184" x2="215" y2="262" stroke="#7C3AED" stroke-width="1.5" marker-end="url(#arrowP)"/>
+  <line x1="580" y1="184" x2="580" y2="262" stroke="#0D9488" stroke-width="1.5" marker-end="url(#arrowT)"/>
+  <line x1="945" y1="184" x2="945" y2="262" stroke="#2563EB" stroke-width="1.5" marker-end="url(#arrowB)"/>
+
+  <!-- build order -->
+  <rect x="40" y="356" width="1080" height="40" rx="8" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="580" y="381" text-anchor="middle" font-size="12.5" fill="#334155">构建顺序：<tspan font-weight="700">common → dispatcher → service-psychology → service → verify</tspan>（插件编译期需要 dispatcher 产物；verify 是全工程唯一编译期含插件 classes 的模块）</text>
+
+  <!-- ================= Panel 2: runtime ================= -->
+  <line x1="40" y1="424" x2="1120" y2="424" stroke="#E2E8F0"/>
+  <text x="40" y="456" font-size="15" font-weight="700" fill="#1E293B">② 运行期装载（两个进程，同一份配置驱动反射）</text>
+
+  <!-- dispatcher process -->
+  <rect x="40" y="472" width="530" height="290" rx="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+  <rect x="40" y="472" width="530" height="36" rx="12" fill="#2563EB"/>
+  <text x="60" y="496" font-size="13.5" font-weight="700" fill="#FFFFFF">dispatcher 进程 —— 端点注入</text>
+
+  <rect x="62" y="524" width="486" height="52" rx="8" fill="#FFFFFF" stroke="#BFDBFE"/>
+  <text x="78" y="544" font-size="12" font-weight="700" fill="#1E40AF">module.extensions=cube.service.psychology.…</text>
+  <text x="78" y="564" font-size="11" fill="#64748B">dispatcher.properties：扩展实现类清单（逗号分隔）</text>
+
+  <line x1="305" y1="576" x2="305" y2="598" stroke="#2563EB" stroke-width="1.5" marker-end="url(#arrowB)"/>
+  <text x="315" y="592" font-size="11" fill="#1D4ED8">DispatcherExtensions.load()</text>
+
+  <rect x="62" y="602" width="486" height="52" rx="8" fill="#FFFFFF" stroke="#BFDBFE"/>
+  <text x="78" y="622" font-size="12" font-weight="700" fill="#1E40AF">PsychologyEndpoints implements DispatcherExtension</text>
+  <text x="78" y="642" font-size="11" fill="#64748B">getEndpointHandlers()（default 方法）→ 30 个 ContextHandler</text>
+
+  <line x1="305" y1="654" x2="305" y2="676" stroke="#2563EB" stroke-width="1.5" marker-end="url(#arrowB)"/>
+  <text x="315" y="670" font-size="11" fill="#1D4ED8">宿主 63 条端点先行注册</text>
+
+  <rect x="62" y="680" width="486" height="66" rx="8" fill="#DBEAFE" stroke="#93C5FD"/>
+  <text x="78" y="702" font-size="12" font-weight="700" fill="#1E3A8A">registerEndpointHandlers()</text>
+  <text x="78" y="722" font-size="11" fill="#1E40AF">按 getContextPath() 去重：路径重复记 ERROR 跳过（宿主天然优先）</text>
+  <text x="78" y="740" font-size="11" fill="#1E40AF">单个扩展抛异常不影响其余扩展与网关启动</text>
+
+  <!-- service process -->
+  <rect x="590" y="472" width="530" height="290" rx="12" fill="#F0FDFA" stroke="#0D9488" stroke-width="1.5"/>
+  <rect x="590" y="472" width="530" height="36" rx="12" fill="#0D9488"/>
+  <text x="610" y="496" font-size="13.5" font-weight="700" fill="#FFFFFF">service 进程 —— 模块装载</text>
+
+  <rect x="612" y="524" width="486" height="52" rx="8" fill="#FFFFFF" stroke="#99F6E4"/>
+  <text x="628" y="544" font-size="12" font-weight="700" fill="#0F766E">aigc-modules.properties：module.1.class=…PsychologyModule</text>
+  <text x="628" y="564" font-size="11" fill="#64748B">enabled / optional；jar 必须在 deploy/libs/（禁入 cellets/）</text>
+
+  <line x1="855" y1="576" x2="855" y2="598" stroke="#0D9488" stroke-width="1.5" marker-end="url(#arrowT)"/>
+  <text x="865" y="592" font-size="11" fill="#0F766E">ModuleRegistry 发现并实例化</text>
+
+  <rect x="612" y="602" width="486" height="52" rx="8" fill="#FFFFFF" stroke="#99F6E4"/>
+  <text x="628" y="622" font-size="12" font-weight="700" fill="#0F766E">PsychologyModule implements ActionModule</text>
+  <text x="628" y="642" font-size="11" fill="#64748B">getActions() → 37 个 ActionBinding 注册进 ActionRouter</text>
+
+  <line x1="855" y1="654" x2="855" y2="676" stroke="#0D9488" stroke-width="1.5" marker-end="url(#arrowT)"/>
+  <text x="865" y="670" font-size="11" fill="#0F766E">绑定早于 setup</text>
+
+  <rect x="612" y="680" width="486" height="66" rx="8" fill="#CCFBF1" stroke="#5EEAD4"/>
+  <text x="628" y="702" font-size="12" font-weight="700" fill="#134E4A">setup(AIGCHost)</text>
+  <text x="628" y="722" font-size="11" fill="#0F766E">建表在 setup 内一次完成（storage.open() 之后）</text>
+  <text x="628" y="740" font-size="11" fill="#0F766E">失败回滚 unbindAll；任何模块失败都不阻断宿主启动</text>
+</svg>
