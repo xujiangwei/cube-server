@@ -8,7 +8,7 @@ package cube.dispatcher.robodroid;
 
 import cell.core.talk.dialect.ActionDialect;
 import cube.dispatcher.Performer;
-import cube.robodroid.RobotAction;
+import cube.robodroid.RobodroidAction;
 import cube.util.CrossDomainHandler;
 import org.eclipse.jetty.http.HttpStatus;
 import org.json.JSONObject;
@@ -22,7 +22,7 @@ import java.io.IOException;
  */
 public class RoboengineEventHandler extends CrossDomainHandler {
 
-    public final static String CONTEXT_PATH = "/robot/event/";
+    public final static String CONTEXT_PATH = "/robodroid/event/";
 
     private String token = "kLBNGSmrTbmNlBfTYcIaKqYQiDPKoTkE";
 
@@ -59,7 +59,7 @@ public class RoboengineEventHandler extends CrossDomainHandler {
                 }
             });
 
-            ActionDialect dialect = new ActionDialect(RobotAction.Event.name);
+            ActionDialect dialect = new ActionDialect(RobodroidAction.Event.name);
             dialect.addParam("name", eventName);
             dialect.addParam("data", eventData);
             this.performer.transmit(RobodroidCellet.NAME, dialect);

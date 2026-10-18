@@ -81,7 +81,7 @@
 			<class>cube.service.conference.ConferenceServiceCellet</class>
 		</cellet>
 		<cellet port="6000">
-			<class>cube.service.robodroid.RobotCellet</class>
+			<class>cube.service.robodroid.RobodroidCellet</class>
 		</cellet>
 		<cellet port="6000">
 			<class>cube.service.signal.SignalCellet</class>

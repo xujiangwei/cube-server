@@ -9,8 +9,8 @@ package cube.dispatcher.robodroid.handler;
 import cell.core.talk.dialect.ActionDialect;
 import cube.dispatcher.Performer;
 import cube.dispatcher.robodroid.RobodroidCellet;
-import cube.robodroid.RobotAction;
-import cube.robodroid.RobotStateCode;
+import cube.robodroid.RobodroidAction;
+import cube.robodroid.RobodroidStateCode;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.handler.ContextHandler;
 import org.json.JSONObject;
@@ -26,11 +26,11 @@ import java.io.IOException;
 public class Cancel extends ContextHandler {
 
     public Cancel(Performer performer) {
-        super("/robot/cancel/");
+        super("/robodroid/cancel/");
         setHandler(new Handler(performer));
     }
 
-    private class Handler extends RobotHandler {
+    private class Handler extends RobodroidHandler {
 
         public Handler(Performer performer) {
             super(performer);
@@ -62,7 +62,7 @@ public class Cancel extends ContextHandler {
             long accountId = data.getLong("accountId");
             String name = data.getString("name");
 
-            ActionDialect dialect = new ActionDialect(RobotAction.Cancel.name);
+            ActionDialect dialect = new ActionDialect(RobodroidAction.Cancel.name);
             dialect.addParam("accountId", accountId);
             dialect.addParam("name", name);
 
@@ -74,7 +74,7 @@ public class Cancel extends ContextHandler {
             }
 
             int stateCode = responseDialect.getParamAsInt("code");
-            if (stateCode != RobotStateCode.Ok.code) {
+            if (stateCode != RobodroidStateCode.Ok.code) {
                 this.respond(response, HttpStatus.BAD_REQUEST_400);
                 this.complete();
                 return;

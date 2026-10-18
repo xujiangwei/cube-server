@@ -17,9 +17,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Robot 测试。
+ * Robodroid 测试。
  */
-public class RobotTest {
+public class RobodroidTest {
 
     private HttpClient client;
 
@@ -27,7 +27,7 @@ public class RobotTest {
     private int port = 7010;
     private String code = "vGbtTRjwtcYFAHxPqgAeeSpuZxVuPLgE";
 
-    protected RobotTest() {
+    protected RobodroidTest() {
         this.client = new HttpClient();
     }
 
@@ -62,7 +62,7 @@ public class RobotTest {
     }
 
     public void testGetOnlineList() {
-        String url = this.getUrl("/robot/online/");
+        String url = this.getUrl("/robodroid/online/");
 
         System.out.println("GET - " + url);
 
@@ -88,7 +88,7 @@ public class RobotTest {
     }
 
     public void testGetAccountList() {
-        String url = this.getUrl("/robot/account/list/");
+        String url = this.getUrl("/robodroid/account/list/");
         url = url + "?begin=0&end=19";
 
         System.out.println("GET - " + url);
@@ -117,7 +117,7 @@ public class RobotTest {
     }
 
     public void testGetAccount() {
-        String url = this.getUrl("/robot/account/");
+        String url = this.getUrl("/robodroid/account/");
         url = url + "/?id=7";
 
         System.out.println("GET - " + url);
@@ -144,7 +144,7 @@ public class RobotTest {
     }
 
     public static void main(String[] args) {
-        RobotTest test = new RobotTest();
+        RobodroidTest test = new RobodroidTest();
         test.setup();
 
 //        test.testGetOnlineList();
