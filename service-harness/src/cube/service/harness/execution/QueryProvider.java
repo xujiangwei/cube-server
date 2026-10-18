@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness.execution;
 
 import org.json.JSONObject;
@@ -8,34 +14,39 @@ import org.json.JSONObject;
  * with JVM privileges; uploaded SKILL code cannot install one.
  */
 public interface QueryProvider extends AutoCloseable {
-  /** Cleanup/probe only. Must never repeat the original operation or claim an unobserved outcome. */
-  default boolean reconcile(ProviderInvocation invocation) throws Exception { return false; }
-  default int protocolVersion() {
-    return 4;
-  }
+    /**
+     * Cleanup/probe only. Must never repeat the original operation or claim an unobserved outcome.
+     */
+    default boolean reconcile(ProviderInvocation invocation) throws Exception {
+        return false;
+    }
 
-  default boolean independentExecution() {
-    return false;
-  }
+    default int protocolVersion() {
+        return 4;
+    }
 
-  default JSONObject query(ProviderInvocation invocation, JSONObject arguments) throws Exception {
-    return query(arguments);
-  }
+    default boolean independentExecution() {
+        return false;
+    }
 
-  String operation();
+    default JSONObject query(ProviderInvocation invocation, JSONObject arguments) throws Exception {
+        return query(arguments);
+    }
 
-  String permission();
+    String operation();
 
-  JSONObject inputSchema();
+    String permission();
 
-  JSONObject resultSchema();
+    JSONObject inputSchema();
 
-  void validate(JSONObject arguments);
+    JSONObject resultSchema();
 
-  JSONObject query(JSONObject arguments) throws Exception;
+    void validate(JSONObject arguments);
 
-  void validateResult(JSONObject arguments, JSONObject result);
+    JSONObject query(JSONObject arguments) throws Exception;
 
-  @Override
-  void close();
+    void validateResult(JSONObject arguments, JSONObject result);
+
+    @Override
+    void close();
 }

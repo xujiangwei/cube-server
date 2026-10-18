@@ -14,64 +14,66 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Properties;
 
-/** Private per-container configuration; no defaults containing usable credentials. */
+/**
+ * Private per-container configuration; no defaults containing usable credentials.
+ */
 public final class HarnessConfig {
-  final Properties values;
+    final Properties values;
 
-  public HarnessConfig(Properties values) throws IOException {
-    this.values = values;
-    if (!"development".equals(values.getProperty("mode")))
-      throw new IOException("Production identity provider is not implemented at G0");
-    if (!InetAddress.getByName(host()).isLoopbackAddress())
-      throw new IOException("G0 HTTP listener requires loopback");
-    for (String key : Arrays.asList("worker.credential", "api.credential"))
-      if (values.getProperty(key, "").length() < 24)
-        throw new IOException("Missing private credential: " + key);
-    if (values.getProperty("worker.credential").equals(values.getProperty("api.credential")))
-      throw new IOException("API and worker credentials must differ");
-    String trace = values.getProperty("trace.reader.credential", "");
-    if ((!trace.isEmpty() || Boolean.parseBoolean(values.getProperty("trace.enabled", "false")))
-        && (trace.length() < 24
-            || trace.equals(values.getProperty("api.credential"))
-            || trace.equals(values.getProperty("worker.credential"))
-            || trace.equals(values.getProperty("control.approver.credential"))))
-      throw new IOException("Independent trace reader required");
-    if (leaseMillis() < 1000 || leaseMillis() > 60000)
-      throw new IOException("lease.millis out of range");
-    String approver = values.getProperty("control.approver.credential", "");
-    if (!approver.isEmpty()
-        && (approver.length() < 24
-            || approver.equals(values.getProperty("api.credential"))
-            || approver.equals(values.getProperty("worker.credential"))
-            || values
+    public HarnessConfig(Properties values) throws IOException {
+        this.values = values;
+        if (!"development".equals(values.getProperty("mode")))
+            throw new IOException("Production identity provider is not implemented at G0");
+        if (!InetAddress.getByName(host()).isLoopbackAddress())
+            throw new IOException("G0 HTTP listener requires loopback");
+        for (String key : Arrays.asList("worker.credential", "api.credential"))
+            if (values.getProperty(key, "").length() < 24)
+                throw new IOException("Missing private credential: " + key);
+        if (values.getProperty("worker.credential").equals(values.getProperty("api.credential")))
+            throw new IOException("API and worker credentials must differ");
+        String trace = values.getProperty("trace.reader.credential", "");
+        if ((!trace.isEmpty() || Boolean.parseBoolean(values.getProperty("trace.enabled", "false")))
+                && (trace.length() < 24
+                || trace.equals(values.getProperty("api.credential"))
+                || trace.equals(values.getProperty("worker.credential"))
+                || trace.equals(values.getProperty("control.approver.credential"))))
+            throw new IOException("Independent trace reader required");
+        if (leaseMillis() < 1000 || leaseMillis() > 60000)
+            throw new IOException("lease.millis out of range");
+        String approver = values.getProperty("control.approver.credential", "");
+        if (!approver.isEmpty()
+                && (approver.length() < 24
+                || approver.equals(values.getProperty("api.credential"))
+                || approver.equals(values.getProperty("worker.credential"))
+                || values
                 .getProperty("control.approver.subject", "approver")
                 .equals(values.getProperty("execution.subject", "developer"))))
-      throw new IOException("Independent approver required");
-  }
-
-  public static HarnessConfig load() throws IOException {
-    String path = System.getProperty("harness.config");
-    if (path == null) throw new IOException("Set -Dharness.config to a private properties file");
-    Properties p = new Properties();
-    try (InputStream in = Files.newInputStream(Paths.get(path))) {
-      p.load(in);
+            throw new IOException("Independent approver required");
     }
-    return new HarnessConfig(p);
-  }
 
-  String host() {
-    return values.getProperty("http.host", "127.0.0.1");
-  }
+    public static HarnessConfig load() throws IOException {
+        String path = System.getProperty("harness.config");
+        if (path == null) throw new IOException("Set -Dharness.config to a private properties file");
+        Properties p = new Properties();
+        try (InputStream in = Files.newInputStream(Paths.get(path))) {
+            p.load(in);
+        }
+        return new HarnessConfig(p);
+    }
 
-  int port() {
-    return Integer.parseInt(values.getProperty("http.port", "7088"));
-  }
+    String host() {
+        return values.getProperty("http.host", "127.0.0.1");
+    }
 
-  long leaseMillis() {
-    return Long.parseLong(values.getProperty("lease.millis", "6000"));
-  }
+    int port() {
+        return Integer.parseInt(values.getProperty("http.port", "7088"));
+    }
 
-  boolean authorizedWorker(String id, String role) {
-    return role.equals(values.getProperty("worker." + id + ".role"));
-  }
+    long leaseMillis() {
+        return Long.parseLong(values.getProperty("lease.millis", "6000"));
+    }
+
+    boolean authorizedWorker(String id, String role) {
+        return role.equals(values.getProperty("worker." + id + ".role"));
+    }
 }

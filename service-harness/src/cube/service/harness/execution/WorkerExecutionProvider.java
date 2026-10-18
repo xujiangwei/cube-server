@@ -1,11 +1,21 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness.execution;
 
 import org.json.JSONObject;
 
-/** A declaration/result adapter only. Physical execution belongs to a certified Python worker. */
+/**
+ * A declaration/result adapter only. Physical execution belongs to a certified Python worker.
+ */
 public interface WorkerExecutionProvider extends QueryProvider {
-  String executionProfile();
+    String executionProfile();
 
-  /** Called with a durable, authenticated worker receipt, never with SKILL child output. */
-  JSONObject complete(ProviderInvocation invocation, JSONObject output) throws Exception;
+    /**
+     * Called with a durable, authenticated worker receipt, never with SKILL child output.
+     */
+    JSONObject complete(ProviderInvocation invocation, JSONObject output) throws Exception;
 }

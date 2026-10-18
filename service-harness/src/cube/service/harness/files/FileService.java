@@ -453,17 +453,20 @@ public final class FileService implements AutoCloseable {
                 });
     }
 
-    /** Verified bytes of a run-bound input only; neither a host path nor an arbitrary blob handle. */
+    /**
+     * Verified bytes of a run-bound input only; neither a host path nor an arbitrary blob handle.
+     */
     public byte[] readBound(JdbcRunStore.Lease lease, String call, String id, int maxBytes, Set<String> mediaTypes) throws Exception {
-        if(maxBytes<1 || maxBytes>1048576) throw new StoreException("INPUT_LIMIT_INVALID");
+        if (maxBytes < 1 || maxBytes > 1048576) throw new StoreException("INPUT_LIMIT_INVALID");
         return disk.tryLocked(() -> {
             ledger.owner(lease);
-            String pin="read-"+JdbcRunStore.hash(new JSONArray().put(lease.runId).put(call).put(id));
-            JSONObject row=ledger.pin(identity.tenant,identity.subject,id,pin,lease.runId,"consume");
-            if(!row.getString("kind").equals("input") || !mediaTypes.contains(row.getString("media_type")) || row.getLong("size_bytes")>maxBytes)
+            String pin = "read-" + JdbcRunStore.hash(new JSONArray().put(lease.runId).put(call).put(id));
+            JSONObject row = ledger.pin(identity.tenant, identity.subject, id, pin, lease.runId, "consume");
+            if (!row.getString("kind").equals("input") || !mediaTypes.contains(row.getString("media_type")) || row.getLong("size_bytes") > maxBytes)
                 throw new StoreException("INPUT_TYPE_OR_SIZE_FORBIDDEN");
-            byte[] content=Files.readAllBytes(path(row,".data"));
-            if(content.length>maxBytes || !RuntimeSupport.sha(content).equals(row.getString("sha256"))) throw new StoreException("FILE_DIGEST_MISMATCH");
+            byte[] content = Files.readAllBytes(path(row, ".data"));
+            if (content.length > maxBytes || !RuntimeSupport.sha(content).equals(row.getString("sha256")))
+                throw new StoreException("FILE_DIGEST_MISMATCH");
             return content;
         });
     }

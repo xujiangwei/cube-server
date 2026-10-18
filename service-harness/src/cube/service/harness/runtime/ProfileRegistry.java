@@ -100,7 +100,8 @@ public final class ProfileRegistry {
                 JSONObject row = catalog.release(c, identity.tenant, digest, true);
                 if (!row.getString("state").equals("ready")) throw RuntimeSupport.error("RELEASE_NOT_READY");
                 JSONObject manifest = new JSONObject(row.getString("manifest_json"));
-                if (manifest.getInt("schemaVersion") == 3) throw RuntimeSupport.error("LEGACY_BUILTIN_PACKAGE_DISABLED");
+                if (manifest.getInt("schemaVersion") == 3)
+                    throw RuntimeSupport.error("LEGACY_BUILTIN_PACKAGE_DISABLED");
                 declaredPermissions.addAll(RuntimeSupport.strings(manifest.getJSONArray("permissions")));
                 if (!skillNames.add(manifest.getString("name"))) throw RuntimeSupport.error("PROFILE_DUPLICATE_SKILL");
                 if (!JdbcRunStore.canonical(manifest.getJSONObject("runtime")).equals(JdbcRunStore.canonical(rr)))

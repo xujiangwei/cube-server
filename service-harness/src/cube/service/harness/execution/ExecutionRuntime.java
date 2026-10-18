@@ -9,13 +9,14 @@ package cube.service.harness.execution;
 import com.sun.net.httpserver.HttpExchange;
 import cube.service.harness.runtime.*;
 import cube.service.harness.store.*;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Semaphore;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 /**
  * Opt-in development execution runtime, with a trusted fixed identity and private resource
@@ -23,208 +24,208 @@ import org.json.JSONObject;
  */
 public final class ExecutionRuntime implements AutoCloseable {
 
-  public final ModelJobStore jobs;
+    public final ModelJobStore jobs;
 
-  public final ModelDispatcher workers;
+    public final ModelDispatcher workers;
 
-  public final RunCoordinator coordinator;
+    public final RunCoordinator coordinator;
 
-  public final InferenceGateway inference;
+    public final InferenceGateway inference;
 
-  public final ToolBroker broker;
+    public final ToolBroker broker;
 
-  public final RunnerDispatcher runners;
+    public final RunnerDispatcher runners;
 
-  public final ProfileRegistry profiles;
+    public final ProfileRegistry profiles;
 
-  public final ProfileRegistry.Identity identity;
-  public final ControlStore controls;
-  public final TraceStore traces;
-  public final cube.service.harness.files.FileService files;
+    public final ProfileRegistry.Identity identity;
+    public final ControlStore controls;
+    public final TraceStore traces;
+    public final cube.service.harness.files.FileService files;
 
-  private final CatalogStore catalog;
+    private final CatalogStore catalog;
 
-  private final JdbcRunStore store;
+    private final JdbcRunStore store;
 
-  private final int maxActive;
+    private final int maxActive;
 
-  private final Semaphore streams = new Semaphore(2);
+    private final Semaphore streams = new Semaphore(2);
 
-  public ExecutionRuntime(JdbcRunStore store, Properties p, long lease) throws Exception {
-    this(store, p, lease, () -> null);
-  }
-
-  public ExecutionRuntime(
-      JdbcRunStore store,
-      Properties p,
-      long lease,
-      java.util.function.Supplier<cube.aigc.completion.CompletionProvider> provider)
-      throws Exception {
-    ModelProtocol.verify();
-    this.store = store;
-    traces = new TraceStore(store, p);
-    StoreConfig sc = new StoreConfig(p);
-    catalog = new CatalogStore(store, sc.mysql());
-    Set<String> permissions =
-        new TreeSet<>(
-            Arrays.asList(
-                p.getProperty(
-                        "execution.permissions",
-                        "skill.list,skill.activate,resource.list,resource.read,resource.search")
-                    .split(",")));
-    // Deployment identity scopes may include independently published SKILL permissions.
-    // Release/profile intersection and the installed provider constrain each call.
-    for (String permission : permissions) RuntimeSupport.id(permission);
-    identity =
-        new ProfileRegistry.Identity(
-            p.getProperty("execution.tenant", "development"),
-            p.getProperty("execution.subject", "developer"),
-            permissions);
-    files =
-        Boolean.parseBoolean(p.getProperty("files.enabled", "false"))
-            ? new cube.service.harness.files.FileService(store, p, identity)
-            : null;
-    profiles = new ProfileRegistry(catalog, files == null ? null : files.ledger);
-    controls = new ControlStore(store, sc.mysql()).files(files == null ? null : files.ledger);
-    maxActive = Integer.parseInt(p.getProperty("execution.max.active", "128"));
-    if (maxActive < 1 || maxActive > 256)
-      throw new IllegalArgumentException("INVALID_ADMISSION_LIMIT");
-    store.admissionLimit(maxActive);
-    Path path =
-        Paths.get(
-            Objects.requireNonNull(p.getProperty("execution.repository"), "execution.repository"));
-    PackageRepository repo =
-        new PackageRepository(
-            catalog,
-            new AssetFiles(
-                path,
-                Long.parseLong(p.getProperty("execution.repository.max.bytes", "67108864")),
-                p.getProperty("execution.repository.namespace", "harness-resources")),
-            Collections.emptyMap(),
-            true,
-            Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false")));
-    jobs = new ModelJobStore(store, sc.mysql());
-    inference = new InferenceGateway(new InferenceStore(store, sc.mysql()), p, provider);
-    workers = new ModelDispatcher(jobs, p, lease, inference);
-    broker =
-        Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false"))
-            ? new ToolBroker(new ToolJobStore(store, sc.mysql()), identity, p).files(files)
-            : null;
-    runners = broker == null ? null : new RunnerDispatcher(broker, p, lease);
-    coordinator =
-        new RunCoordinator(
-                store,
-                jobs,
-                catalog,
-                identity,
-                new ResourceTools(catalog, repo).files(files),
-                broker)
-            .controls(controls, files, p);
-  }
-
-  public void start() {
-    if (files != null) files.start();
-    inference.start();
-    coordinator.start();
-  }
-
-  public synchronized JSONObject create(String key, JSONObject request) {
-    // Durable create replay precedes admission inside the catalog/store (including when full).
-    if (jobs.active(identity.tenant) >= maxActive) {
-      JSONObject prior =
-          store.findCreate(
-              identity.tenant, identity.subject, key, request.getString("taskProfileId"), request);
-      if (prior != null) return prior;
-      throw new StoreException("HARNESS_BUSY");
+    public ExecutionRuntime(JdbcRunStore store, Properties p, long lease) throws Exception {
+        this(store, p, lease, () -> null);
     }
-    return profiles.createRun(identity, key, request.getString("taskProfileId"), request);
-  }
 
-  public JSONObject read(String run) {
-    JSONObject row = store.read(identity.tenant, identity.subject, RuntimeSupport.id(run));
-    JSONObject result =
-        new JSONObject()
-            .put("snapshot", row.getJSONObject("snapshot"))
-            .put("usageSettlement", row.getString("usageSettlement"))
-            .put("usage", row.getJSONObject("usage"))
-            .put("result", row.get("result"));
-    JSONObject wait = controls.current(identity.tenant, identity.subject, run);
-    if (wait != null) result.put("interaction", wait);
-    return result;
-  }
-
-  public JSONObject control(
-      String run,
-      String key,
-      String operation,
-      String wait,
-      JSONObject payload,
-      String actor,
-      boolean approver) {
-    return controls.apply(
-        identity.tenant,
-        identity.subject,
-        actor,
-        RuntimeSupport.id(run),
-        key,
-        operation,
-        wait,
-        payload,
-        approver);
-  }
-
-  public JSONObject taskProfiles() {
-    JSONArray list = catalog.taskProfiles(identity.tenant), out = new JSONArray();
-    for (int i = 0; i < list.length(); i++) {
-      JSONObject p = new JSONObject(list.getJSONObject(i).getString("definition_json"));
-      out.put(
-          new JSONObject()
-              .put("profileId", p.getString("id"))
-              .put("version", p.getString("version"))
-              .put(
-                  "modelProfile",
-                  p.getJSONObject("model").getString("id")
-                      + "@"
-                      + p.getJSONObject("model").getString("version"))
-              .put(
-                  "runtimeProfile",
-                  p.getJSONObject("runtime").getString("id")
-                      + "@"
-                      + p.getJSONObject("runtime").getString("version"))
-              .put("skillReleases", p.getJSONArray("skillReleases"))
-              .put("toolSetVersion", p.getString("toolSetVersion"))
-              .put("requiredCapabilities", p.getJSONArray("requiredCapabilities")));
+    public ExecutionRuntime(
+            JdbcRunStore store,
+            Properties p,
+            long lease,
+            java.util.function.Supplier<cube.aigc.completion.CompletionProvider> provider)
+            throws Exception {
+        ModelProtocol.verify();
+        this.store = store;
+        traces = new TraceStore(store, p);
+        StoreConfig sc = new StoreConfig(p);
+        catalog = new CatalogStore(store, sc.mysql());
+        Set<String> permissions =
+                new TreeSet<>(
+                        Arrays.asList(
+                                p.getProperty(
+                                                "execution.permissions",
+                                                "skill.list,skill.activate,resource.list,resource.read,resource.search")
+                                        .split(",")));
+        // Deployment identity scopes may include independently published SKILL permissions.
+        // Release/profile intersection and the installed provider constrain each call.
+        for (String permission : permissions) RuntimeSupport.id(permission);
+        identity =
+                new ProfileRegistry.Identity(
+                        p.getProperty("execution.tenant", "development"),
+                        p.getProperty("execution.subject", "developer"),
+                        permissions);
+        files =
+                Boolean.parseBoolean(p.getProperty("files.enabled", "false"))
+                        ? new cube.service.harness.files.FileService(store, p, identity)
+                        : null;
+        profiles = new ProfileRegistry(catalog, files == null ? null : files.ledger);
+        controls = new ControlStore(store, sc.mysql()).files(files == null ? null : files.ledger);
+        maxActive = Integer.parseInt(p.getProperty("execution.max.active", "128"));
+        if (maxActive < 1 || maxActive > 256)
+            throw new IllegalArgumentException("INVALID_ADMISSION_LIMIT");
+        store.admissionLimit(maxActive);
+        Path path =
+                Paths.get(
+                        Objects.requireNonNull(p.getProperty("execution.repository"), "execution.repository"));
+        PackageRepository repo =
+                new PackageRepository(
+                        catalog,
+                        new AssetFiles(
+                                path,
+                                Long.parseLong(p.getProperty("execution.repository.max.bytes", "67108864")),
+                                p.getProperty("execution.repository.namespace", "harness-resources")),
+                        Collections.emptyMap(),
+                        true,
+                        Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false")));
+        jobs = new ModelJobStore(store, sc.mysql());
+        inference = new InferenceGateway(new InferenceStore(store, sc.mysql()), p, provider);
+        workers = new ModelDispatcher(jobs, p, lease, inference);
+        broker =
+                Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false"))
+                        ? new ToolBroker(new ToolJobStore(store, sc.mysql()), identity, p).files(files)
+                        : null;
+        runners = broker == null ? null : new RunnerDispatcher(broker, p, lease);
+        coordinator =
+                new RunCoordinator(
+                        store,
+                        jobs,
+                        catalog,
+                        identity,
+                        new ResourceTools(catalog, repo).files(files),
+                        broker)
+                        .controls(controls, files, p);
     }
-    return new JSONObject().put("profiles", out);
-  }
 
-  public JSONObject events(String run, long after, int limit) {
-    JSONArray events = store.events(identity.tenant, identity.subject, run, after, limit);
-    long cursor = after;
-    if (events.length() > 0) cursor = events.getJSONObject(events.length() - 1).getLong("eventSeq");
-    return new JSONObject().put("events", events).put("nextCursor", cursor);
-  }
-
-  /**
-   * Finite replay page: bounded memory and lifetime; clients reconnect with the last delivered
-   * event ID.
-   */
-  public void stream(HttpExchange x, JSONObject page) throws IOException {
-    if (!streams.tryAcquire()) throw new StoreException("HARNESS_BUSY");
-    try {
-      if (!(x instanceof JettyExchange)) throw new StoreException("SSE_REQUIRES_NONBLOCKING_HTTP");
-      ((JettyExchange) x).stream(page, streams::release);
-    } catch (IOException | RuntimeException e) {
-      streams.release();
-      throw e;
+    public void start() {
+        if (files != null) files.start();
+        inference.start();
+        coordinator.start();
     }
-  }
 
-  @Override
-  public void close() {
-    coordinator.close();
-    inference.close();
-    if (broker != null) broker.close();
-    if (files != null) files.close();
-  }
+    public synchronized JSONObject create(String key, JSONObject request) {
+        // Durable create replay precedes admission inside the catalog/store (including when full).
+        if (jobs.active(identity.tenant) >= maxActive) {
+            JSONObject prior =
+                    store.findCreate(
+                            identity.tenant, identity.subject, key, request.getString("taskProfileId"), request);
+            if (prior != null) return prior;
+            throw new StoreException("HARNESS_BUSY");
+        }
+        return profiles.createRun(identity, key, request.getString("taskProfileId"), request);
+    }
+
+    public JSONObject read(String run) {
+        JSONObject row = store.read(identity.tenant, identity.subject, RuntimeSupport.id(run));
+        JSONObject result =
+                new JSONObject()
+                        .put("snapshot", row.getJSONObject("snapshot"))
+                        .put("usageSettlement", row.getString("usageSettlement"))
+                        .put("usage", row.getJSONObject("usage"))
+                        .put("result", row.get("result"));
+        JSONObject wait = controls.current(identity.tenant, identity.subject, run);
+        if (wait != null) result.put("interaction", wait);
+        return result;
+    }
+
+    public JSONObject control(
+            String run,
+            String key,
+            String operation,
+            String wait,
+            JSONObject payload,
+            String actor,
+            boolean approver) {
+        return controls.apply(
+                identity.tenant,
+                identity.subject,
+                actor,
+                RuntimeSupport.id(run),
+                key,
+                operation,
+                wait,
+                payload,
+                approver);
+    }
+
+    public JSONObject taskProfiles() {
+        JSONArray list = catalog.taskProfiles(identity.tenant), out = new JSONArray();
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject p = new JSONObject(list.getJSONObject(i).getString("definition_json"));
+            out.put(
+                    new JSONObject()
+                            .put("profileId", p.getString("id"))
+                            .put("version", p.getString("version"))
+                            .put(
+                                    "modelProfile",
+                                    p.getJSONObject("model").getString("id")
+                                            + "@"
+                                            + p.getJSONObject("model").getString("version"))
+                            .put(
+                                    "runtimeProfile",
+                                    p.getJSONObject("runtime").getString("id")
+                                            + "@"
+                                            + p.getJSONObject("runtime").getString("version"))
+                            .put("skillReleases", p.getJSONArray("skillReleases"))
+                            .put("toolSetVersion", p.getString("toolSetVersion"))
+                            .put("requiredCapabilities", p.getJSONArray("requiredCapabilities")));
+        }
+        return new JSONObject().put("profiles", out);
+    }
+
+    public JSONObject events(String run, long after, int limit) {
+        JSONArray events = store.events(identity.tenant, identity.subject, run, after, limit);
+        long cursor = after;
+        if (events.length() > 0) cursor = events.getJSONObject(events.length() - 1).getLong("eventSeq");
+        return new JSONObject().put("events", events).put("nextCursor", cursor);
+    }
+
+    /**
+     * Finite replay page: bounded memory and lifetime; clients reconnect with the last delivered
+     * event ID.
+     */
+    public void stream(HttpExchange x, JSONObject page) throws IOException {
+        if (!streams.tryAcquire()) throw new StoreException("HARNESS_BUSY");
+        try {
+            if (!(x instanceof JettyExchange)) throw new StoreException("SSE_REQUIRES_NONBLOCKING_HTTP");
+            ((JettyExchange) x).stream(page, streams::release);
+        } catch (IOException | RuntimeException e) {
+            streams.release();
+            throw e;
+        }
+    }
+
+    @Override
+    public void close() {
+        coordinator.close();
+        inference.close();
+        if (broker != null) broker.close();
+        if (files != null) files.close();
+    }
 }
