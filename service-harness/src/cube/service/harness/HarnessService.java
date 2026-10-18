@@ -30,7 +30,6 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -49,7 +48,9 @@ public final class HarnessService extends AbstractModule {
 
     private WorkerRegistry registry;
 
-    private ThreadPoolExecutor executor, httpExecutor;
+    private ThreadPoolExecutor executor, httpExecutor, businessExecutor;
+
+    private HarnessBusiness business;
 
     private HttpServer http;
 
@@ -112,6 +113,8 @@ public final class HarnessService extends AbstractModule {
             }
 
             executor = pool("harness-cell", 2, 64);
+            businessExecutor = pool("harness-business", 4, 32);
+            business = new HarnessBusiness(this, config, execution);
 
             started.set(true);
             if (execution == null) {
@@ -134,10 +137,8 @@ public final class HarnessService extends AbstractModule {
     @Override
     public synchronized void stop() {
         started.set(false);
-        if (execution != null) {
-            execution.close();
-            execution = null;
-        }
+        // Stop new work and close streams before draining requests that use the runtime.
+        if (business != null) business.close();
         if (executionHttp != null) {
             try {
                 executionHttp.stop();
@@ -149,16 +150,24 @@ public final class HarnessService extends AbstractModule {
             http.stop(1);
             http = null;
         }
-        for (ThreadPoolExecutor pool : Arrays.asList(executor, httpExecutor))
+        for (ThreadPoolExecutor pool : Arrays.asList(executor, httpExecutor, businessExecutor))
             if (pool != null) {
                 pool.shutdown();
                 try {
-                    if (!pool.awaitTermination(3, TimeUnit.SECONDS)) pool.shutdownNow();
+                    if (!pool.awaitTermination(3, TimeUnit.SECONDS)) {
+                        pool.shutdownNow();
+                        pool.awaitTermination(3, TimeUnit.SECONDS);
+                    }
                 } catch (InterruptedException e) {
                     pool.shutdownNow();
                     Thread.currentThread().interrupt();
                 }
             }
+        business = null;
+        if (execution != null) {
+            execution.close();
+            execution = null;
+        }
         if (registry != null) registry.clear();
         store = null;
     }
@@ -172,6 +181,8 @@ public final class HarnessService extends AbstractModule {
     }
 
     public void disconnect(long transport) {
+        HarnessBusiness current = business;
+        if (current != null && current.transfers != null) current.transfers.disconnect(transport);
         if (registry != null) registry.disconnect(transport);
         if (execution != null) {
             execution.workers.disconnect(transport);
@@ -274,7 +285,7 @@ public final class HarnessService extends AbstractModule {
                 .put("errorCode", code);
     }
 
-    private JSONObject capabilities() {
+    JSONObject capabilities() {
         if (execution != null) {
             JSONArray all = execution.workers.snapshot();
             if (execution.runners != null) {
@@ -317,363 +328,50 @@ public final class HarnessService extends AbstractModule {
         return out.toByteArray();
     }
 
+    public ExecutorService businessExecutor() { return businessExecutor; }
+
+    public JSONObject processBusiness(cell.core.talk.dialect.ActionDialect request,
+            cell.core.talk.TalkContext context, java.util.function.Function<String, OutputStream> opener) {
+        HarnessBusiness current = business;
+        if (!started.get() || current == null) return HarnessBusiness.error(503, "HARNESS_NOT_READY");
+        return current.handle(request, context.getSessionId(), context::isValid, opener);
+    }
+
+    public void receiveFile(cell.core.talk.TalkContext context, cell.core.talk.PrimitiveInputStream stream) {
+        HarnessBusiness current = business;
+        if (current != null && current.transfers != null) current.transfers.receive(context.getSessionId(), stream);
+        else try { stream.close(); } catch (IOException ignored) { }
+    }
+
+    /** The service listener deliberately exposes only health and administration. */
     private void handleHttp(HttpExchange x) throws IOException {
-        String requestId = UUID.randomUUID().toString();
-        int status = 500;
-        JSONObject result;
+        JSONObject response;
         try {
             String path = x.getRequestURI().getPath(), method = x.getRequestMethod();
             if (path.equals("/healthz") || path.equals("/readyz")) {
-                if (!method.equals("GET")) throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                boolean ok =
-                        started.get()
-                                && (path.equals("/healthz")
-                                || (execution != null
-                                ? execution.accepting() && execution.workers.ready()
-                                : registry.ready()));
-                status = ok ? 200 : 503;
-                result =
-                        new JSONObject()
-                                .put("service", NAME)
-                                .put("ready", ok)
-                                .put(
-                                        "runsReady",
-                                        execution != null
-                                                && execution.accepting()
-                                                && execution.workers.ready());
-            } else {
-                if (!path.startsWith("/harness/v1/") && !path.startsWith("/harness-admin/v1/"))
-                    throw new HttpFailure(404, "NOT_FOUND");
-                String authorization =
-                        Objects.toString(x.getRequestHeaders().getFirst("Authorization"), "");
-                if (path.startsWith("/harness-admin/")) {
-                    String credential = config.values.getProperty("admission.admin.credential", "");
-                    if (credential.length() < 24 || !equal("Bearer " + credential, authorization))
-                        throw new HttpFailure(403, "FORBIDDEN");
-                    if (execution == null) throw new HttpFailure(503, "HARNESS_NOT_READY");
-                    if (!path.equals("/harness-admin/v1/admission"))
-                        throw new HttpFailure(404, "NOT_FOUND");
-                    Boolean enabled = null;
-                    if (method.equals("POST")) {
-                        JSONObject value = StrictJson.object(body(x.getRequestBody()));
-                        if (value.length() != 1 || !(value.opt("accepting") instanceof Boolean))
-                            throw new HttpFailure(400, "INVALID_ADMISSION_CONTROL");
-                        enabled = value.getBoolean("accepting");
-                    } else if (!method.equals("GET"))
-                        throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                    send(x, 200, execution.admission(enabled));
-                    return;
-                }
-                String approverCredential =
-                        config.values.getProperty("control.approver.credential", "");
-                boolean approver =
-                        execution != null
-                                && approverCredential.length() >= 24
-                                && equal("Bearer " + approverCredential, authorization);
-                String traceCredential = config.values.getProperty("trace.reader.credential", "");
-                boolean traceReader =
-                        execution != null
-                                && traceCredential.length() >= 24
-                                && equal("Bearer " + traceCredential, authorization);
-                if (traceReader) {
-                    if (!method.equals("GET")
-                            || !path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+/trace"))
-                        throw new HttpFailure(403, "FORBIDDEN");
-                    send(
-                            x,
-                            200,
-                            execution.traces.export(
-                                    execution.identity.tenant,
-                                    execution.identity.subject,
-                                    path.split("/")[4]));
-                    return;
-                }
-                if (path.endsWith("/trace")) throw new HttpFailure(403, "TRACE_READER_REQUIRED");
-                if (!equal("Bearer " + config.values.getProperty("api.credential"), authorization)
-                        && !approver) throw new HttpFailure(401, "UNAUTHORIZED");
-                if (approver
-                        && !(method.equals("GET")
-                        && path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+")
-                        || method.equals("POST")
-                        && path.matches(
-                        "/harness/v1/runs/[A-Za-z0-9_.:-]+/approvals/[A-Za-z0-9_.:-]+/decision")))
-                    throw new HttpFailure(403, "FORBIDDEN");
-                if (path.startsWith("/harness-admin/")) throw new HttpFailure(403, "FORBIDDEN");
-                if (method.equals("GET") && path.equals("/harness/v1/capabilities")) {
-                    status = 200;
-                    result = capabilities();
-                } else if (method.equals("GET") && path.equals("/harness/v1/task-profiles")) {
-                    status = 200;
-                    result =
-                            execution == null
-                                    ? new JSONObject().put("profiles", new JSONArray())
-                                    : execution.taskProfiles();
-                } else {
-                    String normalized =
-                            path.replaceAll(
-                                    "/(runs|inputs|artifacts|task-profiles)/[A-Za-z0-9_.:-]+",
-                                    "/$1/{id}");
-                    String schema = null;
-                    boolean valid = false;
-                    if (normalized.equals("/harness/v1/runs")) {
-                        if (!method.equals("POST"))
-                            throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                        schema = "create-run";
-                        valid = true;
-                    } else if (normalized.matches(
-                            "/harness/v1/runs/\\{id\\}/(cancel|resume|feedback)")) {
-                        if (!method.equals("POST"))
-                            throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                        String a = path.substring(path.lastIndexOf('/') + 1);
-                        schema = a.equals("feedback") ? a : a + "-run";
-                        valid = true;
-                    } else if (normalized.matches(
-                            "/harness/v1/runs/\\{id\\}/approvals/[A-Za-z0-9_.:-]+/decision")) {
-                        if (!method.equals("POST"))
-                            throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                        schema = "approval";
-                        valid = true;
-                    } else if (normalized.equals("/harness/v1/inputs")) {
-                        if (!method.equals("POST"))
-                            throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                        schema = "input-create";
-                        valid = true;
-                    } else if (normalized.equals("/harness/v1/inputs/{id}/complete")) {
-                        if (!method.equals("POST"))
-                            throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                        schema = "input-complete";
-                        valid = true;
-                    } else if (normalized.equals("/harness/v1/inputs/{id}/content")) {
-                        if (!method.equals("PUT")) throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                        valid = true;
-                    } else if (normalized.equals("/harness/v1/artifacts/{id}/download-handle")) {
-                        if (!method.equals("GET")) throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                        valid = true;
-                    } else if (normalized.matches(
-                            "/harness/v1/(runs/\\{id\\}(/events|/artifacts)?|inputs/\\{id\\}|artifacts/\\{id\\}(/content)?|task-profiles/\\{id\\})")) {
-                        if (!method.equals("GET")) throw new HttpFailure(405, "METHOD_NOT_ALLOWED");
-                        valid = true;
-                    }
-                    if (!valid) throw new HttpFailure(404, "NOT_FOUND");
-                    if (method.equals("POST") || method.equals("PUT")) {
-                        String key = x.getRequestHeaders().getFirst("Idempotency-Key");
-                        if (key == null || !key.matches("[A-Za-z0-9_.:-]{1,128}"))
-                            throw new HttpFailure(400, "IDEMPOTENCY_KEY_REQUIRED");
-                    }
-                    JSONObject parsed = null;
-                    if (schema != null) {
-                        if (!Objects.toString(x.getRequestHeaders().getFirst("Content-Type"), "")
-                                .toLowerCase(Locale.ROOT)
-                                .startsWith("application/json"))
-                            throw new HttpFailure(415, "UNSUPPORTED_MEDIA_TYPE");
-                        parsed = Contract.parse(schema, body(x.getRequestBody()));
-                    }
-                    if (execution != null) {
-                        if (path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+/feedback")
-                                && method.equals("POST")) {
-                            send(
-                                    x,
-                                    202,
-                                    execution.traces.feedback(
-                                            execution.identity.tenant,
-                                            execution.identity.subject,
-                                            path.split("/")[4],
-                                            x.getRequestHeaders().getFirst("Idempotency-Key"),
-                                            parsed));
-                            return;
-                        }
-                        if (path.matches(
-                                "/harness/v1/runs/[A-Za-z0-9_.:-]+/(cancel|resume|approvals/[A-Za-z0-9_.:-]+/decision)")
-                                && method.equals("POST")) {
-                            String[] parts = path.split("/");
-                            String operation = parts[5].equals("approvals") ? "approval" : parts[5];
-                            if (operation.equals("approval") && !approver)
-                                throw new HttpFailure(403, "APPROVER_FORBIDDEN");
-                            String wait =
-                                    operation.equals("approval")
-                                            ? parts[6]
-                                            : operation.equals("resume")
-                                            ? parsed.getString("waitId")
-                                            : "";
-                            result =
-                                    execution.control(
-                                            parts[4],
-                                            x.getRequestHeaders().getFirst("Idempotency-Key"),
-                                            operation,
-                                            wait,
-                                            parsed,
-                                            approver
-                                                    ? config.values.getProperty(
-                                                    "control.approver.subject", "approver")
-                                                    : execution.identity.subject,
-                                            approver);
-                            send(x, 202, result);
-                            return;
-                        }
-                        if (execution.files != null) {
-                            if (path.equals("/harness/v1/inputs") && method.equals("POST")) {
-                                send(
-                                        x,
-                                        201,
-                                        execution.files.create(
-                                                x.getRequestHeaders().getFirst("Idempotency-Key"),
-                                                parsed));
-                                return;
-                            }
-                            String[] parts = path.split("/");
-                            if (path.matches("/harness/v1/inputs/[A-Za-z0-9_.:-]+/content")
-                                    && method.equals("PUT")) {
-                                if (!"application/octet-stream"
-                                        .equals(x.getRequestHeaders().getFirst("Content-Type")))
-                                    throw new HttpFailure(415, "UNSUPPORTED_MEDIA_TYPE");
-                                send(
-                                        x,
-                                        200,
-                                        execution.files.uploadInput(parts[4], x.getRequestBody()));
-                                return;
-                            }
-                            if (path.matches("/harness/v1/inputs/[A-Za-z0-9_.:-]+/complete")
-                                    && method.equals("POST")) {
-                                send(
-                                        x,
-                                        200,
-                                        execution.files.complete(
-                                                parts[4], parsed.getString("sha256")));
-                                return;
-                            }
-                            if (path.matches("/harness/v1/(inputs|artifacts)/[A-Za-z0-9_.:-]+")
-                                    && method.equals("GET")) {
-                                send(
-                                        x,
-                                        200,
-                                        execution.files.metadata(
-                                                parts[4],
-                                                parts[3].equals("inputs") ? "input" : "artifact"));
-                                return;
-                            }
-                            if (path.matches("/harness/v1/artifacts/[A-Za-z0-9_.:-]+/content")
-                                    && method.equals("GET")) {
-                                execution.files.download(parts[4], x);
-                                return;
-                            }
-                            if (path.matches(
-                                    "/harness/v1/artifacts/[A-Za-z0-9_.:-]+/download-handle")
-                                    && method.equals("GET")) {
-                                send(x, 200, execution.files.handle(parts[4]));
-                                return;
-                            }
-                            if (path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+/artifacts")
-                                    && method.equals("GET")) {
-                                send(
-                                        x,
-                                        200,
-                                        new JSONObject()
-                                                .put(
-                                                        "artifacts",
-                                                        execution.files.artifacts(parts[4])));
-                                return;
-                            }
-                        }
-                        if (path.equals("/harness/v1/runs") && method.equals("POST")) {
-                            result =
-                                    execution.create(
-                                            x.getRequestHeaders().getFirst("Idempotency-Key"),
-                                            parsed);
-                            status = 202;
-                            send(x, status, result);
-                            return;
-                        }
-                        if (path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+")
-                                && method.equals("GET")) {
-                            result = execution.read(path.substring(path.lastIndexOf('/') + 1));
-                            send(x, 200, result);
-                            return;
-                        }
-                        if (path.matches("/harness/v1/runs/[A-Za-z0-9_.:-]+/events")
-                                && method.equals("GET")) {
-                            String run = path.split("/")[4];
-                            long after = 0;
-                            int limit = 100;
-                            String query = Objects.toString(x.getRequestURI().getRawQuery(), "");
-                            java.util.Set<String> seen = new java.util.HashSet<>();
-                            if (!query.isEmpty())
-                                for (String pair : query.split("&", -1)) {
-                                    String[] kv = pair.split("=", -1);
-                                    if (kv.length != 2
-                                            || !seen.add(kv[0])
-                                            || !kv[1].matches("[0-9]{1,15}"))
-                                        throw new HttpFailure(400, "INVALID_EVENT_CURSOR");
-                                    if (kv[0].equals("after")) after = Long.parseLong(kv[1]);
-                                    else if (kv[0].equals("limit")) limit = Integer.parseInt(kv[1]);
-                                    else throw new HttpFailure(400, "INVALID_EVENT_CURSOR");
-                                }
-                            String last = x.getRequestHeaders().getFirst("Last-Event-ID");
-                            if (last != null) {
-                                if (!last.matches("[0-9]{1,15}")
-                                        || (seen.contains("after")
-                                        && after != Long.parseLong(last)))
-                                    throw new HttpFailure(400, "INVALID_EVENT_CURSOR");
-                                after = Long.parseLong(last);
-                            }
-                            if (limit < 1 || limit > 100)
-                                throw new HttpFailure(400, "INVALID_EVENT_LIMIT");
-                            result = execution.events(run, after, limit);
-                            if (Objects.toString(x.getRequestHeaders().getFirst("Accept"), "")
-                                    .contains("text/event-stream")) {
-                                execution.stream(x, result);
-                                return;
-                            }
-                            send(x, 200, result);
-                            return;
-                        }
-                        if (path.matches("/harness/v1/task-profiles/[A-Za-z0-9_.:-]+")
-                                && method.equals("GET")) {
-                            String profile = path.substring(path.lastIndexOf('/') + 1);
-                            JSONArray list = execution.taskProfiles().getJSONArray("profiles");
-                            for (int i = 0; i < list.length(); i++)
-                                if (list.getJSONObject(i).getString("profileId").equals(profile)) {
-                                    send(x, 200, list.getJSONObject(i));
-                                    return;
-                                }
-                            throw new HttpFailure(404, "PROFILE_NOT_FOUND");
-                        }
-                    }
-                    throw new HttpFailure(503, "HARNESS_NOT_READY");
-                }
-            }
-        } catch (HttpFailure e) {
-            status = e.status;
-            result = httpError(requestId, e.code, status == 503);
-        } catch (StoreException e) {
-            status =
-                    e.code.endsWith("NOT_FOUND")
-                            ? 404
-                            : e.code.endsWith("FORBIDDEN")
-                            ? 403
-                            : e.code.equals("FILE_EXPIRED") || e.code.equals("WAIT_EXPIRED")
-                            ? 410
-                            : e.code.equals("HARNESS_BUSY")
-                            || e.code.equals("FILE_BUSY")
-                            || e.code.equals("FILE_QUOTA_EXCEEDED")
-                            ? 429
-                            : e.code.contains("CONFLICT")
-                            || e.code.equals("RUN_TERMINAL")
-                            || e.code.equals(
-                            "APPROVAL_ARGUMENTS_CHANGED")
-                            ? 409
-                            : e.code.startsWith("STORE_")
-                            || e.code.equals(
-                            "HARNESS_DRAINING")
-                            ? 503
-                            : 400;
-            result = httpError(requestId, e.code, status == 429 || status == 503);
-        } catch (IllegalArgumentException e) {
-            status = e.getMessage().equals("PAYLOAD_TOO_LARGE") ? 413 : 400;
-            result = httpError(requestId, e.getMessage(), false);
-        } catch (Exception e) {
-            result = httpError(requestId, "INTERNAL_ERROR", false);
-        }
-        send(x, status, result);
+                if (!method.equals("GET")) throw new HarnessBusiness.Failure(405, "METHOD_NOT_ALLOWED");
+                boolean ready = started.get() && (path.equals("/healthz") || (execution != null
+                        ? execution.accepting() && execution.workers.ready() : registry.ready()));
+                response = HarnessBusiness.reply(ready ? 200 : 503, new JSONObject().put("service", NAME)
+                        .put("ready", ready).put("runsReady", execution != null && execution.accepting() && execution.workers.ready()));
+            } else if (path.startsWith("/harness-admin/v1/")) {
+                String credential = config.values.getProperty("admission.admin.credential", "");
+                if (credential.length() < 24 || !equal("Bearer " + credential,
+                        Objects.toString(x.getRequestHeaders().getFirst("Authorization"), "")))
+                    throw new HarnessBusiness.Failure(403, "FORBIDDEN");
+                if (!path.equals("/harness-admin/v1/admission")) throw new HarnessBusiness.Failure(404, "NOT_FOUND");
+                if (execution == null) throw new HarnessBusiness.Failure(503, "HARNESS_NOT_READY");
+                Boolean accepting = null;
+                if (method.equals("POST")) {
+                    JSONObject value = StrictJson.object(body(x.getRequestBody()));
+                    if (value.length() != 1 || !(value.opt("accepting") instanceof Boolean))
+                        throw new HarnessBusiness.Failure(400, "INVALID_ADMISSION_CONTROL");
+                    accepting = value.getBoolean("accepting");
+                } else if (!method.equals("GET")) throw new HarnessBusiness.Failure(405, "METHOD_NOT_ALLOWED");
+                response = HarnessBusiness.reply(200, execution.admission(accepting));
+            } else throw new HarnessBusiness.Failure(404, "NOT_FOUND");
+        } catch (Exception e) { response = HarnessBusiness.failure(e); }
+        send(x, response.getInt("status"), response.getJSONObject("body"));
     }
 
     private static void send(HttpExchange x, int status, JSONObject result) throws IOException {
@@ -688,20 +386,4 @@ public final class HarnessService extends AbstractModule {
         }
     }
 
-    private static JSONObject httpError(String id, String code, boolean retryable) {
-        return new JSONObject()
-                .put("requestId", id)
-                .put("errorCode", code)
-                .put("retryable", retryable);
-    }
-
-    private static final class HttpFailure extends RuntimeException {
-        final int status;
-        final String code;
-
-        HttpFailure(int status, String code) {
-            this.status = status;
-            this.code = code;
-        }
-    }
 }

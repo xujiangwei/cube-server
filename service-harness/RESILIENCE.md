@@ -2,6 +2,8 @@
 
 适用 JDK 8、独立 `service-harness` Cell 和独立 Python Harness 单元。默认开发身份只监听 loopback。本机报告覆盖 SQLite/scripted CPU 环境；不能据此认证生产 G4、真实模型物理取消、Linux/KVM、跨主机滚动升级或旧生产流稳定性。Firecracker/KVM 继续只由 Python Harness v6 单元执行，本轮不启动 microVM。
 
+业务负载统一通过 dispatcher/SHM，健康和接单管理直达单独配置的 service HTTP 地址，详见 [TRANSPORT.md](TRANSPORT.md)。先用 JDK 8 构建 common、dispatcher、service-harness；`n16_certify.py` 会另启 dispatcher fixture，并将该 JVM 纳入 CPU/RSS 采样。原直连 HTTP 认证记录不能当作新链路 SLO 结果，升级后须按相应负载重新执行冻结的认证。
+
 ## 接单与收尾
 
 部署私有 `harness.properties` 设置 `execution.accepting=false`，并设置独立 `admission.admin.credential`（至少 24 字符，不能与 API、worker、trace reader 或审批凭据相同）。原开发配置默认仍为 `true`；部署时必须显式关闭。管理开关仅属于当前 JVM，重启恢复配置值，不能依赖内存开关在重启后保持关闭。多 JVM 部署必须逐节点关闭接单或先在新入口关闭路由。
@@ -32,7 +34,7 @@ python service-harness/scripts/n16_release_drill.py --java <jdk8-java> --ant <an
 
 `config/n16-local-slo.json` 是本机专项阈值，先冻结到不可覆盖的新文件并记录硬件/时间/摘要，再执行。每项报告包含 threshold、loadProfile、sampleCount、window、hardware、measured、verdict。调整阈值必须另建冻结文件和执行目录，保留失败轮，不允许执行后覆盖阈值。真实部署应另冻结正式生产负载/SLO，不能直接复用开发阈值。
 
-Cell 脚本执行一个 JVM 与三个不同速度、独立身份/目录/journal 的 Python model 单元，测单单元基线和三单元扩容、共享物理后端容量 2、缩容/drain、24 次并发创建的有界接单、关闭时取消/回执、JVM 硬崩溃与同实例重连、独立逻辑取消/actual_finished、ACK 收敛和受限子 JVM 堆 OOM。scripted worker 每个处理槽为 1；不同 Runner 容量/速度、真实模型实际取消另做目标环境认证，不能由本报告代替。
+Cell 脚本执行 service-harness JVM、dispatcher JVM 与三个不同速度、独立身份/目录/journal 的 Python model 单元，测单单元基线和三单元扩容、共享物理后端容量 2、缩容/drain、24 次并发创建的有界接单、关闭时取消/回执、JVM 硬崩溃与同实例重连、独立逻辑取消/actual_finished、ACK 收敛和受限子 JVM 堆 OOM。scripted worker 每个处理槽为 1；不同 Runner 容量/速度、真实模型实际取消另做目标环境认证，不能由本报告代替。
 
 `test-resilience` 执行 96 次上传和多轮扫描，记录回收前后实际字节、7 条 batch 的积压消化、下载 pin、unknown Artifact、quota、关闭重启、两个真实 JVM 竞争同一文件根，以及另一 Runner 根的哨兵保护。时间通过专用测试库的 expires_at 加速，不缩短产品 TTL 下限；不是 30 天 retention 浸泡，也不填满宿主磁盘。N11/N12 原专项补充 fence、claim 退避、关闭清理和权限竞态；N08/N09 专项覆盖提交前/后故障、丢 ACK、未知执行和拒绝重放。
 

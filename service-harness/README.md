@@ -1,4 +1,6 @@
-# Harness Cellet / N00–N07
+# Harness Cellet
+
+业务 REST 统一由 dispatcher 提供，通过 `Performer.syncTransmit` 和 Cell SHM 长连接访问 HarnessCellet；文件使用同连接的原生 SHM 流。service HTTP 只保留健康检查和现有运维入口，业务路径返回 404。部署、身份、协议与完整传输测试见 [TRANSPORT.md](TRANSPORT.md)。dispatcher 与 service-harness 需配套升级，数据库与 Python worker 协议不变。
 
 正式服务是 `cube.service.harness.HarnessCellet` + `HarnessService`，NAME=`Harness`。产物 `cube-service-harness-3.0.jar` 只放在 `cellets/`，按标准 Cell XML 安装并交给 Kernel 启停；不注册到 AIGC 插件表。默认 G0 入口只启用 CPU scripted 通信，业务任务返回 `HARNESS_NOT_READY`；N06/N07 的独立模型单元与资源循环需显式启用，见 [EXECUTION.md](EXECUTION.md)。协议见 [CONTRACT.md](CONTRACT.md)，G0 验收记录见工作区 `harness/execution-records/g0-20261017/`。
 
@@ -13,6 +15,8 @@ N04/N05 增加资源包、固定 profile、工作区、完整上下文预算及�
 ```powershell
 # 从 service-harness/ 执行。common.jar 可以指向经验证的隔离构建产物。
 ant "-Dcommon.jar=C:/isolated/build/cube-common-3.0.jar" test
+# 先用同一 JDK 8 构建 common、dispatcher，再验证网关：
+ant "-Dcommon.jar=C:/isolated/build/cube-common-3.0.jar" test-transport
 ant "-Dcommon.jar=C:/isolated/build/cube-common-3.0.jar" "-Dstage.dir=C:/isolated/harness-stage" stage
 ```
 
@@ -60,7 +64,7 @@ worker.runner-2.role=runner
 
 这些配置键已由现有 `HarnessConfig.authorizedWorker` 支持。当前注册表最多 64 个条目，已提供独立注册、租约、drain 和注销；注册数不代表执行并发容量。按能力/健康/可用容量分配任务的实际负载均衡在 N06/N07 实现，N16 进行多单元负载验收；共享物理后端不得重复计算容量，未决 attempt 必须先对账。
 
-dispatcher 的 Harness 接入代码位于 `dispatcher/src/cube/dispatcher/harness/`（包 `cube.dispatcher.harness`），通过独立配置显式启用。
+dispatcher 的 Harness 接入代码位于 `dispatcher/src/cube/dispatcher/harness/`（包 `cube.dispatcher.harness`），随 dispatcher 启动挂载，无需独立配置文件或启用开关。沿用 `dispatcher.properties` 的 Cellet/Director 配置连接 Harness。业务客户端使用 dispatcher 地址，Bearer 原样交给 service 认证；dispatcher 无需配置 client/backend credential。service HTTP 运维地址及 Console 地址分别配置，详见 [TRANSPORT.md](TRANSPORT.md)。
 
 开发配置目录应由运行账户独占；Linux 生成权限为 0700/0600，Windows 使用账户私有目录与其 ACL。不要提交本地配置、PID、日志或停止文件。启动脚本等到注册确认才成功；停止按停止接单、drain、注销、断开连接、退出执行。不使用按进程名 kill 的旧脚本。
 

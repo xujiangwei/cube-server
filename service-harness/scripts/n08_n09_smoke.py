@@ -17,6 +17,7 @@ import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from dispatcher_fixture import DispatcherFixture
 
 
 def main_impl():
@@ -35,7 +36,7 @@ def main_impl():
     def port():
         with socket.socket() as s:s.bind(("127.0.0.1",0));return s.getsockname()[1]
     cell_port,http_port=port(),port();credential,api,private=secrets.token_hex(24),secrets.token_hex(24),secrets.token_hex(24)
-    upstream=[];checks=[];process=None;paths=[];log=None
+    upstream=[];checks=[];process=None;gateway=None;paths=[];log=None
     def record(name):checks.append(name);print("PASS:",name,flush=True)
     class Mock(http.server.BaseHTTPRequestHandler):
         def do_POST(self):
@@ -58,7 +59,7 @@ def main_impl():
             time.sleep(.1)
         raise AssertionError("condition timed out")
     def http_call(path,body=None):
-        request=urllib.request.Request("http://127.0.0.1:"+str(http_port)+path,data=None if body is None else json.dumps(body).encode(),headers={"Authorization":"Bearer "+api,"Content-Type":"application/json","Idempotency-Key":secrets.token_hex(16)})
+        request=urllib.request.Request(gateway.url(path,http_port) if gateway else "http://127.0.0.1:"+str(http_port)+path,data=None if body is None else json.dumps(body).encode(),headers={"Authorization":"Bearer "+api,"Content-Type":"application/json","Idempotency-Key":secrets.token_hex(16)})
         with urllib.request.urlopen(request,timeout=5) as x:return json.loads(x.read())
     def db(sql,*values):
         with sqlite3.connect(root/"data/harness_execution.db",timeout=5) as c:return c.execute(sql,values).fetchall()
@@ -110,6 +111,8 @@ broker.mock.targets=node-a
         log=(root/"cell.log").open("w")
         process=subprocess.Popen([str(a.java),"-Dharness.config="+str(config),"-cp",cp,"cube.service.harness.HarnessCell",str(stage/"cell.xml"),str(stage/"stop")],cwd=stage,stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,**({"creationflags":subprocess.CREATE_NO_WINDOW} if os.name=="nt" else {}))
         wait(lambda:http_call("/healthz"),15)
+        gateway=DispatcherFixture(a.java,cp,cell_port,api,root)
+        gateway.ready()
         model,wa,wb=worker("model"),worker("a"),worker("b")
         for path in paths:lifecycle.start(path)
         caps=http_call("/harness/v1/capabilities")
@@ -159,6 +162,7 @@ broker.mock.targets=node-a
         for path in reversed(paths):
             try:lifecycle.stop(path)
             except Exception as exc:print("cleanup:",type(exc).__name__,flush=True)
+        if gateway is not None:gateway.close()
         if process:
             (stage/"stop").touch()
             try:assert process.wait(timeout=15)==0

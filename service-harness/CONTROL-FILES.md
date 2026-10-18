@@ -1,5 +1,7 @@
 # N11/N12 控制与文件
 
+以下业务接口统一使用 dispatcher 地址，经 Performer/SHM 访问 service。文件控制使用同步消息，字节使用同节点、同会话的 Cell 原生流；上传成功必须等待 service 校验及入库完成。service HTTP 不提供业务接口；传输与部署见 [TRANSPORT.md](TRANSPORT.md)。
+
 使用实际 JDK 8；这是独立 `service-harness` 的可选开发入口。数据库显式升级至 **schema6**，服务启动只校验。升级前停止新写入并备份专用库，升级后由支持 schema6 的节点恢复；旧 schema5 二进制不能直接读新库。`001`～`005.sql` 不变，新增 `006.sql`（等待/回执与文件/root 身份等八表，加 tool job 清理列）。
 
 ## 控制接口

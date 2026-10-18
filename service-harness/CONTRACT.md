@@ -1,5 +1,7 @@
 # Harness v1 / G0 契约
 
+本文保留 G0 历史契约；当前业务接口和 Java SHM 传输以 [TRANSPORT.md](TRANSPORT.md)、[EXECUTION.md](EXECUTION.md)、[CONTROL-FILES.md](CONTROL-FILES.md) 和 [TRACE.md](TRACE.md) 为准。当前 service HTTP 只开放健康/运维，业务接口由 dispatcher 提供。
+
 Java `scripts/generate_contracts.py` 是契约源；使用 `--python-contracts <Python工程>/harness/contracts` 同步镜像。`manifest.json` 固定每份 JSON 的 SHA256，两端逐文件校验。修改契约必须重新生成两侧、运行两侧 fixtures 和真实 Cell 冒烟。OpenAPI 3.1 描述 G0 实际可调用的接口；尚未实现的业务操作只返回 503，不产生 run、不占用幂等键。N03 以后增加成功响应时必须再次版本化验收。
 
 ## 身份和版本
@@ -12,7 +14,7 @@ Java `scripts/generate_contracts.py` 是契约源；使用 `--python-contracts <
 
 ## 原始 JSON 边界
 
-HTTP body 与 Cell STRING Stuff 都直接取原始 UTF-8 字节；先验证，再构造 JSON 对象。Cell 每条原语仅允许一个 STRING Stuff，不使用 ActionDialect 或 JSON Stuff。原始字节保留至处理完成，不记录 credential 或完整消息日志；不改 Cell 的全局解码器。
+JSON body 与 Python worker Cell STRING Stuff 都直接取原始 UTF-8 字节；先验证，再构造 JSON 对象。Python worker 协议每条原语仅允许一个 STRING Stuff，不使用 ActionDialect 或 JSON Stuff。Java dispatcher 业务协议单独使用 Packet/ActionDialect，其 JSON body 作为二进制参数保留至 service 严格解析。原始字节保留至处理完成，不记录 credential 或完整消息日志；不改 Cell 的全局解码器。
 
 JSON 上限 262144 字节，嵌套深度 32；拒绝重复键、非有限数、注释、单引号、尾随内容、非法 UTF-8、控制字符及截断。schema 关闭未知字段；整数不接受 bool/字符串，版本与时间/计数不超过 JS 安全整数范围。`model-decision` 的 final/tool_calls/need_input 是互斥形状，不允许混合字段；tool_calls 非空。
 

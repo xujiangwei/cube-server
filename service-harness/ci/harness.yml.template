@@ -1,9 +1,9 @@
 name: Harness (independent)
 on:
   push:
-    paths: ['service-harness/**', 'dispatcher/src/cube/dispatcher/harness/**', 'dispatcher/src/cube/dispatcher/Performer.java', 'build.xml', '.github/workflows/harness.yml']
+    paths: ['service-harness/**', 'common/src/cube/common/action/HarnessAction.java', 'dispatcher/src/cube/dispatcher/harness/**', 'dispatcher/src/cube/dispatcher/Performer*', 'build.xml', '.github/workflows/harness.yml']
   pull_request:
-    paths: ['service-harness/**', 'dispatcher/src/cube/dispatcher/harness/**', 'dispatcher/src/cube/dispatcher/Performer.java', 'build.xml', '.github/workflows/harness.yml']
+    paths: ['service-harness/**', 'common/src/cube/common/action/HarnessAction.java', 'dispatcher/src/cube/dispatcher/harness/**', 'dispatcher/src/cube/dispatcher/Performer*', 'build.xml', '.github/workflows/harness.yml']
   workflow_dispatch:
     inputs:
       python_ref:
@@ -26,8 +26,13 @@ jobs:
       - run: python service-harness/scripts/ci_dependencies.py "$RUNNER_TEMP/harness-deps"
       - run: ant -f common/build.xml -Dlib.dir="$RUNNER_TEMP/harness-deps" build-debug
       - run: ant -f service-harness/build.xml test-store test-runtime test-execution stage
-      - run: ant -f dispatcher/build.xml -Dlib.dir="$RUNNER_TEMP/harness-deps" debug
-      - run: java -cp "service-harness/build/test-classes:dispatcher/build/classes:build/cube-common-3.0.jar:deploy/bin/cell.jar:deploy/libs/*" cube.service.harness.test.HarnessGatewayTest
+      - run: ant -f dispatcher/build.xml -Dlib.dir="$RUNNER_TEMP/harness-deps" build-debug
+      - run: ant -f service-harness/build.xml test-transport
+      - run: >-
+          python -B service-harness/scripts/shm_transport_smoke.py
+          --java "$JAVA_HOME/bin/java" --common-jar build/cube-common-3.0.jar
+          --cell-jar deploy/bin/cell.jar --libs deploy/libs
+          --runtime "$RUNNER_TEMP/harness-shm-runtime" --max-file-bytes 67108864
       - run: python service-harness/scripts/check_build_graph.py
   cell-roundtrip:
     if: github.event_name == 'workflow_dispatch'
@@ -50,6 +55,7 @@ jobs:
       - run: python service-harness/scripts/ci_dependencies.py "$RUNNER_TEMP/harness-deps"
       - run: ant -f common/build.xml -Dlib.dir="$RUNNER_TEMP/harness-deps" build-debug
       - run: ant -f service-harness/build.xml test
+      - run: ant -f dispatcher/build.xml -Dlib.dir="$RUNNER_TEMP/harness-deps" build-debug
       - run: python -m pip install -r python-worker/harness/requirements.txt
       - run: >-
           python -B service-harness/scripts/g0_smoke.py

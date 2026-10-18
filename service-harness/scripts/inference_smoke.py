@@ -15,6 +15,7 @@ import sys
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
+from dispatcher_fixture import DispatcherFixture
 
 
 def main():
@@ -75,11 +76,13 @@ inference.node.id=offline-smoke
             startupTimeout=20, model=dict(model=model, nativeTools=model == "Baize2", maxWireBytes=131072))))
         configs.append(path)
 
+    gateway = None
+
     def http(path, body=None):
         headers = dict(Authorization="Bearer " + api)
         if body is not None:
             headers.update({"Content-Type": "application/json", "Idempotency-Key": secrets.token_hex(16)})
-        request = urllib.request.Request("http://127.0.0.1:" + str(http_port) + path,
+        request = urllib.request.Request(gateway.url(path, http_port) if gateway else "http://127.0.0.1:" + str(http_port) + path,
             data=None if body is None else json.dumps(body).encode(), headers=headers)
         with urllib.request.urlopen(request, timeout=5) as response:
             return json.load(response)
@@ -102,6 +105,8 @@ inference.node.id=offline-smoke
             cwd=stage, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, **hidden)
         try:
             wait(lambda: http("/healthz"))
+            gateway = DispatcherFixture(args.java, cp, cell_port, api, root)
+            gateway.ready()
             for path in configs:
                 lifecycle.start(path)
             runs = []
@@ -119,6 +124,7 @@ inference.node.id=offline-smoke
             (root / "report.json").write_text(json.dumps(report, indent=2))
             print("PASS:", json.dumps(report), flush=True)
         finally:
+            if gateway is not None: gateway.close()
             for path in configs:
                 try:
                     lifecycle.stop(path)

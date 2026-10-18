@@ -14,6 +14,7 @@ import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from dispatcher_fixture import DispatcherFixture
 
 
 def main():
@@ -33,7 +34,7 @@ def main():
     def port():
         with socket.socket() as sock:sock.bind(('127.0.0.1',0));return sock.getsockname()[1]
     cell_port,http_port=port(),port();token,api=secrets.token_hex(24),secrets.token_hex(24)
-    host=None;host_log=None;configs=[];checks=[];observed=[]
+    host=None;host_log=None;gateway=None;configs=[];checks=[];observed=[]
     def record(name):checks.append(name);print('PASS:',name,flush=True)
     def wait(fn,timeout=60):
         end=time.monotonic()+timeout;last=None
@@ -47,7 +48,7 @@ def main():
     def http(path,body=None,key=None,headers=None):
         h={'Authorization':'Bearer '+api};h.update(headers or {})
         if body is not None:h['Content-Type']='application/json';h['Idempotency-Key']=key or secrets.token_hex(16)
-        req=urllib.request.Request('http://127.0.0.1:'+str(http_port)+path,data=None if body is None else json.dumps(body).encode(),headers=h)
+        req=urllib.request.Request(gateway.url(path,http_port) if gateway else 'http://127.0.0.1:'+str(http_port)+path,data=None if body is None else json.dumps(body).encode(),headers=h)
         try:
             with urllib.request.urlopen(req,timeout=5) as response:
                 raw=response.read();return response.status,raw if 'text/event-stream' in response.headers.get('Content-Type','') else json.loads(raw)
@@ -59,10 +60,12 @@ def main():
     config=stage/'harness.local.properties'
     config.write_text((data/'store.local.properties').read_text()+f'\nmode=development\nhttp.host=127.0.0.1\nhttp.port={http_port}\nlease.millis=3000\nworker.credential={token}\napi.credential={api}\nstore.enabled=true\nexecution.enabled=true\nexecution.tenant={fixture["tenant"]}\nexecution.subject={fixture["subject"]}\nexecution.max.active=6\nexecution.repository={data.as_posix()}/repository\nexecution.repository.namespace=runtime-test-repo\nbackend.shared.capacity=1\n'+''.join(f'worker.{w}.role=model\nworker.{w}.model=scripted\nworker.{w}.backend=shared\n' for w in ('a','b','probe')),encoding='utf-8')
     def launch():
-        nonlocal host,host_log
+        nonlocal host,host_log,gateway
         (stage/'stop').unlink(missing_ok=True);host_log=(runtime/('cell-'+str(time.time_ns())+'.log')).open('w')
         host=subprocess.Popen([str(args.java),'-Dharness.config='+str(config),'-cp',cp,'cube.service.harness.HarnessCell',str(stage/'cell.xml'),str(stage/'stop')],cwd=stage,stdin=subprocess.DEVNULL,stdout=host_log,stderr=subprocess.STDOUT,**({'creationflags':subprocess.CREATE_NO_WINDOW} if os.name=='nt' else {}))
         wait(lambda:http('/healthz')[0]==200,15);time.sleep(3.3)
+        if gateway is None:gateway=DispatcherFixture(args.java,cp,cell_port,api,runtime)
+        gateway.ready()
     def stop_host():
         nonlocal host
         (stage/'stop').touch();assert host.wait(timeout=15)==0;host_log.close();host=None
@@ -122,7 +125,7 @@ def main():
         slow=[]
         try:
             for _ in range(2):
-                sock=socket.socket();sock.setsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF,1024);sock.settimeout(2);sock.connect(('127.0.0.1',http_port))
+                sock=socket.socket();sock.setsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF,1024);sock.settimeout(2);sock.connect(('127.0.0.1',gateway.port))
                 sock.sendall((f'GET /harness/v1/runs/{fixture["slowRun"]}/events HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {api}\r\nAccept: text/event-stream\r\nConnection: close\r\n\r\n').encode());slow.append(sock)
             time.sleep(3.5)
             assert http('/healthz')[0]==200
@@ -144,6 +147,7 @@ def main():
         record('actual-finished-only-slot-release-across-process-restart')
         (evidence/'results.json').write_text(json.dumps(dict(result='PASS',checks=checks,onlineCalls=0,workers=counts,maxObservedBackendOccupancy=max(observed),runtime=str(runtime)),indent=2)+'\n')
     finally:
+        if gateway is not None:gateway.close()
         for path in configs:
             try:lifecycle.stop(path)
             except Exception:pass

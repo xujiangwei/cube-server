@@ -148,6 +148,10 @@ public final class FileService implements AutoCloseable {
     }
 
     private JSONObject upload(String id, InputStream in) throws Exception {
+        return upload(id, in, () -> true);
+    }
+
+    private JSONObject upload(String id, InputStream in, java.util.function.BooleanSupplier valid) throws Exception {
         if (!transfers.tryAcquire()) throw new StoreException("FILE_BUSY");
         try {
             return disk.tryLocked(
@@ -179,6 +183,7 @@ public final class FileService implements AutoCloseable {
                                 int n;
                                 while ((n = in.read(buffer)) != -1) {
                                     size += n;
+                                    if (!valid.getAsBoolean()) throw new StoreException("FILE_TRANSFER_ABORTED");
                                     if (size > row.getLong("size_bytes")
                                             || size > config.maxFile
                                             || ledger.now() >= row.getLong("expires_at"))
@@ -189,6 +194,7 @@ public final class FileService implements AutoCloseable {
                                 }
                                 out.force(true);
                             }
+                            if (!valid.getAsBoolean()) throw new StoreException("FILE_TRANSFER_ABORTED");
                             String actual = hex(digest.digest());
                             if (size != row.getLong("size_bytes") || !actual.equals(row.getString("sha256")))
                                 throw new StoreException("FILE_DIGEST_MISMATCH");
@@ -219,6 +225,12 @@ public final class FileService implements AutoCloseable {
         if (!ledger.get(identity.tenant, identity.subject, id).getString("kind").equals("input"))
             throw new StoreException("FILE_NOT_FOUND");
         return upload(id, in);
+    }
+
+    public JSONObject uploadInput(String id, InputStream in, java.util.function.BooleanSupplier valid) throws Exception {
+        if (!ledger.get(identity.tenant, identity.subject, id).getString("kind").equals("input"))
+            throw new StoreException("FILE_NOT_FOUND");
+        return upload(id, in, valid);
     }
 
     public JSONObject complete(String id, String sha) throws Exception {
@@ -295,70 +307,82 @@ public final class FileService implements AutoCloseable {
                 });
     }
 
-    public void download(String id, HttpExchange x) throws Exception {
-        String query = x.getRequestURI().getRawQuery();
-        if (query != null) {
-            if (!query.matches("handle=[A-Za-z0-9_-]+\\.[a-f0-9]{64}"))
-                throw new StoreException("INVALID_DOWNLOAD_HANDLE");
+    /** A verified read handle; its pin remains held until close, including slow consumers. */
+    public final class Download implements AutoCloseable {
+        public final JSONObject metadata, headers;
+        public final InputStream input;
+        private final String pin;
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private volatile ScheduledFuture<?> deadline;
+
+        private Download(JSONObject row, InputStream input, String pin) throws Exception {
+            this.metadata = view(row);
+            this.input = input;
+            this.pin = pin;
+            this.headers = new JSONObject().put("Content-Type", row.getString("media_type"))
+                    .put("Content-Length", Long.toString(row.getLong("size_bytes")))
+                    .put("Content-Disposition", "attachment; filename*=UTF-8''" +
+                            java.net.URLEncoder.encode(row.getString("file_name"), "UTF-8").replace("+", "%20"));
+        }
+
+        private void expire() {
+            deadline = timer.schedule(() -> { try { close(); } catch (Exception ignored) { } }, config.download, TimeUnit.MILLISECONDS);
+        }
+
+        @Override public void close() throws IOException {
+            if (!closed.compareAndSet(false, true)) return;
+            if (deadline != null) deadline.cancel(false);
+            try { input.close(); }
+            finally { try { ledger.unpin(pin); } finally { transfers.release(); } }
+        }
+    }
+
+    public Download openDownload(String id, String query) throws Exception {
+        if (query != null && !query.isEmpty()) {
+            if (!query.matches("handle=[A-Za-z0-9_-]+\\.[a-f0-9]{64}")) throw new StoreException("INVALID_DOWNLOAD_HANDLE");
             verifyHandle(id, query.substring(7));
         }
         if (!transfers.tryAcquire()) throw new StoreException("FILE_BUSY");
         try {
-            disk.tryLocked(
-                    () -> {
-                        ledger.policy();
-                        String pin = "download-" + UUID.randomUUID();
-                        JSONObject row =
-                                ledger.pin(identity.tenant, identity.subject, id, pin, null, "download");
-                        try {
-                            if (!row.getString("kind").equals("artifact"))
-                                throw new StoreException("FILE_NOT_FOUND");
-                            Path content = path(row, ".data");
-                            if (!RuntimeSupport.sha(Files.readAllBytes(content)).equals(row.getString("sha256")))
-                                throw new StoreException("FILE_DIGEST_MISMATCH");
-                            x.getResponseHeaders().set("Content-Type", row.getString("media_type"));
-                            x.getResponseHeaders().set("Cache-Control", "no-store");
-                            x.getResponseHeaders()
-                                    .set(
-                                            "Content-Disposition",
-                                            "attachment; filename*=UTF-8''"
-                                                    + java.net.URLEncoder.encode(row.getString("file_name"), "UTF-8")
-                                                    .replace("+", "%20"));
-                            AtomicBoolean deadline = new AtomicBoolean();
-                            ScheduledFuture<?> stop =
-                                    timer.schedule(
-                                            () -> {
-                                                deadline.set(true);
-                                                x.close();
-                                            },
-                                            config.download,
-                                            TimeUnit.MILLISECONDS);
-                            try {
-                                x.sendResponseHeaders(
-                                        200, row.getLong("size_bytes") == 0 ? -1 : row.getLong("size_bytes"));
-                                try (InputStream in = Files.newInputStream(content);
-                                     OutputStream out = x.getResponseBody()) {
-                                    byte[] b = new byte[8192];
-                                    int n;
-                                    while ((n = in.read(b)) != -1) {
-                                        if (deadline.get()) throw new IOException("DOWNLOAD_DEADLINE");
-                                        out.write(b, 0, n);
-                                    }
-                                }
-                            } catch (IOException e) {
-                                lastError = "FILE_DOWNLOAD_INTERRUPTED";
-                            } finally {
-                                stop.cancel(false);
-                                x.close();
-                            }
-                        } finally {
-                            ledger.unpin(pin);
-                        }
-                        return null;
-                    });
-        } finally {
-            transfers.release();
-        }
+            return disk.tryLocked(() -> {
+                ledger.policy();
+                String pin = "download-" + UUID.randomUUID();
+                JSONObject row = ledger.pin(identity.tenant, identity.subject, id, pin, null, "download");
+                InputStream input = null;
+                try {
+                    if (!row.getString("kind").equals("artifact")) throw new StoreException("FILE_NOT_FOUND");
+                    Path content = path(row, ".data");
+                    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                    try (InputStream check = Files.newInputStream(content)) {
+                        byte[] buffer = new byte[8192]; int n;
+                        while ((n = check.read(buffer)) != -1) digest.update(buffer, 0, n);
+                    }
+                    if (!hex(digest.digest()).equals(row.getString("sha256"))) throw new StoreException("FILE_DIGEST_MISMATCH");
+                    input = Files.newInputStream(content);
+                    Download download = new Download(row, input, pin);
+                    download.expire();
+                    return download;
+                } catch (Exception e) {
+                    if (input != null) try { input.close(); } catch (IOException ignored) { }
+                    ledger.unpin(pin);
+                    throw e;
+                }
+            });
+        } catch (Exception e) { transfers.release(); throw e; }
+    }
+
+    /** Compatibility for in-process callers; no business HTTP listener invokes this adapter. */
+    public void download(String id, HttpExchange x) throws Exception {
+        try (Download download = openDownload(id, x.getRequestURI().getRawQuery())) {
+            for (String key : download.headers.keySet()) x.getResponseHeaders().set(key, download.headers.getString(key));
+            x.getResponseHeaders().set("Cache-Control", "no-store");
+            long size = download.metadata.getLong("size");
+            x.sendResponseHeaders(200, size == 0 ? -1 : size);
+            try (OutputStream out = x.getResponseBody()) {
+                byte[] b = new byte[8192]; int n;
+                while ((n = download.input.read(b)) != -1) out.write(b, 0, n);
+            }
+        } finally { x.close(); }
     }
 
     private String sign(String text) throws Exception {

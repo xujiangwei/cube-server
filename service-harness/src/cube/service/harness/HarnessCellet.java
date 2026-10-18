@@ -11,6 +11,10 @@ import cell.core.talk.LiteralBase;
 import cell.core.talk.Primitive;
 import cell.core.talk.Stuff;
 import cell.core.talk.TalkContext;
+import cell.core.talk.PrimitiveInputStream;
+import cell.core.talk.dialect.ActionDialect;
+import cube.common.Packet;
+import cube.common.action.HarnessAction;
 import cube.core.AbstractCellet;
 import cube.core.Kernel;
 import org.json.JSONObject;
@@ -69,6 +73,10 @@ public final class HarnessCellet extends AbstractCellet {
     @Override
     public void onListened(TalkContext context, Primitive primitive) {
         super.onListened(context, primitive);
+        if (primitive.numStuff() != 1 || primitive.getStuff(0).getLiteralBase() != LiteralBase.STRING) {
+            onBusiness(context, primitive);
+            return;
+        }
         // Check the envelope before queueing or decoding its original STRING payload.
         if (primitive.numStuff() != 1 || primitive.getStuff(0).getLiteralBase() != LiteralBase.STRING || primitive.getStuff(0).getValue().length > 262144) {
             reply(context, HarnessService.error("", "INVALID_ENVELOPE"));
@@ -83,6 +91,39 @@ public final class HarnessCellet extends AbstractCellet {
         } catch (RejectedExecutionException e) {
             reply(context, HarnessService.error("", "HARNESS_BUSY"));
         }
+    }
+
+    private void replyBusiness(TalkContext context, ActionDialect request, JSONObject result) {
+        ActionDialect response = new Packet(request.getParamAsLong("sn"), request.getName(), result).toDialect();
+        if (request.containsParam("_performer")) response.addParam("_performer", request.getParamAsJson("_performer"));
+        speak(context, response);
+    }
+
+    private void onBusiness(TalkContext context, Primitive primitive) {
+        ActionDialect request;
+        try { request = new ActionDialect(primitive); }
+        catch (Exception e) { reply(context, HarnessService.error("", "INVALID_ENVELOPE")); return; }
+        // Only a correlated dispatcher envelope can enter the business executor.
+        if (!request.containsParam("sn") || !request.containsParam("_performer")) {
+            reply(context, HarnessService.error("", "INVALID_ENVELOPE")); return;
+        }
+        final HarnessService current = service;
+        if (primitive.length() > HarnessAction.MAX_BODY_BYTES + 65536) {
+            replyBusiness(context, request, HarnessBusiness.error(413, "PAYLOAD_TOO_LARGE")); return;
+        }
+        try {
+            if (current == null || current.businessExecutor() == null) throw new RejectedExecutionException();
+            current.businessExecutor().execute(() -> {
+                if (context.isValid()) replyBusiness(context, request,
+                        current.processBusiness(request, context, name -> speakStream(context, name)));
+            });
+        } catch (RejectedExecutionException e) { replyBusiness(context, request, HarnessBusiness.error(503, "HARNESS_BUSY")); }
+    }
+
+    @Override public void onListened(TalkContext context, PrimitiveInputStream stream) {
+        HarnessService current = service;
+        if (current != null) current.receiveFile(context, stream);
+        else try { stream.close(); } catch (java.io.IOException ignored) { }
     }
 
     @Override

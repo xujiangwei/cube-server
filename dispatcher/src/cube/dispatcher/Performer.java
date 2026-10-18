@@ -91,6 +91,7 @@ public class Performer implements TalkListener, Tickable {
      * 执行机监听器。
      */
     private ConcurrentHashMap<String, PerformerListener> listenerMap;
+    private final ConcurrentHashMap<Speakable, Boolean> failedHandshakes = new ConcurrentHashMap<>();
 
     /**
      * 在线的联系人。
@@ -321,6 +322,38 @@ public class Performer implements TalkListener, Tickable {
         }
 
         return director;
+    }
+
+    /** Select only a ready node explicitly hosting this Cellet; never fall back to another service. */
+    public synchronized Director selectDirectorForCellet(String celletName) {
+        List<Director> candidates = this.celletDirectorMap.get(celletName);
+        Director selected = null;
+        if (candidates != null) for (Director director : candidates) {
+            if (director.speaker != null && director.speaker.isReady()
+                    && (selected == null || director.scope.weight > selected.scope.weight)) selected = director;
+        }
+        return selected;
+    }
+
+    /** Open a stream on the same connection used for its synchronous control messages. */
+    public PrimitiveOutputStream openStream(Director director, String celletName, String streamName) throws IOException {
+        if (director == null || director.getSection(celletName) == null
+                || director.speaker == null || !director.speaker.isReady()) throw new IOException("Service unavailable");
+        PrimitiveOutputStream stream = director.speaker.speakStream(celletName, streamName);
+        if (stream == null) throw new IOException("Stream unavailable");
+        return stream;
+    }
+
+    /** Retry a stopped handshake; Cell handles established-connection reconnects itself. */
+    public synchronized void retryFailedConnection(String celletName) {
+        List<Director> directors = this.celletDirectorMap.get(celletName);
+        if (directors == null) return;
+        for (Director director : directors) {
+            if (director.speaker != null && !director.speaker.isReady() && this.failedHandshakes.remove(director.speaker) != null) {
+                this.talkService.hangup(director.endpoint.getHost(), director.endpoint.getPort(), true);
+                director.speaker = this.talkService.call(director.endpoint.getHost(), director.endpoint.getPort());
+            }
+        }
     }
 
     /**
@@ -592,8 +625,9 @@ public class Performer implements TalkListener, Tickable {
         }
 
         // 启动 HTTP 服务器
-        if (this.harnessGateway == null)
-            this.harnessGateway = cube.dispatcher.harness.HarnessGateway.install(this.httpServer, this.properties);
+        if (this.harnessGateway == null && Boolean.parseBoolean(this.properties.getProperty("harness.rest.enabled", "false"))) {
+            this.harnessGateway = cube.dispatcher.harness.HarnessGateway.install(this.httpServer, this);
+        }
         this.httpServer.start();
 
         // 启动流服务器
@@ -1191,7 +1225,9 @@ public class Performer implements TalkListener, Tickable {
 
     @Override
     public void onListened(Speakable speakable, String cellet, PrimitiveInputStream primitiveInputStream) {
-
+        PerformerListener listener = this.listenerMap.get(cellet);
+        if (listener != null) listener.onReceivedStream(speakable, cellet, primitiveInputStream);
+        else try { primitiveInputStream.close(); } catch (IOException ignored) { }
     }
 
     @Override
@@ -1211,19 +1247,23 @@ public class Performer implements TalkListener, Tickable {
 
     @Override
     public void onContacted(Speakable speakable) {
+        this.failedHandshakes.remove(speakable);
         Logger.i(this.getClass(), "Contacted " + speakable.getRemoteAddress().getHostString() + ":" +
                 speakable.getRemoteAddress().getPort());
     }
 
     @Override
     public void onQuitted(Speakable speakable) {
+        for (PerformerListener listener : this.listenerMap.values()) listener.onDisconnected(speakable);
         Logger.i(this.getClass(), "Quitted " + speakable.getRemoteAddress().getHostString() + ":" +
                 speakable.getRemoteAddress().getPort());
     }
 
     @Override
     public void onFailed(Speakable speakable, TalkError talkError) {
-
+        if (talkError.getErrorCode() == TalkError.HandshakeTimeout)
+            this.failedHandshakes.put(speakable, Boolean.TRUE);
+        for (PerformerListener listener : this.listenerMap.values()) listener.onDisconnected(speakable);
     }
 
 

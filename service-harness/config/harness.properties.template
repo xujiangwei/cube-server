@@ -1,5 +1,6 @@
 # G0 only: private development configuration. Empty credentials refuse startup.
 mode=development
+# Health/admin HTTP only. Business REST is exposed by dispatcher and transported over SHM.
 http.host=127.0.0.1
 http.port=7088
 lease.millis=6000

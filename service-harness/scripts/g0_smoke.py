@@ -19,6 +19,7 @@ import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from dispatcher_fixture import DispatcherFixture
 
 
 def free_port():
@@ -55,6 +56,7 @@ def main():
 
     results, clients, configs = [], [], []
     host = None
+    gateway = None
     host_log = None
     token, api_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     cell_port, http_port = free_port(), free_port()
@@ -69,7 +71,7 @@ def main():
         if authorized:
             h["Authorization"] = "Bearer " + api_token
         h.update(headers or {})
-        request = urllib.request.Request("http://127.0.0.1:"+str(http_port)+path,
+        request = urllib.request.Request(gateway.url(path, http_port) if gateway else "http://127.0.0.1:"+str(http_port)+path,
                                         data=encode(value) if value is not None else None, method=method, headers=h)
         try:
             response = urllib.request.urlopen(request, timeout=3)
@@ -95,7 +97,7 @@ def main():
         else:
             raise AssertionError("Expected error: "+code)
     def launch(cohost):
-        nonlocal host, host_log
+        nonlocal host, host_log, gateway
         stage = runtime/("cohost" if cohost else "standalone")
         (stage/"cellets").mkdir(parents=True, exist_ok=True)
         shutil.copy2(module/"build/cube-service-harness-3.0.jar", stage/"cellets")
@@ -122,6 +124,8 @@ def main():
         # Cell 3.0's NonblockingAcceptor refuses connections during its initial
         # three-second safe lock. HTTP health starts before this window ends.
         time.sleep(3.3)
+        if gateway is None: gateway = DispatcherFixture(args.java, cp, cell_port, api_token, runtime)
+        gateway.ready()
         return stage
     def stop_host(stage):
         nonlocal host, host_log
@@ -176,7 +180,7 @@ def main():
         runner.connect()
         check(http("/readyz")[0] == 200, "two roles not ready")
         check(model.request("heartbeat")["registered"], "heartbeat")
-        check(model.request("echo", {"text":"双向 Cell echo"})["payload"]["text"] == "双向 Cell echo", "echo corrupted")
+        check(model.request("echo", {"text":"鍙屽悜 Cell echo"})["payload"]["text"] == "鍙屽悜 Cell echo", "echo corrupted")
         record("real-registration-heartbeat-and-bidirectional-cell")
         expect_error(lambda: model.request("heartbeat", role="runner"), "FORBIDDEN")
         for raw, literal, expected in [(b'{"a":1,"a":2}', LiteralBase.STRING, "INVALID_JSON"),
@@ -310,6 +314,8 @@ def main():
                 lifecycle.stop(config)
             except Exception:
                 pass
+        if gateway is not None:
+            gateway.close()
         if host is not None:
             host.terminate()
             host.wait(timeout=15)

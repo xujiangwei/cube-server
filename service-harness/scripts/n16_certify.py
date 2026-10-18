@@ -24,6 +24,7 @@ import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from dispatcher_fixture import DispatcherFixture
 
 
 MODULE = Path(__file__).resolve().parents[1]
@@ -110,6 +111,7 @@ class Drill:
         self.lifecycle = lifecycle
         self.api, self.token, self.admin = [secrets.token_hex(24) for _ in range(3)]
         self.process, self.log = None, None
+        self.gateway = None
         self.paths, self.commands, self.checks, self.metrics, self.faults = {}, [], [], {}, []
         self.samples, self.http_samples, self.runs = [], [], {}
         self.stop_sample = threading.Event()
@@ -156,7 +158,7 @@ class Drill:
         headers = {"Authorization": "Bearer " + (self.admin if admin else self.api)}
         if body is not None:
             headers.update({"Content-Type": "application/json", "Idempotency-Key": key or secrets.token_hex(16)})
-        request = urllib.request.Request("http://127.0.0.1:" + str(self.http_port) + path,
+        request = urllib.request.Request(self.gateway.url(path, self.http_port) if self.gateway else "http://127.0.0.1:" + str(self.http_port) + path,
             data=None if body is None else json.dumps(body).encode(), headers=headers, method=method)
         try:
             with urllib.request.urlopen(request, timeout=5) as response:
@@ -239,6 +241,10 @@ backend.shared.capacity={self.slo['loadProfile']['sharedBackendCapacity']}
             **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}))
         self.pids[self.process.pid] = "service-harness-jvm"
         self.wait(lambda: self.http("/healthz")[0] == 200, 20)
+        if self.gateway is None:
+            self.gateway = DispatcherFixture(self.a.java, self.cp, self.cell_port, self.api, self.root)
+            self.pids[self.gateway.process.pid] = "dispatcher-jvm"
+        self.gateway.ready()
 
     def stop_java(self, crash=False):
         if self.process is None:
@@ -455,6 +461,7 @@ backend.shared.capacity={self.slo['loadProfile']['sharedBackendCapacity']}
             except Exception as exc:
                 errors.append(type(exc).__name__)
         self.stop_java()
+        if self.gateway is not None: self.gateway.close()
         self.stop_sample.set()
         if self.sampler:
             self.sampler.join(timeout=5)

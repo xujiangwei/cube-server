@@ -1,5 +1,7 @@
 # N13 追踪、离线回放与质量评测
 
+trace 与反馈统一访问 dispatcher `/harness/v1`，经 SHM 长连接交给 service；reader Bearer 与角色在 service 验证。service HTTP 仅保留健康/运维入口，详见 [TRANSPORT.md](TRANSPORT.md)。
+
 当前实现为默认关闭的诊断导出、内容脱敏后的状态回放和追加反馈。schema7 显式迁移增加事件状态投影、反馈表、工具协议/物理完成证据和模型/工具/推理的派发、完成、取消时间；001～006 不变，启动不执行 DDL。升级前停止旧写入者并备份；旧二进制不能直接读 schema7。恢复继续使用权威账本，不访问导出文件或 Trace 后端。
 
 新增契约位于 `contracts/trace/`，包含版本化 OpenAPI、导出和反馈 schema/摘要，并镜像到 Python 工程同名目录；原 base/control-files 契约保持原字节。当前 `TRACE_EXPIRED` 映射 HTTP 400，独立权限错误为403，幂等冲突409。评测的 expectedTools 对照全部调用（含内建资源工具），物理完成断言包含模型、工具和网关推理三类执行账本。

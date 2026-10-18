@@ -1,241 +1,267 @@
-/*
- * This source file is part of Cube.
- *
- * Copyright (c) 2023-2026 Ambrose Xu.
- */
-
 package cube.dispatcher.harness;
 
+import cell.api.Speakable;
+import cell.core.talk.Primitive;
+import cell.core.talk.PrimitiveInputStream;
+import cube.common.Packet;
+import cube.common.action.HarnessAction;
+import cube.dispatcher.Director;
+import cube.dispatcher.Performer;
+import cube.dispatcher.PerformerListener;
 import cube.util.HttpServer;
-import org.eclipse.jetty.server.Request;
-import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.server.handler.ContextHandler;
+import org.json.JSONObject;
 
-import javax.servlet.*;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.InetAddress;
-import java.net.Proxy;
-import java.net.URL;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.servlet.*;
+import javax.servlet.http.*;
 
-/**
- * Separate opt-in development gateway. Never dispatches through Completion, Chat or the old token pool.
- */
-public final class HarnessGateway extends ContextHandler {
-    private final URL backend;
-    private final String clientToken, backendToken;
-    private ThreadPoolExecutor pool;
-    private final Set<AsyncContext> requests = Collections.newSetFromMap(new ConcurrentHashMap<AsyncContext, Boolean>());
-    private final Semaphore inflight = new Semaphore(16);
+/** REST endpoint assembly; the sole service transport is Performer's SHM connection. */
+public final class HarnessGateway extends ContextHandler implements PerformerListener {
+    final Performer performer;
+    final Semaphore inflight = new Semaphore(16), files = new Semaphore(2), streams = new Semaphore(2);
+    final Set<RequestState> requests = Collections.newSetFromMap(new ConcurrentHashMap<RequestState, Boolean>());
+    final ConcurrentHashMap<String, Receiver> receivers = new ConcurrentHashMap<>();
+    ThreadPoolExecutor pool, filePool, cleanup;
+    ScheduledExecutorService deadlines;
 
-    public static HarnessGateway install(HttpServer server, Properties p) {
-        if (!Boolean.parseBoolean(p.getProperty("harness.rest.enabled", "false"))) return null;
-        HarnessGateway gateway = new HarnessGateway(p);
+    public static HarnessGateway install(HttpServer server, Performer performer) {
+        HarnessGateway gateway = new HarnessGateway(performer);
         server.addContextHandler(gateway);
         return gateway;
     }
 
-    public HarnessGateway(Properties p) {
+    public HarnessGateway(Performer performer) {
         super("/harness");
-        try {
-            if (!"development".equals(p.getProperty("harness.rest.mode")))
-                throw new IllegalArgumentException("Harness development identity required");
-            backend = new URL(p.getProperty("harness.rest.backend"));
-            if (!backend.getProtocol().equals("http") || !InetAddress.getByName(backend.getHost()).isLoopbackAddress()
-                    || backend.getUserInfo() != null || backend.getQuery() != null || backend.getRef() != null || !Arrays.asList("", "/").contains(backend.getPath()))
-                throw new IllegalArgumentException("Dedicated loopback Harness backend required");
-            clientToken = p.getProperty("harness.rest.client.credential", "");
-            backendToken = p.getProperty("harness.rest.backend.credential", "");
-            if (clientToken.length() < 24 || backendToken.length() < 24 || clientToken.equals(backendToken))
-                throw new IllegalArgumentException("Separate Harness credentials required");
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Invalid Harness backend");
-        }
-        setHandler(new AbstractHandler() {
-            public void handle(String target, Request base, HttpServletRequest req, HttpServletResponse res) throws IOException {
-                base.setHandled(true);
-                handleRequest(req, res);
-            }
-        });
+        this.performer = Objects.requireNonNull(performer, "performer");
+        setHandler(new HarnessHandler(this));
     }
 
-    private static void error(HttpServletResponse res, int status, String code) throws IOException {
-        if (res.isCommitted()) return;
-        res.setStatus(status);
-        res.setContentType("application/json; charset=utf-8");
-        res.getOutputStream().write(("{\"errorCode\":\"" + code + "\",\"retryable\":" + (status == 503) + ",\"requestId\":\"" + UUID.randomUUID() + "\"}").getBytes(StandardCharsets.UTF_8));
-    }
-
-    private void handleRequest(HttpServletRequest req, HttpServletResponse res) throws IOException {
-        res.setHeader("Cache-Control", "no-store");
-        String auth = Objects.toString(req.getHeader("Authorization"), "");
-        if (!MessageDigest.isEqual(auth.getBytes(StandardCharsets.UTF_8), ("Bearer " + clientToken).getBytes(StandardCharsets.UTF_8))) {
-            error(res, 401, "UNAUTHORIZED");
-            return;
-        }
-        String path = req.getRequestURI();
-        String method = req.getMethod();
-        boolean create = path.equals("/harness/v1/runs") && method.equals("POST");
-        boolean read = method.equals("GET") && (path.matches("/harness/v1/(runs/[A-Za-z0-9_.:-]+(/events)?|task-profiles(/[A-Za-z0-9_.:-]+)?|capabilities)"));
-        if (!create && !read) {
-            error(res, 404, "NOT_FOUND");
-            return;
-        }
-        String query = req.getQueryString();
-        if (query != null && !query.matches("(after|limit)=[0-9]{1,15}(&(after|limit)=[0-9]{1,15})?")) {
-            error(res, 400, "INVALID_EVENT_CURSOR");
-            return;
-        }
-        if (!inflight.tryAcquire()) {
-            error(res, 503, "HARNESS_BUSY");
-            return;
-        }
-        final String suffix = path + (query == null ? "" : "?" + query);
-        AsyncContext async = req.startAsync();
-        async.setTimeout(10000);
-        requests.add(async);
-        java.util.concurrent.atomic.AtomicBoolean released = new java.util.concurrent.atomic.AtomicBoolean();
-        async.addListener(new AsyncListener() {
-            private void done(AsyncEvent e) {
-                requests.remove(async);
-                if (released.compareAndSet(false, true)) inflight.release();
-            }
-
-            public void onComplete(AsyncEvent e) {
-                done(e);
-            }
-
-            public void onTimeout(AsyncEvent e) {
-                done(e);
-                try {
-                    async.complete();
-                } catch (IllegalStateException ignored) {
-                }
-            }
-
-            public void onError(AsyncEvent e) {
-                done(e);
-            }
-
-            public void onStartAsync(AsyncEvent e) {
-            }
-        });
-        try {
-            pool.execute(() -> proxy(req, res, async, suffix, method));
-        } catch (RejectedExecutionException e) {
-            error(res, 503, "HARNESS_BUSY");
-            async.complete();
-        }
-    }
-
-    private void proxy(HttpServletRequest req, HttpServletResponse res, AsyncContext async, String suffix, String method) {
-        HttpURLConnection connection = null;
-        try {
-            byte[] payload = new byte[0];
-            if (method.equals("POST")) {
-                ByteArrayOutputStream body = new ByteArrayOutputStream();
-                byte[] buffer = new byte[4096];
-                int n;
-                while ((n = req.getInputStream().read(buffer)) != -1) {
-                    if (body.size() + n > 262144) {
-                        error(res, 413, "PAYLOAD_TOO_LARGE");
-                        async.complete();
-                        return;
-                    }
-                    body.write(buffer, 0, n);
-                }
-                payload = body.toByteArray();
-            }
-            connection = (HttpURLConnection) new URL(backend, suffix).openConnection(Proxy.NO_PROXY);
-            connection.setInstanceFollowRedirects(false);
-            connection.setConnectTimeout(2000);
-            connection.setReadTimeout(5000);
-            connection.setRequestMethod(method);
-            connection.setRequestProperty("Authorization", "Bearer " + backendToken);
-            for (String h : Arrays.asList("Idempotency-Key", "Content-Type", "Accept", "Last-Event-ID")) {
-                String v = req.getHeader(h);
-                if (v != null) connection.setRequestProperty(h, v);
-            }
-            if (method.equals("POST")) {
-                connection.setDoOutput(true);
-                connection.setFixedLengthStreamingMode(payload.length);
-                try (OutputStream out = connection.getOutputStream()) {
-                    out.write(payload);
-                }
-            }
-            int status = connection.getResponseCode();
-            InputStream in = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-            // Upstream SSE is a finite replay page. Buffer a bounded page, then use nonblocking servlet writes.
-            ByteArrayOutputStream data = new ByteArrayOutputStream();
-            if (in != null) try (InputStream source = in) {
-                byte[] buffer = new byte[4096];
-                int n;
-                while ((n = source.read(buffer)) != -1) {
-                    if (data.size() + n > 8 * 1024 * 1024) throw new IOException("Harness response limit");
-                    data.write(buffer, 0, n);
-                }
-            }
-            res.setStatus(status);
-            res.setContentType(Objects.toString(connection.getContentType(), "application/json; charset=utf-8"));
-            byte[] bytes = data.toByteArray();
-            ServletOutputStream output = res.getOutputStream();
-            output.setWriteListener(new WriteListener() {
-                int offset;
-
-                public void onWritePossible() throws IOException {
-                    while (output.isReady() && offset < bytes.length) {
-                        int n = Math.min(4096, bytes.length - offset);
-                        output.write(bytes, offset, n);
-                        offset += n;
-                    }
-                    if (offset == bytes.length) async.complete();
-                }
-
-                public void onError(Throwable e) {
-                    try {
-                        async.complete();
-                    } catch (IllegalStateException ignored) {
-                    }
-                }
-            });
-        } catch (Exception e) {
-            try {
-                error(res, 503, "HARNESS_UNAVAILABLE");
-                async.complete();
-            } catch (Exception ignored) {
-            }
-        } finally {
-            if (connection != null) connection.disconnect();
-        }
-    }
-
-    @Override
-    protected void doStart() throws Exception {
-        pool = new ThreadPoolExecutor(4, 4, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(16), r -> {
-            Thread t = new Thread(r, "harness-gateway");
-            t.setDaemon(true);
-            return t;
+    static ThreadPoolExecutor pool(String name, int size, int queue) {
+        return new ThreadPoolExecutor(size, size, 0, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(queue), r -> {
+            Thread t = new Thread(r, name); t.setDaemon(true); return t;
         }, new ThreadPoolExecutor.AbortPolicy());
+    }
+
+    JSONObject credential(String authorization) {
+        if (authorization == null || authorization.length() > 4096 || !authorization.startsWith("Bearer ") || authorization.length() < 31)
+            return null;
+        // Service authenticates the original credential and determines the caller's role.
+        return new JSONObject().put("credential", authorization.substring(7));
+    }
+
+    JSONObject call(RequestState state, HarnessAction action, JSONObject data, byte[] body, long timeout) throws IOException {
+        if (state.closed.get() || !state.connectionValid()) throw new IOException("Request connection closed");
+        cell.core.talk.dialect.ActionDialect request = new Packet(action.name, data).toDialect();
+        if (body != null) request.addParam("body", body);
+        cell.core.talk.dialect.ActionDialect response = performer.syncTransmit(state.director, HarnessAction.CELLET, request, timeout);
+        if (response == null) throw new IOException("Harness unavailable");
+        JSONObject reply = new Packet(response).data;
+        // A preparation reply racing HTTP cancellation still needs its remote lease released.
+        if ((action == HarnessAction.UploadInput || action == HarnessAction.DownloadArtifact) && reply.getInt("status") < 400)
+            state.setTransfer(reply.getJSONObject("body").getString("transferId"));
+        if (state.closed.get() || !state.connectionValid()) throw new IOException("Harness unavailable");
+        if (reply.toString().getBytes(StandardCharsets.UTF_8).length > HarnessAction.MAX_RESPONSE_BYTES)
+            throw new IOException("Harness response limit");
+        return reply;
+    }
+
+    static JSONObject error(int status, String code) {
+        return new JSONObject().put("status", status).put("body", new JSONObject().put("errorCode", code)
+                .put("retryable", status == 429 || status == 503).put("requestId", UUID.randomUUID().toString()));
+    }
+
+    static void error(HttpServletResponse response, int status, String code) throws IOException {
+        if (response.isCommitted()) return;
+        response.resetBuffer();
+        response.setContentLength(-1);
+        response.setStatus(status);
+        response.setHeader("Cache-Control", "no-store");
+        response.setContentType("application/json; charset=utf-8");
+        response.getOutputStream().write(error(status, code).getJSONObject("body").toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Override public void onReceived(String cellet, Primitive primitive) { }
+
+    @Override public void onReceivedStream(Speakable source, String cellet, PrimitiveInputStream stream) {
+        Receiver receiver = receivers.get(stream.getName());
+        if (receiver == null || receiver.source != source || !receiver.input.complete(stream)) closeQuietly(stream);
+    }
+
+    @Override public void onDisconnected(Speakable source) {
+        for (RequestState state : requests) if (state.source == source)
+            state.fail(503, "HARNESS_UNAVAILABLE");
+    }
+
+    static void closeQuietly(AutoCloseable resource) {
+        if (resource != null) try {
+            if (resource instanceof cell.core.talk.PrimitiveOutputStream)
+                ((cell.core.talk.PrimitiveOutputStream) resource).interrupt();
+            resource.close();
+        } catch (Exception ignored) { }
+    }
+
+    @Override protected void doStart() throws Exception {
+        pool = pool("harness-rest", 4, 16);
+        filePool = pool("harness-rest-files", 2, 2);
+        cleanup = pool("harness-rest-cleanup", 1, 32);
+        deadlines = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "harness-rest-deadlines"); t.setDaemon(true); return t;
+        });
+        deadlines.scheduleWithFixedDelay(() -> {
+            try { cleanup.execute(() -> {
+                try { performer.retryFailedConnection(HarnessAction.CELLET); } catch (Exception ignored) { }
+            }); } catch (RejectedExecutionException ignored) { }
+        }, 5, 5, TimeUnit.SECONDS);
+        performer.setListener(HarnessAction.CELLET, this);
         super.doStart();
     }
 
-    @Override
-    protected void doStop() throws Exception {
-        for (AsyncContext a : requests)
-            try {
-                a.complete();
-            } catch (IllegalStateException ignored) {
-            }
-        pool.shutdownNow();
+    @Override protected void doStop() throws Exception {
+        for (RequestState state : requests) state.fail(503, "HARNESS_UNAVAILABLE");
+        performer.removeListener(HarnessAction.CELLET, this);
+        if (deadlines != null) deadlines.shutdownNow();
+        if (pool != null) pool.shutdownNow();
+        if (filePool != null) filePool.shutdownNow();
+        if (cleanup != null) {
+            cleanup.shutdown();
+            try { if (!cleanup.awaitTermination(3, TimeUnit.SECONDS)) cleanup.shutdownNow(); }
+            catch (InterruptedException e) { cleanup.shutdownNow(); Thread.currentThread().interrupt(); }
+        }
         super.doStop();
+    }
+
+    static final class Receiver implements AutoCloseable {
+        final Speakable source;
+        final CompletableFuture<PrimitiveInputStream> input = new CompletableFuture<>();
+        Receiver(Speakable source) { this.source = source; }
+        @Override public void close() {
+            if (!input.completeExceptionally(new IOException("Download closed"))) {
+                try { closeQuietly(input.getNow(null)); } catch (CompletionException ignored) { }
+            }
+        }
+    }
+
+    final class RequestState implements AsyncListener {
+        final AsyncContext async;
+        final HttpServletRequest request;
+        final HttpServletResponse response;
+        final AtomicBoolean closed = new AtomicBoolean();
+        final boolean file, sse;
+        volatile Director director;
+        volatile Speakable source;
+        volatile cell.core.net.Session session;
+        volatile Future<?> task;
+        volatile AutoCloseable io;
+        volatile String transferId;
+        volatile JSONObject auth;
+        volatile boolean completed;
+        volatile Receiver receiver;
+        ScheduledFuture<?> deadline;
+        final long sseDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+
+        void selectConnection(Director selected) {
+            director = selected;
+            source = selected == null ? null : selected.speaker;
+            session = source instanceof cell.core.talk.Speaker ? ((cell.core.talk.Speaker) source).getSession() : null;
+        }
+
+        boolean connectionValid() {
+            return source != null && source.isReady() && director.speaker == source
+                    && (!(source instanceof cell.core.talk.Speaker) || ((cell.core.talk.Speaker) source).getSession() == session);
+        }
+
+        synchronized void timeout(long millis) {
+            if (deadline != null) deadline.cancel(false);
+            if (sse) millis = Math.min(millis, TimeUnit.NANOSECONDS.toMillis(sseDeadline - System.nanoTime()));
+            if (!closed.get()) deadline = deadlines.schedule(() -> onTimeout(null), Math.max(1, millis), TimeUnit.MILLISECONDS);
+        }
+
+        synchronized void track(AutoCloseable resource) {
+            if (closed.get()) closeQuietly(resource);
+            else io = resource;
+        }
+
+        synchronized void setTask(Future<?> future) {
+            task = future;
+            if (closed.get() && !completed) future.cancel(true);
+        }
+
+        synchronized void setTransfer(String id) {
+            transferId = id;
+            if (closed.get()) abortTransfer();
+        }
+
+        synchronized Receiver registerReceiver() throws IOException {
+            if (closed.get()) throw new IOException("Request closed");
+            if (!connectionValid()) throw new IOException("Connection changed");
+            Receiver next = new Receiver(source);
+            if (receivers.putIfAbsent(transferId, next) != null) throw new IOException("Duplicate transfer");
+            receiver = next;
+            return next;
+        }
+
+        RequestState(HttpServletRequest request, HttpServletResponse response, boolean file, boolean sse) {
+            this.request = request; this.response = response; this.file = file; this.sse = sse;
+            async = request.startAsync();
+            // Jetty does not reschedule an already armed async timeout when setTimeout changes.
+            async.setTimeout(0);
+            async.addListener(this);
+            requests.add(this);
+            timeout(10000);
+        }
+
+        void complete() {
+            completed = true;
+            try { async.complete(); } catch (IllegalStateException ignored) { }
+        }
+
+        void fail(int status, String code) {
+            if (closed.get()) return;
+            if (response.isCommitted()) {
+                done();
+                org.eclipse.jetty.server.Request.getBaseRequest(request).getHttpChannel().abort(new IOException(code));
+                return;
+            }
+            try { error(response, status, code); } catch (Exception ignored) { }
+            try { async.complete(); } catch (IllegalStateException ignored) { }
+        }
+
+        private synchronized void abortTransfer() {
+            if (transferId != null && director != null && auth != null && cleanup != null) {
+                final JSONObject data = new JSONObject(auth.toString()).put("transferId", transferId);
+                try { cleanup.execute(() -> {
+                    if (!connectionValid()) return;
+                    try { performer.syncTransmit(director, HarnessAction.CELLET,
+                            new Packet(HarnessAction.AbortTransfer.name, data).toDialect(), 1000); }
+                    catch (Exception ignored) { }
+                }); } catch (RejectedExecutionException ignored) { }
+            }
+        }
+
+        private synchronized void done() {
+            if (!closed.compareAndSet(false, true)) return;
+            requests.remove(this);
+            if (deadline != null) deadline.cancel(false);
+            if (!completed && task != null) task.cancel(true);
+            closeQuietly(io);
+            if (receiver != null) {
+                receivers.remove(transferId, receiver);
+                closeQuietly(receiver);
+            }
+            abortTransfer();
+            inflight.release();
+            if (file) files.release();
+            if (sse) streams.release();
+        }
+
+        @Override public void onComplete(AsyncEvent event) { done(); }
+        @Override public void onTimeout(AsyncEvent event) { completed = false; fail(503, "HARNESS_TIMEOUT"); done(); }
+        @Override public void onError(AsyncEvent event) { completed = false; done(); complete(); }
+        @Override public void onStartAsync(AsyncEvent event) { }
     }
 }
