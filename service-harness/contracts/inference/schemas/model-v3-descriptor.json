@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "properties": {
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "adapter": {
+      "type": "string",
+      "enum": [
+        "openai-json-v2",
+        "openai-tools-v2"
+      ]
+    },
+    "nativeTools": {
+      "type": "boolean"
+    },
+    "cancellation": {
+      "type": "string",
+      "enum": [
+        "observe-only"
+      ]
+    },
+    "budget": {
+      "type": "string",
+      "enum": [
+        "transport-bytes-v1"
+      ]
+    },
+    "profileDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "model",
+    "adapter",
+    "nativeTools",
+    "cancellation",
+    "budget",
+    "profileDigest"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

@@ -10,11 +10,15 @@ public final class ModelProtocol {
         try {
             JSONObject manifest=StrictJson.object(Contract.resource("execution/manifest.json"));
             for(String path:manifest.keySet())if(!RuntimeSupport.sha(Contract.resource("execution/"+path)).equals(manifest.getString(path)))throw new IllegalArgumentException("EXECUTION_CONTRACT_DIGEST_MISMATCH");
+            JSONObject inference=StrictJson.object(Contract.resource("inference/manifest.json"));
+            for(String path:inference.keySet())if(!RuntimeSupport.sha(Contract.resource("inference/"+path)).equals(inference.getString(path)))throw new IllegalArgumentException("INFERENCE_CONTRACT_DIGEST_MISMATCH");
+            JSONObject current=StrictJson.object(Contract.resource("inference/adapter-profiles.json"));
+            for(String name:current.keySet()){JSONObject profile=current.getJSONObject(name);if(!cube.service.harness.store.JdbcRunStore.hash(profile.getJSONObject("spec")).equals(profile.getString("digest")))throw new IllegalArgumentException("ADAPTER_PROFILE_DIGEST_MISMATCH");}
             JSONObject profiles=StrictJson.object(Contract.resource("execution/adapter-profiles.json"));
             for(String name:profiles.keySet()){JSONObject p=profiles.getJSONObject(name);if(!cube.service.harness.store.JdbcRunStore.hash(p.getJSONObject("spec")).equals(p.getString("digest")))throw new IllegalArgumentException("ADAPTER_PROFILE_DIGEST_MISMATCH");}
         }catch(java.io.IOException e){throw new IllegalArgumentException("EXECUTION_SCHEMA_MISSING");}
     }
-    public static JSONObject parse(String schema,byte[] raw) {try{JSONObject v=StrictJson.object(raw);Contract.validate(v,StrictJson.object(Contract.resource("execution/schemas/"+schema+".json")));return v;}catch(java.io.IOException e){throw new IllegalArgumentException("EXECUTION_SCHEMA_MISSING");}}
+    public static JSONObject parse(String schema,byte[] raw) {try{JSONObject v=StrictJson.object(raw);Contract.validate(v,StrictJson.object(Contract.resource((schema.startsWith("model-worker-v3-")||schema.startsWith("model-v3-")?"inference":"execution")+"/schemas/"+schema+".json")));return v;}catch(java.io.IOException e){throw new IllegalArgumentException("EXECUTION_SCHEMA_MISSING");}}
     public static JSONObject outcome(String raw,boolean finished) {
         JSONObject o=StrictJson.object(raw.getBytes(StandardCharsets.UTF_8));
         parse("model-outcome",raw.getBytes(StandardCharsets.UTF_8));

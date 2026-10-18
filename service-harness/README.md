@@ -4,7 +4,7 @@
 
 N03 增加可选的独立 JDBC RunStore，详见 [STORE.md](STORE.md)。SQLite 与隔离 MySQL 的并发、租约、事务、Outbox 和用量结算已有本机专项验收；服务启动只校验，不自动迁移。默认关闭存储。N02 原生 Linux 缺项继续保留。
 
-N04/N05 增加资源包、固定 profile、工作区、完整上下文预算及可恢复快照，提供 Java 内部 API 与离线管理 CLI，详见 [RUNTIME.md](RUNTIME.md)。固定 schema 随正式 jar 分发；独立库当前为 schema=3，v1/v2 需显式 upgrade。N06/N07 增加 Baize/Baize2 adapter、模型 journal、按物理后端计容的多单元调度，以及唯一 Coordinator 和 create/get/events/资源工具循环。离线与本机跨进程验收独立于真实模型在线认证；详见 [EXECUTION.md](EXECUTION.md)。
+N04/N05 增加资源包、固定 profile、工作区、完整上下文预算及可恢复快照，提供 Java 内部 API 与离线管理 CLI，详见 [RUNTIME.md](RUNTIME.md)。固定 schema 随正式 jar 分发；独立库当前为 schema=4，v1/v2/v3 需显式 upgrade。N06/N07 增加 Baize/Baize2 adapter、模型 journal、按物理后端计容的多单元调度，以及唯一 Coordinator 和 create/get/events/资源工具循环。离线与本机跨进程验收独立于真实模型在线认证；详见 [EXECUTION.md](EXECUTION.md)。
 
 ## 构建与目录
 
@@ -60,7 +60,7 @@ worker.runner-2.role=runner
 
 这些配置键已由现有 `HarnessConfig.authorizedWorker` 支持。当前注册表最多 64 个条目，已提供独立注册、租约、drain 和注销；注册数不代表执行并发容量。按能力/健康/可用容量分配任务的实际负载均衡在 N06/N07 实现，N16 进行多单元负载验收；共享物理后端不得重复计算容量，未决 attempt 必须先对账。
 
-dispatcher 的 Harness 接入代码使用 `dispatcher/src/cube/dispatcher/harness/`（包 `cube.dispatcher.harness`），当前目录为空，接入随后续阶段实现。
+dispatcher 的 Harness 接入代码位于 `dispatcher/src/cube/dispatcher/harness/`（包 `cube.dispatcher.harness`），通过独立配置显式启用。
 
 开发配置目录应由运行账户独占；Linux 生成权限为 0700/0600，Windows 使用账户私有目录与其 ACL。不要提交本地配置、PID、日志或停止文件。启动脚本等到注册确认才成功；停止按停止接单、drain、注销、断开连接、退出执行。不使用按进程名 kill 的旧脚本。
 
@@ -76,3 +76,7 @@ python -B scripts/g0_smoke.py --java C:/jdk8/bin/java.exe --common-jar C:/isolat
 最后一个命令应使用已安装 `harness/requirements.txt` 的 Python。它实际启动两种 XML 容器、注册双角色，测试原始载荷、心跳、错误身份、重复实例、旧 nonce、断线重连、停止期间重连和实例脚本；同容器以测试专用 Sentinel Cellet 验证定向停止，不冒充完整生产业务。每次只停止自己创建的进程。
 
 独立 CI 在 `.github/workflows/harness.yml`，不作为旧发布的新增必需检查。Java 契约自动运行；手动跨仓库 Cell 验证必须选择带匹配契约的 Python revision，Linux 实测结果由该流水线产出。添加工作流不表示已在远端执行。
+
+## 推理网关修正
+
+Python Harness 经 Cell v3 发送 OpenAI 请求，默认调用同 JVM AIGCService 注册的 Unit。合部署使用现有 ServiceCarpet；独立 G0 XML 没有 AIGCService，默认 Unit 后端未就绪。外部 HTTP 后端必须在 Java 显式配置。推理账本 schema=4、新版 model/task profile 与 `contracts/inference/` 同步升级；详见 [EXECUTION.md](EXECUTION.md)。

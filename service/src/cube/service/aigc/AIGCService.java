@@ -78,7 +78,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * </ul>
  * <p>本类自身只保留与上述三者无关的业务编排（用户、令牌、会员、知识库、文件、内容理解等）。</p>
  */
-public class AIGCService extends AbstractModule implements Generatable {
+public class AIGCService extends AbstractModule implements Generatable, cube.aigc.completion.CompletionProvider {
 
     public final static String NAME = "AIGC";
 
@@ -973,6 +973,22 @@ public class AIGCService extends AbstractModule implements Generatable {
      */
     public List<AIGCUnit> getAllUnits() {
         return this.unitScheduler.getAll();
+    }
+
+    @Override
+    public JSONArray completionModels(String token) {
+        return completions.models(token).getJSONArray("models");
+    }
+
+    @Override
+    public JSONObject completionCapacity(String token, String model, boolean nativeTools) {
+        return completions.capacity(token, model, nativeTools);
+    }
+
+    @Override
+    public void submitCompletion(String token, String requestId, JSONObject request, long timeoutMillis,
+                                 cube.aigc.completion.CompletionProvider.Listener listener) {
+        completions.generateInternal(token, requestId, request, timeoutMillis, listener);
     }
 
     public cube.service.aigc.completion.ChatCompletionService getCompletions() {

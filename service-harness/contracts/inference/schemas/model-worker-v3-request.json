@@ -1,0 +1,944 @@
+{
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            3
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 24,
+          "maxLength": 512
+        },
+        "workerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "model"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "model.round"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "describe"
+          ]
+        },
+        "descriptor": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "adapter": {
+              "type": "string",
+              "enum": [
+                "openai-json-v2",
+                "openai-tools-v2"
+              ]
+            },
+            "nativeTools": {
+              "type": "boolean"
+            },
+            "cancellation": {
+              "type": "string",
+              "enum": [
+                "observe-only"
+              ]
+            },
+            "budget": {
+              "type": "string",
+              "enum": [
+                "transport-bytes-v1"
+              ]
+            },
+            "profileDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "model",
+            "adapter",
+            "nativeTools",
+            "cancellation",
+            "budget",
+            "profileDigest"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "action",
+        "descriptor"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            3
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 24,
+          "maxLength": 512
+        },
+        "workerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "model"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "model.round"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "poll"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "healthy": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "action",
+        "sessionId",
+        "healthy"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            3
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 24,
+          "maxLength": 512
+        },
+        "workerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "model"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "model.round"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "heartbeat"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "healthy": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "action",
+        "sessionId",
+        "healthy"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            3
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 24,
+          "maxLength": 512
+        },
+        "workerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "model"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "model.round"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "drain"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "healthy": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "action",
+        "sessionId",
+        "healthy"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            3
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 24,
+          "maxLength": 512
+        },
+        "workerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "model"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "model.round"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "unregister"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "healthy": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "action",
+        "sessionId",
+        "healthy"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            3
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 24,
+          "maxLength": 512
+        },
+        "workerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "model"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "model.round"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "actual_finished"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "healthy": {
+          "type": "boolean"
+        },
+        "report": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "requestHash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "instanceId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "actualFinished": {
+              "type": "boolean"
+            },
+            "outcomeJson": {
+              "type": "string",
+              "maxLength": 65536
+            }
+          },
+          "required": [
+            "jobId",
+            "requestHash",
+            "instanceId",
+            "actualFinished",
+            "outcomeJson"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "action",
+        "sessionId",
+        "healthy",
+        "report"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            3
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 24,
+          "maxLength": 512
+        },
+        "workerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "model"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "model.round"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "status"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "healthy": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "action",
+        "sessionId",
+        "healthy"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            3
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 24,
+          "maxLength": 512
+        },
+        "workerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "model"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "model.round"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "inference_submit"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "healthy": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "jobInstanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "wireAttempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "requestHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requestJson": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 131072
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "action",
+        "sessionId",
+        "healthy",
+        "jobId",
+        "jobInstanceId",
+        "wireAttempt",
+        "requestHash",
+        "requestJson"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            3
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 24,
+          "maxLength": 512
+        },
+        "workerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "model"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "model.round"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "inference_poll"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "healthy": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "jobInstanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "wireAttempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "after": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "action",
+        "sessionId",
+        "healthy",
+        "jobId",
+        "jobInstanceId",
+        "wireAttempt",
+        "after"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            3
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 24,
+          "maxLength": 512
+        },
+        "workerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "instanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "model"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "model.round"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "inference_cancel"
+          ]
+        },
+        "sessionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "healthy": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "jobInstanceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        },
+        "wireAttempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "after": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "action",
+        "sessionId",
+        "healthy",
+        "jobId",
+        "jobInstanceId",
+        "wireAttempt",
+        "after"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

@@ -1,0 +1,8 @@
+{
+  "value": {
+    "temperature": 1.0,
+    "tiny": 1e-07,
+    "message": "</script> "
+  },
+  "canonical": "{\"message\":\"<\\/script>\\u2028\\u0085\",\"temperature\":1,\"tiny\":0.0000001}"
+}

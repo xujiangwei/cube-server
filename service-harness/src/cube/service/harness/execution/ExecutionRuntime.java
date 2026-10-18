@@ -11,11 +11,14 @@ import java.util.concurrent.*;
 
 /** Opt-in development execution runtime, with a trusted fixed identity and private resource repository. */
 public final class ExecutionRuntime implements AutoCloseable {
-    public final ModelJobStore jobs;public final ModelDispatcher workers;public final RunCoordinator coordinator;
+    public final ModelJobStore jobs;public final ModelDispatcher workers;public final RunCoordinator coordinator;public final InferenceGateway inference;
     public final ProfileRegistry profiles;public final ProfileRegistry.Identity identity;
     private final CatalogStore catalog;private final JdbcRunStore store;private final int maxActive;
     private final Semaphore streams=new Semaphore(2);
     public ExecutionRuntime(JdbcRunStore store,Properties p,long lease) throws Exception {
+        this(store,p,lease,()->null);
+    }
+    public ExecutionRuntime(JdbcRunStore store,Properties p,long lease,java.util.function.Supplier<cube.aigc.completion.CompletionProvider> provider) throws Exception {
         ModelProtocol.verify();
         this.store=store;StoreConfig sc=new StoreConfig(p);catalog=new CatalogStore(store,sc.mysql());profiles=new ProfileRegistry(catalog);
         Set<String> permissions=new TreeSet<>(Arrays.asList(p.getProperty("execution.permissions","skill.list,skill.activate,resource.list,resource.read,resource.search").split(",")));
@@ -25,10 +28,10 @@ public final class ExecutionRuntime implements AutoCloseable {
         store.admissionLimit(maxActive);
         Path path=Paths.get(Objects.requireNonNull(p.getProperty("execution.repository"),"execution.repository"));
         PackageRepository repo=new PackageRepository(catalog,new AssetFiles(path,Long.parseLong(p.getProperty("execution.repository.max.bytes","67108864")),p.getProperty("execution.repository.namespace","harness-resources")),Collections.emptyMap(),true);
-        jobs=new ModelJobStore(store,sc.mysql());workers=new ModelDispatcher(jobs,p,lease);
+        jobs=new ModelJobStore(store,sc.mysql());inference=new InferenceGateway(new InferenceStore(store,sc.mysql()),p,provider);workers=new ModelDispatcher(jobs,p,lease,inference);
         coordinator=new RunCoordinator(store,jobs,catalog,identity,new ResourceTools(catalog,repo));
     }
-    public void start(){coordinator.start();}
+    public void start(){inference.start();coordinator.start();}
     public synchronized JSONObject create(String key,JSONObject request) {
         // Durable create replay precedes admission inside the catalog/store (including when full).
         if(jobs.active(identity.tenant)>=maxActive) {
@@ -59,5 +62,5 @@ public final class ExecutionRuntime implements AutoCloseable {
         try{if(!(x instanceof JettyExchange))throw new StoreException("SSE_REQUIRES_NONBLOCKING_HTTP");((JettyExchange)x).stream(page,streams::release);}
         catch(IOException|RuntimeException e){streams.release();throw e;}
     }
-    @Override public void close(){coordinator.close();}
+    @Override public void close(){coordinator.close();inference.close();}
 }

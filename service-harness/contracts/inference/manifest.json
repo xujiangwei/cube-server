@@ -1,0 +1,9 @@
+{
+  "schemas/model-worker-v3-request.json": "8c9da443755c59c4cfcd4eb63a523f7b4936951871e84211e8dea4cdbaee330f",
+  "schemas/model-worker-v3-response.json": "ec1178c54baf0528e42207c2cd9dedfebe86130b75e5344bee7bd0fa0706d946",
+  "schemas/model-v3-job.json": "9d0efb266db77111eb6671d2e8ff57eda135e401b59e9a03dbd3623745792a81",
+  "schemas/model-v3-descriptor.json": "0e8e9da13d26378678a2c9f7ac93e0c9a26872144692111e1fb9c62235350ad7",
+  "schemas/model-v3-report.json": "cde24fdab77ff5d01527b2a10c4a0c419422f1e009bbd5d4b569bc456d982169",
+  "adapter-profiles.json": "4e418ca55331cbe4c345293a3e065b464b9a85dfb75383cc6697ed13ad826de8",
+  "canonical-vectors.json": "9ff2ead34838ff3a7ffafa3f67927061eaab35287903f1cbec363dd586bac081"
+}

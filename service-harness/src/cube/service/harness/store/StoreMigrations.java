@@ -21,7 +21,7 @@ import java.util.Set;
  * Explicit, additive migration only; runtime startup never initializes a database.
  */
 public final class StoreMigrations {
-    public static final int VERSION = 3;
+    public static final int VERSION = 4;
     static final Set<String> TABLES = new HashSet<>(Arrays.asList("harness_store_identity", "harness_run",
             "harness_lease", "harness_request", "harness_event", "harness_outbox", "harness_inbox",
             "harness_round", "harness_tool_call", "harness_result", "harness_usage", "harness_usage_adjustment"));
@@ -69,6 +69,7 @@ public final class StoreMigrations {
         if (version >= 2) expected.addAll(Arrays.asList("harness_release", "harness_binding", "harness_profile", "harness_run_config",
                 "harness_release_ref", "harness_run_skill", "harness_workspace", "harness_context"));
         if (version >= 3) expected.addAll(Arrays.asList("harness_model_backend", "harness_model_job"));
+        if (version >= 4) expected.addAll(Arrays.asList("harness_inference", "harness_inference_event"));
         if (!tables(c, config).equals(expected)) throw new StoreException("STORE_SCHEMA_MISMATCH");
         try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(
                 "SELECT store_id, schema_version, migration_hash FROM harness_store_identity WHERE singleton=1")) {

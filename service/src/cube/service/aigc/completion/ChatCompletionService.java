@@ -12,6 +12,7 @@ import cell.util.log.Logger;
 import cube.aigc.ContactPreference;
 import cube.aigc.ModelConfig;
 import cube.aigc.completion.CompletionError;
+import cube.aigc.completion.CompletionProvider;
 import cube.aigc.completion.CompletionRequest;
 import cube.aigc.completion.CompletionResult;
 import cube.auth.AuthToken;
@@ -81,10 +82,10 @@ public class ChatCompletionService {
 
     private AIGCUnit select(String name) {
         AIGCUnit selected = service.selectUnitByName(name);
-        if (selected != null && selected.getCapability().getChatCompletion().optBoolean("text", false)) return selected;
+        if (selected != null && !quarantined(selected) && selected.getCapability().getChatCompletion().optBoolean("text", false)) return selected;
         for (AIGCUnit unit : service.getAllUnits()) {
             if (name.equals(unit.getCapability().getName()) && unit.getContext() != null && unit.getContext().isValid()
-                    && unit.getCapability().getChatCompletion().optBoolean("text", false)) return unit;
+                    && !quarantined(unit) && unit.getCapability().getChatCompletion().optBoolean("text", false)) return unit;
         }
         return null;
     }
@@ -101,7 +102,7 @@ public class ChatCompletionService {
         }
         for (AIGCUnit candidate : service.getAllUnits()) {
             if (!name.equals(candidate.getCapability().getName()) || candidate == initial
-                    || candidate.getContext() == null || !candidate.getContext().isValid()) continue;
+                    || candidate.getContext() == null || !candidate.getContext().isValid() || quarantined(candidate)) continue;
             try {
                 CompletionRequest.checkCapabilities(request, candidate.getCapability().getChatCompletion());
                 return candidate;
@@ -109,6 +110,46 @@ public class ChatCompletionService {
             }
         }
         throw unsupported;
+    }
+
+    public JSONObject capacity(String code, String modelId, boolean nativeTools) {
+        AuthToken token = authenticate(code);
+        int registered = 0, available = 0;
+        for (ModelConfig model : allowedModels(token)) {
+            if (!model.getModel().equals(modelId)) continue;
+            for (AIGCUnit unit : service.getAllUnits()) {
+                JSONObject caps = unit.getCapability().getChatCompletion();
+                if (!model.getUnitName().equals(unit.getCapability().getName()) || unit.getContext() == null
+                        || !unit.getContext().isValid() || !caps.optBoolean("text")
+                        || (nativeTools && !caps.optBoolean("tools"))) continue;
+                registered++;
+                if (!unit.isRunning() && !reserved(unit)) available++;
+            }
+        }
+        return new JSONObject().put("registered", registered).put("available", available);
+    }
+
+    private boolean reserved(AIGCUnit unit) {
+        for (Pending pending : requests.values())
+            if (pending.unitKey().equals(unit.getQueryKey()) && !pending.actualFinished) return true;
+        return false;
+    }
+
+    private boolean quarantined(AIGCUnit unit) {
+        for (Pending pending : requests.values())
+            if (pending.listener != null && pending.terminal && !pending.actualFinished
+                    && pending.unitKey().equals(unit.getQueryKey())) return true;
+        return false;
+    }
+
+    private AIGCUnit selectInternal(String name, JSONObject request) {
+        for (AIGCUnit unit : service.getAllUnits()) {
+            if (!name.equals(unit.getCapability().getName()) || unit.getContext() == null
+                    || !unit.getContext().isValid() || unit.isRunning() || reserved(unit)) continue;
+            try { CompletionRequest.checkCapabilities(request, unit.getCapability().getChatCompletion()); return unit; }
+            catch (CompletionError ignored) { }
+        }
+        return null;
     }
 
     public JSONObject models(String code) {
@@ -124,6 +165,18 @@ public class ChatCompletionService {
     }
 
     public void generate(String code, TalkContext origin, ActionDialect dialect) {
+        generate(code, origin, dialect, null);
+    }
+
+    /** Same authorization, queue, capability checks and accounting as REST, without a fake TalkContext. */
+    public void generateInternal(String code, String id, JSONObject request, long timeout, CompletionProvider.Listener listener) {
+        if (listener == null) throw new IllegalArgumentException("Listener required");
+        ActionDialect dialect = new Packet(AIGCAction.ChatCompletion.name, new JSONObject()
+                .put("requestId", id).put("request", request).put("timeoutMs", timeout)).toDialect();
+        generate(code, null, dialect, listener);
+    }
+
+    private void generate(String code, TalkContext origin, ActionDialect dialect, CompletionProvider.Listener listener) {
         String id = new Packet(dialect).data.optString("requestId", "");
         try {
             AuthToken token = authenticate(code);
@@ -139,7 +192,7 @@ public class ChatCompletionService {
             }
             if (model == null)
                 throw new CompletionError(404, "model_not_found", "Unknown or unavailable model", "model");
-            AIGCUnit unit = select(model.getUnitName(), request);
+            AIGCUnit unit = listener == null ? select(model.getUnitName(), request) : selectInternal(model.getUnitName(), request);
             if (unit == null)
                 throw new CompletionError(503, "service_unavailable", "Requested model has no compatible unit", "model");
             if (id.isEmpty() || id.length() > 128) throw CompletionError.invalid("Invalid request ID", null);
@@ -147,7 +200,7 @@ public class ChatCompletionService {
             if (timeout <= 0) throw CompletionError.invalid("Invalid request timeout", null);
             if (!admission.tryAcquire())
                 throw new CompletionError(429, "rate_limit_error", "Generation queue is full", null);
-            Pending pending = new Pending(id, token, model, unit, origin, dialect, request, timeout);
+            Pending pending = new Pending(id, token, model, unit, origin, dialect, request, timeout, listener);
             synchronized (this) {
                 if (stopped) {
                     admission.release();
@@ -171,9 +224,9 @@ public class ChatCompletionService {
                 pending.fail(new CompletionError(503, "service_unavailable", "Generation queue is unavailable", null));
             }
         } catch (CompletionError error) {
-            error(origin, dialect, id, error);
+            reject(origin, dialect, id, error, listener);
         } catch (RuntimeException error) {
-            error(origin, dialect, id, CompletionError.invalid("Invalid structured request", null));
+            reject(origin, dialect, id, CompletionError.invalid("Invalid structured request", null), listener);
         }
     }
 
@@ -197,7 +250,7 @@ public class ChatCompletionService {
             }
         }
         // Bind control operations to both the token and original dispatcher connection.
-        if (pending != null && pending.token.getCode().equals(code) && pending.origin.equals(origin)) {
+        if (pending != null && pending.token.getCode().equals(code) && java.util.Objects.equals(pending.origin, origin)) {
             pending.fail(new CompletionError(504, "request_timeout", "Generation cancelled", null));
         }
     }
@@ -217,8 +270,11 @@ public class ChatCompletionService {
 
     public synchronized void stop() {
         stopped = true;
-        for (Pending pending : requests.values())
+        for (Pending pending : requests.values()) {
             pending.fail(new CompletionError(503, "service_unavailable", "AI service stopped", null));
+            // Stop observing in this JVM; the Harness ledger still retains unknown physical reservations.
+            pending.done.countDown();
+        }
         timer.shutdownNow();
         earlyCancellations.clear();
     }
@@ -240,6 +296,12 @@ public class ChatCompletionService {
         boolean matches(String token, TalkContext context) {
             return System.nanoTime() < expires && java.util.Objects.equals(this.token, token) && this.context.equals(context);
         }
+    }
+
+    private void reject(TalkContext origin, ActionDialect dialect, String id, CompletionError error, CompletionProvider.Listener listener) {
+        if (listener == null) error(origin, dialect, id, error);
+        else listener.onEvent(new JSONObject().put("requestId", id).put("sequence", 1).put("kind", "error")
+                .put("actualFinished", true).put("payload", new JSONObject().put("error", error.toJSON())));
     }
 
     private void error(TalkContext origin, ActionDialect dialect, String id, CompletionError error) {
@@ -264,11 +326,14 @@ public class ChatCompletionService {
         final long deadline;
         final CountDownLatch done = new CountDownLatch(1);
         long sequence;
-        boolean terminal, sent;
+        volatile boolean terminal;
+        boolean sent, attempted;
+        volatile boolean actualFinished;
+        final CompletionProvider.Listener listener;
         ScheduledFuture<?> timeoutTask;
 
         Pending(String id, AuthToken token, ModelConfig model, AIGCUnit unit, TalkContext origin,
-                ActionDialect dialect, JSONObject request, long timeout) {
+                ActionDialect dialect, JSONObject request, long timeout, CompletionProvider.Listener listener) {
             super(ChatCompletionService.this.service, unit);
             this.id = id;
             this.token = token;
@@ -276,6 +341,7 @@ public class ChatCompletionService {
             this.origin = origin;
             this.dialect = dialect;
             this.request = request;
+            this.listener = listener;
             this.unitContext = unit.getContext();
             this.deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeout);
         }
@@ -294,6 +360,7 @@ public class ChatCompletionService {
                     }
                     JSONObject data = new JSONObject().put("requestId", id).put("unit", unit.getCapability().getName())
                             .put("request", request).put("timeoutMs", remaining);
+                    attempted = true;
                     sent = cellet.speak(unitContext, new Packet(AIGCAction.ChatCompletion.name, data).toDialect());
                     if (!sent) {
                         fail(new CompletionError(503, "service_unavailable", "Unit transport unavailable", null));
@@ -309,6 +376,13 @@ public class ChatCompletionService {
             } catch (RuntimeException e) {
                 fail(new CompletionError(502, "upstream_error", "Unit generation failed", null));
             } finally {
+                // Every exit path, including a failed send/callback, preserves the Unit's serial queue.
+                boolean interrupted = false;
+                while (listener != null && attempted && !actualFinished && !stopped) {
+                    try { done.await(); break; }
+                    catch (InterruptedException e) { interrupted = true; }
+                }
+                if (interrupted) Thread.currentThread().interrupt();
                 unit.setRunning(false);
                 count.decrementAndGet();
             }
@@ -318,12 +392,16 @@ public class ChatCompletionService {
             if (!terminal) service.submitChatCompletion(this);
         }
 
+        String unitKey() { return unit.getQueryKey(); }
+
         synchronized void accept(JSONObject event) {
-            if (terminal) return;
+            boolean observing = terminal && listener != null && !actualFinished;
+            if (terminal && !observing) return;
+            if (observing && !"completed".equals(event.optString("kind"))) return;
             long next = CompletionResult.tokens(event, "sequence");
             if (next == 0) throw new IllegalArgumentException("Invalid event sequence");
             if (next <= sequence) return;
-            if (next != sequence + 1) {
+            if (!observing && next != sequence + 1) {
                 fail(new CompletionError(502, "upstream_error", "Generation event sequence interrupted", null));
                 return;
             }
@@ -332,6 +410,7 @@ public class ChatCompletionService {
                 try {
                     JSONObject result = event.getJSONObject("payload").getJSONObject("result");
                     CompletionResult.validate(result);
+                    actualFinished = true;
                     JSONObject usage = result.getJSONObject("usage");
                     long input = CompletionResult.tokens(usage, "prompt_tokens"), output = CompletionResult.tokens(usage, "completion_tokens");
                     service.getStorage().updateUsage(token.getContactId(), model.getModel(), output, input);
@@ -350,7 +429,7 @@ public class ChatCompletionService {
             }
             sequence = next;
             try {
-                if (!send(origin, dialect, event) && !terminal)
+                if (!deliver(event) && !terminal)
                     fail(new CompletionError(503, "service_unavailable", "Dispatcher disconnected", null));
             } finally {
                 if (terminal) release();
@@ -360,7 +439,7 @@ public class ChatCompletionService {
         synchronized void fail(CompletionError error) {
             if (terminal) return;
             terminal = true;
-            if (sent) {
+            if (sent && listener == null) {
                 try {
                     cellet.speak(unitContext, new Packet(AIGCAction.CancelChatCompletion.name,
                             new JSONObject().put("requestId", id)).toDialect());
@@ -368,7 +447,7 @@ public class ChatCompletionService {
                 }
             }
             try {
-                send(origin, dialect, new JSONObject().put("requestId", id).put("sequence", ++sequence)
+                deliver(new JSONObject().put("requestId", id).put("sequence", listener == null ? ++sequence : sequence)
                         .put("kind", "error").put("payload", new JSONObject().put("error", error.toJSON())));
             } catch (RuntimeException e) {
                 Logger.w(ChatCompletionService.class, "Unable to send terminal event", e);
@@ -377,11 +456,19 @@ public class ChatCompletionService {
             }
         }
 
+        boolean deliver(JSONObject event) {
+            if (listener == null) return send(origin, dialect, event);
+            listener.onEvent(new JSONObject(event.toString()).put("actualFinished", actualFinished || !attempted)
+                    .put("unitId", unit.getQueryKey()));
+            return true;
+        }
+
         void release() {
-            if (requests.remove(id, this)) admission.release();
+            // Internal callers keep observing late completion. Logical failure is not physical completion.
+            if ((listener == null || actualFinished || !attempted) && requests.remove(id, this)) admission.release();
             if (timeoutTask != null) timeoutTask.cancel(false);
             service.removeQueuedChatCompletion(this);
-            done.countDown();
+            if (listener == null || actualFinished || !attempted) done.countDown();
         }
     }
 

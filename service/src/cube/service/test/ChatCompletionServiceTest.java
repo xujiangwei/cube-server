@@ -54,6 +54,7 @@ public final class ChatCompletionServiceTest {
             testCancellation(service, cellet);
             testMalformedAndTimeout(service, cellet);
             testTwelveUnits();
+            testInternalBridge();
             service.getCompletions().stop();
             check(service.getCompletions().activeRequests() == 0, "stop clears registry");
             until(() -> service.getGenerateTextUnitRealtimeCount().get("Baize2").get() == 0, "stop releases counters");
@@ -88,6 +89,34 @@ public final class ChatCompletionServiceTest {
         return new JSONObject().put("model", model).put("stream", true).put("options", new JSONObject())
                 .put("messages", new JSONArray().put(new JSONObject().put("role", "system").put("content", "client-only"))
                         .put(new JSONObject().put("role", "user").put("content", "hello")));
+    }
+
+    static void testInternalBridge() throws Exception {
+        FakeCellet cellet=new FakeCellet();FakeService service=new FakeService(cellet);
+        service.selected.setTimestamp(0);
+        List<JSONObject> events=new CopyOnWriteArrayList<>();
+        try {
+            check(service.completionCapacity("token","model-a",true).getInt("available")==1,"internal capacity uses registered Unit capabilities");
+            service.submitCompletion("token","internal",request("model-a"),100,events::add);
+            until(()->cellet.find("internal",AIGCAction.ChatCompletion.name)!=null,"same JVM bridge reached Unit through queue");
+            until(()->!events.isEmpty(),"internal timeout delivered");
+            check(!events.get(0).getBoolean("actualFinished"),"logical timeout falsely proves physical completion");
+            check(service.getCompletions().activeRequests()==1,"internal observer lost after timeout");
+            check(service.completionCapacity("token","model-a",true).getInt("available")==0,"unknown Unit became available");
+            check(cellet.find("internal",AIGCAction.CancelChatCompletion.name)==null,"internal observe-only timeout cancelled physical execution");
+            event(service,service.owner,"internal",7,"completed",new JSONObject().put("result",result()));
+            event(service,service.owner,"internal",7,"completed",new JSONObject().put("result",result()));
+            until(()->service.getCompletions().activeRequests()==0&&service.completionCapacity("token","model-a",true).getInt("available")==1,"late completion did not release internal reservation");
+            check(events.size()==2&&events.get(1).getBoolean("actualFinished"),"late completion not delivered to internal caller");
+            check(service.storage.calls.get()==1,"late internal usage counted more than once");
+            check(cellet.events("internal").isEmpty(),"internal provider depends on dispatcher session");
+            List<JSONObject> stopping=new CopyOnWriteArrayList<>();
+            service.submitCompletion("token","internal-stop",request("model-a"),100,stopping::add);
+            until(()->!stopping.isEmpty(),"unresolved inference timeout missing");
+            service.getCompletions().stop();
+            until(()->service.getGenerateTextUnitRealtimeCount().get("Baize2").get()==0,"shutdown leaked an internal queue thread");
+            check(!stopping.get(0).getBoolean("actualFinished"),"shutdown fabricated physical completion");
+        } finally {service.getCompletions().stop();service.queue.shutdown();}
     }
 
     static void generate(FakeService service, String id, long timeout) {
@@ -213,7 +242,7 @@ public final class ChatCompletionServiceTest {
         }
     }
 
-    static final class FakeCellet extends AIGCCellet {
+    static class FakeCellet extends AIGCCellet {
         final List<Sent> sent = new CopyOnWriteArrayList<>();
 
         @Override

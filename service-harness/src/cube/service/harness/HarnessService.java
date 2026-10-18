@@ -76,7 +76,10 @@ public final class HarnessService extends AbstractModule {
             registry = new WorkerRegistry(config.leaseMillis());
             if(Boolean.parseBoolean(config.values.getProperty("execution.enabled","false"))) {
                 if(store==null)throw new IllegalArgumentException("STORE_REQUIRED");
-                execution=new ExecutionRuntime(store,config.values,config.leaseMillis());
+                execution=new ExecutionRuntime(store,config.values,config.leaseMillis(),()-> {
+                    Object module=getKernel()==null?null:getKernel().getModule("AIGC");
+                    return module instanceof cube.aigc.completion.CompletionProvider?(cube.aigc.completion.CompletionProvider)module:null;
+                });
             }
             executor = pool("harness-cell", 2, 64);
             started.set(true);
@@ -152,12 +155,12 @@ public final class HarnessService extends AbstractModule {
         try {
             if (!started.get()) throw new IllegalArgumentException("HARNESS_NOT_READY");
             JSONObject request = StrictJson.object(raw);
-            if(request.optInt("protocolVersion",0)==2)protocol=2;
+            if(request.optInt("protocolVersion",0)==2 || request.optInt("protocolVersion",0)==3)protocol=request.getInt("protocolVersion");
             if (request.opt("requestId") instanceof String && request.getString("requestId").length() <= 128)
                 id = request.getString("requestId");
-            if(request.optInt("protocolVersion",0)==2) {
+            if(protocol==2 || protocol==3) {
                 if(execution==null){protocol=1;throw new IllegalArgumentException("PROTOCOL_MISMATCH");}
-                ModelProtocol.parse("model-worker-request",raw);
+                ModelProtocol.parse(protocol==3?"model-worker-v3-request":"model-worker-request",raw);
                 if(!equal(config.values.getProperty("worker.credential"),request.getString("credential")))throw new IllegalArgumentException("UNAUTHORIZED");
                 return execution.workers.apply(request,transport,valid);
             }
@@ -183,7 +186,7 @@ public final class HarnessService extends AbstractModule {
     }
 
     private JSONObject capabilities() {
-        if(execution!=null)return new JSONObject().put("service",NAME).put("protocolVersion",2).put("registeredWorkers",execution.workers.snapshot()).put("infrastructureReady",true)
+        if(execution!=null)return new JSONObject().put("service",NAME).put("protocolVersion",3).put("registeredWorkers",execution.workers.snapshot()).put("infrastructureReady",true)
             .put("runsReady",execution.workers.ready()).put("execution","resource-loop").put("capacity",execution.workers.capacity());
         return new JSONObject().put("service", NAME).put("protocolVersion", 1).put("registeredWorkers", registry.snapshot()).put("infrastructureReady", registry.ready()).put("runsReady", false).put("execution", "scripted");
     }

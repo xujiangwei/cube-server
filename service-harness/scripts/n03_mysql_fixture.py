@@ -96,7 +96,7 @@ CREATE TABLE n03_legacy_probe.protected_table (id INT);
 CREATE USER 'harness_migrator'@'127.0.0.1' IDENTIFIED BY '{password}';
 CREATE USER 'harness_runtime'@'127.0.0.1' IDENTIFIED BY '{password}';
 CREATE USER 'harness_overprivileged'@'127.0.0.1' IDENTIFIED BY '{password}';
-GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,INDEX,REFERENCES ON `harness_n03_fixture`.* TO 'harness_migrator'@'127.0.0.1';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,INDEX,REFERENCES,ALTER ON `harness_n03_fixture`.* TO 'harness_migrator'@'127.0.0.1';
 GRANT SELECT,INSERT,UPDATE,DELETE ON `harness_n03_fixture`.* TO 'harness_runtime'@'127.0.0.1';
 GRANT ALL PRIVILEGES ON *.* TO 'harness_overprivileged'@'127.0.0.1';
 """
