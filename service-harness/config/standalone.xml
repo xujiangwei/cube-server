@@ -3,6 +3,8 @@
   <listeners><class>cube.service.harness.HarnessCarpet</class></listeners>
   <nucleus>
     <heartbeat>60000</heartbeat>
+    <!-- For remote Python nodes, bind host to the server's reachable IP or 0.0.0.0.
+         This Cell listener is separate from loopback-only health/admin HTTP. -->
     <talk><server><host>127.0.0.1</host><port>7600</port><max-connection>64</max-connection></server><ws-server/><wss-server/><ssl/></talk>
     <log><level>INFO</level></log>
   </nucleus>

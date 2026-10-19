@@ -9,7 +9,7 @@ import urllib.request
 
 
 class DispatcherFixture:
-    def __init__(self, java, classpath, cell_port, api_credential, runtime):
+    def __init__(self, java, classpath, cell_port, api_credential, runtime, cell_host="127.0.0.1"):
         self.java = Path(java)
         self.api_credential = api_credential
         self.root = Path(runtime) / "dispatcher"
@@ -30,7 +30,8 @@ class DispatcherFixture:
                         "-source", "1.8", "-target", "1.8", "-cp", cp, "-d", str(classes), str(source)],
                        stdout=self.log, stderr=subprocess.STDOUT, check=True, timeout=30)
         config = self.root / "dispatcher.local.properties"
-        config.write_text("\n".join(("service.port=" + str(cell_port), "http.port=" + str(self.port))) + "\n", encoding="utf-8")
+        config.write_text("\n".join(("service.host=" + cell_host, "service.port=" + str(cell_port),
+                                    "http.port=" + str(self.port))) + "\n", encoding="utf-8")
         if os.name != "nt":
             self.root.chmod(0o700)
             config.chmod(0o600)

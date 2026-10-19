@@ -22,10 +22,8 @@ public final class HarnessConfig {
 
     public HarnessConfig(Properties values) throws IOException {
         this.values = values;
-        if (!"development".equals(values.getProperty("mode")))
-            throw new IOException("Production identity provider is not implemented at G0");
         if (!InetAddress.getByName(host()).isLoopbackAddress())
-            throw new IOException("G0 HTTP listener requires loopback");
+            throw new IOException("Health/admin HTTP listener requires loopback");
         for (String key : Arrays.asList("worker.credential", "api.credential"))
             if (values.getProperty(key, "").length() < 24)
                 throw new IOException("Missing private credential: " + key);

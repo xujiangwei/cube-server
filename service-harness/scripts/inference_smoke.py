@@ -52,7 +52,6 @@ def main():
     workers = [("a", "Baize"), ("b", "Baize2"), ("c", "Baize2")]
     config = stage / "harness.local.properties"
     config.write_text((root / "data/store.local.properties").read_text() + f"""
-mode=development
 http.host=127.0.0.1
 http.port={http_port}
 lease.millis=1000

@@ -6,7 +6,7 @@
 
 dispatcher 与 service-harness 必须配套升级 common、dispatcher 和 Harness jar。只改变 Java 业务传输，不改变数据库结构、Python worker 协议、profile 或 worker 源摘要。一个 JVM 继续承载多个同角色或不同角色 Python 单元，各单元独立 workerId、实例、运行目录与租约。
 
-Harness REST 随 dispatcher 启动挂载，无需独立的 `dispatcher-harness.properties`、`harness.rest.enabled` 或 `harness.rest.mode`。dispatcher 不保存或转换调用方凭据，也不配置 client/backend credential 或 backend HTTP URL。请求 Bearer 原样通过 SHM 交给 service；service 按已有 `api.credential`、`control.approver.credential` 和 `trace.reader.credential` 识别普通调用、审批和 trace 角色，再校验操作权限，不信任请求自报的角色。普通 API 凭据已由 `scripts/init_dev.py` 自动生成在 service 私有配置中，无需在 dispatcher 再填一份。development 固定身份约束仍由 service 校验。
+Harness REST 在 `dispatcher.properties` 设置 `harness.rest.enabled=true` 后随 dispatcher 启动挂载，无需独立的 `dispatcher-harness.properties` 或 `harness.rest.mode`。dispatcher 不保存或转换调用方凭据，也不配置 client/backend credential 或 backend HTTP URL。请求 Bearer 原样通过 SHM 交给 service；service 按已有 `api.credential`、`control.approver.credential` 和 `trace.reader.credential` 识别普通调用、审批和 trace 角色，再校验操作权限，不信任请求自报的角色。普通 API 凭据已由 `scripts/init_dev.py` 自动生成在 service 私有配置中，无需在 dispatcher 再填一份。调用身份由 service 私有配置确定；无需设置环境 mode，旧 mode 值被忽略。Python 节点可通过指定 IPv4 或主机名直接连接 Java Cell，多节点配置见 [REMOTE-NODES.md](REMOTE-NODES.md)。
 
 把 Harness 加入 dispatcher 的 `cellets` 和相应 `director.N.cellets`；`director.N.address/port` 指向 service Cell SHM 监听器（独立部署默认 7600），不是运维 HTTP 端口（默认 7088）。`Performer.selectDirectorForCellet("Harness")` 仅选择 scope 包含 Harness 且连接就绪的最高权重节点。正常复用 Cell 长连接；握手超时后重新建连，重连期间返回 503。已开始的文件传输不会切换节点或会话，需客户端重新发起。
 

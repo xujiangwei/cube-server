@@ -18,13 +18,14 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 from dispatcher_fixture import DispatcherFixture
 
 
-def free_port():
+def free_port(bind_host="127.0.0.1"):
     with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
+        sock.bind((bind_host, 0))
         return sock.getsockname()[1]
 
 
@@ -42,6 +43,10 @@ def main():
     parser = argparse.ArgumentParser()
     for name in ("java", "common-jar", "cell-jar", "libs", "python-root", "runtime", "evidence"):
         parser.add_argument("--"+name, required=True)
+    parser.add_argument("--cell-bind-host", default="127.0.0.1",
+                        help="Address to bind the isolated local Java Cell (e.g. 0.0.0.0)")
+    parser.add_argument("--cell-host", default="127.0.0.1",
+                        help="Client address of that Cell (e.g. this test machine's LAN IPv4)")
     args = parser.parse_args()
     module = Path(__file__).resolve().parent.parent
     runtime, evidence = Path(args.runtime).resolve(), Path(args.evidence).resolve()
@@ -59,7 +64,7 @@ def main():
     gateway = None
     host_log = None
     token, api_token = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
-    cell_port, http_port = free_port(), free_port()
+    cell_port, http_port = free_port(args.cell_bind_host), free_port()
     def record(name, data=True):
         results.append(dict(name=name, result="PASS", evidence=data))
         print("PASS", name, flush=True)
@@ -85,8 +90,11 @@ def main():
         except OSError:
             return False
     def client(worker="model-1", role="model", credential=None):
-        c = HarnessService(dict(host="127.0.0.1", port=cell_port, workerId=worker, role=role,
-                                workerCredential=credential or token, requestTimeout=3))
+        path = runtime/("client-"+str(len(clients))+".json")
+        path.write_bytes(encode(dict(host=args.cell_host, port=cell_port, workerId=worker, role=role,
+                                    workerCredential=credential or token, requestTimeout=3,
+                                    runtimeDir=str(runtime/("client-"+str(len(clients)))))))
+        c = HarnessService(lifecycle.load_config(path))
         clients.append(c)
         return c
     def expect_error(callback, code):
@@ -102,6 +110,7 @@ def main():
         (stage/"cellets").mkdir(parents=True, exist_ok=True)
         shutil.copy2(module/"build/cube-service-harness-3.0.jar", stage/"cellets")
         xml = ET.parse(module/"config/standalone.xml")
+        xml.find(".//server/host").text = args.cell_bind_host
         xml.find(".//server/port").text = str(cell_port)
         xml.find(".//log/level").text = "DEBUG"
         xml.find(".//cellet").set("port", str(cell_port))
@@ -110,7 +119,7 @@ def main():
             ET.SubElement(cellet, "class").text = "cube.service.harness.test.SentinelCellet"
         xml.write(stage/"cell.xml", encoding="utf-8", xml_declaration=True)
         config = stage/"harness.local.properties"
-        config.write_text("\n".join(["mode=development", "http.host=127.0.0.1", "http.port="+str(http_port), "lease.millis=3000", "worker.credential="+token, "api.credential="+api_token, "worker.model-1.role=model", "worker.runner-1.role=runner"]), encoding="utf-8")
+        config.write_text("\n".join(["http.host=127.0.0.1", "http.port="+str(http_port), "lease.millis=3000", "worker.credential="+token, "api.credential="+api_token, "worker.model-1.role=model", "worker.model-2.role=model", "worker.runner-1.role=runner"]), encoding="utf-8")
         stop = stage/"stop"
         stop.unlink(missing_ok=True)
         cp = os.pathsep.join([str(Path(args.cell_jar).resolve()), str(Path(args.common_jar).resolve()), str(Path(args.libs).resolve()/"*"),
@@ -124,7 +133,8 @@ def main():
         # Cell 3.0's NonblockingAcceptor refuses connections during its initial
         # three-second safe lock. HTTP health starts before this window ends.
         time.sleep(3.3)
-        if gateway is None: gateway = DispatcherFixture(args.java, cp, cell_port, api_token, runtime)
+        if gateway is None: gateway = DispatcherFixture(args.java, cp, cell_port, api_token, runtime,
+                                                       cell_host=args.cell_host)
         gateway.ready()
         return stage
     def stop_host(stage):
@@ -161,7 +171,8 @@ def main():
                 check("cube/service/harness/"+cls+".class" in jar.namelist(), "Missing class")
         record("production-jar-layout", hashlib.sha256((module/"build/cube-service-harness-3.0.jar").read_bytes()).hexdigest())
         stage = launch(False)
-        record("standalone-xml-start")
+        record("standalone-xml-start", {"cellBindHost":args.cell_bind_host,"cellHost":args.cell_host,
+                                        "healthHost":"127.0.0.1"})
         check(http("/readyz")[0] == 503, "empty registry should not be ready")
         parse("capabilities-response",encode(http("/harness/v1/capabilities")[1]))
         parse("profiles-response",encode(http("/harness/v1/task-profiles")[1]))
@@ -175,13 +186,36 @@ def main():
         expect_error(bad.connect, "UNAUTHORIZED")
         bad.close()
         record("bad-credentials-rejected")
+        for worker, role in (("not-authorized", "model"), ("model-1", "runner")):
+            bad = client(worker, role)
+            expect_error(bad.connect, "FORBIDDEN")
+            bad.close()
+        record("unauthorized-worker-and-wrong-role-rejected")
         model, runner = client(), client("runner-1", "runner")
-        model.connect()
+        # This key exercises Java's negative-multiple-of-eight remainder;
+        # legacy Python Cell decrypted its handshake with the wrong mask.
+        with patch("harness.service.secrets.token_hex", return_value="0c000000"):
+            model.connect()
+        record("java-cell-negative-remainder-handshake")
         runner.connect()
         check(http("/readyz")[0] == 200, "two roles not ready")
         check(model.request("heartbeat")["registered"], "heartbeat")
         check(model.request("echo", {"text":"鍙屽悜 Cell echo"})["payload"]["text"] == "鍙屽悜 Cell echo", "echo corrupted")
         record("real-registration-heartbeat-and-bidirectional-cell")
+        second = client("model-2")
+        second.connect()
+        snapshot = http("/harness/v1/capabilities")[1]["registeredWorkers"]
+        check({w["workerId"] for w in snapshot} == {"model-1", "model-2", "runner-1"}, "missing independent node")
+        check(len({w["instanceId"] for w in snapshot}) == 3, "nodes share an instance")
+        check(len({c.session_id for c in (model, second, runner)}) == 3, "nodes share a lease nonce")
+        def second_expired():
+            model.request("heartbeat")
+            runner.request("heartbeat")
+            return {w["workerId"] for w in http("/harness/v1/capabilities")[1]["registeredWorkers"]} == {"model-1", "runner-1"}
+        wait(second_expired)
+        expect_error(lambda: second.request("heartbeat"), "STALE_SESSION")
+        second.close()
+        record("three-node-registration-and-independent-lease-expiry")
         expect_error(lambda: model.request("heartbeat", role="runner"), "FORBIDDEN")
         for raw, literal, expected in [(b'{"a":1,"a":2}', LiteralBase.STRING, "INVALID_JSON"),
                                        (b'{"a":"\xff"}', LiteralBase.STRING, "INVALID_JSON"),
@@ -212,7 +246,7 @@ def main():
 
         stage = launch(True)
         sentinel = Sentinel()
-        speaker = HarnessSpeaker("127.0.0.1", cell_port, sentinel)
+        speaker = HarnessSpeaker(args.cell_host, cell_port, sentinel)
         speaker.start()
         wait(lambda: sentinel.contact)
         def probes():
@@ -245,11 +279,27 @@ def main():
             configs=[]
             for role in ("model", "runner"):
                 config = runtime/(wrapper[0]+"-"+role+".local.json")
-                config.write_bytes(encode(dict(host="127.0.0.1", port=cell_port, workerId=role+"-1", role=role, workerCredential=token,
+                config.write_bytes(encode(dict(host=args.cell_host, port=cell_port, workerId=role+"-1", role=role, workerCredential=token,
                                               runtimeDir=str(runtime/(wrapper[0]+"-"+role)), startupTimeout=15, requestTimeout=2)))
                 configs.append(config)
                 check(command("start", config, wrapper)["registered"], "start did not wait for registration")
             check(command("status", configs[0], wrapper)["ready"], "status")
+            extra = runtime/(wrapper[0]+"-model-2.local.json")
+            value = json.loads(configs[0].read_text())
+            value.update(workerId="model-2", runtimeDir=str(runtime/(wrapper[0]+"-model-2")))
+            extra.write_bytes(encode(value))
+            configs.append(extra)
+            check(command("start", extra, wrapper)["registered"], "second model process did not register")
+            snapshot = http("/harness/v1/capabilities")[1]["registeredWorkers"]
+            check({w["workerId"] for w in snapshot} == {"model-1", "model-2", "runner-1"}, "missing worker process")
+            check(len({w["instanceId"] for w in snapshot}) == 3, "worker processes share identity")
+            states = [command("status", config, wrapper) for config in configs]
+            check(len({s["pid"] for s in states}) == 3, "workers share a process")
+            check(command("stop", extra, wrapper)["cleanUnregister"], "second model did not unregister")
+            configs.remove(extra)
+            check(all(command("status", config, wrapper)["ready"] for config in configs), "stop affected another worker")
+            check({w["workerId"] for w in http("/harness/v1/capabilities")[1]["registeredWorkers"]} == {"model-1", "runner-1"}, "stopped worker retained registration")
+            record(wrapper[0]+"-three-process-registration-and-stop-isolation")
             if wrapper[0] == "PowerShell" or os.name != "nt":
                 command("start",configs[0],wrapper,expected=1)
                 for case in ("wrong-credential", "duplicate-worker"):
@@ -284,7 +334,7 @@ def main():
                 # Original sentinel transport belongs to the interrupted host.
                 speaker.close_owned()
                 sentinel=Sentinel()
-                speaker=HarnessSpeaker("127.0.0.1",cell_port,sentinel)
+                speaker=HarnessSpeaker(args.cell_host,cell_port,sentinel)
                 speaker.start()
                 wait(lambda: sentinel.contact)
                 command("stop", configs[1], wrapper)

@@ -54,7 +54,7 @@ profile 使用 transport-bytes-v1 传输预算，不宣称知道远端 tokenizer
 
 ## HTTP 资源任务
 
-Dispatcher 启动时挂载 `cube.dispatcher.harness` handler，直接使用 `Performer.syncTransmit` 经 SHM 长连接调用 HarnessCellet，无需独立配置文件、启用开关或 client/backend credential。请求 Bearer 原样交给 service 认证。业务地址统一使用 dispatcher；service HTTP 只保留健康/运维，console 地址另配。连接、身份及文件流配置见 [TRANSPORT.md](TRANSPORT.md)。
+Dispatcher 启动时挂载 `cube.dispatcher.harness` handler，直接使用 `Performer.syncTransmit` 经 SHM 长连接调用 HarnessCellet，需在 dispatcher.properties 设置 harness.rest.enabled=true，无需独立配置文件或 client/backend credential。请求 Bearer 原样交给 service 认证。业务地址统一使用 dispatcher；service HTTP 只保留健康/运维，console 地址另配。连接、身份及文件流配置见 [TRANSPORT.md](TRANSPORT.md)。
 
 | 方法与路径 | 行为 |
 | --- | --- |

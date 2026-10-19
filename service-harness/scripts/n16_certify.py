@@ -204,7 +204,6 @@ class Drill:
         xml.find(".//cellet").set("port", str(self.cell_port))
         xml.write(self.stage / "cell.xml", encoding="utf-8", xml_declaration=True)
         self.config.write_text((self.root / "data/store.local.properties").read_text() + f"""
-mode=development
 http.host=127.0.0.1
 http.port={self.http_port}
 lease.millis=3000

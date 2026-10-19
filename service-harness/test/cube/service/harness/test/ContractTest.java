@@ -5,11 +5,28 @@ import cube.service.harness.*;
 import org.json.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Properties;
+import java.io.IOException;
 
 public final class ContractTest {
     static void check(boolean condition,String message){if(!condition)throw new AssertionError(message);}
     static String hex(byte[] bytes){StringBuilder b=new StringBuilder();for(byte v:bytes)b.append(String.format("%02x",v&255));return b.toString();}
     public static void main(String[] args) throws Exception {
+        Properties config=new Properties();
+        config.setProperty("worker.credential","private-worker-credential-for-test");
+        config.setProperty("api.credential","private-api-credential-for-test");
+        new HarnessConfig(config);
+        for(String legacyMode:new String[]{"development","production","unused"}){
+            config.setProperty("mode",legacyMode);
+            new HarnessConfig(config);
+        }
+        config.setProperty("http.host","192.168.1.35");
+        try{new HarnessConfig(config);throw new AssertionError("remote health HTTP accepted");}
+        catch(IOException expected){check(expected.getMessage().contains("loopback"),"health listener restriction lost");}
+        config.remove("http.host");
+        config.setProperty("api.credential",config.getProperty("worker.credential"));
+        try{new HarnessConfig(config);throw new AssertionError("shared API/worker credential accepted");}
+        catch(IOException expected){check(expected.getMessage().contains("must differ"),"credential separation lost");}
         JSONObject manifest=StrictJson.object(Contract.resource("manifest.json"));
         for(String name:manifest.keySet())check(hex(MessageDigest.getInstance("SHA-256").digest(Contract.resource(name))).equals(manifest.getString(name)),"digest: "+name);
         JSONArray fixtures=(JSONArray)StrictJson.parse(Contract.resource("fixtures.json"));
@@ -27,6 +44,6 @@ public final class ContractTest {
         check(!nonce.equals(next),"nonce was reused");
         try{registry.apply(request.put("action","heartbeat").put("sessionId",nonce),1);throw new AssertionError("stale accepted");}catch(IllegalArgumentException e){check(e.getMessage().equals("STALE_SESSION"),"stale code");}
         Thread.sleep(1050);check(registry.snapshot().length()==0,"lease not expired");
-        System.out.println("PASS: "+fixtures.length()+" fixtures, all digests, duplicate, stale session and lease expiry");
+        System.out.println("PASS: mode-independent config, credential/HTTP boundaries, "+fixtures.length()+" fixtures, all digests, duplicate, stale session and lease expiry");
     }
 }

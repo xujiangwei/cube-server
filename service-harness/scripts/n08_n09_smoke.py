@@ -70,7 +70,6 @@ def main_impl():
     xml=ET.parse(module/"config/standalone.xml");xml.find(".//server/port").text=str(cell_port);xml.find(".//cellet").set("port",str(cell_port));xml.write(stage/"cell.xml",encoding="utf-8",xml_declaration=True)
     config=stage/"harness.local.properties"
     config.write_text((root/"data/store.local.properties").read_text()+f"""
-mode=development
 http.host=127.0.0.1
 http.port={http_port}
 lease.millis=3000

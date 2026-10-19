@@ -8,8 +8,8 @@ Java `scripts/generate_contracts.py` 是契约源；使用 `--python-contracts <
 
 - 服务名与 Cellet 路由目标均为 `Harness`；Python `HarnessService.NAME` 相同。
 - 当前 `protocolVersion=1`；未知版本返回 `PROTOCOL_MISMATCH`。不作旧 Chat 协议协商。
-- G0 仅支持 loopback development 身份。API Bearer 和 worker credential 必须不同且至少 24 字符；worker 还须匹配 Java 配置中的 workerId/role 白名单。API 开发身份固定为 `development/local`，无管理权限；不能从载荷取得 tenant、subject、roles 或 grants。
-- 生产 issuer/audience、过期和撤权源尚未接入。`mode` 非 development 时拒绝启动 Harness，不寻找旧登录态或 Console Cookie。上线前必须补独立身份源及验证。
+- Python 节点可通过指定 IPv4 或主机名直接连接 Java Cell；健康/运维 HTTP 仍仅监听 loopback。API Bearer 和 worker credential 必须不同且至少 24 字符；worker 还须匹配 Java 配置中的 workerId/role 白名单。API 开发身份固定为 `development/local`，无管理权限；不能从载荷取得 tenant、subject、roles 或 grants。
+- 配置不区分 development/production，不要求 mode；旧 mode 值被忽略。API 主体和权限由服务端私有配置固定，worker 按凭据和 workerId/role 白名单授权，不从载荷取得身份，也不寻找旧登录态或 Console Cookie。
 - 正式的 model/tool 执行协议、授权分发和持久事件传输在 N06/N08/N09 完成；G0 只启用 scripted.echo，不宣称具备模型、Runner 执行或工具调度。
 
 ## 原始 JSON 边界

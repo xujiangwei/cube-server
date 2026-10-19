@@ -47,7 +47,6 @@ def main():
     xml.write(stage / "cell.xml", encoding="utf-8", xml_declaration=True)
     config = stage / "harness.local.properties"
     config.write_text((root / "data/store.local.properties").read_text() + f"""
-mode=development
 http.port={service_port}
 lease.millis=3000
 api.credential={api}

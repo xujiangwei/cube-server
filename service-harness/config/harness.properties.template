@@ -1,5 +1,4 @@
-# G0 only: private development configuration. Empty credentials refuse startup.
-mode=development
+# Private Harness configuration. Empty credentials refuse startup; no environment mode is required.
 # Health/admin HTTP only. Business REST is exposed by dispatcher and transported over SHM.
 http.host=127.0.0.1
 http.port=7088
@@ -8,6 +7,10 @@ worker.credential=
 api.credential=
 worker.model-1.role=model
 worker.runner-1.role=runner
+# More nodes may share the same Java Cell, including nodes on other machines:
+# worker.model-2.role=model
+# Configure each Python node's host/port to the Java Cell address (e.g. 192.168.1.35:6000).
+# Each node requires its own workerId, runtimeDir, instance identity and lease.
 # Optional N03 ledger. See STORE.md. No automatic migration or run API enablement.
 store.enabled=false
 # Deploy with accepting=false; enable each new JVM explicitly after verification.

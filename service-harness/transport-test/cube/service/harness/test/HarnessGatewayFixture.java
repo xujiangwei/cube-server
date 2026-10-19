@@ -23,9 +23,10 @@ public final class HarnessGatewayFixture {
         Nucleus nucleus = new Nucleus();
         Performer performer = new Performer(nucleus);
         nucleus.getTalkService().addListener(performer);
-        Director director = performer.addDirector("127.0.0.1", Integer.parseInt(p.getProperty("service.port")),
+        String serviceHost = p.getProperty("service.host", "127.0.0.1");
+        Director director = performer.addDirector(serviceHost, Integer.parseInt(p.getProperty("service.port")),
                 "127.0.0.1", 0, new HarnessScope());
-        director.speaker = nucleus.getTalkService().call("127.0.0.1", director.endpoint.getPort());
+        director.speaker = nucleus.getTalkService().call(serviceHost, director.endpoint.getPort());
         Server server = new Server();
         ServerConnector connector = new ServerConnector(server);
         connector.setHost("127.0.0.1"); connector.setPort(Integer.parseInt(p.getProperty("http.port")));

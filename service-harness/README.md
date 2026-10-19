@@ -51,7 +51,7 @@ Cell 这个版本的程序化入口固定读取工作目录的 `cell.xml`；`Cel
 
 ## Python 部署与停机
 
-配套工程 `apexnova-wisdom/harness` 提供 `python -m harness` 及 Linux/PowerShell 启停脚本。`init_dev.py` 为 model/runner 生成不同 workerId/角色配置和私有运行目录，两者都注册到 Java 的 Harness。worker credential 与 Java 配置相同；API credential 独立，不写入 worker 文件。G0 只允许 loopback development；生产身份源未接入时拒绝启用 production 模式。
+配套工程 `apexnova-wisdom/harness` 提供 `python -m harness` 及 Linux/PowerShell 启停脚本。`init_dev.py` 为 model/runner 生成不同 workerId/角色配置和私有运行目录，两者都注册到 Java 的 Harness。worker credential 与 Java 配置相同；API credential 独立，不写入 worker 文件。Python 可直接连接指定 IPv4 或主机名，不要求与 Java 同机。配置不再区分 development/production，无需设置 mode；旧配置中的该键被忽略。调用身份和权限仍来自服务端私有配置。远程多节点配置与验收见 [REMOTE-NODES.md](REMOTE-NODES.md)。
 
 部署支持一个 service-harness JVM 实例接入多个 Python Harness 单元，包括多个同角色单元。每个 Python 进程使用唯一 workerId、独立运行目录和实例身份，host/port 指向同一 Java Cell；Java 私有配置逐个授权，例如：
 
@@ -64,7 +64,7 @@ worker.runner-2.role=runner
 
 这些配置键已由现有 `HarnessConfig.authorizedWorker` 支持。当前注册表最多 64 个条目，已提供独立注册、租约、drain 和注销；注册数不代表执行并发容量。按能力/健康/可用容量分配任务的实际负载均衡在 N06/N07 实现，N16 进行多单元负载验收；共享物理后端不得重复计算容量，未决 attempt 必须先对账。
 
-dispatcher 的 Harness 接入代码位于 `dispatcher/src/cube/dispatcher/harness/`（包 `cube.dispatcher.harness`），随 dispatcher 启动挂载，无需独立配置文件或启用开关。沿用 `dispatcher.properties` 的 Cellet/Director 配置连接 Harness。业务客户端使用 dispatcher 地址，Bearer 原样交给 service 认证；dispatcher 无需配置 client/backend credential。service HTTP 运维地址及 Console 地址分别配置，详见 [TRANSPORT.md](TRANSPORT.md)。
+dispatcher 的 Harness 接入代码位于 `dispatcher/src/cube/dispatcher/harness/`（包 `cube.dispatcher.harness`），在 dispatcher.properties 配置 harness.rest.enabled=true 后随 dispatcher 启动挂载，无需独立配置文件。沿用 `dispatcher.properties` 的 Cellet/Director 配置连接 Harness。业务客户端使用 dispatcher 地址，Bearer 原样交给 service 认证；dispatcher 无需配置 client/backend credential。service HTTP 运维地址及 Console 地址分别配置，详见 [TRANSPORT.md](TRANSPORT.md)。
 
 开发配置目录应由运行账户独占；Linux 生成权限为 0700/0600，Windows 使用账户私有目录与其 ACL。不要提交本地配置、PID、日志或停止文件。启动脚本等到注册确认才成功；停止按停止接单、drain、注销、断开连接、退出执行。不使用按进程名 kill 的旧脚本。
 
