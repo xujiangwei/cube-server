@@ -4,6 +4,8 @@
 
 正式服务是 `cube.service.harness.HarnessCellet` + `HarnessService`，NAME=`Harness`。产物 `cube-service-harness-3.0.jar` 只放在 `cellets/`，按标准 Cell XML 安装并交给 Kernel 启停；不注册到 AIGC 插件表。默认配置只启用 CPU scripted 通信；存储、独立模型单元与资源循环需显式启用并发布 profile，见 [EXECUTION.md](EXECUTION.md)。协议见 [CONTRACT.md](CONTRACT.md)，整体导航见工作区 [Harness 入口](../../harness/README.md)。
 
+Harness 默认读取服务进程工作目录下的 `config/harness.properties`，与其他 service 配置的目录约定一致，无需修改 JVM 启动脚本。将唯一的 `config/harness.properties.template` 复制为该文件，在同一文件中配置基础服务、任务执行、worker/backend、文件、审批与诊断。配置缺失或凭据无效时 Harness 启动失败。原 `-Dharness.config=<私有文件路径>` 保留为显式覆盖方式，设置后只读取指定文件。
+
 可选的独立 JDBC RunStore 支持 SQLite/MySQL，服务启动只校验，不自动迁移，默认关闭存储，详见 [STORE.md](STORE.md)。
 
 资源包、固定 profile、工作区、上下文预算及可恢复快照由 [RUNTIME.md](RUNTIME.md) 说明。固定 schema 随正式 jar 分发；当前独立库为 schema7，旧库需显式 upgrade。Baize/Baize2 adapter、模型 journal、共享物理后端计容、多单元调度和资源循环见 [EXECUTION.md](EXECUTION.md)。离线与本机跨进程测试不能替代真实模型在线认证。
@@ -20,7 +22,7 @@ ant "-Dcommon.jar=C:/isolated/build/cube-common-3.0.jar" test-transport
 ant "-Dcommon.jar=C:/isolated/build/cube-common-3.0.jar" "-Dstage.dir=C:/isolated/harness-stage" stage
 ```
 
-stage 按明确清单生成 cellets、四份配置/XML、五个脚本及默认 cell.xml：脚本仅含 run.sh、run.ps1、init_dev.py、evaluate_traces.py、replay_trace.py。测试、SLO fixtures、契约生成器和 CI 工具留在源码工程。补入同版本 `bin/cell.jar`、`libs/cube-common-3.0.jar` 及其经验证的依赖后即可启动。可用根目录的显式联合发布目标一次准备 staging；不要把独立 stage 指向正在运行的目录。`stage` 只是复制目标，不停止任何服务。
+stage 按明确清单生成 cellets、一份统一配置模板、两份 XML、五个脚本及默认 cell.xml：脚本仅含 run.sh、run.ps1、init_dev.py、evaluate_traces.py、replay_trace.py。测试、SLO fixtures、契约生成器和 CI 工具留在源码工程。补入同版本 `bin/cell.jar`、`libs/cube-common-3.0.jar` 及其经验证的依赖后即可启动。可用根目录的显式联合发布目标一次准备 staging；不要把独立 stage 指向正在运行的目录。`stage` 只是复制目标，不停止任何服务。
 
 从 cube-server 根目录显式选择：
 
@@ -39,15 +41,16 @@ ant "-Dharness.stage.dir=C:/isolated/release-with-harness" deploy-with-harness
 
 ```powershell
 python scripts/init_dev.py --output C:/private/harness-dev
+Copy-Item -LiteralPath C:/private/harness-dev/harness.local.properties -Destination C:/isolated/release-with-harness/config/harness.properties
 # 把 staging 的 cell.xml 中 Cell 端口与私有配置保持一致。
-./scripts/run.ps1 -Stage C:/isolated/release-with-harness -Config C:/private/harness-dev/harness.local.properties -StopFile C:/private/harness-dev/cell.stop -Java C:/jdk8/bin/java.exe
+./scripts/run.ps1 -Stage C:/isolated/release-with-harness -StopFile C:/private/harness-dev/cell.stop -Java C:/jdk8/bin/java.exe
 ```
 
-Linux 对应 `sh scripts/run.sh /absolute/stage /absolute/private/harness.local.properties /absolute/private/cell.stop`，可设置 `HARNESS_JAVA`。入口在前台运行，交给专用 supervisor/systemd 管理。创建此实例独有的停止文件或发送服务管理器的 SIGTERM 会停止此 Cell。再次启动前移除已消费的本实例停止文件。
+Linux 将配置放入 `/absolute/stage/config/harness.properties` 后，执行 `sh scripts/run.sh /absolute/stage /absolute/private/cell.stop`，可设置 `HARNESS_JAVA`。需覆盖默认路径时，PowerShell 仍支持可选 `-Config` 参数，Linux 仍支持原来的三个路径参数 `sh scripts/run.sh /absolute/stage /absolute/private/harness.local.properties /absolute/private/cell.stop`。入口在前台运行，交给专用 supervisor/systemd 管理。创建此实例独有的停止文件或发送服务管理器的 SIGTERM 会停止此 Cell。再次启动前移除已消费的本实例停止文件。
 
 Cell 这个版本的程序化入口固定读取工作目录的 `cell.xml`；`Cell.start(boolean,String)` 的第二参数是日志名。`HarnessCell` 校验配置选择，避免误加载默认业务配置。Cell 启动时自身存在约 3 秒 TCP safe-lock；HTTP health 不代表 worker 已注册。
 
-**合部署**：同一个 jar 与其他服务放在同一 `cellets/`。将 `config/cohost-cellet.xml` 的元素合入经审阅的服务 XML；联合 staging 已生成 `config/service-with-harness.xml`，保留原 `ServiceCarpet`。通过宿主原有 Cell 启动命令显式选择此 XML，并加 `-Dharness.config=<私有配置>`。不要更换宿主监听器或跳过宿主许可证检查。Harness 启动配置/端口失败只影响自身 readiness，不关闭旧 Kernel。共享 JVM 的 CPU/堆/GC、许可证、数据库和全业务性能须在目标环境认证；共享 JVM 不提供进程级故障隔离或无重启升级。
+**合部署**：同一个 jar 与其他服务放在同一 `cellets/`。将 `config/cohost-cellet.xml` 的元素合入经审阅的服务 XML；联合 staging 已生成 `config/service-with-harness.xml`，保留原 `ServiceCarpet`。通过宿主原有 Cell 启动命令显式选择此 XML，并将主配置放入宿主工作目录的 `config/harness.properties`，无需增加 JVM 参数。`HarnessCellet` 与其他 Cellet 一同加载到同一 JVM，安装时向现有 Kernel 注册 `HarnessService`，由 Kernel 管理模块启停。不要更换宿主监听器或跳过宿主许可证检查。Harness 启动配置/端口失败只影响自身 readiness，不关闭旧 Kernel。共享 JVM 的 CPU/堆/GC、许可证、数据库和全业务性能须在目标环境认证；共享 JVM 不提供进程级故障隔离或无重启升级。
 
 ## Python 部署与停机
 

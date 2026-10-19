@@ -64,10 +64,12 @@ public final class HarnessConfig {
             throw new IOException("Independent approver required");
     }
 
+    /**
+     * 默认读取服务工作目录的 config/harness.properties；系统属性仅用于显式覆盖路径。
+     * 基础服务、任务执行及模型后端配置均从同一文件加载。
+     */
     public static HarnessConfig load() throws IOException {
-        String path = System.getProperty("harness.config");
-        if (path == null)
-            throw new IOException("Set -Dharness.config to a private properties file");
+        String path = System.getProperty("harness.config", "config/harness.properties");
         Properties p = new Properties();
         try (InputStream in = Files.newInputStream(Paths.get(path))) {
             p.load(in);

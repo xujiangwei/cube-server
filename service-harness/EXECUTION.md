@@ -40,7 +40,7 @@ Python 重启可以回放同一原 attempt 读取 Java 证据；没有既存推�
 ## 部署和迁移
 
 1. 按 [STORE.md](STORE.md) 显式执行 `StoreMigrations upgrade` 到 schema7。004 迁移引入推理/事件表与 job.execution_protocol，后续迁移随包分发并保留旧行；MySQL 迁移账户另需专用库 ALTER 权限，运行账户仍只需 DML。
-2. Java 使用 `config/execution.properties.template`，Python 使用 `harness/config/model-baize*.template.json`。workerCredential、Harness API credential 与 Java 后端模型 token 分别配置。
+2. 将唯一的 `config/harness.properties.template` 复制为工作目录下的 `config/harness.properties`，在其中统一填写基础、执行与模型后端配置；Java 默认加载该文件，启动无需 `-Dharness.config`。Python 使用 `harness/config/model-baize*.template.json`。workerCredential、Harness API credential 与 Java 后端模型 token 分别配置。
 3. 默认 Unit 后端要求 Harness 和 AIGCService 位于同一 Kernel/JVM。沿用宿主 ServiceCarpet 和 `config/cohost-cellet.xml`；独立 standalone.xml 只有 Harness，没有 AIGCService，默认推理保持未就绪。外部模型必须显式 type=openai，并设置 baseUrl、model、token、capacity、timeoutSeconds。
 4. `ExecutionAdmin <new-directory>` 导出 ModelProfile schemaVersion=3/version=2 与 TaskProfile version=2。填写已 ready 的资源 release、权限与限额，显式 publish 后再切 active 绑定。旧直连 schemaVersion=2 model 禁止新建 run（LEGACY_DIRECT_MODEL_DISABLED），旧契约、profile、pin 和在途证据保留供对账。
 

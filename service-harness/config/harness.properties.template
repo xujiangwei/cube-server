@@ -1,70 +1,191 @@
-# Private Harness configuration. Empty credentials refuse startup; no environment mode is required.
-# Health/admin HTTP only. Business REST is exposed by dispatcher and transported over SHM.
+# Harness 统一私有配置模板；复制为服务工作目录下的 config/harness.properties 后自动加载。
+# 基础服务、任务执行、模型后端、文件、审批与诊断均在此文件配置，按需启用。
+# 默认启动无需 JVM 参数；仅在需覆盖默认路径时使用可选的 -Dharness.config=<私有文件路径>。
+# 不需要配置开发/生产模式；旧 mode 配置会被忽略，身份与权限由服务端私有配置确定。
+
+# 此 HTTP 监听仅用于健康检查和运维，host 必须为回环地址。
+# 业务 REST 使用 dispatcher 地址，经 SHM 访问 Harness；Console 地址另行配置。
 http.host=127.0.0.1
 http.port=7088
+# Python worker 会话租约，单位为毫秒，范围 1000～60000；worker 通过心跳续约。
 lease.millis=6000
+# Python worker 接入凭据，对应 Python 配置的 workerCredential。
+# worker.credential 与 api.credential 均至少 24 字符、必须不同；留空会拒绝启动。
 worker.credential=
+# 业务 REST 调用方使用的 Bearer 凭据，由 dispatcher 原样传给 Harness 验证。
 api.credential=
+
+# 节点角色白名单：worker.<workerId>.role；workerId 必须与对应 Python 配置一致。
+# model 负责模型编排，runner 负责工具任务执行；真实模型的 model/backend 配置见下方。
 worker.model-1.role=model
 worker.runner-1.role=runner
-# More nodes may share the same Java Cell, including nodes on other machines:
+# 可继续授权其他节点；一个 Java Cell 可接多个同角色实例，也支持跨机器连接。
 # worker.model-2.role=model
-# Configure each Python node's host/port to the Java Cell address (e.g. 192.168.1.35:6000).
-# Each node requires its own workerId, runtimeDir, instance identity and lease.
-# Optional N03 ledger. See STORE.md. No automatic migration or run API enablement.
+# 每个 Python 节点的 host/port 指向 Java Cell 地址，例如 192.168.1.35:6000；
+# 此处的 http.port 是健康/运维 HTTP 端口，Cell 监听地址和端口在 XML 中配置。
+# 每个节点使用独立 workerId、runtimeDir、实例身份和租约，运行目录不可作为新节点直接复用。
+
+# 是否启用独立 JDBC 持久化账本；启用后需按 STORE.md 补齐 store.* 数据库配置。
+# 数据库需显式初始化或迁移至当前 schema7；启动不会自动迁移。
+# 任务执行还需在同一私有文件中显式配置 execution.enabled=true。
 store.enabled=false
-# Deploy with accepting=false; enable each new JVM explicitly after verification.
-# Admin changes are node-local and reset to this startup value on restart.
+# 是否接收新任务；部署新 JVM 时先设为 false，验证通过后再显式开启。
+# 管理接口修改只作用于当前 JVM，重启后恢复此配置值；关闭接单后已有任务继续处理。
 execution.accepting=true
-# Optional independent credential, >=24 characters; API/worker credentials are refused.
+# 可选接单管理凭据，至少 24 字符，且必须与 API、worker、诊断读取和审批凭据不同。
+# 此凭据用于切换当前 JVM 的接单状态，普通业务 API/worker 凭据无此权限。
 # admission.admin.credential=<private-independent-administrator-credential>
 
-# Optional N11/N12. Requires execution.enabled and explicit current-schema migration.
-# See CONTROL-FILES.md. Create an independent empty root before enabling files.
+# 任务执行与模型推理。
+# 启用前需设置 store.enabled=true、补齐数据库配置，并显式升级专用库至 schema7。
+# 服务启动只校验数据库，不自动迁移；详见 STORE.md、EXECUTION.md。
+
+# 是否启用任务执行、资源循环与 Java 推理网关；默认关闭。
+execution.enabled=false
+# 服务端固定的执行租户与主体；当前为开发身份适配，调用方不能通过请求覆盖。
+execution.tenant=development
+execution.subject=developer
+# 执行主体的权限列表，使用英文逗号分隔；实际工具调用还受资源发布和 profile 权限约束。
+execution.permissions=skill.list,skill.activate,resource.list,resource.read,resource.search
+# 同一租户的活跃任务接单上限，范围 1～256；达到上限后拒绝新任务。
+execution.max.active=128
+# 资源包私有仓库目录及归属命名空间；首次初始化要求独立空目录，之后保持归属一致。
+execution.repository=C:/private/harness/resources
+execution.repository.namespace=harness-resources
+# 资源仓库总容量上限，单位为字节；67108864 = 64 MiB。
+execution.repository.max.bytes=67108864
+# JVM 推理节点的稳定唯一标识；不同部署实例分别配置，重启后保持不变，
+# 用于对账尚未确认物理执行结果的推理记录。
+inference.node.id=harness-development-1
+
+# Python Harness 节点授权：worker.<workerId>.<配置项>。
+# workerId 必须与 Python 配置一致；每个实例使用独立 workerId、运行目录、实例身份和租约。
+# 一个 Java JVM 可以接入多个同角色 worker，调度会检查模型、能力、健康与空闲处理槽。
+# 配置仅用于授权和调度；对应 Python 进程需单独启动并注册。
+# role=model 表示模型编排节点；model 是获准使用的逻辑模型名，必须匹配 Python 上报值；
+# backend 是关联的 Java 推理后端标识，对应下方 backend.<后端标识> 配置。
+# 当前每个模型 worker 进程有一个任务处理槽，实际模型推理由 Java 网关转交后端。
+
+# Baize 模型编排节点，使用 baize-dedicated 后端。
+worker.baize-1.role=model
+worker.baize-1.model=Baize
+worker.baize-1.backend=baize-dedicated
+# 两个独立的 Baize2 编排节点，共享 baize2-dedicated 后端及其推理容量。
+worker.baize2-1.role=model
+worker.baize2-1.model=Baize2
+worker.baize2-1.backend=baize2-dedicated
+worker.baize2-2.role=model
+worker.baize2-2.model=Baize2
+worker.baize2-2.backend=baize2-dedicated
+
+# Java 推理后端：backend.<后端标识>.<配置项>；后端标识由部署方命名。
+# 同一物理推理引擎对应同一个后端标识，关联的所有 worker 共用其容量额度。
+# type=unit 为默认类型，通过同一 Kernel/JVM 内的 AIGCService 调用已注册模型 Unit；
+# 需使用合部署配置并确保对应模型 Unit 就绪，详见 EXECUTION.md。
+backend.baize-dedicated.type=unit
+# 该后端的共享推理并发上限，范围 1～32；实际可派发量还受 Unit 健康和空闲容量限制。
+backend.baize-dedicated.capacity=1
+# 填写获准访问 Cube 模型的有效令牌；与 worker.credential、api.credential 分别配置。
+backend.baize-dedicated.token=
+# 单次推理调用超时，单位为秒，范围 1～600；超时后仍需对账确认物理执行是否结束。
+backend.baize-dedicated.timeoutSeconds=180
+
+# Baize2 后端：字段含义同上。两个 Baize2 worker 合计共享一个推理名额。
+backend.baize2-dedicated.type=unit
+backend.baize2-dedicated.capacity=1
+backend.baize2-dedicated.token=
+backend.baize2-dedicated.timeoutSeconds=180
+# 如果 Baize 和 Baize2 共用同一个物理引擎，应将所有相关 worker 的 backend
+# 配为同一个后端标识，并统一设置 capacity，避免按多个后端重复计算物理容量。
+
+# 可选外部后端：取消下方配置的注释，并将目标 worker 的 backend 改为 external-example。
+# type=openai 表示由 Java 调用外部 OpenAI 兼容服务，Python worker 仍通过 Java 推理网关请求。
+# baseUrl 是上游 API 基址，网关会追加 /chat/completions；请填写实际模型服务地址。
+# model 是上游实际模型标识；worker 的 model 仍表示获准使用的逻辑模型。
+# token 是上游模型服务的 API 密钥；capacity、timeoutSeconds 的含义和范围同上。
+# backend.external-example.type=openai
+# backend.external-example.baseUrl=http://127.0.0.1:7010/v1
+# backend.external-example.model=provider-model-id
+# backend.external-example.token=private-model-api-key
+# backend.external-example.capacity=1
+# backend.external-example.timeoutSeconds=180
+
+# 可选文件与控制能力，依赖 execution.enabled=true 及已迁移至当前版本的账本。
+# 详见 CONTROL-FILES.md；启用文件能力前创建由服务账户独占的独立空目录。
 files.enabled=false
+# 文件存储根目录，需与资源包仓库及其他存储目录分开；首次初始化后保持其归属一致。
 # files.root=C:/private/harness-files
+# 文件根的稳定身份标识；同机多个 JVM 共享此标识时，必须指向同一真实目录并使用相同策略。
 # files.root.id=harness-files-1
+# 下载句柄签名密钥，至少 32 个私有字符，仅保存在服务端私有配置中。
 # files.download.key=REPLACE_WITH_AT_LEAST_32_PRIVATE_CHARACTERS
+# 单文件大小上限，单位为字节；10485760 = 10 MiB。
 # files.max.file.bytes=10485760
+# 文件根总配额，单位为字节；1073741824 = 1 GiB。
 # files.max.bytes=1073741824
+
+# 可选审批身份：凭据至少 24 字符，且须与 API/worker 凭据不同；
+# 若配置诊断读取或接单管理凭据，也必须与审批凭据不同。
 # control.approver.credential=REPLACE_WITH_DISTINCT_PRIVATE_CREDENTIAL
+# 审批主体，必须与 execution.subject 不同。
 # control.approver.subject=independent-reviewer
+# 需要审批的工具名列表，使用英文逗号分隔；示例为文本产物写入工具。
 # control.approval.tools=artifact.write_text
+# 等待用户输入、审批等交互的超时时间，单位为毫秒；300000 = 5 分钟。
 # control.wait.millis=300000
+# 取消任务后等待在途执行的宽限期，单位为毫秒；10000 = 10 秒。
+# 宽限结束不代表物理执行已结束，未知执行的容量仍需等待证据确认后释放。
 # control.cancel.grace.millis=10000
-# Optional trusted SKILL query providers, installed separately from Harness.
-# Provider-specific URLs, credentials and policy live in each private provider config.
+
+# 可选可信 SKILL 查询提供方，需要独立安装，并按 TOOLS.md 启用工具链路。
+# 提供方的服务地址、凭据和策略放入各自的私有配置文件。
+# providers 为提供方标识列表；class 为 Java 实现类，config 为该实现读取的私有配置路径。
 # broker.providers=my-skill
 # broker.provider.my-skill.class=your.skills.ReadOnlyProvider
 # broker.provider.my-skill.config=C:/private/my-skill.properties
-# TTL and cleanup defaults:
-# Add to the SAME private file selected by -Dharness.config (harness.properties).
-# cleanup.enabled controls physical deletion; logical expiry is always enforced by N12.
+
+# 文件有效期与清理默认值，按需取消注释，仍写入同一个 config/harness.properties 私有文件。
+# 以下 .seconds 配置均以秒为单位；batch.size 表示每批处理的记录数。
+# cleanup.enabled 只控制物理删除；即使关闭清理，到期文件仍禁止新绑定、消费和下载。
 # cleanup.enabled=true
+# 清理扫描间隔；默认每 60 秒扫描一次，每批最多 100 条记录。
 # cleanup.scan.interval.seconds=60
 # cleanup.scan.batch.size=100
+# 临时文件或运行目录满足可清理条件后的宽限期，默认 60 秒。
 # cleanup.temp.grace.seconds=60
+# 未完成上传的有效期，默认 86400 秒，即 24 小时。
 # cleanup.upload.ttl.seconds=86400
+# 已就绪输入文件的保留期，默认 604800 秒，即 7 天。
 # retention.input.ttl.seconds=604800
+# 已就绪产物文件的保留期，默认 2592000 秒，即 30 天。
 # retention.artifact.ttl.seconds=2592000
+# 单次文件下载的最长租约，默认 300 秒；在途下载通过租约保护文件。
 # file.download.lease.seconds=300
+# 清理任务认领租约，默认 120 秒，用于协调多个 JVM 的清理工作。
 # cleanup.claim.lease.seconds=120
+# 清理失败的重试退避时间：初始 30 秒，上限 3600 秒。
 # cleanup.retry.initial.seconds=30
 # cleanup.retry.max.seconds=3600
-# Restart required. TTL changes apply to NEW ready files, not existing expiresAt.
+# 修改后重启生效；文件保留期变更仅作用于新就绪文件，已有 expiresAt 保持原值。
 
-# N13 independent diagnostics; no external trace sink participates in recovery.
+# 可选诊断轨迹导出，默认关闭；任务恢复使用权威账本，不依赖诊断导出或外部追踪服务。
 trace.enabled=false
+# 独立诊断读取凭据；启用诊断或填写本项时须至少 24 字符，且不同于 API、worker、审批凭据。
 trace.reader.credential=
+# 从任务最后权威更新时间起计算的可导出期限，单位为秒；604800 = 7 天。
 trace.retention.seconds=604800
+# 单次诊断导出大小上限，单位为字节；262144 = 256 KiB。
 trace.export.max.bytes=262144
+# 是否允许业务 API 追加任务反馈，默认关闭；此开关独立于 trace.enabled。
 feedback.enabled=false
-# N14/N15 external providers are NOT registered by default. See TRACE.md and
-# workspace skill/harness-extensions/README.md; default Runner protocol is v4,
-# opt-in runner JSON protocolVersion=5 supports reviewed generic IPC entrypoints.
+# 外部扩展提供方默认不注册，详见 TRACE.md 和工作区 skill/harness-extensions/README.md。
+# 普通 Runner 默认使用 v4 协议；在 Python 配置的 runner 对象中设置 protocolVersion=5，
+# 可启用经过审核的通用 IPC 入口，需按扩展文档配套发布。
 
-# Optional certified Python sandbox Runner (Cell v6); no local controller/KVM paths in Java.
+# 可选已认证 Python 沙箱 Runner，使用 Cell v6 协议；控制器与 KVM 路径配置在 Python 端。
+# Java 逐节点授权 runner 角色、容量及认证摘要；摘要须与实际发布的执行配置和证书匹配。
 # worker.sandbox-a.role=runner
+# 当前沙箱节点容量固定为 1，需与 Python 上报值一致。
 # worker.sandbox-a.capacity=1
 # worker.sandbox-a.sandbox.profile.sha256=REPLACE_WITH_PROFILE_DIGEST
 # worker.sandbox-a.sandbox.certificate.sha256=REPLACE_WITH_CERTIFICATE_SHA256

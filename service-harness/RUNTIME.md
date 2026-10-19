@@ -15,7 +15,7 @@ java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrat
 
 资源仓库和工作区使用两个事先建立的绝对目录，每个目录有独立 identity/总字节配额。拒绝无标记的非空目录、符号链接和越界真实路径。每个根采用 JVM 锁及 OS 文件锁；写入采用临时文件、force 和原子移动。失败遗留的 blob/临时文件仍计入配额；目前保守保留引用和内容，不提供自动 GC。目录必须由可信服务账户独占，不能与客户可直接写入的 OS 目录共享。
 
-[文件生命周期与自动清理设计](../../harness/FILE-LIFECYCLE-DESIGN.md) 规定安全收尾后删除过程文件，用户输入与产物分别按 ready 起算 TTL，逻辑到期禁止新访问、物理回收尊重在途/恢复引用。TTL、扫描和重试等参数统一置于 `-Dharness.config` 指定的私有 `harness.properties`；[模板](config/harness.properties.template) 列出可选参数，默认 files.enabled=false；实现、部署边界与回归入口见 [CONTROL-FILES.md](CONTROL-FILES.md)，unknown 工作区或 journal 不得手工清空。
+[文件生命周期与自动清理设计](../../harness/FILE-LIFECYCLE-DESIGN.md) 规定安全收尾后删除过程文件，用户输入与产物分别按 ready 起算 TTL，逻辑到期禁止新访问、物理回收尊重在途/恢复引用。TTL、扫描和重试等参数统一置于服务工作目录下的私有 `config/harness.properties`，需要时可通过 `-Dharness.config` 显式覆盖主配置路径；[模板](config/harness.properties.template) 列出可选参数，默认 files.enabled=false；实现、部署边界与回归入口见 [CONTROL-FILES.md](CONTROL-FILES.md)，unknown 工作区或 journal 不得手工清空。
 
 ## 包与管理 CLI
 

@@ -8,11 +8,11 @@ Python Harness 是注册到 Java Harness 的独立服务节点。一个 Java JVM
 | --- | --- | --- |
 | Python → Java Cell | service 实际加载的 Cell XML、Python host/port | `192.168.1.35:6000` |
 | 客户端 → Harness REST | dispatcher.properties | `http://192.168.1.35:7010/harness/v1` |
-| 健康/运维 HTTP | 私有 harness.properties | `http://127.0.0.1:7088`，仅在 Linux 本机访问 |
+| 健康/运维 HTTP | service 工作目录下的 config/harness.properties | `http://127.0.0.1:7088`，仅在 Linux 本机访问 |
 
 ## Java 服务器
 
-使用 JDK 8。假设发布目录 `/opt/cube`，私有配置 `/opt/cube-private/harness.properties`。在 service 实际加载的 `config/service.xml` 中保留原 ServiceCarpet，确认 Talk server 的 host 为 `0.0.0.0` 或服务器可访问网卡 IP，port 为 `6000`，并在 cellets 中装载一次：
+使用 JDK 8。假设发布目录及 service 工作目录为 `/opt/cube`，以统一配置模板创建 `/opt/cube/config/harness.properties`，在其中填写基础、执行与模型后端配置。在 service 实际加载的 `config/service.xml` 中保留原 ServiceCarpet，确认 Talk server 的 host 为 `0.0.0.0` 或服务器可访问网卡 IP，port 为 `6000`，并在 cellets 中装载一次：
 
 ```xml
 <cellet port="6000" jar="cellets/cube-service-harness-3.0.jar">
@@ -20,7 +20,7 @@ Python Harness 是注册到 Java Harness 的独立服务节点。一个 Java JVM
 </cellet>
 ```
 
-service JVM 增加 `-Dharness.config=/opt/cube-private/harness.properties`，部署配套 common/dispatcher/Harness JAR。独立 Cell 则修改其实际 `cell.xml` 的监听地址和端口；模板默认 `127.0.0.1:7600`，不是强制监听地址。确保 Windows 到所选 Cell 端口可达。
+部署配套 common/dispatcher/Harness JAR，沿用 service 的启动脚本即可，Harness 默认读取 `config/harness.properties`。独立 Cell 同样从其工作目录的 `config/harness.properties` 读取主配置，并修改其实际 `cell.xml` 的监听地址和端口；模板默认 `127.0.0.1:7600`，不是强制监听地址。确保 Windows 到所选 Cell 端口可达。
 
 在现有 dispatcher.properties 中设置 `harness.rest.enabled=true`，并在 `cellets`、`director.1.cellets` 的原列表末尾追加 `Harness`。Java Cell 绑定 `0.0.0.0` 时，同机 dispatcher 可指向 `director.1.address=127.0.0.1`、`director.1.port=6000`；若 Cell 仅绑定 `192.168.1.35`，Director 地址也使用该 IP。REST 监听 `http.host=0.0.0.0`、`http.port=7010`；外部地址使用 `external.http.host=192.168.1.35`。dispatcher 不配置 worker/API credential。
 

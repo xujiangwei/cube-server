@@ -65,6 +65,7 @@
     <mkdir dir="${build.dir}/test-classes"/>
     <javac srcdir="test" destdir="${build.dir}/test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
     <java classname="cube.service.harness.test.ContractTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
+    <java classname="cube.service.harness.test.HarnessConfigTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
   </target>
   <target name="test-transport" depends="test">
     <available file="../build/cube-dispatcher-3.0.jar" property="dispatcher.present"/>
@@ -79,7 +80,7 @@
     <mkdir dir="${stage.dir}/cellets"/>
     <copy file="${build.dir}/cube-service-harness-3.0.jar" todir="${stage.dir}/cellets"/>
     <copy todir="${stage.dir}/config">
-      <fileset dir="config" includes="harness.properties.template,execution.properties.template,standalone.xml,cohost-cellet.xml"/>
+      <fileset dir="config" includes="harness.properties.template,standalone.xml,cohost-cellet.xml"/>
     </copy>
     <copy file="config/standalone.xml" tofile="${stage.dir}/cell.xml"/>
     <copy todir="${stage.dir}/scripts">

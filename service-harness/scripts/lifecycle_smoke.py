@@ -118,14 +118,15 @@ def main():
             cellet = ET.SubElement(xml.find("cellets"), "cellet", {"port": str(cell_port)})
             ET.SubElement(cellet, "class").text = "cube.service.harness.test.SentinelCellet"
         xml.write(stage/"cell.xml", encoding="utf-8", xml_declaration=True)
-        config = stage/"harness.local.properties"
+        (stage/"config").mkdir(exist_ok=True)
+        config = stage/"config/harness.properties"
         config.write_text("\n".join(["http.host=127.0.0.1", "http.port="+str(http_port), "lease.millis=3000", "worker.credential="+token, "api.credential="+api_token, "worker.model-1.role=model", "worker.model-2.role=model", "worker.runner-1.role=runner"]), encoding="utf-8")
         stop = stage/"stop"
         stop.unlink(missing_ok=True)
         cp = os.pathsep.join([str(Path(args.cell_jar).resolve()), str(Path(args.common_jar).resolve()), str(Path(args.libs).resolve()/"*"),
                               str(stage/"cellets/cube-service-harness-3.0.jar"), str(module/"build/test-classes")])
         host_log = (evidence/("cohost.log" if cohost else "standalone.log")).open("w", encoding="utf-8")
-        host = subprocess.Popen([args.java, "-Dharness.config="+str(config), "-cp", cp,
+        host = subprocess.Popen([args.java, "-cp", cp,
                                  "cube.service.harness.HarnessCell", str(stage/"cell.xml"), str(stop)],
                                 cwd=stage, stdout=host_log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                 **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name=="nt" else {}))
