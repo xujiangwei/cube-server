@@ -120,8 +120,8 @@ cube-server/
 │       ├── config/               # 服务配置、存储配置、模块声明
 │       └── lib/                  # 本地动态库
 │
-├── service-harness/              # 资源执行单元（可选，N00–N07）
-│   ├── src/cube/service/harness/ # protocol / store / execution / runtime 等 34 个源文件
+├── service-harness/              # 资源执行单元（可选 Cellet）
+│   ├── src/cube/service/harness/ # protocol / store / execution / runtime 等运行源码
 │   ├── test/                     # 7 个测试（不进入正式 jar）
 │   ├── contracts/                # 跨语言契约（Java/Python 逐字节镜像）
 │   ├── config/ scripts/ resources/
@@ -542,7 +542,7 @@ Harness 的核心思想：**把提示词模板能力嵌入任意环节**，在�
 
 `service-harness` 是一个**可选**的独立 Cellet（`cube.service.harness.HarnessCellet` + `HarnessService`，NAME=`Harness`），面向「资源包 + 模型推理 + 可审计账本」的资源执行场景：Java 侧负责受理、容量、账本与权威用量，Python 侧（配套工程 `apexnova-wisdom/harness`）负责消息与编排，模型推理始终由 Java 网关代理到已注册的模型单元或显式配置的外部服务。
 
-它**不注册到 AIGC 插件表**，也不复用 Completion/Chat/旧 token 池——默认 G0 入口只启用 CPU scripted 通信，业务任务返回 `HARNESS_NOT_READY`；资源循环需显式启用（`store.enabled` / `execution.enabled`）。当前进度 N00–N07。
+它**不注册到 AIGC 插件表**，使用独立 API、凭据、任务和账本。默认只启用 CPU scripted 通信，业务任务返回 `HARNESS_NOT_READY`；资源循环需显式启用（`store.enabled` / `execution.enabled`）并发布 profile。推理通过内部 CompletionProvider 复用既有 Unit 能力。
 
 ### 8.1 推理链
 
@@ -551,16 +551,16 @@ Harness 的核心思想：**把提示词模板能力嵌入任意环节**，在�
 - **协议**：Cell v3 增加 `inference_submit` / `inference_poll` / `inference_cancel`，job、worker 实例、wireAttempt、请求摘要绑定唯一执行；HTTP 侧开放 `/harness/v1/capabilities`、`/harness/v1/task-profiles`、`/harness/v1/runs`、`/harness/v1/runs/{id}`、`/harness/v1/runs/{id}/events`，`POST /harness/v1/runs` 带 Bearer 与 Idempotency-Key，事务受理后返回 202。
 - **模型后端**：默认为同 JVM 的 `AIGCService` 已注册 Unit（Baize / Baize2，经 `CompletionProvider` 内部接口复用鉴权、队列与用量记录）；显式 `type=openai` 时走 Java 外部 HTTP 服务（JSON/SSE，整体截止时间，实际 usage 校验）。**Python 不调用模型 HTTP、不加载权重**，地址、密钥、超时与共享物理限额仅由 Java 配置。
 - **容量与对账**：共享同一物理引擎的所有模型/Unit/worker 必须使用同一 `backendId` 与可信 `backend.<id>.capacity`；数据库锁定 backend 行认领推理槽。超时、取消、断连只能结束观察，不能证明物理推理结束——无法确认时记录 `unknown`、保留物理容量、禁止自动重发。
-- **账本**：独立 JDBC RunStore（默认关闭），schema=4，**服务启动只校验、不自动迁移**，须显式执行 `StoreMigrations upgrade`；SQLite 用于单实例开发，MySQL 需专用库（账户名 `harness_` 前缀，迁移账户另授 ALTER，运行账户仅 DML）。
+- **账本**：独立 JDBC RunStore（默认关闭），schema7，**服务启动只校验、不自动迁移**，须显式执行 `StoreMigrations upgrade`；SQLite 用于单实例开发，MySQL 需专用库（账户名 `harness_` 前缀，迁移账户另授 ALTER，运行账户仅 DML）。
 
 ### 8.2 两种运行方式
 
 | 形态 | 说明 |
 | --- | --- |
-| **独立 Cell（G0 默认）** | 使用 staging 的 `cell.xml`，由 `HarnessCarpet` 创建专用 Kernel；不加载数据库、Console、AIGCService 或业务模块。HTTP 默认 `127.0.0.1:7088`，Cell `127.0.0.1:7600`；多容器必须分开目录、端口与停止文件 |
-| **合部署** | 同一个 jar 与其他服务放在同一 `cellets/`，将 `config/cohost-cellet.xml` 的元素合入经审阅的服务 XML（保留原 `ServiceCarpet` 与许可证检查）。共享 JVM 的 CPU/堆/GC、许可证、数据库性能在 N16 验收；共享 JVM 不提供进程级故障隔离或无重启升级 |
+| **独立 Cell** | 使用 staging 的 `cell.xml`，由 `HarnessCarpet` 创建专用 Kernel；不加载 Console、AIGCService 或旧业务模块，Harness 自身存储按私有配置启用。HTTP 默认 `127.0.0.1:7088`，Cell `127.0.0.1:7600`；多容器必须分开目录、端口与停止文件 |
+| **合部署** | 同一个 jar 与其他服务放在同一 `cellets/`，将 `config/cohost-cellet.xml` 的元素合入经审阅的服务 XML（保留原 `ServiceCarpet` 与许可证检查）。共享 JVM 的 CPU/堆/GC、许可证、数据库与全业务性能须在目标环境认证；共享 JVM 不提供进程级故障隔离或无重启升级 |
 
-Python 侧 `python -m harness` 支持一个 Java 实例接入多个 worker（含同角色多个），每个 worker 唯一 workerId、独立运行目录与实例身份，经 Java 私有配置逐个授权（`worker.<id>.role`），注册表上限 64。worker credential 与 API credential 必须不同且至少 24 字符；G0 只允许 loopback development 身份。
+Python 侧 `python -m harness` 支持一个 Java 实例接入多个 worker（含同角色多个），每个 worker 唯一 workerId、独立运行目录与实例身份，经 Java 私有配置逐个授权（`worker.<id>.role`），注册表上限 64。worker credential 与 API credential 必须不同且至少 24 字符；默认使用固定开发身份，Cell 可显式配置为可达的 IPv4 或主机名。
 
 ### 8.3 构建与启用
 
@@ -594,9 +594,9 @@ ant "-Dharness.stage.dir=/isolated/release-with-harness" deploy-with-harness
 | `service/config/*-cache.properties` | 共享内存缓存参数（token-pool、general、contact、group、hub、filelabel 等） |
 | `service/config/cipher.properties` | 密码机参数 |
 | `service/config/robot.properties` | 机器人服务 API 地址与令牌 |
-| `service-harness/config/harness.properties.template` | Harness 私有配置（mode / 端口 / 租约 / 凭证 / worker 角色 / store 开关） |
+| `service-harness/config/harness.properties.template` | Harness 私有配置（端口 / 租约 / 凭证 / worker 角色 / store 开关） |
 | `service-harness/config/execution.properties.template` | Harness 资源循环配置（store / execution / backend 容量） |
-| `service-harness/config/dispatcher-harness.properties.template` | 合并入 dispatcher 私有配置的 Harness 代理项 |
+| `dispatcher/config/dispatcher.properties` 中的 `harness.rest.enabled` | 启用 Harness REST，沿用该文件的 Cellet/Director 配置 |
 
 > ⚠️ 仓库中的 `storage*.json` 含明文数据库账号。生产部署前请改为从环境变量或独立的密钥配置注入，并确认这些文件未被提交到公开仓库。心理学模块已按此要求处理：仓库只保留 `.template`（占位符），实际配置放在 gitignore 覆盖的 `.local.json`。Harness 的开发配置目录应由运行账户独占（Linux 0700/0600），不要提交本地配置、PID、日志或停止文件。
 

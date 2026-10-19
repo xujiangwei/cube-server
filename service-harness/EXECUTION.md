@@ -1,6 +1,6 @@
 # Harness 资源循环与 Java 推理网关
 
-启用 `store.enabled=true`、`execution.enabled=true` 后提供独立 development 资源任务入口。Java 必须使用 JDK 8；独立数据库显式迁移到 schema=5。当前身份固定为受信 development tenant/subject，生产身份源仍待后续接入，业务工具通过独立 SKILL/provider 发布与配置；N08/N09 可信 CPU MockConsole 工具需显式启用，见 [TOOLS.md](TOOLS.md)。
+启用 `store.enabled=true`、`execution.enabled=true` 后提供独立资源任务入口。Java 必须使用 JDK 8；独立数据库显式迁移到 schema7。当前身份固定为受信 development tenant/subject，生产身份源仍需接入与认证，业务工具通过独立 SKILL/provider 发布与配置；可信 CPU MockConsole 工具需显式启用，见 [TOOLS.md](TOOLS.md)。
 
 ## 推理链路与边界
 
@@ -39,9 +39,9 @@ Python 重启可以回放同一原 attempt 读取 Java 证据；没有既存推�
 
 ## 部署和迁移
 
-1. 按 [STORE.md](STORE.md) 显式执行 `StoreMigrations upgrade` 到 schema=5。004 增加推理/事件表与 job.execution_protocol，保留全部旧行；MySQL 迁移账户另需专用库 ALTER 权限，运行账户仍只需 DML。
+1. 按 [STORE.md](STORE.md) 显式执行 `StoreMigrations upgrade` 到 schema7。004 迁移引入推理/事件表与 job.execution_protocol，后续迁移随包分发并保留旧行；MySQL 迁移账户另需专用库 ALTER 权限，运行账户仍只需 DML。
 2. Java 使用 `config/execution.properties.template`，Python 使用 `harness/config/model-baize*.template.json`。workerCredential、Harness API credential 与 Java 后端模型 token 分别配置。
-3. 默认 Unit 后端要求 Harness 和 AIGCService 位于同一 Kernel/JVM。沿用宿主 ServiceCarpet 和 `config/cohost-cellet.xml`；独立 G0 standalone.xml 只有 Harness，没有 AIGCService，默认推理保持未就绪。外部模型必须显式 type=openai，并设置 baseUrl、model、token、capacity、timeoutSeconds。
+3. 默认 Unit 后端要求 Harness 和 AIGCService 位于同一 Kernel/JVM。沿用宿主 ServiceCarpet 和 `config/cohost-cellet.xml`；独立 standalone.xml 只有 Harness，没有 AIGCService，默认推理保持未就绪。外部模型必须显式 type=openai，并设置 baseUrl、model、token、capacity、timeoutSeconds。
 4. `ExecutionAdmin <new-directory>` 导出 ModelProfile schemaVersion=3/version=2 与 TaskProfile version=2。填写已 ready 的资源 release、权限与限额，显式 publish 后再切 active 绑定。旧直连 schemaVersion=2 model 禁止新建 run（LEGACY_DIRECT_MODEL_DISABLED），旧契约、profile、pin 和在途证据保留供对账。
 
 新版 `contracts/inference/` 在两仓逐字节镜像。openai-json-v2/openai-tools-v2 摘要绑定 Python adapter、worker、inference_client；源码固定 LF，避免跨平台摘要漂移。旧 `contracts/execution/` 保持原字节和历史摘要；冻结 v2 摘要不再认证新版源码，当前实现由 v3 source digest 认证。更新实现后生成新契约并发布新的不可变 profile 版本：
@@ -71,12 +71,12 @@ Dispatcher 启动时挂载 `cube.dispatcher.harness` handler，直接使用 `Per
 {"taskProfileId":"resources-Baize2","input":{"instruction":"列出并阅读已授权的技能资源","attachmentIds":[]}}
 ```
 
-Coordinator 以租约/fence/checkpoint 推进资源循环，只执行 ResourceTools 注册的读/激活能力，不执行模型生成的代码。need_input 持久化等待问题与期限；N11 已接通 resume/approval/cancel，N12 文件服务与清理见 [CONTROL-FILES.md](CONTROL-FILES.md)。
+Coordinator 以租约/fence/checkpoint 推进资源循环，资源工具只执行 ResourceTools 注册的读/激活能力，不执行模型生成的代码。可信工具和 sandbox 需另行显式启用。need_input 持久化等待问题与期限；resume/approval/cancel、文件服务与清理见 [CONTROL-FILES.md](CONTROL-FILES.md)。
 
 ## 验证与回退
 
 JDK 8 下运行 `ant -f service-harness/build.xml test-inference test-execution test-runtime test-store`；Python 运行 `python -B -m unittest discover -s harness/tests -v`。ChatCompletionServiceTest、CompletionGatewayTest、CompletionHttpTest 和 ManagerRobustnessTest 回归原 Completion REST。
 
-`inference_smoke.py` 启动真实 Cell、三个独立 Python v3 worker，经过同 JVM AIGCService 真实 Unit 队列，只有硬件回复由测试替身提供。参数见 `--help`，service-classes 指向编译后的 service 测试类；测试类不进入正式 jar。`n06_n07_smoke.py` 继续验证 v2 scripted 资源循环。外部 HTTP JSON/SSE 使用本机测试服务。所有离线结果与真实 Baize/Baize2 GPU、权重、模板和工具质量验收分别记录。
+`inference_smoke.py` 启动真实 Cell、三个独立 Python v3 worker，经过同 JVM AIGCService 真实 Unit 队列，只有硬件回复由测试替身提供。参数见 `--help`，service-classes 指向编译后的 service 测试类；测试类不进入正式 jar。`execution_smoke.py` 继续验证 v2 scripted 资源循环。外部 HTTP JSON/SSE 使用本机测试服务。所有离线结果与真实 Baize/Baize2 GPU、权重、模板和工具质量验收分别记录。
 
-本次未访问真实模型。schema4 已在本机 SQLite 与独立 MySQL 8.0.43 夹具验证，MySQL 迁移后使用仅 DML 运行账户。原生 Linux/远端 CI 与生产共同部署性能仍需单独验收。撤回先关新准入并 drain，保留 schema4 恢复程序、账本、journal 和 unknown 证据；不执行 destructive down 或旧系统 stop/clean。
+上述测试使用模拟后端，真实模型、原生 Linux/远端 CI 与生产共同部署性能需单独验收。MySQL 迁移后使用仅 DML 运行账户。撤回先关新准入并 drain，保留兼容当前 schema7 的恢复程序、账本、journal 和 unknown 证据；不执行 destructive down 或旧系统 stop/clean。

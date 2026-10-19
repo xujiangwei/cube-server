@@ -7,7 +7,7 @@ import java.util.Properties;
 import org.json.*;
 
 /** Compiled against the public ledger API; also executed with archived v6/v7 jars first. */
-public final class N16LedgerProbe {
+public final class LedgerCompatibilityProbe {
     public static void main(String[] args) throws Exception {
         Properties p = new Properties();
         try (InputStream in = Files.newInputStream(Paths.get(args[1]))) {

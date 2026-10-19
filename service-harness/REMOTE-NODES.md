@@ -116,27 +116,10 @@ python -B -m unittest discover -s harness/tests -v
 ant -f service-harness/build.xml test-inference test-execution test-tools test-store test-transport
 ```
 
-`g0_smoke.py` 默认仍启动隔离的 loopback Java Cell。增加 `--cell-bind-host 0.0.0.0 --cell-host <测试机自己的LAN-IPv4>` 可验证经非 loopback 地址的真实 Cell 连接（不是连接现有服务器）：
+`lifecycle_smoke.py` 默认仍启动隔离的 loopback Java Cell。增加 `--cell-bind-host 0.0.0.0 --cell-host <测试机自己的LAN-IPv4>` 可验证经非 loopback 地址的真实 Cell 连接（不是连接现有服务器）：
 
 ```powershell
-python -B service-harness/scripts/g0_smoke.py --java C:/jdk8/bin/java.exe --common-jar build/cube-common-3.0.jar --cell-jar deploy/bin/cell.jar --libs deploy/libs --python-root C:/Users/hermi/workspace/apexnova-wisdom --runtime C:/private/new-smoke --evidence C:/private/new-evidence --cell-bind-host 0.0.0.0 --cell-host <测试机自己的LAN-IPv4>
+python -B service-harness/scripts/lifecycle_smoke.py --java C:/jdk8/bin/java.exe --common-jar build/cube-common-3.0.jar --cell-jar deploy/bin/cell.jar --libs deploy/libs --python-root C:/Users/hermi/workspace/apexnova-wisdom --runtime C:/private/new-smoke --evidence C:/private/new-evidence --cell-bind-host 0.0.0.0 --cell-host <测试机自己的LAN-IPv4>
 ```
 
 脚本覆盖三个独立 Python 进程、两个同角色节点、单节点停止/租约到期、凭据与角色拒绝、重连及旧会话拒绝。健康 HTTP 保持 loopback；所有测试实例和临时配置归 runtime 目录所有，不修改现有部署。
-
-## 2026-10-19 本机验证记录
-
-环境为 Windows、JDK 1.8.0_504、Ant 1.10.15。证据根目录为 `C:/Users/hermi/.cache/cube-harness/remote-nodes-20261019/`；私有配置和凭据留在独立 runtime 目录，不提交仓库。
-
-| 检查 | 实际结果 |
-| --- | --- |
-| Python Harness 全量测试 | 47 项通过，含远程 IPv4/主机名/旧配置、非法地址/端口、配置加载不访问网络、每次连接保留目标地址、Java Cell 编解码固定向量 |
-| init_dev 配置生成测试 | 3 项通过；远程 Cell 与 loopback 健康地址独立，不生成 mode，凭据隔离且不覆盖已有目录 |
-| JDK 8 回归与构建 | `test-inference test-execution test-tools test-store test-transport build` 通过；含配置不依赖 mode、共享物理容量、租约和真实传输 |
-| 默认 loopback 完整 Cell 冒烟 | 21 组通过；`loopback-evidence-02/smoke-results.json` |
-| 非 loopback 完整 Cell 冒烟 | 21 组通过；Java 仅绑定本机 `192.168.1.34`，Python/dispatcher fixture 连接同一地址；`lan-evidence-02/smoke-results.json` |
-| 三个 v3 模型进程与同 JVM Unit fixture | 6 个 run 通过，3 个 Python 节点对应 2 个物理后端容量；`inference-01/report.json` |
-| 模型与两个 CPU Runner 实际执行回归 | 5 组通过；含任务分配、单节点 drain、崩溃重启 unknown 隔离与容量保留；`runner-evidence-01/results.json` |
-| Windows → Linux `192.168.1.35:6000` | 未执行；未连接、部署或重启该服务器。按上文实机验收步骤在部署后另行记录 |
-
-两轮完整 Cell 冒烟均验证了两个 model 和一个 runner 的独立进程/实例、注册、续租、单节点启停、重连新会话及旧会话拒绝，并覆盖 PowerShell 与 Git Bash 包装脚本。固定密钥 `0c000000` 的真实 Java 握手覆盖旧 Python Cell 在负数整除 8 时的取余差异；修正限于 Harness 适配层，Cell 协议及 model/runner 冻结源码摘要未改动。以上执行测试使用 fixture 后端，未执行真实模型质量认证或原生 Linux 测试。

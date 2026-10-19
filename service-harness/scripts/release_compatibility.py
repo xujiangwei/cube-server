@@ -78,7 +78,7 @@ def main():
     config = dbroot/"store.local.properties"
     config.write_text(f"store.dialect=sqlite\nstore.database=harness_n16\nstore.identity=n16-upgrade-identity-123456\nstore.sqlite.root={dbroot.as_posix()}\nstore.sqlite.file={dbroot.as_posix()}/harness_n16.db\n", encoding="utf-8")
     migrate = "cube.service.harness.store.StoreMigrations"
-    probe = "cube.service.harness.test.N16LedgerProbe"
+    probe = "cube.service.harness.test.LedgerCompatibilityProbe"
     run(java(a.old_v6_jar, migrate, "initialize-empty", config), "v6-initialize")
     with sqlite3.connect(dbroot/"harness_n16.db") as c:
         assert c.execute("SELECT schema_version FROM harness_store_identity").fetchone() == (6,)

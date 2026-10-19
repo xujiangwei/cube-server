@@ -397,7 +397,7 @@ backend.shared.capacity={self.slo['loadProfile']['sharedBackendCapacity']}
         self.wait(acked)
         self.metrics["ackBacklogMillis"] = (time.monotonic()-start)*1000
         # Controlled heap exhaustion in a separate bounded JVM, never on the host or service JVM.
-        self.command([self.a.java, "-Xmx16m", "-cp", self.cp, "cube.service.harness.test.N16Test", "oom"], "child-heap-oom", 73)
+        self.command([self.a.java, "-Xmx16m", "-cp", self.cp, "cube.service.harness.test.ResilienceTest", "oom"], "child-heap-oom", 73)
         assert "N16_CONTROLLED_CHILD_HEAP_OOM" in (self.e/"child-heap-oom.log").read_text()
         self.faults.append(dict(fault="bounded 16 MiB child Java heap OOM", result="PASS", nativeOSOOM="NOT_RUN"))
         assert self.http("/healthz")[0] == 200
@@ -493,7 +493,7 @@ def main():
     parser = argparse.ArgumentParser(__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
     p = sub.add_parser("freeze")
-    p.add_argument("--profile", type=Path, default=MODULE / "config/n16-local-slo.json")
+    p.add_argument("--profile", type=Path, default=MODULE / "scripts/tests/fixtures/local-slo.json")
     p.add_argument("--output", type=Path, required=True)
     p = sub.add_parser("run")
     for name in ("java", "python-root", "runtime", "evidence", "libs", "common-jar", "cell-jar", "slo"):

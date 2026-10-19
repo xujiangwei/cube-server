@@ -1,4 +1,4 @@
-"""Actual XML/Cell cross-process G0 checks; no production endpoints are used.
+"""Real XML/Cell lifecycle regression; no production endpoints are used.
 
 Run after `ant test`. Every subprocess and configuration belongs to --runtime.
 Credentials stay there; only sanitized assertions and logs go to --evidence.

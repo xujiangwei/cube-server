@@ -1,4 +1,4 @@
-# N13 追踪、离线回放与质量评测
+# 追踪、离线回放与质量评测
 
 trace 与反馈统一访问 dispatcher `/harness/v1`，经 SHM 长连接交给 service；reader Bearer 与角色在 service 验证。service HTTP 仅保留健康/运维入口，详见 [TRANSPORT.md](TRANSPORT.md)。
 
@@ -34,6 +34,6 @@ python -I -S scripts/replay_trace.py /private/evidence/trace.json
 
 质量入口 `scripts/evaluate_traces.py <冻结fixture> <追加observations.jsonl> --traces-root <只读导出目录> --output <report.json>`。每个部署单独冻结 model/profile/configDigest 和至少50个不同场景；每场景包括 input、expectedTools/Scope、assertions、faults、budget、expectedState、quality。扩展夹具模板在工作区 `skill/harness-extensions/fixtures/`，仍须填入实际范围和承诺后冻结，不是已经执行的50场景。
 
-每个真实 observation 需要 fixtureDigest、场景/repetition(1～3)/attempt、model/profile/configDigest、mode、traceDigest、recordedAt、hardPassed 和独立的 languagePassed 复核。导出按 `<traceDigest>.json` 存放，不能复用一次真实 run 充当多次。评测器重新核验 Trace，并检查终态、工具、预算、物理收尾及配置/参数/文件承诺；scope 不为空时必须有对应调用语义 argumentsHash 断言。语言判断单列；人工反馈不自动等价于质量通过。失败与修复/重试全部保留，同一槽任何失败不能被后续重试覆盖。至少143/150且硬断言全通过；mock、skip、缺项单列，不能由其他组合平均抵消。当前没有新增真实模型质量认证，G3 为未认证。
+每个真实 observation 需要 fixtureDigest、场景/repetition(1～3)/attempt、model/profile/configDigest、mode、traceDigest、recordedAt、hardPassed 和独立的 languagePassed 复核。导出按 `<traceDigest>.json` 存放，不能复用一次真实 run 充当多次。评测器重新核验 Trace，并检查终态、工具、预算、物理收尾及配置/参数/文件承诺；scope 不为空时必须有对应调用语义 argumentsHash 断言。语言判断单列；人工反馈不自动等价于质量通过。失败与修复/重试全部保留，同一槽任何失败不能被后续重试覆盖。至少143/150且硬断言全通过；mock、skip、缺项单列，不能由其他组合平均抵消。真实模型质量须针对实际启用的 model/profile 独立认证。
 
 本机入口为 `ant -f service-harness/build.xml test-trace`，可传 `-Dtrace.test.config=<独立测试库配置>` 和 `-Dtrace.test.output=<导出文件>`。外部扩展及真实 Cell 回归见工作区 `skill/harness-extensions/README.md`。

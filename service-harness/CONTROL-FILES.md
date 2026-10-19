@@ -1,8 +1,8 @@
-# N11/N12 控制与文件
+# Harness 控制与文件
 
 以下业务接口统一使用 dispatcher 地址，经 Performer/SHM 访问 service。文件控制使用同步消息，字节使用同节点、同会话的 Cell 原生流；上传成功必须等待 service 校验及入库完成。service HTTP 不提供业务接口；传输与部署见 [TRANSPORT.md](TRANSPORT.md)。
 
-使用实际 JDK 8；这是独立 `service-harness` 的可选开发入口。数据库显式升级至 **schema6**，服务启动只校验。升级前停止新写入并备份专用库，升级后由支持 schema6 的节点恢复；旧 schema5 二进制不能直接读新库。`001`～`005.sql` 不变，新增 `006.sql`（等待/回执与文件/root 身份等八表，加 tool job 清理列）。
+使用实际 JDK 8；这是独立 `service-harness` 的可选开发入口。数据库显式升级至当前 **schema7**，服务启动只校验。升级前停止新写入并备份专用库，升级后由兼容 schema7 的节点恢复；旧二进制不能直接读新库。控制与文件由 `006.sql` 引入（等待/回执与文件/root 身份等八表，加 tool job 清理列），全部迁移按固定摘要分发。
 
 ## 控制接口
 
@@ -39,12 +39,12 @@ Java 在 OS 根锁内执行文件回收，DB claim/fence/CAS 与失败退避记�
 
 ## 业务 SKILL 的边界
 
-Console 状态查询已移至工作区 [server-status SKILL](../../skill/harness-packages/server-status/README.md)，使用独立 provider、私有配置与认证入口。Harness 不包含 Console API/Cookie/节点解释逻辑；通用扩展注册见 [TOOLS.md](TOOLS.md)。是否配置 Console 不影响 N11/N12 控制和文件能力。
+Console 状态查询由工作区 [server-status SKILL](../../skill/harness-packages/server-status/README.md) 提供，使用独立 provider、私有配置与认证入口。Harness 不包含 Console API/Cookie/节点解释逻辑；通用扩展注册见 [TOOLS.md](TOOLS.md)。是否配置 Console 不影响控制和文件能力。
 
 ## 验证与撤回
 
 `ant -f service-harness/build.xml test-control-files test-tools test-execution test-inference`；MySQL 专项使用全新专用库及 `-Dcontrol.test.config=<私有 migrator 配置>`。Python 用 `python -B -m unittest discover -s harness/tests -v`；选择状态 SKILL 的 Cell 集成回归见工作区 `skill/harness-packages/server-status/tests/integration_smoke.py --help`。
 
-新增 Runner 契约和源摘要需要两工程同步部署，先 drain 旧实例，保留运行目录与 journal，不能混用旧摘要。撤回仅停止新交互接单/上传/状态 profile，保留兼容 schema6 的恢复节点至在途执行、文件保留和清理收敛。原生 Linux、多主机存储及生产身份未认证；不据 Windows 测试晋级发布。
+Runner 契约和源摘要需要两工程同步部署，先 drain 旧实例，保留运行目录与 journal，不能混用旧摘要。撤回仅停止新交互接单/上传/状态 profile，保留兼容当前 schema7 的恢复节点至在途执行、文件保留和清理收敛。原生 Linux、多主机存储及生产身份需在目标环境认证，Windows 测试不能代替。
 
 业务技能的真实数据源与质量认证由相应 SKILL 维护，不纳入控制/文件模块的固定依赖。

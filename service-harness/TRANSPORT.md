@@ -37,20 +37,4 @@ ant -f service-harness/build.xml test-transport
 python -B service-harness/scripts/shm_transport_smoke.py --java C:/jdk8/bin/java.exe --common-jar C:/isolated/build/cube-common-3.0.jar --cell-jar deploy/bin/cell.jar --libs deploy/libs --runtime C:/isolated/shm-smoke --max-file-bytes 67108864
 ```
 
-smoke 使用独立目录、SQLite 和真实 Cell/Performer，不需模型硬件。覆盖所有已实现路由、凭据/权限、原始 JSON、幂等、并发关联、事件、文件/摘要/句柄、中断、重连与双会话隔离。`g0_smoke.py`、`n06_n07_smoke.py` 等脚本也使用真实 dispatcher fixture，业务地址经过 SHM，健康和运维仍直达 service；运行前必须构建 dispatcher。模型在线质量及完整 N16 SLO 认证仍使用各自专项流程。
-
-2026-10-18 本机已用 Windows、JDK 1.8.0_504、Ant 1.10.15 完成以下回归。专用输出根为 `C:/Users/hermi/.cache/cube-harness/shm-transport-20261018/`，凭据仅保留在私有运行目录中。
-
-| 检查 | 结果与证据目录 |
-| --- | --- |
-| common、dispatcher、service-harness 构建 | JDK 8 通过 |
-| `test-transport` | 通过；Harness 就绪节点筛选、16 请求准入/恢复、并发关联、两条 SSE 及截止释放、真实 Cellet 队列满/内部异常/停机关联应答 |
-| 移除 dispatcher 独立配置后的回归 | JDK 8 dispatcher/service-harness 构建与 `test-transport` 通过；无配置挂载、Bearer 原样传递、自报角色无法越权；`no-dispatcher-config-01/results.json` 的真实 SHM 7 组通过（文件上限 1 MiB） |
-| `test-control-files`、`test-trace` | 通过；原事务、审批、文件生命周期、pin、反馈与脱敏规则 |
-| `shm_transport_smoke.py --max-file-bytes 67108864` | 7 组通过；`smoke-06/results.json`，含 64 MiB 上传/下载、空文件、摘要/句柄、断连恢复与双会话隔离 |
-| `g0_smoke.py` | 通过；`g0-evidence-02/smoke-results.json`，原单 STRING 协议、身份、注册租约、重连、合部署和实例启停 |
-| `n06_n07_smoke.py` | 10 组通过；`n06-evidence-03/results.json`，两个 Python model 单元、容量、恢复、SSE 慢客户端及 EVENT_GAP/409 |
-| `n08_n09_smoke.py` | 5 组通过；`n08-evidence-01/results.json`，model 与两个 CPU Runner、负载分配、drain 和未知执行隔离 |
-| `inference_smoke.py` | 通过；`inference-01/report.json`，三个 Python v3 worker、六个 run、同 JVM 提供方/Unit fixture |
-
-以上使用 scripted/fixture 后端；未执行真实模型在线质量、原生 Linux 或完整 N16 SLO 再认证。此前发现的 64 MiB 异步超时、握手停止重连、SSE 截止名额释放和 EVENT_GAP 状态码问题已修复并回归；失败轮目录保留用于核对。
+smoke 使用独立目录、SQLite 和真实 Cell/Performer，不需模型硬件。覆盖所有已实现路由、凭据/权限、原始 JSON、幂等、并发关联、事件、文件/摘要/句柄、中断、重连与双会话隔离。`lifecycle_smoke.py`、`execution_smoke.py` 等脚本也使用真实 dispatcher fixture，业务地址经过 SHM，健康和运维仍直达 service；运行前必须构建 dispatcher。模型在线质量及目标环境 SLO 认证使用各自专项流程。

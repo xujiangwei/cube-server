@@ -14,7 +14,7 @@ import java.util.*;
 import org.json.*;
 
 /** Dedicated disposable storage/drain/release drills; never uses an existing deployment. */
-public final class N16Test {
+public final class ResilienceTest {
     static Properties settings() throws Exception {
         Properties p = new Properties();
         try (InputStream in = Files.newInputStream(root.resolve("store.local.properties"))) {
@@ -153,7 +153,7 @@ public final class N16Test {
                                             executable,
                                             "-cp",
                                             cp,
-                                            N16Test.class.getName(),
+                                            ResilienceTest.class.getName(),
                                             "sweep",
                                             privateConfig.toString())
                                     .redirectErrorStream(true)
@@ -164,7 +164,7 @@ public final class N16Test {
                                             executable,
                                             "-cp",
                                             cp,
-                                            N16Test.class.getName(),
+                                            ResilienceTest.class.getName(),
                                             "sweep",
                                             privateConfig.toString())
                                     .redirectErrorStream(true)
@@ -316,7 +316,7 @@ public final class N16Test {
             sweep(p);
             return;
         }
-        Path output = Paths.get(System.getProperty("n16.test.output"));
+        Path output = Paths.get(System.getProperty("resilience.test.output"));
         Files.createDirectories(output);
         ExecutionTest.prepare(Files.createTempDirectory("harness-n16-"), "");
         drain();

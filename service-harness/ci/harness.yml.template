@@ -58,12 +58,12 @@ jobs:
       - run: ant -f dispatcher/build.xml -Dlib.dir="$RUNNER_TEMP/harness-deps" build-debug
       - run: python -m pip install -r python-worker/harness/requirements.txt
       - run: >-
-          python -B service-harness/scripts/g0_smoke.py
+          python -B service-harness/scripts/lifecycle_smoke.py
           --java "$JAVA_HOME/bin/java" --common-jar build/cube-common-3.0.jar
           --cell-jar deploy/bin/cell.jar --libs deploy/libs --python-root python-worker
           --runtime "$RUNNER_TEMP/harness-runtime" --evidence "$RUNNER_TEMP/harness-evidence"
       - run: >-
-          python -B service-harness/scripts/n06_n07_smoke.py
+          python -B service-harness/scripts/execution_smoke.py
           --java "$JAVA_HOME/bin/java" --common-jar build/cube-common-3.0.jar
           --cell-jar deploy/bin/cell.jar --libs deploy/libs --python-root python-worker
           --runtime "$RUNNER_TEMP/harness-execution-runtime" --evidence "$RUNNER_TEMP/harness-execution-evidence"

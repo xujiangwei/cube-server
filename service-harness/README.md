@@ -2,11 +2,11 @@
 
 业务 REST 统一由 dispatcher 提供，通过 `Performer.syncTransmit` 和 Cell SHM 长连接访问 HarnessCellet；文件使用同连接的原生 SHM 流。service HTTP 只保留健康检查和现有运维入口，业务路径返回 404。部署、身份、协议与完整传输测试见 [TRANSPORT.md](TRANSPORT.md)。dispatcher 与 service-harness 需配套升级，数据库与 Python worker 协议不变。
 
-正式服务是 `cube.service.harness.HarnessCellet` + `HarnessService`，NAME=`Harness`。产物 `cube-service-harness-3.0.jar` 只放在 `cellets/`，按标准 Cell XML 安装并交给 Kernel 启停；不注册到 AIGC 插件表。默认 G0 入口只启用 CPU scripted 通信，业务任务返回 `HARNESS_NOT_READY`；N06/N07 的独立模型单元与资源循环需显式启用，见 [EXECUTION.md](EXECUTION.md)。协议见 [CONTRACT.md](CONTRACT.md)，G0 验收记录见工作区 `harness/execution-records/g0-20261017/`。
+正式服务是 `cube.service.harness.HarnessCellet` + `HarnessService`，NAME=`Harness`。产物 `cube-service-harness-3.0.jar` 只放在 `cellets/`，按标准 Cell XML 安装并交给 Kernel 启停；不注册到 AIGC 插件表。默认配置只启用 CPU scripted 通信；存储、独立模型单元与资源循环需显式启用并发布 profile，见 [EXECUTION.md](EXECUTION.md)。协议见 [CONTRACT.md](CONTRACT.md)，整体导航见工作区 [Harness 入口](../../harness/README.md)。
 
-N03 增加可选的独立 JDBC RunStore，详见 [STORE.md](STORE.md)。SQLite 与隔离 MySQL 的并发、租约、事务、Outbox 和用量结算已有本机专项验收；服务启动只校验，不自动迁移。默认关闭存储。N02 原生 Linux 缺项继续保留。
+可选的独立 JDBC RunStore 支持 SQLite/MySQL，服务启动只校验，不自动迁移，默认关闭存储，详见 [STORE.md](STORE.md)。
 
-N04/N05 增加资源包、固定 profile、工作区、完整上下文预算及可恢复快照，提供 Java 内部 API 与离线管理 CLI，详见 [RUNTIME.md](RUNTIME.md)。固定 schema 随正式 jar 分发；独立库当前为 schema=4，v1/v2/v3 需显式 upgrade。N06/N07 增加 Baize/Baize2 adapter、模型 journal、按物理后端计容的多单元调度，以及唯一 Coordinator 和 create/get/events/资源工具循环。离线与本机跨进程验收独立于真实模型在线认证；详见 [EXECUTION.md](EXECUTION.md)。
+资源包、固定 profile、工作区、上下文预算及可恢复快照由 [RUNTIME.md](RUNTIME.md) 说明。固定 schema 随正式 jar 分发；当前独立库为 schema7，旧库需显式 upgrade。Baize/Baize2 adapter、模型 journal、共享物理后端计容、多单元调度和资源循环见 [EXECUTION.md](EXECUTION.md)。离线与本机跨进程测试不能替代真实模型在线认证。
 
 ## 构建与目录
 
@@ -20,7 +20,7 @@ ant "-Dcommon.jar=C:/isolated/build/cube-common-3.0.jar" test-transport
 ant "-Dcommon.jar=C:/isolated/build/cube-common-3.0.jar" "-Dstage.dir=C:/isolated/harness-stage" stage
 ```
 
-stage 生成 cellets、配置、脚本和默认 cell.xml。补入同版本 `bin/cell.jar`、`libs/cube-common-3.0.jar` 及其经验证的依赖后即可启动。可用根目录的显式联合发布目标一次准备 staging；不要把独立 stage 指向正在运行的目录。`stage` 只是复制目标，不停止任何服务。
+stage 按明确清单生成 cellets、四份配置/XML、五个脚本及默认 cell.xml：脚本仅含 run.sh、run.ps1、init_dev.py、evaluate_traces.py、replay_trace.py。测试、SLO fixtures、契约生成器和 CI 工具留在源码工程。补入同版本 `bin/cell.jar`、`libs/cube-common-3.0.jar` 及其经验证的依赖后即可启动。可用根目录的显式联合发布目标一次准备 staging；不要把独立 stage 指向正在运行的目录。`stage` 只是复制目标，不停止任何服务。
 
 从 cube-server 根目录显式选择：
 
@@ -31,23 +31,23 @@ ant build-service-with-harness-release
 ant "-Dharness.stage.dir=C:/isolated/release-with-harness" deploy-with-harness
 ```
 
-旧依赖与各 service 构建失败仍按原规则处理；联合目标不掩盖它们。`deploy-with-harness` 使用已构建的旧产物集合，正式联合包应先完成全量构建和产物清单核对；G0 的目录分类演练不等于完整业务发布认证。目标强制显式 staging，拒绝源 deploy 及其父/子目录和非空无标记目录。它不会修改原 `deploy/`。旧 build/deploy/install 默认入口不依赖 Harness；原 libs 通配复制排除 Harness，旧 clean 不清 Harness Cellet。
+旧依赖与各 service 构建失败仍按原规则处理；联合目标不掩盖它们。`deploy-with-harness` 使用已构建的旧产物集合，正式联合包应先完成全量构建和产物清单核对。目标强制显式 staging，拒绝源 deploy 及其父/子目录和非空无标记目录。它不会修改原 `deploy/`。旧 build/deploy/install 默认入口不依赖 Harness；原 libs 通配复制排除 Harness，旧 clean 不清 Harness Cellet。
 
 ## 两种运行方式
 
-**独立 Cell（G0 默认）**：使用 staging 的 `cell.xml`，由 `HarnessCarpet` 创建专用 Kernel；不加载数据库、Console、AIGCService 或业务模块。HTTP 默认 127.0.0.1:7088，Cell 127.0.0.1:7600；多容器必须分开目录、端口及停止文件。
+**独立 Cell**：使用 staging 的 `cell.xml`，由 `HarnessCarpet` 创建专用 Kernel；不加载 Console、AIGCService 或旧业务模块，Harness 自身存储按私有配置启用。HTTP 默认 127.0.0.1:7088，Cell 127.0.0.1:7600；多容器必须分开目录、端口及停止文件。
 
 ```powershell
-python scripts/init_dev.py --output C:/private/harness-g0
+python scripts/init_dev.py --output C:/private/harness-dev
 # 把 staging 的 cell.xml 中 Cell 端口与私有配置保持一致。
-./scripts/run.ps1 -Stage C:/isolated/release-with-harness -Config C:/private/harness-g0/harness.local.properties -StopFile C:/private/harness-g0/cell.stop -Java C:/jdk8/bin/java.exe
+./scripts/run.ps1 -Stage C:/isolated/release-with-harness -Config C:/private/harness-dev/harness.local.properties -StopFile C:/private/harness-dev/cell.stop -Java C:/jdk8/bin/java.exe
 ```
 
 Linux 对应 `sh scripts/run.sh /absolute/stage /absolute/private/harness.local.properties /absolute/private/cell.stop`，可设置 `HARNESS_JAVA`。入口在前台运行，交给专用 supervisor/systemd 管理。创建此实例独有的停止文件或发送服务管理器的 SIGTERM 会停止此 Cell。再次启动前移除已消费的本实例停止文件。
 
 Cell 这个版本的程序化入口固定读取工作目录的 `cell.xml`；`Cell.start(boolean,String)` 的第二参数是日志名。`HarnessCell` 校验配置选择，避免误加载默认业务配置。Cell 启动时自身存在约 3 秒 TCP safe-lock；HTTP health 不代表 worker 已注册。
 
-**合部署**：同一个 jar 与其他服务放在同一 `cellets/`。将 `config/cohost-cellet.xml` 的元素合入经审阅的服务 XML；联合 staging 已生成 `config/service-with-harness.xml`，保留原 `ServiceCarpet`。通过宿主原有 Cell 启动命令显式选择此 XML，并加 `-Dharness.config=<私有配置>`。不要更换宿主监听器或跳过宿主许可证检查。Harness 启动配置/端口失败只影响自身 readiness，不关闭旧 Kernel。共享 JVM 的 CPU/堆/GC、许可证、数据库和全业务性能验收在 N16；共享 JVM 不提供进程级故障隔离或无重启升级。
+**合部署**：同一个 jar 与其他服务放在同一 `cellets/`。将 `config/cohost-cellet.xml` 的元素合入经审阅的服务 XML；联合 staging 已生成 `config/service-with-harness.xml`，保留原 `ServiceCarpet`。通过宿主原有 Cell 启动命令显式选择此 XML，并加 `-Dharness.config=<私有配置>`。不要更换宿主监听器或跳过宿主许可证检查。Harness 启动配置/端口失败只影响自身 readiness，不关闭旧 Kernel。共享 JVM 的 CPU/堆/GC、许可证、数据库和全业务性能须在目标环境认证；共享 JVM 不提供进程级故障隔离或无重启升级。
 
 ## Python 部署与停机
 
@@ -62,7 +62,7 @@ worker.runner-1.role=runner
 worker.runner-2.role=runner
 ```
 
-这些配置键已由现有 `HarnessConfig.authorizedWorker` 支持。当前注册表最多 64 个条目，已提供独立注册、租约、drain 和注销；注册数不代表执行并发容量。按能力/健康/可用容量分配任务的实际负载均衡在 N06/N07 实现，N16 进行多单元负载验收；共享物理后端不得重复计算容量，未决 attempt 必须先对账。
+这些配置键由 `HarnessConfig.authorizedWorker` 支持。当前注册表最多 64 个条目，提供独立注册、租约、drain 和注销；注册数不代表执行并发容量。调度按能力、健康和实际可用容量选择单元；共享物理后端不得重复计算容量，未决 attempt 必须先对账。多单元负载验证见 [RESILIENCE.md](RESILIENCE.md)。
 
 dispatcher 的 Harness 接入代码位于 `dispatcher/src/cube/dispatcher/harness/`（包 `cube.dispatcher.harness`），在 dispatcher.properties 配置 harness.rest.enabled=true 后随 dispatcher 启动挂载，无需独立配置文件。沿用 `dispatcher.properties` 的 Cellet/Director 配置连接 Harness。业务客户端使用 dispatcher 地址，Bearer 原样交给 service 认证；dispatcher 无需配置 client/backend credential。service HTTP 运维地址及 Console 地址分别配置，详见 [TRANSPORT.md](TRANSPORT.md)。
 
@@ -74,15 +74,15 @@ dispatcher 的 Harness 接入代码位于 `dispatcher/src/cube/dispatcher/harnes
 python scripts/check_build_graph.py
 python scripts/generate_contracts.py --python-contracts C:/python-repo/harness/contracts
 ant "-Dcommon.jar=C:/isolated/build/cube-common-3.0.jar" test
-python -B scripts/g0_smoke.py --java C:/jdk8/bin/java.exe --common-jar C:/isolated/build/cube-common-3.0.jar --cell-jar ../deploy/bin/cell.jar --libs ../deploy/libs --python-root C:/python-repo --runtime C:/isolated/g0-runtime --evidence C:/isolated/g0-evidence
+python -B scripts/lifecycle_smoke.py --java C:/jdk8/bin/java.exe --common-jar C:/isolated/build/cube-common-3.0.jar --cell-jar ../deploy/bin/cell.jar --libs ../deploy/libs --python-root C:/python-repo --runtime C:/isolated/lifecycle-runtime --evidence C:/isolated/lifecycle-evidence
 ```
 
 最后一个命令应使用已安装 `harness/requirements.txt` 的 Python。它实际启动两种 XML 容器、注册双角色，测试原始载荷、心跳、错误身份、重复实例、旧 nonce、断线重连、停止期间重连和实例脚本；同容器以测试专用 Sentinel Cellet 验证定向停止，不冒充完整生产业务。每次只停止自己创建的进程。
 
 独立 CI 在 `.github/workflows/harness.yml`，不作为旧发布的新增必需检查。Java 契约自动运行；手动跨仓库 Cell 验证必须选择带匹配契约的 Python revision，Linux 实测结果由该流水线产出。添加工作流不表示已在远端执行。
 
-## 推理网关修正
+## 推理与认证边界
 
-Python Harness 经 Cell v3 发送 OpenAI 请求，默认调用同 JVM AIGCService 注册的 Unit。合部署使用现有 ServiceCarpet；独立 G0 XML 没有 AIGCService，默认 Unit 后端未就绪。外部 HTTP 后端必须在 Java 显式配置。推理网关在 schema4 引入，当前权威库为 schema7；新版 model/task profile 与 `contracts/inference/` 同步升级；详见 [EXECUTION.md](EXECUTION.md)。
+Python Harness 经 Cell v3 发送 OpenAI 请求，默认调用同 JVM AIGCService 注册的 Unit。合部署使用现有 ServiceCarpet；独立 XML 没有 AIGCService，默认 Unit 后端未就绪。外部 HTTP 后端必须在 Java 显式配置。当前权威库为 schema7；model/task profile 与 `contracts/inference/` 配套发布；详见 [EXECUTION.md](EXECUTION.md)。
 
-N16 提供服务级接单/严格 drain、冻结 SLO 的 Cell 多单元负载、文件回收与历史 JAR 升级回滚演练。命令、独立管理凭据、部署关闭接单及认证边界见 [RESILIENCE.md](RESILIENCE.md)。本机专项通过不等于生产 G4。
+服务级接单/严格 drain、冻结 SLO 的 Cell 多单元负载、文件回收与历史 JAR 升级回退验证见 [RESILIENCE.md](RESILIENCE.md)。本机专项通过不等于生产认证；真实模型、原生 Linux/KVM 及生产合部署性能需要在目标环境另行验证。
