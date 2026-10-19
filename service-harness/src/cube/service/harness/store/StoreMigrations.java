@@ -6,6 +6,8 @@
 
 package cube.service.harness.store;
 
+import cube.service.harness.ConfigPaths;
+
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -210,6 +212,7 @@ public final class StoreMigrations {
         try (InputStream in = Files.newInputStream(Paths.get(args[1]))) {
             p.load(in);
         }
+        ConfigPaths.normalize(p);
         StoreConfig config = new StoreConfig(p);
         if (args[0].equals("initialize-empty")) migrate(config, true);
         else if (args[0].equals("upgrade")) migrate(config, false);

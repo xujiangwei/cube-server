@@ -6,6 +6,7 @@
 
 package cube.service.harness;
 
+import cell.util.log.Logger;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import cube.core.AbstractModule;
@@ -83,6 +84,41 @@ public final class HarnessService extends AbstractModule {
                 new ThreadPoolExecutor.AbortPolicy());
     }
 
+    /**
+     * 启动摘要。只输出非敏感项：凭据、令牌一律不进入日志，长路径截断避免刷屏。
+     */
+    private String startupSummary() {
+        java.util.Properties v = config.values;
+        StringBuilder out = new StringBuilder();
+        out.append("host=").append(config.host()).append(" port=").append(config.port())
+                .append(" leaseMillis=").append(config.leaseMillis());
+        out.append(" store=").append(store != null);
+        if (store != null)
+            out.append(" dialect=").append(config.values.getProperty("store.dialect", ""))
+                    .append(" database=").append(config.values.getProperty("store.database", ""));
+        out.append(" execution=").append(execution != null);
+        if (execution != null)
+            out.append(" accepting=").append(execution.accepting())
+                    .append(" maxActive=").append(v.getProperty("execution.max.active", "128"))
+                    .append(" permissions=").append(v.getProperty("execution.permissions", "").replace(",", "|"));
+        out.append(" workers=").append(workerCount(v));
+        out.append(" files=").append(v.getProperty("files.enabled", "false"));
+        out.append(" trace=").append(v.getProperty("trace.enabled", "false"))
+                .append(" feedback=").append(v.getProperty("feedback.enabled", "false"));
+        out.append(" inferenceNode=").append(v.getProperty("inference.node.id", ""));
+        return out.toString();
+    }
+
+    /**
+     * 统计授权的 Python worker 数（worker.<id>.role），只计数不打印 workerId。
+     */
+    private static int workerCount(java.util.Properties v) {
+        int count = 0;
+        for (String name : v.stringPropertyNames())
+            if (name.startsWith("worker.") && name.endsWith(".role")) count++;
+        return count;
+    }
+
     @Override
     public synchronized void start() {
         if (started.get()) return;
@@ -122,20 +158,32 @@ public final class HarnessService extends AbstractModule {
                 http.createContext("/", this::handleHttp);
                 http.setExecutor(httpExecutor);
                 http.start();
-            } else
+            } else {
                 executionHttp = JettyExchange.start(config.host(), config.port(), this::handleHttp);
+            }
             if (execution != null) execution.start();
             startupError = null;
+            Logger.i(
+                    HarnessService.class,
+                    "#start - Harness started: " + startupSummary());
         } catch (Exception e) {
             startupError = "HARNESS_CONFIGURATION_ERROR";
             stop();
-            System.err.println("Harness startup refused; check private configuration and port");
+            Logger.e(HarnessService.class, "#start - Harness startup refused; check private configuration and port", e);
         }
     }
 
     @Override
     public synchronized void stop() {
-        started.set(false);
+        boolean running = started.getAndSet(false);
+        if (running)
+            Logger.i(
+                    HarnessService.class,
+                    "#stop - Harness stopping: "
+                            + "execution="
+                            + (execution != null)
+                            + " http="
+                            + (http != null || executionHttp != null));
         // Stop new work and close streams before draining requests that use the runtime.
         if (business != null) business.close();
         if (executionHttp != null) {

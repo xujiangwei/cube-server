@@ -115,3 +115,6 @@ compile-check.sh
 .github/workflows/harness-runtime.yml
 
 .idea/dictionaries
+EVALUATION-2026-10-19.md
+service/storage/harness/resources/.harness-assets
+service/storage/harness/resources/.harness-lock

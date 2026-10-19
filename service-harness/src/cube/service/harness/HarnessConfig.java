@@ -48,6 +48,8 @@ public final class HarnessConfig {
     /**
      * 默认读取服务工作目录的 config/harness.properties；系统属性仅用于显式覆盖路径。
      * 基础服务、任务执行及模型后端配置均从同一文件加载。
+     * 其中的 sqlite 存储与资源仓库相对路径按进程工作目录解析，缺失目录自动创建；
+     * 符号链接、越界等仍由后续校验拒绝。
      */
     public static HarnessConfig load() throws IOException {
         String path = System.getProperty("harness.config", "config/harness.properties");
@@ -55,6 +57,7 @@ public final class HarnessConfig {
         try (InputStream in = Files.newInputStream(Paths.get(path))) {
             p.load(in);
         }
+        ConfigPaths.normalize(p);
         return new HarnessConfig(p);
     }
 

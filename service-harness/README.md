@@ -50,7 +50,7 @@ Linux 将配置放入 `/absolute/stage/config/harness.properties` 后，执行 `
 
 Cell 这个版本的程序化入口固定读取工作目录的 `cell.xml`；`Cell.start(boolean,String)` 的第二参数是日志名。`HarnessCell` 校验配置选择，避免误加载默认业务配置。Cell 启动时自身存在约 3 秒 TCP safe-lock；HTTP health 不代表 worker 已注册。
 
-**合部署**：同一个 jar 与其他服务放在同一 `cellets/`。将 `config/cohost-cellet.xml` 的元素合入经审阅的服务 XML；联合 staging 已生成 `config/service-with-harness.xml`，保留原 `ServiceCarpet`。通过宿主原有 Cell 启动命令显式选择此 XML，并将主配置放入宿主工作目录的 `config/harness.properties`，无需增加 JVM 参数。`HarnessCellet` 与其他 Cellet 一同加载到同一 JVM，安装时向现有 Kernel 注册 `HarnessService`，由 Kernel 管理模块启停。不要更换宿主监听器或跳过宿主许可证检查。Harness 启动配置/端口失败只影响自身 readiness，不关闭旧 Kernel。共享 JVM 的 CPU/堆/GC、许可证、数据库和全业务性能须在目标环境认证；共享 JVM 不提供进程级故障隔离或无重启升级。
+**合部署**：同一个 jar 与其他服务放在同一 `cellets/`。将 `config/cohost-cellet.xml` 的元素合入经审阅的服务 XML；联合 staging 已生成 `config/service-with-harness.xml`，保留原 `ServiceCarpet`。通过宿主原有 Cell 启动命令显式选择此 XML，并将主配置放入宿主工作目录的 `config/harness.properties`，无需增加 JVM 参数。私有配置中的 sqlite 存储与资源仓库目录支持相对路径，按服务工作目录解析、缺失时自动创建；绝对路径同样支持，符号链接与越界仍按原规则拒绝。`HarnessCellet` 与其他 Cellet 一同加载到同一 JVM，安装时向现有 Kernel 注册 `HarnessService`，由 Kernel 管理模块启停。不要更换宿主监听器或跳过宿主许可证检查。Harness 启动配置/端口失败只影响自身 readiness，不关闭旧 Kernel。共享 JVM 的 CPU/堆/GC、许可证、数据库和全业务性能须在目标环境认证；共享 JVM 不提供进程级故障隔离或无重启升级。
 
 ## Python 部署与停机
 

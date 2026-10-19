@@ -6,6 +6,7 @@
 
 package cube.service.harness.runtime;
 
+import cube.service.harness.ConfigPaths;
 import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.store.CatalogStore;
 import cube.service.harness.store.JdbcRunStore;
@@ -36,6 +37,7 @@ public final class RuntimeAdmin {
         try (InputStream in = Files.newInputStream(Paths.get(args[0]))) {
             p.load(in);
         }
+        ConfigPaths.normalize(p);
         StoreConfig config = new StoreConfig(p);
         CatalogStore catalog = new CatalogStore(new JdbcRunStore(config), config.mysql());
         String tenant = p.getProperty("runtime.tenant"), actor = p.getProperty("runtime.actor");
