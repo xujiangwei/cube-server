@@ -160,6 +160,12 @@ public class Performer implements TalkListener, Tickable {
         this.streamServer = new StreamServer();
     }
 
+    /**
+     * 获取指定名称的 Cellet 实例。
+     *
+     * @param name 指定 Cellet 的名称。
+     * @return 返回 Cellet 实例，如果指定名称的 Cellet 不存在则返回 {@code null} 。
+     */
     public Cellet getCellet(String name) {
         return this.celletService.getCellet(name);
     }
@@ -217,10 +223,20 @@ public class Performer implements TalkListener, Tickable {
                 + config.maxThreads + "/" + config.minThreads);
     }
 
+    /**
+     * 返回流服务器实例。
+     *
+     * @return 返回流服务器实例。
+     */
     public StreamServer getStreamServer() {
         return this.streamServer;
     }
 
+    /**
+     * 获取文件输入并发限制数。
+     *
+     * @return 返回允许的并发文件输入任务数量，默认为 10 。
+     */
     public int getConcurrentFileInputLimit() {
         try {
             return Integer.parseInt(this.properties.getProperty("concurrency.file.in", "10"));
@@ -229,6 +245,11 @@ public class Performer implements TalkListener, Tickable {
         }
     }
 
+    /**
+     * 获取文件输出并发限制数。
+     *
+     * @return 返回允许的并发文件输出任务数量，默认为 10 。
+     */
     public int getConcurrentFileOutputLimit() {
         try {
             return Integer.parseInt(this.properties.getProperty("concurrency.file.out", "10"));
@@ -237,6 +258,11 @@ public class Performer implements TalkListener, Tickable {
         }
     }
 
+    /**
+     * 获取文件操作并发限制数。
+     *
+     * @return 返回允许的并发文件操作任务数量，默认为 10 。
+     */
     public int getConcurrentFileOperationLimit() {
         try {
             return Integer.parseInt(this.properties.getProperty("concurrency.file.operation", "10"));
@@ -245,6 +271,11 @@ public class Performer implements TalkListener, Tickable {
         }
     }
 
+    /**
+     * 获取 CV 服务并发限制数。
+     *
+     * @return 返回允许的并发 CV 任务数量，默认为 10 。
+     */
     public int getCVConcurrencyLimit() {
         try {
             return Integer.parseInt(this.properties.getProperty("concurrency.cv", "10"));
@@ -313,18 +344,19 @@ public class Performer implements TalkListener, Tickable {
         this.directorList.add(director);
 
         for (String celletName : scope.cellets) {
-            List<Director> list = this.celletDirectorMap.get(celletName);
-            if (null == list) {
-                list = new ArrayList<>();
-                this.celletDirectorMap.put(celletName, list);
-            }
+            List<Director> list = this.celletDirectorMap.computeIfAbsent(celletName, k -> new ArrayList<>());
             list.add(director);
         }
 
         return director;
     }
 
-    /** Select only a ready node explicitly hosting this Cellet; never fall back to another service. */
+    /**
+     * 仅选择显式承载指定 Cellet 的就绪节点，不会回退到其他服务节点。
+     *
+     * @param celletName 指定 Cellet 的名称。
+     * @return 返回被选中的导演机，如果没有就绪的候选节点则返回 {@code null} 。
+     */
     public synchronized Director selectDirectorForCellet(String celletName) {
         List<Director> candidates = this.celletDirectorMap.get(celletName);
         Director selected = null;
@@ -335,16 +367,29 @@ public class Performer implements TalkListener, Tickable {
         return selected;
     }
 
-    /** Open a stream on the same connection used for its synchronous control messages. */
+    /**
+     * 在与同步控制消息相同的连接上打开数据流。
+     *
+     * @param director   指定导演机。
+     * @param celletName 指定 Cellet 的名称。
+     * @param streamName 指定流名称。
+     * @return 返回打开的输出流。
+     * @throws IOException 当连接不可用或无法打开流时抛出。
+     */
     public PrimitiveOutputStream openStream(Director director, String celletName, String streamName) throws IOException {
         if (director == null || director.getSection(celletName) == null
-                || director.speaker == null || !director.speaker.isReady()) throw new IOException("Service unavailable");
+                || director.speaker == null || !director.speaker.isReady())
+            throw new IOException("Service unavailable");
         PrimitiveOutputStream stream = director.speaker.speakStream(celletName, streamName);
         if (stream == null) throw new IOException("Stream unavailable");
         return stream;
     }
 
-    /** Retry a stopped handshake; Cell handles established-connection reconnects itself. */
+    /**
+     * 重试握手失败的连接；已建立连接的重连由 Cell 自行处理。
+     *
+     * @param celletName 指定 Cellet 的名称。
+     */
     public synchronized void retryFailedConnection(String celletName) {
         List<Director> directors = this.celletDirectorMap.get(celletName);
         if (directors == null) return;
@@ -431,7 +476,7 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 选择节点。选择权重最大的节点。
      *
-     * @return
+     * @return 返回被选中的导演机，如果没有可用节点则返回 {@code null} 。
      */
     private synchronized Director selectDirector() {
         if (this.directorList.isEmpty()) {
@@ -458,8 +503,8 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 联系人设备是否已存在。
      *
-     * @param device
-     * @return 返回已存在的设备。
+     * @param device 指定待检查的设备。
+     * @return 返回已存在的设备，如果不存在则返回 {@code null} 。
      */
     public Device existsDevice(Device device) {
         return this.tokenDeviceMap.get(device.getToken());
@@ -495,8 +540,8 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 从在线列表移除联系人。
      *
-     * @param contact
-     * @param device
+     * @param contact 指定联系人。
+     * @param device  指定需要移除的设备。
      */
     public void removeContact(Contact contact, Device device) {
         Contact current = this.onlineContacts.get(contact.getUniqueKey());
@@ -514,10 +559,21 @@ public class Performer implements TalkListener, Tickable {
         }
     }
 
+    /**
+     * 获取在线联系人映射。
+     *
+     * @return 返回联系人唯一键到联系人实例的映射表。
+     */
     protected Map<String, Contact> getOnlineContacts() {
         return this.onlineContacts;
     }
 
+    /**
+     * 为指定 Cellet 设置执行机监听器。
+     *
+     * @param celletName 指定 Cellet 的名称。
+     * @param listener   指定监听器实例。
+     */
     public void setListener(String celletName, PerformerListener listener) {
         this.listenerMap.put(celletName, listener);
     }
@@ -529,6 +585,13 @@ public class Performer implements TalkListener, Tickable {
         return null != celletName && null != listener && this.listenerMap.remove(celletName, listener);
     }
 
+    /**
+     * 移除指定会话上下文。
+     *
+     * <p>同时清理该上下文对应的导演机路由记录、数据传输记录以及设备记录。</p>
+     *
+     * @param context 指定会话上下文。
+     */
     public void removeTalkContext(TalkContext context) {
         this.talkDirectorMap.remove(context);
 
@@ -620,12 +683,12 @@ public class Performer implements TalkListener, Tickable {
         // 启动所有 Director
         for (Director director : this.directorList) {
             Endpoint ep = director.endpoint;
-            Speakable speakable = this.talkService.call(ep.getHost(), ep.getPort());
-            director.speaker = speakable;
+            director.speaker = this.talkService.call(ep.getHost(), ep.getPort());
         }
 
         // 启动 HTTP 服务器
-        if (this.harnessGateway == null && Boolean.parseBoolean(this.properties.getProperty("harness.rest.enabled", "false"))) {
+        if (this.harnessGateway == null &&
+                Boolean.parseBoolean(this.properties.getProperty("harness.rest.enabled", "false"))) {
             this.harnessGateway = cube.dispatcher.harness.HarnessGateway.install(this.httpServer, this);
         }
         this.httpServer.start();
@@ -635,6 +698,12 @@ public class Performer implements TalkListener, Tickable {
                 this.properties.getProperty("stream.port", "7171")));
     }
 
+    /**
+     * 停止执行机。
+     *
+     * <p>唤醒全部阻塞等待，停止流服务器和 HTTP 服务器，断开与所有导演机的连接，
+     * 并关闭线程池。</p>
+     */
     public void stop() {
         for (Block block : this.blockMap.values()) {
             synchronized (block) {
@@ -661,6 +730,11 @@ public class Performer implements TalkListener, Tickable {
         this.executor.shutdown();
     }
 
+    /**
+     * 重启执行机。
+     *
+     * <p>唤醒全部阻塞等待，断开与所有导演机的连接后重新建立连接。</p>
+     */
     public void restart() {
         for (Block block : this.blockMap.values()) {
             synchronized (block) {
@@ -692,8 +766,8 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 指定的令牌是否在当前节点建立连接。
      *
-     * @param tokenCode
-     * @return
+     * @param tokenCode 指定令牌码。
+     * @return 如果令牌已建立连接返回 <code>true</code> ，否则返回 <code>false</code> 。
      */
     public boolean existsTokenCode(String tokenCode) {
         return this.tokenDeviceMap.containsKey(tokenCode);
@@ -702,8 +776,8 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 获取指定令牌对应的会话上下文。
      *
-     * @param tokenCode
-     * @return
+     * @param tokenCode 指定令牌码。
+     * @return 返回会话上下文，如果令牌没有对应设备则返回 {@code null} 。
      */
     public TalkContext getTalkContext(String tokenCode) {
         Device device = this.tokenDeviceMap.get(tokenCode);
@@ -718,7 +792,7 @@ public class Performer implements TalkListener, Tickable {
      * 查询联系人。
      *
      * @param talkContext 指定会话上下文。
-     * @return
+     * @return 返回该会话上下文对应的联系人，如果未找到则返回 {@code null} 。
      */
     public Contact queryContact(TalkContext talkContext) {
         Iterator<Contact> iter = this.onlineContacts.values().iterator();
@@ -737,8 +811,10 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 校验令牌码是否有效。
      *
-     * @param tokenCode
-     * @return
+     * <p>优先从本地缓存读取，缓存未命中时向服务单元请求校验。</p>
+     *
+     * @param tokenCode 指定令牌码。
+     * @return 返回有效的令牌，校验失败时返回 {@code null} 。
      */
     public AuthToken verifyToken(String tokenCode) {
         AuthToken authToken = this.validAuthTokenMap.get(tokenCode);
@@ -763,8 +839,8 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送数据，不等待应答。
      *
-     * @param celletName
-     * @param actionDialect
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
      */
     public void transmit(String celletName, ActionDialect actionDialect) {
         this.tryTransmit(celletName, actionDialect);
@@ -772,6 +848,10 @@ public class Performer implements TalkListener, Tickable {
 
     /**
      * 向服务单元发送数据，返回是否成功交给连接发送。
+     *
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
+     * @return 如果数据成功交给连接发送返回 <code>true</code> ，否则返回 <code>false</code> 。
      */
     public boolean tryTransmit(String celletName, ActionDialect actionDialect) {
         if (null == celletName || null == actionDialect) {
@@ -794,7 +874,12 @@ public class Performer implements TalkListener, Tickable {
     }
 
     /**
-     * Send every event/control operation for a request to its original node.
+     * 将请求的所有事件和控制操作发送到其原始节点。
+     *
+     * @param director      指定导演机。
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
+     * @return 如果数据成功交给连接发送返回 <code>true</code> ，否则返回 <code>false</code> 。
      */
     public boolean tryTransmit(Director director, String celletName, ActionDialect actionDialect) {
         if (director == null || director.speaker == null || actionDialect == null) return false;
@@ -811,9 +896,9 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送数据，不等待应答。
      *
-     * @param talkContext
-     * @param celletName
-     * @param actionDialect
+     * @param talkContext   指定会话上下文。
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
      */
     public void transmit(TalkContext talkContext, String celletName, ActionDialect actionDialect) {
         long sn = actionDialect.containsParam("sn") ?
@@ -834,9 +919,11 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送数据，不等待应答。
      *
-     * @param talkContext
-     * @param cellet
-     * @param actionDialect
+     * <p>发送时会记录该数据与客户端会话上下文的映射关系，用于服务节点回送数据时转发客户端。</p>
+     *
+     * @param talkContext   指定会话上下文。
+     * @param cellet        指定 Cellet 实例。
+     * @param actionDialect 指定发送的数据。
      */
     public void transmit(TalkContext talkContext, Cellet cellet, ActionDialect actionDialect) {
         long sn = actionDialect.containsParam("sn") ?
@@ -861,9 +948,9 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送数据，该发送不做任何记录。
      *
-     * @param tokenCode
-     * @param celletName
-     * @param actionDialect
+     * @param tokenCode     指定令牌码。
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
      */
     public void transmit(String tokenCode, String celletName, ActionDialect actionDialect) {
         Director director = this.selectDirector(tokenCode, celletName);
@@ -880,10 +967,10 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送流。
      *
-     * @param tokenCode
-     * @param celletName
-     * @param streamName
-     * @param inputStream
+     * @param tokenCode   指定令牌码。
+     * @param celletName  指定 Cellet 的名称。
+     * @param streamName  指定流名称。
+     * @param inputStream 指定待发送的输入流。
      */
     public void transmit(String tokenCode, String celletName, String streamName, InputStream inputStream) {
         Director director = this.selectDirector(tokenCode, celletName);
@@ -922,10 +1009,10 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送流。
      *
-     * @param celletName
-     * @param streamName
-     * @param inputStream
-     * @return 返回流的 MD5 码和 SHA1 码。
+     * @param celletName  指定 Cellet 的名称。
+     * @param streamName  指定流名称。
+     * @param inputStream 指定待发送的输入流。
+     * @return 返回流的 MD5 码和 SHA1 码，数组索引 0 为 MD5 码，索引 1 为 SHA1 码。
      */
     public String[] transmit(String celletName, String streamName, InputStream inputStream) {
         // 选择 Director
@@ -986,10 +1073,10 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送数据，并阻塞当前线程直到应答或超时。
      *
-     * @param talkContext
-     * @param celletName
-     * @param actionDialect
-     * @return
+     * @param talkContext   指定会话上下文。
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
+     * @return 返回服务单元的应答数据，超时或无可用节点时返回 {@code null} 。
      */
     public ActionDialect syncTransmit(TalkContext talkContext, String celletName, ActionDialect actionDialect) {
         Director director = this.selectDirector(talkContext, celletName);
@@ -1004,11 +1091,11 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送数据，并阻塞当前线程直到应答或超时。
      *
-     * @param talkContext
-     * @param celletName
-     * @param actionDialect
-     * @param blockTimeout
-     * @return
+     * @param talkContext   指定会话上下文。
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
+     * @param blockTimeout  指定阻塞超时时长，单位毫秒。
+     * @return 返回服务单元的应答数据，超时或无可用节点时返回 {@code null} 。
      */
     public ActionDialect syncTransmit(TalkContext talkContext, String celletName, ActionDialect actionDialect,
                                       long blockTimeout) {
@@ -1024,10 +1111,10 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送数据，并阻塞当前线程直到应答或超时。
      *
-     * @param tokenCode
-     * @param celletName
-     * @param actionDialect
-     * @return
+     * @param tokenCode     指定令牌码。
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
+     * @return 返回服务单元的应答数据，超时或发送失败时返回 {@code null} 。
      */
     public ActionDialect syncTransmit(String tokenCode, String celletName, ActionDialect actionDialect) {
         Director director = this.selectDirector(tokenCode, celletName);
@@ -1037,9 +1124,9 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送数据，并阻塞当前线程直到应答或超时。
      *
-     * @param celletName
-     * @param actionDialect
-     * @return
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
+     * @return 返回服务单元的应答数据，超时或发送失败时返回 {@code null} 。
      */
     public ActionDialect syncTransmit(String celletName, ActionDialect actionDialect) {
         return this.syncTransmit(this.selectDirector(), celletName, actionDialect, this.blockTimeout);
@@ -1048,15 +1135,24 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 向服务单元发送数据，并阻塞当前线程直到应答或超时。
      *
-     * @param celletName
-     * @param actionDialect
-     * @param timeout
-     * @return
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
+     * @param timeout       指定阻塞超时时长，单位毫秒。
+     * @return 返回服务单元的应答数据，超时或发送失败时返回 {@code null} 。
      */
     public ActionDialect syncTransmit(String celletName, ActionDialect actionDialect, long timeout) {
         return this.syncTransmit(this.selectDirector(), celletName, actionDialect, timeout);
     }
 
+    /**
+     * 向服务单元发送数据，并阻塞当前线程直到应答或超时。
+     *
+     * @param director      指定导演机。
+     * @param celletName    指定 Cellet 的名称。
+     * @param actionDialect 指定发送的数据。
+     * @param timeout       指定阻塞超时时长，单位毫秒。
+     * @return 返回服务单元的应答数据，超时、连接不可用或发送失败时返回 {@code null} 。
+     */
     public ActionDialect syncTransmit(Director director, String celletName, ActionDialect actionDialect, long timeout) {
         if (null == director || null == director.speaker || null == actionDialect) {
             return null;
@@ -1101,6 +1197,12 @@ public class Performer implements TalkListener, Tickable {
         }
     }
 
+    /**
+     * 创建 Performer 标识数据。
+     *
+     * @param sn 指定序列号。
+     * @return 返回包含序列号和时间戳的 JSON 对象。
+     */
     private JSONObject createPerformer(long sn) {
         JSONObject json = new JSONObject();
         try {
@@ -1112,17 +1214,35 @@ public class Performer implements TalkListener, Tickable {
         return json;
     }
 
+    /**
+     * 处理服务单元回送的应答数据。
+     *
+     * @param response 指定应答数据。
+     * @return 返回添加了状态码的应答数据。
+     */
     private ActionDialect processResponse(ActionDialect response) {
         response.addParam("state", StateCode.makeState(StateCode.OK, "OK"));
         return response;
     }
 
+    /**
+     * 添加定时回调对象。
+     *
+     * <p>重复添加同一对象不会产生重复记录。</p>
+     *
+     * @param tickable 指定定时回调实例。
+     */
     public void addTickable(Tickable tickable) {
         if (null != tickable) {
             this.tickableList.addIfAbsent(tickable);
         }
     }
 
+    /**
+     * 移除定时回调对象。
+     *
+     * @param tickable 指定定时回调实例。
+     */
     public void removeTickable(Tickable tickable) {
         this.tickableList.remove(tickable);
     }
@@ -1130,7 +1250,9 @@ public class Performer implements TalkListener, Tickable {
     /**
      * Tick 回调。
      *
-     * @param now
+     * <p>向已注册的定时回调对象转发 Tick 事件，并清理超过 1 小时未使用的有效令牌。</p>
+     *
+     * @param now 指定当前时间戳。
      */
     @Override
     public void onTick(long now) {
@@ -1147,6 +1269,16 @@ public class Performer implements TalkListener, Tickable {
         }
     }
 
+    /**
+     * 监听到服务单元数据的回调。
+     *
+     * <p>根据数据类型分别处理：同步阻塞应答、向客户端透传数据、广播或指定设备推送，
+     * 以及转交给 Cellet 监听器。</p>
+     *
+     * @param speakable  指定连接实例。
+     * @param celletName 指定 Cellet 的名称。
+     * @param primitive  指定原始数据。
+     */
     @Override
     public void onListened(Speakable speakable, String celletName, Primitive primitive) {
         try {
@@ -1223,28 +1355,74 @@ public class Performer implements TalkListener, Tickable {
         }
     }
 
+    /**
+     * 监听到服务单元流数据的回调。
+     *
+     * <p>将流转交给对应 Cellet 的监听器，如果没有注册监听器则关闭该流。</p>
+     *
+     * @param speakable            指定连接实例。
+     * @param cellet               指定 Cellet 的名称。
+     * @param primitiveInputStream 指定输入流。
+     */
     @Override
     public void onListened(Speakable speakable, String cellet, PrimitiveInputStream primitiveInputStream) {
         PerformerListener listener = this.listenerMap.get(cellet);
         if (listener != null) listener.onReceivedStream(speakable, cellet, primitiveInputStream);
-        else try { primitiveInputStream.close(); } catch (IOException ignored) { }
+        else try {
+            primitiveInputStream.close();
+        } catch (IOException ignored) {
+        }
     }
 
+    /**
+     * 数据发送完成的回调。
+     *
+     * <p>当前无处理逻辑。</p>
+     *
+     * @param speakable 指定连接实例。
+     * @param cellet    指定 Cellet 的名称。
+     * @param primitive 指定原始数据。
+     */
     @Override
     public void onSpoke(Speakable speakable, String cellet, Primitive primitive) {
 
     }
 
+    /**
+     * 收到应答确认的回调。
+     *
+     * <p>当前无处理逻辑。</p>
+     *
+     * @param speakable 指定连接实例。
+     * @param cellet    指定 Cellet 的名称。
+     * @param primitive 指定原始数据。
+     */
     @Override
     public void onAck(Speakable speakable, String cellet, Primitive primitive) {
 
     }
 
+    /**
+     * 数据发送超时的回调。
+     *
+     * <p>当前无处理逻辑。</p>
+     *
+     * @param speakable 指定连接实例。
+     * @param cellet    指定 Cellet 的名称。
+     * @param primitive 指定原始数据。
+     */
     @Override
     public void onSpeakTimeout(Speakable speakable, String cellet, Primitive primitive) {
 
     }
 
+    /**
+     * 连接建立成功的回调。
+     *
+     * <p>清除该连接的握手失败记录。</p>
+     *
+     * @param speakable 指定连接实例。
+     */
     @Override
     public void onContacted(Speakable speakable) {
         this.failedHandshakes.remove(speakable);
@@ -1252,6 +1430,13 @@ public class Performer implements TalkListener, Tickable {
                 speakable.getRemoteAddress().getPort());
     }
 
+    /**
+     * 连接断开的回调。
+     *
+     * <p>通知所有已注册的监听器连接断开。</p>
+     *
+     * @param speakable 指定连接实例。
+     */
     @Override
     public void onQuitted(Speakable speakable) {
         for (PerformerListener listener : this.listenerMap.values()) listener.onDisconnected(speakable);
@@ -1259,6 +1444,14 @@ public class Performer implements TalkListener, Tickable {
                 speakable.getRemoteAddress().getPort());
     }
 
+    /**
+     * 连接失败的回调。
+     *
+     * <p>记录握手失败的连接以便后续重试，并通知所有已注册的监听器连接断开。</p>
+     *
+     * @param speakable 指定连接实例。
+     * @param talkError 指定错误信息。
+     */
     @Override
     public void onFailed(Speakable speakable, TalkError talkError) {
         if (talkError.getErrorCode() == TalkError.HandshakeTimeout)
@@ -1272,10 +1465,21 @@ public class Performer implements TalkListener, Tickable {
      */
     public class Block {
 
+        /**
+         * 阻塞记录的序列号。
+         */
         public Long sn;
 
+        /**
+         * 服务单元回送的应答数据。
+         */
         public volatile ActionDialect dialect;
 
+        /**
+         * 构造函数。
+         *
+         * @param sn 指定序列号。
+         */
         public Block(Long sn) {
             this.sn = sn;
         }
@@ -1286,14 +1490,33 @@ public class Performer implements TalkListener, Tickable {
      */
     public class Transmission {
 
+        /**
+         * 数据传输记录的序列号。
+         */
         public Long sn;
 
+        /**
+         * 对应的 Cellet 实例。
+         */
         public Cellet cellet;
 
+        /**
+         * 客户端的会话上下文。
+         */
         public TalkContext source;
 
+        /**
+         * 记录创建时的时间戳。
+         */
         public long timestamp;
 
+        /**
+         * 构造函数。
+         *
+         * @param sn     指定序列号。
+         * @param cellet 指定 Cellet 实例。
+         * @param source 指定客户端的会话上下文。
+         */
         public Transmission(Long sn, Cellet cellet, TalkContext source) {
             this.sn = sn;
             this.cellet = cellet;
