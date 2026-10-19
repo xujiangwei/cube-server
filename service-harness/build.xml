@@ -41,6 +41,7 @@
     <java classname="cube.service.harness.test.ExecutionTest" fork="true" failonerror="true">
       <classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath>
     </java>
+    <java classname="cube.service.harness.test.MultiUserExecutionTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
   </target>
   <target name="test-tools" depends="test">
     <java classname="cube.service.harness.test.ToolTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="tools.test.config" value="${tools.test.config}"/></java>
@@ -66,12 +67,13 @@
     <javac srcdir="test" destdir="${build.dir}/test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
     <java classname="cube.service.harness.test.ContractTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.HarnessConfigTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
+    <java classname="cube.service.harness.HarnessIdentityTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
   </target>
   <target name="test-transport" depends="test">
     <available file="../build/cube-dispatcher-3.0.jar" property="dispatcher.present"/>
     <fail unless="dispatcher.present" message="Build dispatcher with JDK 8 before test-transport"/>
     <mkdir dir="${build.dir}/transport-test-classes"/>
-    <path id="transport.cp"><pathelement location="../build/cube-dispatcher-3.0.jar"/><path refid="cp"/><pathelement location="${build.dir}/transport-test-classes"/></path>
+    <path id="transport.cp"><pathelement location="../build/cube-dispatcher-3.0.jar"/><path refid="cp"/><pathelement location="${build.dir}/test-classes"/><pathelement location="${build.dir}/transport-test-classes"/></path>
     <javac srcdir="transport-test" destdir="${build.dir}/transport-test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="transport.cp"/></javac>
     <java classname="cube.dispatcher.harness.HarnessGatewayTest" fork="true" failonerror="true"><classpath refid="transport.cp"/></java>
     <java classname="cube.service.harness.test.HarnessCelletTest" fork="true" failonerror="true"><classpath refid="transport.cp"/></java>

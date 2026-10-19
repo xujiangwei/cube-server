@@ -21,12 +21,14 @@ public final class HarnessCelletTest {
         Properties p = new Properties();
         p.setProperty("mode", "development"); p.setProperty("http.port", "0");
         p.setProperty("worker.credential", "worker-private-cellet-fixture-1234");
-        p.setProperty("api.credential", "api-private-cellet-fixture-1234567");
         try (OutputStream out = Files.newOutputStream(config)) { p.store(out, "Private test-only configuration"); }
         String previous = System.getProperty("harness.config");
         System.setProperty("harness.config", config.toString());
         Nucleus server = new Nucleus();
         Kernel kernel = new Kernel(server); server.setParameter("kernel", kernel);
+        FixtureAuth auth = new FixtureAuth();
+        auth.add("user-private-cellet-fixture-123456", "example.com", 10001, 600000);
+        kernel.installModule("Auth", auth);
         HarnessCellet cellet = new HarnessCellet();
         CountDownLatch gate = new CountDownLatch(1), running = new CountDownLatch(4);
         int port;
@@ -35,8 +37,8 @@ public final class HarnessCelletTest {
             server.getTalkService().startServer("127.0.0.1", port);
             HarnessSessionTest.check(server.getCelletService().installCellet(cellet), "Cellet installation failed");
             server.getCelletService().activateCellet(port, cellet);
-            cellet.getService().start();
-            try (HarnessSessionTest.Client client = new HarnessSessionTest.Client(port, p.getProperty("api.credential"))) {
+            kernel.startup();
+            try (HarnessSessionTest.Client client = new HarnessSessionTest.Client(port, "user-private-cellet-fixture-123456")) {
                 ThreadPoolExecutor executor = (ThreadPoolExecutor) cellet.getService().businessExecutor();
                 for (int i = 0; i < 4; i++) executor.execute(() -> {
                     running.countDown();
@@ -49,6 +51,10 @@ public final class HarnessCelletTest {
                 client.call(HarnessAction.Capabilities, new JSONObject(), null, 503);
                 gate.countDown();
                 client.call(HarnessAction.Capabilities, new JSONObject(), null, 200);
+                kernel.uninstallModule("Auth");
+                client.call(HarnessAction.Capabilities, new JSONObject(), null, 503);
+                kernel.installModule("Auth", auth);
+                auth.start();
                 client.call(HarnessAction.DecideApproval, new JSONObject().put("role", "approver"), null, 403);
                 client.call(HarnessAction.Trace, new JSONObject().put("role", "trace"), null, 403);
                 client.call(HarnessAction.CreateRun, new JSONObject().put("key", "invalid-json").put("contentType", "application/json"),
@@ -64,7 +70,7 @@ public final class HarnessCelletTest {
             }
             System.out.println("PASS: real Cell correlated service queue-full, raw JSON validation, internal error and stopped-service replies");
         } finally {
-            gate.countDown(); server.destroy();
+            gate.countDown(); kernel.dispose(); kernel.shutdown(); server.destroy();
             if (previous == null) System.clearProperty("harness.config"); else System.setProperty("harness.config", previous);
             Files.deleteIfExists(config);
         }

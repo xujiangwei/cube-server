@@ -8,6 +8,7 @@ package cube.service.harness;
 
 import cell.core.talk.PrimitiveInputStream;
 import cube.service.harness.files.FileService;
+import cube.service.harness.runtime.ProfileRegistry;
 import cube.service.harness.store.StoreException;
 import org.json.JSONObject;
 
@@ -55,18 +56,18 @@ final class HarnessTransfers implements AutoCloseable {
         }, 1, 1, TimeUnit.SECONDS);
     }
 
-    synchronized JSONObject prepare(String file, long transport, String credential, boolean upload, String query, BooleanSupplier valid) throws Exception {
+    synchronized JSONObject prepare(ProfileRegistry.Identity identity, String file, long transport, String credential, boolean upload, String query, BooleanSupplier valid) throws Exception {
         if (closed || transfers.size() >= 64 || !active.tryAcquire()) throw new StoreException("FILE_BUSY");
         FileService.Download download = null;
         try {
             JSONObject metadata;
-            if (upload) metadata = files.metadata(file, "input");
+            if (upload) metadata = files.metadata(identity, file, "input");
             else {
-                download = files.openDownload(file, query);
+                download = files.openDownload(identity, file, query);
                 metadata = download.metadata;
             }
             if (!valid.getAsBoolean()) throw new StoreException("FILE_TRANSFER_ABORTED");
-            Transfer t = new Transfer(file, transport, credential, upload, metadata, download, valid);
+            Transfer t = new Transfer(identity, file, transport, credential, upload, metadata, download, valid);
             transfers.put(t.id, t);
             return new JSONObject().put("transferId", t.id).put("expiresAt", t.expires)
                     .put("metadata", metadata).put("headers", download == null ? new JSONObject() : download.headers);
@@ -121,7 +122,7 @@ final class HarnessTransfers implements AutoCloseable {
         try {
             io.execute(() -> {
                 try {
-                    JSONObject result = files.uploadInput(t.file, input, t::valid);
+                    JSONObject result = files.uploadInput(t.identity, t.file, input, t::valid);
                     t.finish(HarnessBusiness.reply(200, result));
                 } catch (Exception e) {
                     t.finish(HarnessBusiness.failure(e));
@@ -201,6 +202,7 @@ final class HarnessTransfers implements AutoCloseable {
         final String id = "harness-" + UUID.randomUUID(), file, credential;
         final long transport, expires;
         final boolean upload;
+        final ProfileRegistry.Identity identity;
         final JSONObject metadata;
         final FileService.Download download;
         final BooleanSupplier valid;
@@ -208,8 +210,9 @@ final class HarnessTransfers implements AutoCloseable {
         volatile JSONObject result;
         AutoCloseable stream;
 
-        Transfer(String file, long transport, String credential, boolean upload, JSONObject metadata,
+        Transfer(ProfileRegistry.Identity identity, String file, long transport, String credential, boolean upload, JSONObject metadata,
                  FileService.Download download, BooleanSupplier valid) {
+            this.identity = identity;
             this.file = file;
             this.transport = transport;
             this.credential = credential;

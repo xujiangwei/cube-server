@@ -327,6 +327,12 @@ public final class HarnessService extends AbstractModule {
         return out.toByteArray();
     }
 
+    HarnessIdentity authenticate(String code) {
+        cube.core.Module auth = getKernel() == null ? null : getKernel().getModule("Auth");
+        return HarnessIdentity.authenticate(auth instanceof cube.auth.AuthTokenProvider && auth.isStarted()
+                ? (cube.auth.AuthTokenProvider) auth : null, code, HarnessIdentity.permissions(config.values));
+    }
+
     public ExecutorService businessExecutor() {
         return businessExecutor;
     }

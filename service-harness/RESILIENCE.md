@@ -6,7 +6,7 @@
 
 ## 接单与收尾
 
-部署私有 `harness.properties` 设置 `execution.accepting=false`，并设置独立 `admission.admin.credential`（至少 24 字符，不能与 API、worker、trace reader 或审批凭据相同）。原开发配置默认仍为 `true`；部署时必须显式关闭。管理开关仅属于当前 JVM，重启恢复配置值，不能依赖内存开关在重启后保持关闭。多 JVM 部署必须逐节点关闭接单或先在新入口关闭路由。
+部署私有 `harness.properties` 设置 `execution.accepting=false`，并设置独立 `admission.admin.credential`（至少 24 字符，不能与 worker 凭据相同；不要复用用户 token）。原开发配置默认仍为 `true`；部署时必须显式关闭。管理开关仅属于当前 JVM，重启恢复配置值，不能依赖内存开关在重启后保持关闭。多 JVM 部署必须逐节点关闭接单或先在新入口关闭路由。
 
 使用管理凭据调用以下入口；凭据从私有配置读取，不放命令行或报告中：
 
@@ -18,7 +18,7 @@ POST /harness-admin/v1/admission  {"accepting": true}
 
 普通 API/worker 凭据不能管理接单。POST 仅接受一个布尔字段 `accepting`。关闭后新任务返回 503 `HARNESS_DRAINING`；已存在创建凭据仍能幂等重放，参数改变仍冲突。关闭接单不停止协调器、Cell、结果回执、查询、取消或文件清理。`/healthz` 保持存活，`/readyz` 和 capabilities 的 `runsReady` 反映接单状态。
 
-管理响应给出 `activeRuns`、`unsettledModelJobs`、`unsettledToolJobs`、`unknownRuns` 和 `drained`。只有活动任务、未物理结束/未确认回执和 unknown 全部归零才报告 drained。计数覆盖当前 tenant 的账本，因此共享同一库/tenant 的其他节点也会阻止 drained；接单开关不跨 JVM 广播。unknown 不能靠取消或删除账本清零，保留兼容恢复节点与对应 Python journal 对账。
+管理响应给出 `activeRuns`、`unsettledModelJobs`、`unsettledToolJobs`、`unknownRuns` 和 `drained`。只有活动任务、未物理结束/未确认回执和 unknown 全部归零才报告 drained。计数覆盖该库全部租户的账本，因此共享同一库的其他节点也会阻止 drained；接单开关不跨 JVM 广播。unknown 不能靠取消或删除账本清零，保留兼容恢复节点与对应 Python journal 对账。
 
 ## 可复现本机演练
 

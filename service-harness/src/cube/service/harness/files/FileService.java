@@ -117,6 +117,11 @@ public final class FileService implements AutoCloseable {
     }
 
     public JSONObject create(String key, JSONObject req) {
+        Objects.requireNonNull(identity, "TRUSTED_IDENTITY_REQUIRED");
+        return create(identity, key, req);
+    }
+
+    public JSONObject create(ProfileRegistry.Identity identity, String key, JSONObject req) {
         ledger.policy();
         return view(ledger.create(identity.tenant, identity.subject, key, "input", null, req));
     }
@@ -142,16 +147,21 @@ public final class FileService implements AutoCloseable {
     }
 
     public JSONObject metadata(String id, String kind) {
+        Objects.requireNonNull(identity, "TRUSTED_IDENTITY_REQUIRED");
+        return metadata(identity, id, kind);
+    }
+
+    public JSONObject metadata(ProfileRegistry.Identity identity, String id, String kind) {
         JSONObject row = ledger.get(identity.tenant, identity.subject, id);
         if (!row.getString("kind").equals(kind)) throw new StoreException("FILE_NOT_FOUND");
         return view(row);
     }
 
-    private JSONObject upload(String id, InputStream in) throws Exception {
-        return upload(id, in, () -> true);
+    private JSONObject upload(ProfileRegistry.Identity identity, String id, InputStream in) throws Exception {
+        return upload(identity, id, in, () -> true);
     }
 
-    private JSONObject upload(String id, InputStream in, java.util.function.BooleanSupplier valid) throws Exception {
+    private JSONObject upload(ProfileRegistry.Identity identity, String id, InputStream in, java.util.function.BooleanSupplier valid) throws Exception {
         if (!transfers.tryAcquire()) throw new StoreException("FILE_BUSY");
         try {
             return disk.tryLocked(
@@ -222,18 +232,33 @@ public final class FileService implements AutoCloseable {
     }
 
     public JSONObject uploadInput(String id, InputStream in) throws Exception {
+        Objects.requireNonNull(identity, "TRUSTED_IDENTITY_REQUIRED");
+        return uploadInput(identity, id, in);
+    }
+
+    public JSONObject uploadInput(ProfileRegistry.Identity identity, String id, InputStream in) throws Exception {
         if (!ledger.get(identity.tenant, identity.subject, id).getString("kind").equals("input"))
             throw new StoreException("FILE_NOT_FOUND");
-        return upload(id, in);
+        return upload(identity, id, in);
     }
 
     public JSONObject uploadInput(String id, InputStream in, java.util.function.BooleanSupplier valid) throws Exception {
+        Objects.requireNonNull(identity, "TRUSTED_IDENTITY_REQUIRED");
+        return uploadInput(identity, id, in, valid);
+    }
+
+    public JSONObject uploadInput(ProfileRegistry.Identity identity, String id, InputStream in, java.util.function.BooleanSupplier valid) throws Exception {
         if (!ledger.get(identity.tenant, identity.subject, id).getString("kind").equals("input"))
             throw new StoreException("FILE_NOT_FOUND");
-        return upload(id, in, valid);
+        return upload(identity, id, in, valid);
     }
 
     public JSONObject complete(String id, String sha) throws Exception {
+        Objects.requireNonNull(identity, "TRUSTED_IDENTITY_REQUIRED");
+        return complete(identity, id, sha);
+    }
+
+    public JSONObject complete(ProfileRegistry.Identity identity, String id, String sha) throws Exception {
         return disk.tryLocked(
                 () -> {
                     JSONObject row = ledger.get(identity.tenant, identity.subject, id);
@@ -285,12 +310,22 @@ public final class FileService implements AutoCloseable {
     }
 
     public JSONArray artifacts(String run) {
+        Objects.requireNonNull(identity, "TRUSTED_IDENTITY_REQUIRED");
+        return artifacts(identity, run);
+    }
+
+    public JSONArray artifacts(ProfileRegistry.Identity identity, String run) {
         JSONArray rows = ledger.list(identity.tenant, identity.subject, run), out = new JSONArray();
         for (int i = 0; i < rows.length(); i++) out.put(view(rows.getJSONObject(i)));
         return out;
     }
 
     public void checkDelivery(String run) throws Exception {
+        Objects.requireNonNull(identity, "TRUSTED_IDENTITY_REQUIRED");
+        checkDelivery(identity, run);
+    }
+
+    public void checkDelivery(ProfileRegistry.Identity identity, String run) throws Exception {
         disk.tryLocked(
                 () -> {
                     ledger.checkDelivery(identity.tenant, identity.subject, run);
@@ -353,10 +388,15 @@ public final class FileService implements AutoCloseable {
     }
 
     public Download openDownload(String id, String query) throws Exception {
+        Objects.requireNonNull(identity, "TRUSTED_IDENTITY_REQUIRED");
+        return openDownload(identity, id, query);
+    }
+
+    public Download openDownload(ProfileRegistry.Identity identity, String id, String query) throws Exception {
         if (query != null && !query.isEmpty()) {
             if (!query.matches("handle=[A-Za-z0-9_-]+\\.[a-f0-9]{64}"))
                 throw new StoreException("INVALID_DOWNLOAD_HANDLE");
-            verifyHandle(id, query.substring(7));
+            verifyHandle(identity, id, query.substring(7));
         }
         if (!transfers.tryAcquire()) throw new StoreException("FILE_BUSY");
         try {
@@ -424,6 +464,11 @@ public final class FileService implements AutoCloseable {
     }
 
     public JSONObject handle(String id) throws Exception {
+        Objects.requireNonNull(identity, "TRUSTED_IDENTITY_REQUIRED");
+        return handle(identity, id);
+    }
+
+    public JSONObject handle(ProfileRegistry.Identity identity, String id) throws Exception {
         String pin = "handle-" + UUID.randomUUID();
         JSONObject r = ledger.pin(identity.tenant, identity.subject, id, pin, null, "download");
         try {
@@ -449,7 +494,7 @@ public final class FileService implements AutoCloseable {
         }
     }
 
-    private void verifyHandle(String id, String value) throws Exception {
+    private void verifyHandle(ProfileRegistry.Identity identity, String id, String value) throws Exception {
         String[] pieces = value.split("\\.", -1);
         if (pieces.length != 2
                 || !MessageDigest.isEqual(
@@ -465,8 +510,13 @@ public final class FileService implements AutoCloseable {
             throw new StoreException("INVALID_DOWNLOAD_HANDLE");
     }
 
+    private ProfileRegistry.Identity owner(JdbcRunStore.Lease lease) {
+        return new ProfileRegistry.Identity(lease.tenant, lease.subject, Collections.emptySet());
+    }
+
     public JSONObject writeText(JdbcRunStore.Lease lease, String call, JSONObject args)
             throws Exception {
+        ProfileRegistry.Identity identity = owner(lease);
         byte[] content = args.getString("text").getBytes(StandardCharsets.UTF_8);
         JSONObject req =
                 new JSONObject()
@@ -476,8 +526,8 @@ public final class FileService implements AutoCloseable {
                         .put("sha256", RuntimeSupport.sha(content));
         JSONObject row = ledger.create(lease, call, req);
         if (row.getString("status").equals("uploading")) {
-            upload(row.getString("file_id"), new ByteArrayInputStream(content));
-            complete(row.getString("file_id"), req.getString("sha256"));
+            upload(identity, row.getString("file_id"), new ByteArrayInputStream(content));
+            complete(identity, row.getString("file_id"), req.getString("sha256"));
         }
         JSONObject current = ledger.get(identity.tenant, identity.subject, row.getString("file_id"));
         if (!view(current).getString("state").equals("ready")) throw new StoreException("FILE_EXPIRED");
@@ -485,6 +535,7 @@ public final class FileService implements AutoCloseable {
     }
 
     public JSONObject readText(JdbcRunStore.Lease lease, String call, String id) throws Exception {
+        ProfileRegistry.Identity identity = owner(lease);
         return disk.tryLocked(
                 () -> {
                     ledger.owner(lease);
@@ -511,6 +562,7 @@ public final class FileService implements AutoCloseable {
      * Verified bytes of a run-bound input only; neither a host path nor an arbitrary blob handle.
      */
     public byte[] readBound(JdbcRunStore.Lease lease, String call, String id, int maxBytes, Set<String> mediaTypes) throws Exception {
+        ProfileRegistry.Identity identity = owner(lease);
         if (maxBytes < 1 || maxBytes > 1048576) throw new StoreException("INPUT_LIMIT_INVALID");
         return disk.tryLocked(() -> {
             ledger.owner(lease);

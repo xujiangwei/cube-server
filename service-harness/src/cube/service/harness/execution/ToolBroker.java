@@ -33,6 +33,7 @@ import static cube.service.harness.store.JdbcRunStore.hash;
 public final class ToolBroker implements AutoCloseable {
     public final ToolJobStore jobs;
     private final ProfileRegistry.Identity identity;
+    private final Set<String> permissions;
     private final String key, node;
     private final QueryProviders providers;
     private cube.service.harness.files.FileService files;
@@ -72,9 +73,19 @@ public final class ToolBroker implements AutoCloseable {
 
     public ToolBroker(ToolJobStore jobs, ProfileRegistry.Identity identity, Properties p)
             throws Exception {
+        this(jobs, identity, identity.permissions, p);
+    }
+
+    public ToolBroker(ToolJobStore jobs, Set<String> permissions, Properties p) throws Exception {
+        this(jobs, null, permissions, p);
+    }
+
+    private ToolBroker(ToolJobStore jobs, ProfileRegistry.Identity identity, Set<String> permissions,
+            Properties p) throws Exception {
         ToolProtocol.verify();
         this.jobs = jobs;
         this.identity = identity;
+        this.permissions = java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(permissions));
         key = p.getProperty("runner.grant.key", "");
         node = RuntimeSupport.id(p.getProperty("broker.node.id", ""));
         if (key.length() < 32) throw new IllegalArgumentException("RUNNER_GRANT_KEY_REQUIRED");
@@ -146,7 +157,7 @@ public final class ToolBroker implements AutoCloseable {
                 || !RuntimeSupport.strings(runtime.getJSONArray("capabilities")).contains("tool.execute")
                 || !tool.getString("effect").equals("read-only")
                 || !tool.getString("permission").equals(provider.permission())
-                || !identity.permissions.contains(provider.permission()))
+                || !permissions.contains(provider.permission()))
             throw new StoreException("TOOL_PROFILE_FORBIDDEN");
         if (tool.optInt("brokerProtocol", 4) != provider.protocolVersion())
             throw new StoreException("PROVIDER_PROTOCOL_MISMATCH");
@@ -236,9 +247,9 @@ public final class ToolBroker implements AutoCloseable {
         JSONObject run = jobs.currentRun(j);
         if (claims.getLong("expiresAt") < System.currentTimeMillis()
                 || run.getLong("fence") != j.getLong("origin_fence")
-                || !identity.tenant.equals(j.getString("tenant"))
-                || !identity.subject.equals(j.getString("subject_id"))
-                || !identity.permissions.contains(provider(j).permission())
+                || (identity != null && !identity.tenant.equals(j.getString("tenant")))
+                || (identity != null && !identity.subject.equals(j.getString("subject_id")))
+                || !permissions.contains(provider(j).permission())
                 || j.getInt("cancel_requested") != 0
                 || jobs.revoked(j)
                 || !run.getJSONObject("snapshot").getString("state").equals("running"))

@@ -6,14 +6,14 @@
 
 ## 控制接口
 
-新接口沿用 `/harness/v1`、独立 API Bearer 凭据和 `Idempotency-Key`。完整新增响应契约见 [control-files/openapi.json](contracts/control-files/openapi.json)；原冻结契约保留。
+新接口沿用 `/harness/v1`、已有 Cube 用户 Bearer token和 `Idempotency-Key`。完整新增响应契约见 [control-files/openapi.json](contracts/control-files/openapi.json)；原冻结契约保留。
 
 - `GET /runs/{runId}`：等待时附加 `interaction`（waitId、kind、expiresAt、argumentsHash、details）。
 - `POST /runs/{runId}/resume`：`{expectedVersion,waitId,input:{instruction,attachmentIds:[]}}`。
 - `POST /runs/{runId}/approvals/{waitId}/decision`：`{expectedVersion,decision:"approve"|"reject",argumentsHash,reason?}`。
 - `POST /runs/{runId}/cancel`：`{expectedVersion,reason?}`。
 
-服务先鉴权，再查同 key 回执，再检查版本；同 key 异参数返回 409。等待问题、检查点摘要、审批固定参数和原始截止时间都在数据库中保存，重启不续期。resume 增加一条 user 输入；已确认工具不重复执行。批准人必须使用独立 `control.approver.credential`，其 `control.approver.subject` 不同于执行主体；此凭据只能读取 run 和提交审批。审批参数绑定 SHA256，派发前再检查固定定义/参数/权限。这里是固定开发身份适配器，生产身份接入仍需后续认证；当前审批只用于可信文件写入或 fake effect 测试。
+服务先鉴权，再查同 key 回执，再检查版本；同 key 异参数返回 409。等待问题、检查点摘要、审批固定参数和原始截止时间都在数据库中保存，重启不续期。resume 增加一条 user 输入；已确认工具不重复执行。批准人由 `control.approver.subjects` 的“域/联系人ID”白名单指定，使用自己的 Cube token，只能审批同域且不属于自己的任务；可读取同域被审批任务。审批参数绑定 SHA256，派发前再检查固定定义/参数/权限。普通任务控制、事件、反馈、输入和产物均限定 token 对应的域与用户；文件异步传输也保留该身份，令牌到期终止传输。
 
 取消受理返回 202、进入 cancelling 并拦截新模型/工具派发。在途执行继续保存物理完成证据，超过 `control.cancel.grace.millis` 可先进入 cancelled/unknown；晚到结果只结算执行与用量，不重开终态、不重复副作用。未知执行保持容量隔离。
 

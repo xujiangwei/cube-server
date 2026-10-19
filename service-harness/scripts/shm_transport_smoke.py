@@ -37,11 +37,12 @@ def main():
             sock.bind(("127.0.0.1", 0))
             return sock.getsockname()[1]
     cell_port, service_port = port(), port()
-    api, approver, trace, worker, admin = (secrets.token_hex(24) for _ in range(5))
+    api, approver, trace, worker, admin, other, foreign, expired = (secrets.token_hex(24) for _ in range(8))
     stage = root / "cell"
     (stage / "cellets").mkdir(parents=True)
     shutil.copy2(module / "build/cube-service-harness-3.0.jar", stage / "cellets")
     xml = ET.parse(module / "config/standalone.xml")
+    xml.find(".//listeners/class").text = "cube.service.harness.test.FixtureAuthCarpet"
     xml.find(".//server/port").text = str(cell_port)
     xml.find(".//cellet").set("port", str(cell_port))
     xml.write(stage / "cell.xml", encoding="utf-8", xml_declaration=True)
@@ -49,17 +50,26 @@ def main():
     config.write_text((root / "data/store.local.properties").read_text() + f"""
 http.port={service_port}
 lease.millis=3000
-api.credential={api}
+fixture.user.token={api}
+fixture.other.token={other}
+fixture.other.contact=10004
+fixture.foreign.token={foreign}
+fixture.foreign.domain=foreign.example.com
+fixture.foreign.contact=10001
+fixture.expired.token={expired}
 worker.credential={worker}
-control.approver.credential={approver}
-control.approver.subject=independent-reviewer
-trace.reader.credential={trace}
+fixture.approver.token={approver}
+fixture.approver.contact=10002
+fixture.trace.token={trace}
+fixture.trace.contact=10003
+control.approver.subjects={fixture['tenant']}/10002,foreign.example.com/10001
+trace.reader.subjects={fixture['tenant']}/10003,foreign.example.com/10001
 admission.admin.credential={admin}
 store.enabled=true
 execution.enabled=true
 execution.max.active=100
-execution.tenant={fixture['tenant']}
-execution.subject={fixture['subject']}
+fixture.user.domain={fixture['tenant']}
+fixture.user.contact={fixture['subject']}
 execution.repository.namespace=runtime-test-repo
 """, encoding="utf-8")
     gateway = None
@@ -119,15 +129,15 @@ execution.repository.namespace=runtime-test-repo
     def no_pins():
         with sqlite3.connect(root / "data/harness_execution.db", timeout=5) as db:
             return db.execute("SELECT COUNT(*) FROM harness_file_pin WHERE kind IN ('download','upload')").fetchone()[0] == 0
-    def upload(data, sha=None):
+    def upload(data, sha=None, token=None):
         sha = sha or hashlib.sha256(data).hexdigest()
         metadata = dict(fileName="测试.bin", mediaType="application/octet-stream", size=len(data), sha256=sha)
-        value = request("/harness/v1/inputs", metadata, expected=201)
+        value = request("/harness/v1/inputs", metadata, token=token, expected=201)
         base = "/harness/v1/inputs/" + value["inputId"]
-        result = request(base + "/content", data, method="PUT", headers={"Content-Type": "application/octet-stream"}, expected=200 if sha == hashlib.sha256(data).hexdigest() else 400)
+        result = request(base + "/content", data, token=token, method="PUT", headers={"Content-Type": "application/octet-stream"}, expected=200 if sha == hashlib.sha256(data).hexdigest() else 400)
         if "errorCode" not in result:
-            request(base + "/complete", dict(sha256=sha))
-            assert request(base)["state"] == "ready"
+            request(base + "/complete", dict(sha256=sha), token=token)
+            assert request(base, token=token)["state"] == "ready"
         return result
     try:
         launch()
@@ -142,6 +152,8 @@ execution.repository.namespace=runtime-test-repo
         request("/harness/v1/capabilities", token=worker, expected=401)
         request("/harness/v1/capabilities", token=admin, expected=401)
         request("/harness/v1/capabilities", headers={"Authorization": ""}, expected=401)
+        request("/harness/v1/capabilities", token=expired, expected=401)
+        assert request("/harness/v1/task-profiles", token=foreign)["profiles"] == []
         profiles = request("/harness/v1/task-profiles")["profiles"]
         assert profiles
         request("/harness/v1/task-profiles/" + profiles[0]["profileId"])
@@ -164,6 +176,32 @@ execution.repository.namespace=runtime-test-repo
         assert all(row["snapshot"]["runId"] == run for row, run in zip(rows, ids))
         record("real-cell-concurrent-correlated-replies-raw-json-and-durable-idempotency")
 
+        # Identical idempotency keys belong to the authenticated domain/contact pair.
+        other_run = request("/harness/v1/runs", create, token=other, expected=202,
+                            headers={"Idempotency-Key": key})["runId"]
+        assert other_run != first["runId"]
+        assert request("/harness/v1/runs", create, token=other, expected=202,
+                       headers={"Idempotency-Key": key})["runId"] == other_run
+        for token in (other, foreign):
+            for suffix in ("", "/events", "/artifacts"):
+                request("/harness/v1/runs/" + fixture["artifactRun"] + suffix, token=token, expected=404)
+            request("/harness/v1/runs/" + fixture["artifactRun"] + "/feedback",
+                    dict(rating="positive"), token=token, expected=404)
+            request("/harness/v1/runs/" + first["runId"] + "/cancel",
+                    dict(expectedVersion=1), token=token, expected=404)
+            for suffix in ("", "/content", "/download-handle"):
+                request("/harness/v1/artifacts/" + fixture["artifact"]["artifactId"] + suffix,
+                        token=token, expected=404)
+        request("/harness/v1/runs/" + other_run, expected=404)
+        def owner_jobs():
+            with sqlite3.connect(root / "data/harness_execution.db", timeout=5) as db:
+                runs = db.execute("SELECT tenant,subject_id FROM harness_run WHERE run_id IN (?,?) ORDER BY subject_id",
+                                  (first["runId"], other_run)).fetchall()
+                jobs = db.execute("SELECT tenant,subject_id FROM harness_model_job WHERE run_id=?", (other_run,)).fetchall()
+                return runs == [(fixture["tenant"], fixture["subject"]), (fixture["tenant"], "10004")] and jobs == [(fixture["tenant"], "10004")]
+        wait(owner_jobs)
+        record("cube-token-expiry-domain-contact-ownership-isolation-idempotency-and-background-execution")
+
         events = "/harness/v1/runs/" + fixture["artifactRun"] + "/events"
         request(events + "?after=999999", expected=400)
         request(events + "?after=0&after=1", expected=400)
@@ -183,13 +221,15 @@ execution.repository.namespace=runtime-test-repo
         decision = dict(expectedVersion=row["snapshot"]["version"], decision="approve", argumentsHash=fixture["approvalWait"]["argumentsHash"])
         path = "/harness/v1/runs/" + run + "/approvals/" + fixture["approvalWait"]["waitId"] + "/decision"
         request(path, decision, expected=403)
+        request(path, decision, token=foreign, expected=404)
         request(path, decision, token=approver, expected=202)
-        request("/harness/v1/task-profiles", token=approver, expected=403)
+        request("/harness/v1/task-profiles", token=approver)
         run = fixture["artifactRun"]
         request("/harness/v1/runs/" + run + "/feedback", dict(rating="positive", reason="transport fixture"), expected=202)
         request("/harness/v1/runs/" + run + "/trace", expected=403)
+        request("/harness/v1/runs/" + run + "/trace", token=foreign, expected=404)
         request("/harness/v1/runs/" + run + "/trace", token=trace)
-        request("/harness/v1/runs/" + run, token=trace, expected=403)
+        request("/harness/v1/runs/" + run, token=trace, expected=404)
         cancel = first["runId"]
         for _ in range(5):
             row = request("/harness/v1/runs/" + cancel)
@@ -203,6 +243,8 @@ execution.repository.namespace=runtime-test-repo
             raise AssertionError("cancel never accepted")
         record("resume-cancel-approval-feedback-trace-and-independent-authority")
 
+        other_input = upload(b"other user's private input", token=other)["inputId"]
+        request("/harness/v1/inputs/" + other_input, expected=404)
         upload(b"")
         upload("中文\n".encode())
         upload(b"x" * args.max_file_bytes)
@@ -233,6 +275,9 @@ execution.repository.namespace=runtime-test-repo
         launch()
         gateway.ready(35)
         request("/harness/v1/runs/" + fixture["artifactRun"])
+        request("/harness/v1/runs/" + other_run, token=other)
+        request("/harness/v1/runs/" + other_run, expected=404)
+        wait(owner_jobs)
         wait(no_pins)
         record("client-interruption-and-service-restart-reuse-dispatcher-without-http-fallback")
         session_cp = os.pathsep.join((str(module.parent / "build/cube-dispatcher-3.0.jar"),

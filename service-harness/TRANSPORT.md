@@ -6,7 +6,7 @@
 
 dispatcher 与 service-harness 必须配套升级 common、dispatcher 和 Harness jar。只改变 Java 业务传输，不改变数据库结构、Python worker 协议、profile 或 worker 源摘要。一个 JVM 继续承载多个同角色或不同角色 Python 单元，各单元独立 workerId、实例、运行目录与租约。
 
-Harness REST 在 `dispatcher.properties` 设置 `harness.rest.enabled=true` 后随 dispatcher 启动挂载，无需独立的 `dispatcher-harness.properties` 或 `harness.rest.mode`。dispatcher 不保存或转换调用方凭据，也不配置 client/backend credential 或 backend HTTP URL。请求 Bearer 原样通过 SHM 交给 service；service 按已有 `api.credential`、`control.approver.credential` 和 `trace.reader.credential` 识别普通调用、审批和 trace 角色，再校验操作权限，不信任请求自报的角色。普通 API 凭据已由 `scripts/init_dev.py` 自动生成在 service 私有配置中，无需在 dispatcher 再填一份。调用身份由 service 私有配置确定；无需设置环境 mode，旧 mode 值被忽略。Python 节点可通过指定 IPv4 或主机名直接连接 Java Cell，多节点配置见 [REMOTE-NODES.md](REMOTE-NODES.md)。
+Harness REST 在 `dispatcher.properties` 设置 `harness.rest.enabled=true` 后随 dispatcher 启动挂载，无需独立的 `dispatcher-harness.properties` 或 `harness.rest.mode`。dispatcher 不保存或转换调用方凭据，也不配置 client/backend credential 或 backend HTTP URL。请求 Bearer 原样通过 SHM 交给 service；service 复用同一 Kernel 的 Cube Auth 模块查询 token，并检查有效期和联系人绑定。租户取 token.domain，用户取 token.contactId，不接受载荷自报身份；无效、过期或未绑定用户的 token 返回 401，Auth 不可用返回 503。普通任务、事件、反馈与文件按域和用户隔离；后台执行、恢复及工具 grant 使用账本中的任务归属。无需配置 `api.credential`、`execution.tenant` 或 `execution.subject`，旧值不参与认证。审批/trace 分别使用 `control.approver.subjects`、`trace.reader.subjects` 配置“域/联系人ID”白名单，调用时仍携带自己的 Cube token；额外授权只作用于同域审批/读取及 trace 导出，其他操作仍限定本人资源。用户登录 token 不下发给 Python worker，worker 继续使用独立内部凭据。无需设置环境 mode，旧 mode 值被忽略。Python 节点可通过指定 IPv4 或主机名直接连接 Java Cell，多节点配置见 [REMOTE-NODES.md](REMOTE-NODES.md)。
 
 把 Harness 加入 dispatcher 的 `cellets` 和相应 `director.N.cellets`；`director.N.address/port` 指向 service Cell SHM 监听器（独立部署默认 7600），不是运维 HTTP 端口（默认 7088）。`Performer.selectDirectorForCellet("Harness")` 仅选择 scope 包含 Harness 且连接就绪的最高权重节点。正常复用 Cell 长连接；握手超时后重新建连，重连期间返回 503。已开始的文件传输不会切换节点或会话，需客户端重新发起。
 
@@ -38,3 +38,7 @@ python -B service-harness/scripts/shm_transport_smoke.py --java C:/jdk8/bin/java
 ```
 
 smoke 使用独立目录、SQLite 和真实 Cell/Performer，不需模型硬件。覆盖所有已实现路由、凭据/权限、原始 JSON、幂等、并发关联、事件、文件/摘要/句柄、中断、重连与双会话隔离。`lifecycle_smoke.py`、`execution_smoke.py` 等脚本也使用真实 dispatcher fixture，业务地址经过 SHM，健康和运维仍直达 service；运行前必须构建 dispatcher。模型在线质量及目标环境 SLO 认证使用各自专项流程。
+
+业务 REST 需加载实现 `cube.auth.AuthTokenProvider` 的 Cube Auth 模块，正式部署使用宿主现有 `AuthService`。common、service 与 Harness JAR 需配套重建。仅含 Harness 的 standalone Cell 保留 worker 和健康/运维能力，业务请求返回 `AUTH_UNAVAILABLE`；测试令牌模块仅位于测试 classpath，不打入发布包。
+
+迁移现有私有配置时，移除 `api.credential`、固定的 `execution.tenant/subject` 以及旧审批/trace 共享凭据，按需填写新的用户白名单。旧固定开发身份下的任务和文件不会自动转归某个 Cube 用户；新用户使用的 TaskProfile 与资源须发布在其 token.domain 对应的域内。

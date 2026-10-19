@@ -37,7 +37,7 @@ ant "-Dharness.stage.dir=C:/isolated/release-with-harness" deploy-with-harness
 
 ## 两种运行方式
 
-**独立 Cell**：使用 staging 的 `cell.xml`，由 `HarnessCarpet` 创建专用 Kernel；不加载 Console、AIGCService 或旧业务模块，Harness 自身存储按私有配置启用。HTTP 默认 127.0.0.1:7088，Cell 127.0.0.1:7600；多容器必须分开目录、端口及停止文件。
+**独立 Cell**：使用 staging 的 `cell.xml`，由 `HarnessCarpet` 创建专用 Kernel；不加载 Console、AIGCService 或旧业务模块，Harness 自身存储按私有配置启用。此方式没有 Cube Auth，业务请求返回 AUTH_UNAVAILABLE；面向现有用户的 REST 使用下述合部署方式。HTTP 默认 127.0.0.1:7088，Cell 127.0.0.1:7600；多容器必须分开目录、端口及停止文件。
 
 ```powershell
 python scripts/init_dev.py --output C:/private/harness-dev
@@ -54,7 +54,7 @@ Cell 这个版本的程序化入口固定读取工作目录的 `cell.xml`；`Cel
 
 ## Python 部署与停机
 
-配套工程 `apexnova-wisdom/harness` 提供 `python -m harness` 及 Linux/PowerShell 启停脚本。`init_dev.py` 为 model/runner 生成不同 workerId/角色配置和私有运行目录，两者都注册到 Java 的 Harness。worker credential 与 Java 配置相同；API credential 独立，不写入 worker 文件。Python 可直接连接指定 IPv4 或主机名，不要求与 Java 同机。配置不再区分 development/production，无需设置 mode；旧配置中的该键被忽略。调用身份和权限仍来自服务端私有配置。远程多节点配置与验收见 [REMOTE-NODES.md](REMOTE-NODES.md)。
+配套工程 `apexnova-wisdom/harness` 提供 `python -m harness` 及 Linux/PowerShell 启停脚本。`init_dev.py` 为 model/runner 生成不同 workerId/角色配置和私有运行目录，两者都注册到 Java 的 Harness。worker credential 与 Java 配置相同；业务请求使用已有 Cube 用户 token，不写入 worker 文件。Python 可直接连接指定 IPv4 或主机名，不要求与 Java 同机。配置不再区分 development/production，无需设置 mode；旧配置中的该键被忽略。用户身份来自 Cube Auth，工具权限上限由服务端配置。远程多节点配置与验收见 [REMOTE-NODES.md](REMOTE-NODES.md)。
 
 部署支持一个 service-harness JVM 实例接入多个 Python Harness 单元，包括多个同角色单元。每个 Python 进程使用唯一 workerId、独立运行目录和实例身份，host/port 指向同一 Java Cell；Java 私有配置逐个授权，例如：
 

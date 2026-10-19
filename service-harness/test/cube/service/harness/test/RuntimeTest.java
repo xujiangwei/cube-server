@@ -16,7 +16,7 @@ import java.util.zip.*;
 /** Real JDBC/filesystem integration fixtures, shared by SQLite and disposable MySQL. */
 public final class RuntimeTest {
     interface Checked { void run() throws Exception; }
-    static final String T="runtime-tenant", S="runtime-subject";
+    static final String T="runtime-tenant", S="10001";
     static final JSONArray checks=new JSONArray();
     static StoreConfig config;static JdbcRunStore store;static CatalogStore catalog;static ProfileRegistry profiles;
     static PackageRepository repo;static ResourceTools resources;static ContextEngine contexts;static Workspaces workspaces;

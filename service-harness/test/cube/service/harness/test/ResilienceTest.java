@@ -22,8 +22,6 @@ public final class ResilienceTest {
         }
         p.setProperty("execution.repository", root.resolve("repository").toString());
         p.setProperty("execution.repository.namespace", "runtime-test-repo");
-        p.setProperty("execution.tenant", T);
-        p.setProperty("execution.subject", S);
         p.setProperty("execution.accepting", "false");
         return p;
     }
@@ -31,15 +29,15 @@ public final class ResilienceTest {
     static void drain() throws Exception {
         Properties p = settings();
         try (ExecutionRuntime runtime = new ExecutionRuntime(store, p, 3000)) {
-            fail("HARNESS_DRAINING", () -> runtime.create(key(), request("closed")));
+            fail("HARNESS_DRAINING", () -> runtime.create(identity, key(), request("closed")));
             runtime.admission(true);
             String k = key();
-            JSONObject receipt = runtime.create(k, request("in flight"));
+            JSONObject receipt = runtime.create(identity, k, request("in flight"));
             runtime.admission(false);
             check(
-                    runtime.create(k, request("in flight")).toString().equals(receipt.toString()),
+                    runtime.create(identity, k, request("in flight")).toString().equals(receipt.toString()),
                     "closed replay lost");
-            fail("IDEMPOTENCY_CONFLICT", () -> runtime.create(k, request("different")));
+            fail("IDEMPOTENCY_CONFLICT", () -> runtime.create(identity, k, request("different")));
             check(!runtime.admission(null).getBoolean("drained"), "queued run ignored");
             String r = receipt.getString("runId");
             JdbcRunStore.Lease l = running(r, 60000);
@@ -54,8 +52,7 @@ public final class ResilienceTest {
         Properties c = new Properties();
         c.setProperty("mode", "development");
         c.setProperty("worker.credential", "test-worker-credential-123456");
-        c.setProperty("api.credential", "test-api-credential-123456789");
-        for (String field : Arrays.asList("worker.credential", "api.credential")) {
+        for (String field : Arrays.asList("worker.credential")) {
             c.setProperty("admission.admin.credential", c.getProperty(field));
             try {
                 new HarnessConfig(c);

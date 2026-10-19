@@ -10,6 +10,7 @@ import cell.core.talk.dialect.ActionDialect;
 import cube.common.Packet;
 import cube.common.action.HarnessAction;
 import cube.service.harness.execution.ExecutionRuntime;
+import cube.service.harness.runtime.ProfileRegistry;
 import cube.service.harness.protocol.Contract;
 import cube.service.harness.store.StoreException;
 import org.json.JSONArray;
@@ -49,13 +50,13 @@ final class HarnessBusiness implements AutoCloseable {
             if (action == null) throw new Failure(400, "UNKNOWN_ACTION");
             JSONObject data = new Packet(dialect).data;
             String credential = data.optString("credential", "");
-            String role = authenticate(credential);
-            boolean approver = role.equals("approver");
-            if (role.equals("trace") && action != HarnessAction.Trace) throw new Failure(403, "FORBIDDEN");
-            if (action == HarnessAction.Trace && !role.equals("trace")) throw new Failure(403, "TRACE_READER_REQUIRED");
-            if (approver && action != HarnessAction.ReadRun && action != HarnessAction.DecideApproval)
-                throw new Failure(403, "FORBIDDEN");
+            HarnessIdentity authenticated = service.authenticate(credential);
+            ProfileRegistry.Identity identity = authenticated.user;
+            boolean approver = authenticated.allowed(config.values, "control.approver.subjects");
+            if (action == HarnessAction.Trace && !authenticated.allowed(config.values, "trace.reader.subjects"))
+                throw new Failure(403, "TRACE_READER_REQUIRED");
             if (action == HarnessAction.DecideApproval && !approver) throw new Failure(403, "APPROVER_FORBIDDEN");
+            BooleanSupplier transferValid = () -> valid.getAsBoolean() && System.currentTimeMillis() < authenticated.expires;
             if (!valid.getAsBoolean()) throw new Failure(503, "HARNESS_UNAVAILABLE");
             String id = data.optString("id", ""), approval = data.optString("approvalId", "");
             if ((!id.isEmpty() && !id.matches("[A-Za-z0-9_.:-]{1,128}"))
@@ -74,56 +75,57 @@ final class HarnessBusiness implements AutoCloseable {
             }
             if (action == HarnessAction.Capabilities) return reply(200, service.capabilities());
             if (action == HarnessAction.TaskProfiles) return reply(200, execution == null
-                    ? new JSONObject().put("profiles", new JSONArray()) : execution.taskProfiles());
+                    ? new JSONObject().put("profiles", new JSONArray()) : execution.taskProfiles(identity));
             if (execution == null) throw new Failure(503, "HARNESS_NOT_READY");
             switch (action) {
                 case TaskProfile:
-                    JSONArray profiles = execution.taskProfiles().getJSONArray("profiles");
+                    JSONArray profiles = execution.taskProfiles(identity).getJSONArray("profiles");
                     for (int i = 0; i < profiles.length(); i++)
                         if (profiles.getJSONObject(i).getString("profileId").equals(id))
                             return reply(200, profiles.getJSONObject(i));
                     throw new Failure(404, "PROFILE_NOT_FOUND");
                 case CreateRun:
-                    return reply(202, execution.create(idem, body));
+                    return reply(202, execution.create(identity, idem, body));
                 case ReadRun:
-                    return reply(200, execution.read(id));
+                    return reply(200, execution.read(approver ? execution.owner(identity, id) : identity, id));
                 case Events:
                     long[] cursor = cursor(data.optString("query", ""), data.optString("lastEventId", ""));
-                    return reply(200, execution.events(id, cursor[0], (int) cursor[1]));
+                    return reply(200, execution.events(identity, id, cursor[0], (int) cursor[1]));
                 case CancelRun:
                 case ResumeRun:
                 case DecideApproval:
                     String operation = action == HarnessAction.CancelRun ? "cancel" : action == HarnessAction.ResumeRun ? "resume" : "approval";
-                    String wait = approver ? approval : action == HarnessAction.ResumeRun ? body.getString("waitId") : "";
-                    return reply(202, execution.control(id, idem, operation, wait, body,
-                            approver ? config.values.getProperty("control.approver.subject", "approver") : execution.identity.subject, approver));
+                    String wait = action == HarnessAction.DecideApproval ? approval : action == HarnessAction.ResumeRun ? body.getString("waitId") : "";
+                    return reply(202, execution.control(action == HarnessAction.DecideApproval ? execution.owner(identity, id) : identity,
+                            id, idem, operation, wait, body, identity.subject, action == HarnessAction.DecideApproval));
                 case Feedback:
-                    return reply(202, execution.traces.feedback(execution.identity.tenant, execution.identity.subject, id, idem, body));
+                    return reply(202, execution.traces.feedback(identity.tenant, identity.subject, id, idem, body));
                 case Trace:
-                    return reply(200, execution.traces.export(execution.identity.tenant, execution.identity.subject, id));
+                    ProfileRegistry.Identity owner = execution.owner(identity, id);
+                    return reply(200, execution.traces.export(owner.tenant, owner.subject, id));
                 default:
                     break;
             }
             if (execution.files == null) throw new Failure(503, "HARNESS_NOT_READY");
             switch (action) {
                 case CreateInput:
-                    return reply(201, execution.files.create(idem, body));
+                    return reply(201, execution.files.create(identity, idem, body));
                 case ReadInput:
-                    return reply(200, execution.files.metadata(id, "input"));
+                    return reply(200, execution.files.metadata(identity, id, "input"));
                 case ReadArtifact:
-                    return reply(200, execution.files.metadata(id, "artifact"));
+                    return reply(200, execution.files.metadata(identity, id, "artifact"));
                 case CompleteInput:
-                    return reply(200, execution.files.complete(id, body.getString("sha256")));
+                    return reply(200, execution.files.complete(identity, id, body.getString("sha256")));
                 case Artifacts:
-                    return reply(200, new JSONObject().put("artifacts", execution.files.artifacts(id)));
+                    return reply(200, new JSONObject().put("artifacts", execution.files.artifacts(identity, id)));
                 case DownloadHandle:
-                    return reply(200, execution.files.handle(id));
+                    return reply(200, execution.files.handle(identity, id));
                 case UploadInput:
                     if (!data.optString("contentType", "").equals("application/octet-stream"))
                         throw new Failure(415, "UNSUPPORTED_MEDIA_TYPE");
-                    return reply(200, transfers.prepare(id, transport, credential, true, null, valid));
+                    return reply(200, transfers.prepare(identity, id, transport, credential, true, null, transferValid));
                 case DownloadArtifact:
-                    return reply(200, transfers.prepare(id, transport, credential, false, data.optString("query", ""), valid));
+                    return reply(200, transfers.prepare(identity, id, transport, credential, false, data.optString("query", ""), transferValid));
                 case StartDownload:
                     transfers.startDownload(data.getString("transferId"), transport, credential, opener);
                     return reply(202, new JSONObject());
@@ -186,15 +188,6 @@ final class HarnessBusiness implements AutoCloseable {
             return error(code.equals("PAYLOAD_TOO_LARGE") ? 413 : 400, code);
         }
         return error(500, "INTERNAL_ERROR");
-    }
-
-    private String authenticate(String credential) {
-        for (String[] identity : new String[][]{{"api", "api.credential"},
-                {"approver", "control.approver.credential"}, {"trace", "trace.reader.credential"}}) {
-            String expected = config.values.getProperty(identity[1], "");
-            if (expected.length() >= 24 && HarnessService.equal(expected, credential)) return identity[0];
-        }
-        throw new Failure(401, "UNAUTHORIZED");
     }
 
     static final class Failure extends RuntimeException {

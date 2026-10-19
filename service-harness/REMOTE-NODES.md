@@ -30,7 +30,6 @@ Python Harness 是注册到 Java Harness 的独立服务节点。一个 Java JVM
 http.host=127.0.0.1
 http.port=7088
 worker.credential=<至少24字符的worker密钥>
-api.credential=<不同的至少24字符的API密钥>
 lease.millis=6000
 execution.accepting=true
 inference.node.id=harness-35-inference
@@ -55,7 +54,7 @@ broker.node.id=harness-35-broker
 
 两个模型 worker 共用同一个 backendId，物理 capacity 仍为 1。默认 type=unit 要求同 JVM 的 AIGCService 和对应 Baize2 Unit 已就绪；外部 OpenAI 后端只在 Java 显式配置，见 EXECUTION.md。CPU runner 的可信工具包、runtime/task profile 与业务 provider 需独立安装、发布，见 [TOOLS.md](TOOLS.md)。仅注册节点不会自动安装技能。
 
-API、审批、trace 和接单管理继续使用各自配置的独立凭据；身份/权限由服务端私有配置确定，不从 Python 或 REST 载荷自报取得。
+API 使用已有 Cube 用户 token；审批/trace 配置“域/联系人ID”白名单，身份由 Cube Auth 校验。接单管理保留独立运维凭据。用户身份不从 Python 或 REST 载荷自报取得，业务 REST 需与 Cube Auth 合部署。
 
 ## Windows Python 节点
 
@@ -85,7 +84,7 @@ API、审批、trace 和接单管理继续使用各自配置的独立凭据；�
 python -B service-harness/scripts/init_dev.py --output C:/private/new-harness-config --cell-host 192.168.1.35 --cell-port 6000
 ```
 
-该脚本创建新 worker/API credential 和一组基础 scripted model/runner 配置，用于首次初始化；不会修改 Java XML。为已有 Java 新增节点时使用其现有 worker credential，不要用重新生成的密钥覆盖它。上述真实模型配置还需保留 model/runner 对象。生成的绝对 runtimeDir 归生成机器所有，跨机器复制后须修改；Java 的数据库、资源、文件目录应填写 Linux 本地路径。
+该脚本创建新 worker credential 和一组基础 scripted model/runner 配置，用于首次初始化；不会修改 Java XML。为已有 Java 新增节点时使用其现有 worker credential，不要用重新生成的密钥覆盖它。上述真实模型配置还需保留 model/runner 对象。生成的绝对 runtimeDir 归生成机器所有，跨机器复制后须修改；Java 的数据库、资源、文件目录应填写 Linux 本地路径。
 
 在 Python 工程根目录，用非管理员 PowerShell 分别启动：
 

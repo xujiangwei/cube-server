@@ -56,9 +56,9 @@ def main():
     def db(sql,*values):
         with sqlite3.connect(data/'harness_execution.db',timeout=5) as conn:return conn.execute(sql,values).fetchall()
     stage=runtime/'cell';stage.mkdir();(stage/'cellets').mkdir();shutil.copy2(module/'build/cube-service-harness-3.0.jar',stage/'cellets')
-    xml=ET.parse(module/'config/standalone.xml');xml.find('.//server/port').text=str(cell_port);xml.find('.//cellet').set('port',str(cell_port));xml.write(stage/'cell.xml',encoding='utf-8',xml_declaration=True)
+    xml=ET.parse(module/'config/standalone.xml');xml.find('.//listeners/class').text='cube.service.harness.test.FixtureAuthCarpet';xml.find('.//server/port').text=str(cell_port);xml.find('.//cellet').set('port',str(cell_port));xml.write(stage/'cell.xml',encoding='utf-8',xml_declaration=True)
     config=stage/'harness.local.properties'
-    config.write_text((data/'store.local.properties').read_text()+f'\nhttp.host=127.0.0.1\nhttp.port={http_port}\nlease.millis=3000\nworker.credential={token}\napi.credential={api}\nstore.enabled=true\nexecution.enabled=true\nexecution.tenant={fixture["tenant"]}\nexecution.subject={fixture["subject"]}\nexecution.max.active=6\nexecution.repository={data.as_posix()}/repository\nexecution.repository.namespace=runtime-test-repo\nbackend.shared.capacity=1\n'+''.join(f'worker.{w}.role=model\nworker.{w}.model=scripted\nworker.{w}.backend=shared\n' for w in ('a','b','probe')),encoding='utf-8')
+    config.write_text((data/'store.local.properties').read_text()+f'\nhttp.host=127.0.0.1\nhttp.port={http_port}\nlease.millis=3000\nworker.credential={token}\nfixture.user.token={api}\nstore.enabled=true\nexecution.enabled=true\nfixture.user.domain={fixture["tenant"]}\nfixture.user.contact={fixture["subject"]}\nexecution.max.active=6\nexecution.repository={data.as_posix()}/repository\nexecution.repository.namespace=runtime-test-repo\nbackend.shared.capacity=1\n'+''.join(f'worker.{w}.role=model\nworker.{w}.model=scripted\nworker.{w}.backend=shared\n' for w in ('a','b','probe')),encoding='utf-8')
     def launch():
         nonlocal host,host_log,gateway
         (stage/'stop').unlink(missing_ok=True);host_log=(runtime/('cell-'+str(time.time_ns())+'.log')).open('w')

@@ -8,8 +8,8 @@ Java `scripts/generate_contracts.py` 是基础契约源；使用 `--python-contr
 
 - 服务名与 Cellet 路由目标均为 `Harness`；Python `HarnessService.NAME` 相同。
 - 基础注册和 echo 使用 `protocolVersion=1`；模型支持 v2 scripted/v3 Java 推理，Runner 支持 v4/v5/v6，各自严格校验对应契约。未知版本返回 `PROTOCOL_MISMATCH`，不作旧 Chat 协议协商。
-- Python 节点可通过指定 IPv4 或主机名直接连接 Java Cell；健康/运维 HTTP 仍仅监听 loopback。API Bearer 和 worker credential 必须不同且至少 24 字符；worker 还须匹配 Java 配置中的 workerId/role 白名单。API 开发身份固定为 `development/local`，无管理权限；不能从载荷取得 tenant、subject、roles 或 grants。
-- 配置不区分 development/production，不要求 mode；旧 mode 值被忽略。API 主体和权限由服务端私有配置固定，worker 按凭据和 workerId/role 白名单授权，不从载荷取得身份，也不寻找旧登录态或 Console Cookie。
+- Python 节点可通过指定 IPv4 或主机名直接连接 Java Cell；健康/运维 HTTP 仍仅监听 loopback。API Bearer 使用已有 Cube 用户 token，service 经 Cube Auth 校验有效期和联系人绑定，以 domain/contactId 隔离数据。worker credential 为独立的至少 24 字符内部密钥，worker 还须匹配 Java 配置中的 workerId/role 白名单。不能从载荷取得 tenant、subject、roles 或 grants。
+- 配置不区分 development/production，不要求 mode；旧 mode 值被忽略。API 主体来自已验证的 Cube token，工具权限受服务端策略与固定任务/资源权限交集约束；审批/trace 使用同域用户白名单。worker 按内部凭据和 workerId/role 白名单授权，业务身份不使用 Console Cookie。
 - 无 model/runner 执行配置的单元只提供 scripted.echo；正式执行、授权和持久事件必须满足对应 profile、存储、能力与凭据配置。
 
 ## 原始 JSON 边界

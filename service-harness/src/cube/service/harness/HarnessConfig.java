@@ -24,44 +24,25 @@ public final class HarnessConfig {
         this.values = values;
         if (!InetAddress.getByName(host()).isLoopbackAddress())
             throw new IOException("Health/admin HTTP listener requires loopback");
-        for (String key : Arrays.asList("worker.credential", "api.credential"))
-            if (values.getProperty(key, "").length() < 24)
-                throw new IOException("Missing private credential: " + key);
-        if (values.getProperty("worker.credential").equals(values.getProperty("api.credential")))
-            throw new IOException("API and worker credentials must differ");
+        if (values.getProperty("worker.credential", "").length() < 24)
+            throw new IOException("Missing private credential: worker.credential");
         String admin = values.getProperty("admission.admin.credential", "");
-        if (!admin.isEmpty()) {
-            if (admin.length() < 24)
-                throw new IOException("Independent admission administrator required");
-            for (String key :
-                    Arrays.asList(
-                            "worker.credential",
-                            "api.credential",
-                            "trace.reader.credential",
-                            "control.approver.credential"))
-                if (admin.equals(values.getProperty(key)))
-                    throw new IOException("Independent admission administrator required");
-        }
-        if (!Arrays.asList("true", "false")
-                .contains(values.getProperty("execution.accepting", "true")))
+        if (!admin.isEmpty() && (admin.length() < 24 || admin.equals(values.getProperty("worker.credential"))))
+            throw new IOException("Independent admission administrator required");
+        if (!Arrays.asList("true", "false").contains(values.getProperty("execution.accepting", "true")))
             throw new IOException("Invalid execution.accepting");
-        String trace = values.getProperty("trace.reader.credential", "");
-        if ((!trace.isEmpty() || Boolean.parseBoolean(values.getProperty("trace.enabled", "false")))
-                && (trace.length() < 24
-                || trace.equals(values.getProperty("api.credential"))
-                || trace.equals(values.getProperty("worker.credential"))
-                || trace.equals(values.getProperty("control.approver.credential"))))
-            throw new IOException("Independent trace reader required");
+        for (String key : Arrays.asList("control.approver.subjects", "trace.reader.subjects")) {
+            for (String value : values.getProperty(key, "").split(",")) {
+                if (value.trim().isEmpty()) continue;
+                if (!value.trim().matches("[A-Za-z0-9_.:-]{1,128}/[1-9][0-9]{0,18}"))
+                    throw new IOException("Invalid Cube principal: " + key);
+            }
+        }
+        if (Boolean.parseBoolean(values.getProperty("trace.enabled", "false"))
+                && values.getProperty("trace.reader.subjects", "").trim().isEmpty())
+            throw new IOException("Cube trace reader required");
         if (leaseMillis() < 1000 || leaseMillis() > 60000)
             throw new IOException("lease.millis out of range");
-        String approver = values.getProperty("control.approver.credential", "");
-        if (!approver.isEmpty()
-                && (approver.length() < 24
-                || approver.equals(values.getProperty("api.credential"))
-                || approver.equals(values.getProperty("worker.credential"))
-                || values.getProperty("control.approver.subject", "approver")
-                .equals(values.getProperty("execution.subject", "developer"))))
-            throw new IOException("Independent approver required");
     }
 
     /**

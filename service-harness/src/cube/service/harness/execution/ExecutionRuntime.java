@@ -19,8 +19,7 @@ import java.util.*;
 import java.util.concurrent.Semaphore;
 
 /**
- * Opt-in development execution runtime, with a trusted fixed identity and private resource
- * repository.
+ * 按可信请求身份隔离数据，后台执行从持久账本恢复任务归属。
  */
 public final class ExecutionRuntime implements AutoCloseable {
 
@@ -38,7 +37,7 @@ public final class ExecutionRuntime implements AutoCloseable {
 
     public final ProfileRegistry profiles;
 
-    public final ProfileRegistry.Identity identity;
+    public final Set<String> permissions;
     public final ControlStore controls;
     public final TraceStore traces;
     public final cube.service.harness.files.FileService files;
@@ -67,24 +66,14 @@ public final class ExecutionRuntime implements AutoCloseable {
         traces = new TraceStore(store, p);
         StoreConfig sc = new StoreConfig(p);
         catalog = new CatalogStore(store, sc.mysql());
-        Set<String> permissions =
-                new TreeSet<>(
-                        Arrays.asList(
-                                p.getProperty(
-                                                "execution.permissions",
-                                                "skill.list,skill.activate,resource.list,resource.read,resource.search")
-                                        .split(",")));
-        // Deployment identity scopes may include independently published SKILL permissions.
-        // Release/profile intersection and the installed provider constrain each call.
-        for (String permission : permissions) RuntimeSupport.id(permission);
-        identity =
-                new ProfileRegistry.Identity(
-                        p.getProperty("execution.tenant", "development"),
-                        p.getProperty("execution.subject", "developer"),
-                        permissions);
+        Set<String> configured = new TreeSet<>();
+        for (String value : p.getProperty("execution.permissions",
+                "skill.list,skill.activate,resource.list,resource.read,resource.search").split(","))
+            if (!value.trim().isEmpty()) configured.add(RuntimeSupport.id(value.trim()));
+        permissions = Collections.unmodifiableSet(configured);
         files =
                 Boolean.parseBoolean(p.getProperty("files.enabled", "false"))
-                        ? new cube.service.harness.files.FileService(store, p, identity)
+                        ? new cube.service.harness.files.FileService(store, p, null)
                         : null;
         profiles = new ProfileRegistry(catalog, files == null ? null : files.ledger);
         controls = new ControlStore(store, sc.mysql()).files(files == null ? null : files.ledger);
@@ -115,7 +104,7 @@ public final class ExecutionRuntime implements AutoCloseable {
         workers = new ModelDispatcher(jobs, p, lease, inference);
         broker =
                 Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false"))
-                        ? new ToolBroker(new ToolJobStore(store, sc.mysql()), identity, p)
+                        ? new ToolBroker(new ToolJobStore(store, sc.mysql()), permissions, p)
                         .files(files)
                         : null;
         runners = broker == null ? null : new RunnerDispatcher(broker, p, lease);
@@ -124,7 +113,7 @@ public final class ExecutionRuntime implements AutoCloseable {
                         store,
                         jobs,
                         catalog,
-                        identity,
+                        permissions,
                         new ResourceTools(catalog, repo).files(files),
                         broker)
                         .controls(controls, files, p);
@@ -136,7 +125,7 @@ public final class ExecutionRuntime implements AutoCloseable {
         coordinator.start();
     }
 
-    public synchronized JSONObject create(String key, JSONObject request) {
+    public synchronized JSONObject create(ProfileRegistry.Identity identity, String key, JSONObject request) {
         if (!accepting) {
             JSONObject prior =
                     store.findCreate(
@@ -169,12 +158,17 @@ public final class ExecutionRuntime implements AutoCloseable {
 
     public synchronized JSONObject admission(Boolean enabled) {
         if (enabled != null) accepting = enabled;
-        return jobs.drainStatus(identity.tenant)
+        return jobs.drainStatus()
                 .put("accepting", accepting)
-                .put("scope", "this-jvm; ledger counts cover tenant");
+                .put("scope", "this-jvm; ledger counts cover all tenants");
     }
 
-    public JSONObject read(String run) {
+    /** 仅供已获授权的同域审批人或 trace 读取者解析任务所有者。 */
+    public ProfileRegistry.Identity owner(ProfileRegistry.Identity caller, String run) {
+        return new ProfileRegistry.Identity(caller.tenant, store.subject(caller.tenant, run), permissions);
+    }
+
+    public JSONObject read(ProfileRegistry.Identity identity, String run) {
         JSONObject row = store.read(identity.tenant, identity.subject, RuntimeSupport.id(run));
         JSONObject result =
                 new JSONObject()
@@ -188,6 +182,7 @@ public final class ExecutionRuntime implements AutoCloseable {
     }
 
     public JSONObject control(
+            ProfileRegistry.Identity identity,
             String run,
             String key,
             String operation,
@@ -207,7 +202,7 @@ public final class ExecutionRuntime implements AutoCloseable {
                 approver);
     }
 
-    public JSONObject taskProfiles() {
+    public JSONObject taskProfiles(ProfileRegistry.Identity identity) {
         JSONArray list = catalog.taskProfiles(identity.tenant), out = new JSONArray();
         for (int i = 0; i < list.length(); i++) {
             JSONObject p = new JSONObject(list.getJSONObject(i).getString("definition_json"));
@@ -232,7 +227,7 @@ public final class ExecutionRuntime implements AutoCloseable {
         return new JSONObject().put("profiles", out);
     }
 
-    public JSONObject events(String run, long after, int limit) {
+    public JSONObject events(ProfileRegistry.Identity identity, String run, long after, int limit) {
         JSONArray events = store.events(identity.tenant, identity.subject, run, after, limit);
         long cursor = after;
         if (events.length() > 0)

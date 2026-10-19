@@ -24,8 +24,7 @@ public final class HarnessConfigTest {
     private static void write(Path path, boolean valid) throws Exception {
         Files.write(path, Arrays.asList(
                 "# 测试私有配置；不加载其他模板。",
-                "worker.credential=" + (valid ? "private-worker-credential-for-config-test" : ""),
-                "api.credential=private-api-credential-for-config-test"), StandardCharsets.UTF_8);
+                "worker.credential=" + (valid ? "private-worker-credential-for-config-test" : "")), StandardCharsets.UTF_8);
     }
 
     private static void probe(Path directory, Path override, String expectedError) throws Exception {

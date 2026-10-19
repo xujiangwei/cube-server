@@ -24,7 +24,7 @@ broker.mock.targets=node-a,node-b
 broker.mock.fields=cpuPercent,memoryMiB
 ```
 
-多个 Java 节点必须使用不同且重启后稳定的 `broker.node.id`。构造 Broker 时只将该节点原有 dispatched 窗口转为 unknown，避免重发可能已发送的上游请求。Java 保存的 grant 使用 HMAC-SHA256；key、上游 token 和地址均不进入脚本或模型上下文。开发 API 的身份仍由可信配置固定，尚无生产身份源。
+多个 Java 节点必须使用不同且重启后稳定的 `broker.node.id`。构造 Broker 时只将该节点原有 dispatched 窗口转为 unknown，避免重发可能已发送的上游请求。Java 保存的 grant 使用 HMAC-SHA256；key、上游 token 和地址均不进入脚本或模型上下文。API 身份来自 Cube Auth 的用户 token，后台工具使用持久任务的域与联系人 ID。
 
 Python 使用原 `harness/requirements.txt` 的六个固定版本依赖，无 torch、模型库或额外 Runner 包。配置参见 Python `harness/config/runner-cpu.template.json`，一个进程可配置 1～8 个槽，必须与 Java 白名单一致。`requestTimeout` 不超过 3 秒。以非管理员/非 root 身份运行，提升身份直接拒绝；未提供提升身份绕过开关。无 `runner` 配置的基础 runner 保留 scripted.echo。
 

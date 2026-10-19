@@ -67,19 +67,19 @@ def main_impl():
         return http_call("/harness/v1/runs",dict(taskProfileId="tools",input=dict(instruction=text,attachmentIds=[])))["runId"]
     stage=root/"cell";(stage/"cellets").mkdir(parents=True)
     shutil.copy2(module/"build/cube-service-harness-3.0.jar",stage/"cellets")
-    xml=ET.parse(module/"config/standalone.xml");xml.find(".//server/port").text=str(cell_port);xml.find(".//cellet").set("port",str(cell_port));xml.write(stage/"cell.xml",encoding="utf-8",xml_declaration=True)
+    xml=ET.parse(module/"config/standalone.xml");xml.find(".//listeners/class").text="cube.service.harness.test.FixtureAuthCarpet";xml.find(".//server/port").text=str(cell_port);xml.find(".//cellet").set("port",str(cell_port));xml.write(stage/"cell.xml",encoding="utf-8",xml_declaration=True)
     config=stage/"harness.local.properties"
     config.write_text((root/"data/store.local.properties").read_text()+f"""
 http.host=127.0.0.1
 http.port={http_port}
 lease.millis=3000
 worker.credential={credential}
-api.credential={api}
+fixture.user.token={api}
 store.enabled=true
 execution.enabled=true
 execution.tools.enabled=true
-execution.tenant={f['tenant']}
-execution.subject={f['subject']}
+fixture.user.domain={f['tenant']}
+fixture.user.contact={f['subject']}
 execution.permissions=skill.list,skill.activate,resource.list,resource.read,resource.search,console.status.read
 execution.repository={root.as_posix()}/data/repository
 execution.repository.namespace=runtime-test-repo

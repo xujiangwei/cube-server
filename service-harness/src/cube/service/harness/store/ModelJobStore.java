@@ -344,14 +344,22 @@ public final class ModelJobStore {
                                                 "SELECT worker_id,COUNT(*) AS occupied FROM harness_model_job WHERE status<>'queued' AND actual_finished=0 GROUP BY worker_id")));
     }
 
+    public JSONArray runnable(int limit) { return runnable(null, limit); }
+
+    public JSONArray runnable(int limit, long offset) { return runnable(null, limit, offset); }
+
     public JSONArray runnable(String tenant, int limit) {
+        return runnable(tenant, limit, 0);
+    }
+
+    private JSONArray runnable(String tenant, int limit, long offset) {
         return store.tx(
                 c ->
                         rows(
                                 c,
-                                "SELECT r.run_id,r.subject_id FROM harness_run r WHERE r.tenant=? AND (r.state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling') OR EXISTS (SELECT j.job_id FROM harness_model_job j JOIN harness_round q ON q.run_id=j.run_id AND q.intent_id=j.round_id AND q.attempt=j.attempt JOIN harness_usage u ON u.run_id=q.run_id AND u.round_id=q.intent_id AND u.attempt=q.attempt WHERE j.run_id=r.run_id AND j.actual_finished=1 AND (q.status<>'confirmed' OR (u.actual_input IS NULL AND j.outcome_json LIKE '%\"usage\":%'))) OR EXISTS (SELECT j.job_id FROM harness_tool_job j JOIN harness_tool_call q ON q.run_id=j.run_id AND q.intent_id=j.call_id AND q.attempt=j.attempt WHERE j.run_id=r.run_id AND j.actual_finished=1 AND q.status<>'confirmed')) ORDER BY r.created_at,r.run_id LIMIT "
-                                        + Math.max(1, Math.min(256, limit)),
-                                id(tenant)));
+                                "SELECT r.run_id,r.tenant,r.subject_id FROM harness_run r WHERE " + (tenant == null ? "" : "r.tenant=? AND ") + "(r.state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling') OR EXISTS (SELECT j.job_id FROM harness_model_job j JOIN harness_round q ON q.run_id=j.run_id AND q.intent_id=j.round_id AND q.attempt=j.attempt JOIN harness_usage u ON u.run_id=q.run_id AND u.round_id=q.intent_id AND u.attempt=q.attempt WHERE j.run_id=r.run_id AND j.actual_finished=1 AND (q.status<>'confirmed' OR (u.actual_input IS NULL AND j.outcome_json LIKE '%\"usage\":%'))) OR EXISTS (SELECT j.job_id FROM harness_tool_job j JOIN harness_tool_call q ON q.run_id=j.run_id AND q.intent_id=j.call_id AND q.attempt=j.attempt WHERE j.run_id=r.run_id AND j.actual_finished=1 AND q.status<>'confirmed')) ORDER BY r.created_at,r.run_id LIMIT "
+                                        + Math.max(1, Math.min(256, limit)) + " OFFSET " + Math.max(0, offset),
+                                tenant == null ? new Object[0] : new Object[]{id(tenant)}));
     }
 
     public int active(String tenant) {
@@ -375,6 +383,8 @@ public final class ModelJobStore {
     /**
      * Physical unknowns and unreconciled receipts must block an operational drain.
      */
+    public JSONObject drainStatus() { return drainStatus(null); }
+
     public JSONObject drainStatus(String tenant) {
         return store.tx(
                 c -> {
@@ -382,29 +392,29 @@ public final class ModelJobStore {
                             first(
                                     rows(
                                             c,
-                                            "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')",
-                                            tenant))
+                                            "SELECT COUNT(*) AS n FROM harness_run WHERE " + (tenant == null ? "" : "tenant=? AND ") + "state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')",
+                                            tenant == null ? new Object[0] : new Object[]{tenant}))
                                     .getInt("n");
                     int model =
                             first(
                                     rows(
                                             c,
-                                            "SELECT COUNT(*) AS n FROM harness_model_job j JOIN harness_round q ON q.run_id=j.run_id AND q.intent_id=j.round_id AND q.attempt=j.attempt WHERE j.tenant=? AND (j.actual_finished=0 OR q.status<>'confirmed')",
-                                            tenant))
+                                            "SELECT COUNT(*) AS n FROM harness_model_job j JOIN harness_round q ON q.run_id=j.run_id AND q.intent_id=j.round_id AND q.attempt=j.attempt WHERE " + (tenant == null ? "" : "j.tenant=? AND ") + "(j.actual_finished=0 OR q.status<>'confirmed')",
+                                            tenant == null ? new Object[0] : new Object[]{tenant}))
                                     .getInt("n");
                     int tool =
                             first(
                                     rows(
                                             c,
-                                            "SELECT COUNT(*) AS n FROM harness_tool_job j JOIN harness_tool_call q ON q.run_id=j.run_id AND q.intent_id=j.call_id AND q.attempt=j.attempt WHERE j.tenant=? AND (j.actual_finished=0 OR q.status<>'confirmed')",
-                                            tenant))
+                                            "SELECT COUNT(*) AS n FROM harness_tool_job j JOIN harness_tool_call q ON q.run_id=j.run_id AND q.intent_id=j.call_id AND q.attempt=j.attempt WHERE " + (tenant == null ? "" : "j.tenant=? AND ") + "(j.actual_finished=0 OR q.status<>'confirmed')",
+                                            tenant == null ? new Object[0] : new Object[]{tenant}))
                                     .getInt("n");
                     int unknown =
                             first(
                                     rows(
                                             c,
-                                            "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND execution_settlement='unknown'",
-                                            tenant))
+                                            "SELECT COUNT(*) AS n FROM harness_run WHERE " + (tenant == null ? "" : "tenant=? AND ") + "execution_settlement='unknown'",
+                                            tenant == null ? new Object[0] : new Object[]{tenant}))
                                     .getInt("n");
                     return new JSONObject()
                             .put("activeRuns", active)

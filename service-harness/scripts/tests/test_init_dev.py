@@ -24,17 +24,16 @@ class InitDevTest(unittest.TestCase):
             self.assertNotIn("mode", properties)
             self.assertEqual(properties["http.host"], "127.0.0.1")
             self.assertEqual(properties["http.port"], "7088")
-            self.assertNotEqual(properties["worker.credential"], properties["api.credential"])
+            self.assertNotIn("api.credential", properties)
             runtimes = set()
             for role in ("model", "runner"):
                 worker = json.loads((root / (role + ".local.json")).read_text())
                 self.assertEqual((worker["host"], worker["port"]), ("192.168.1.35", 6000))
                 self.assertEqual(worker["workerCredential"], properties["worker.credential"])
                 self.assertEqual(properties["worker." + worker["workerId"] + ".role"], role)
-                self.assertNotIn(properties["api.credential"], json.dumps(worker))
                 runtimes.add(worker["runtimeDir"])
             self.assertEqual(len(runtimes), 2)
-            for key in ("worker.credential", "api.credential"):
+            for key in ("worker.credential",):
                 self.assertNotIn(properties[key], result.stdout + result.stderr)
             self.assertNotEqual(self.generate(root).returncode, 0)
 

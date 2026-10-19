@@ -10,19 +10,19 @@ trace 与反馈统一访问 dispatcher `/harness/v1`，经 SHM 长连接交给 s
 
 ```properties
 trace.enabled=false
-trace.reader.credential=
+trace.reader.subjects=
 trace.retention.seconds=604800
 trace.export.max.bytes=262144
 feedback.enabled=false
 ```
 
-启用时 reader 至少 24 字符，且必须不同于 API、worker、审批凭据。当前身份仍是 development 的固定 tenant/subject；不宣称生产身份系统已完成。
+启用时必须配置 `trace.reader.subjects`，例如 `example.com/10003`，多个用户用英文逗号分隔。
 
-`GET /harness/v1/runs/{runId}/trace` 仅接受独立 reader Bearer；普通 API/审批凭据不能导出，reader 不能操作 run、反馈、文件或恢复 checkpoint。导出使用一个一致性事务和该身份的 tenant+subject 归属检查。默认保留结构、身份/版本摘要、状态、attempt、usage、队列/派发/结束/取消、文件 ready/delete 与提交时间；模型/工具输入输出的内容键和字符串均替换为摘要，反馈原因也不导出。不会把配置文件、网络 token、Cookie、grant 或宿主存储路径放进 Trace。
+`GET /harness/v1/runs/{runId}/trace` 使用白名单用户自己的有效 Cube token；只可导出同域任务。普通用户不能导出 trace；reader 的普通 run/文件/反馈操作仍限定本人数据。导出先在用户域内解析任务所有者，再以该归属执行一致性事务。默认保留结构、身份/版本摘要、状态、attempt、usage、队列/派发/结束/取消、文件 ready/delete 与提交时间；模型/工具输入输出的内容键和字符串均替换为摘要，反馈原因也不导出。不会把配置文件、网络 token、Cookie、grant 或宿主存储路径放进 Trace。
 
 服务不持久缓存诊断包；超过 run 最后权威更新时间的 TTL 即拒绝新导出，默认 7 天。TTL 范围 60～31536000 秒；每包 4096～262144 字节、最多 1024 事件/256轮/256调用，过大明确拒绝，不能静默截断后宣称完整。下载者保管自己的导出副本。TTL、关闭或丢失导出包不会删除权威账本、恢复 checkpoint、journal 和未决文件 pin。各阶段时间的空值表示历史未采集或尚未发生，不填造耗时。
 
-反馈沿用既有 API：`POST /harness/v1/runs/{runId}/feedback`，普通 API Bearer、`Content-Type: application/json` 和 `Idempotency-Key`。正文 `{"rating":"positive","reason":"可选原因"}`，rating 也可为 negative，原因最多4096字符。202 返回 feedbackId；同键同内容回放，不同内容409；新键追加，最多256条/run，不覆盖历史，也不改变 run 版本。反馈入口由独立 `feedback.enabled` 开关控制，默认关闭；不依赖 Trace 开关。
+反馈沿用既有 API：`POST /harness/v1/runs/{runId}/feedback`，已有 Cube 用户 Bearer token、`Content-Type: application/json` 和 `Idempotency-Key`。正文 `{"rating":"positive","reason":"可选原因"}`，rating 也可为 negative，原因最多4096字符。202 返回 feedbackId；同键同内容回放，不同内容409；新键追加，最多256条/run，不覆盖历史，也不改变 run 版本。反馈入口由独立 `feedback.enabled` 开关控制，默认关闭；不依赖 Trace 开关。
 
 纯离线回放命令：
 

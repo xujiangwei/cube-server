@@ -1,7 +1,7 @@
 # Harness 统一私有配置模板；复制为服务工作目录下的 config/harness.properties 后自动加载。
 # 基础服务、任务执行、模型后端、文件、审批与诊断均在此文件配置，按需启用。
 # 默认启动无需 JVM 参数；仅在需覆盖默认路径时使用可选的 -Dharness.config=<私有文件路径>。
-# 不需要配置开发/生产模式；旧 mode 配置会被忽略，身份与权限由服务端私有配置确定。
+# 不需要配置开发/生产模式；旧 mode 配置会被忽略，用户身份取自 Cube Auth token，工具权限还受服务端策略限制。
 
 # 此 HTTP 监听仅用于健康检查和运维，host 必须为回环地址。
 # 业务 REST 使用 dispatcher 地址，经 SHM 访问 Harness；Console 地址另行配置。
@@ -10,10 +10,12 @@ http.port=7088
 # Python worker 会话租约，单位为毫秒，范围 1000～60000；worker 通过心跳续约。
 lease.millis=6000
 # Python worker 接入凭据，对应 Python 配置的 workerCredential。
-# worker.credential 与 api.credential 均至少 24 字符、必须不同；留空会拒绝启动。
+# 至少 24 个随机私有字符；留空会拒绝启动，不能填写用户登录 token。
 worker.credential=
-# 业务 REST 调用方使用的 Bearer 凭据，由 dispatcher 原样传给 Harness 验证。
-api.credential=
+# 业务 REST 使用 Authorization: Bearer <已有 Cube 用户 token>。
+# Harness 从同一 Kernel 的 Auth 模块校验令牌、有效期和联系人绑定。
+# token 的 domain 为租户，contactId 为用户；任务与文件按两者隔离，无需 API 共享凭据。
+# 业务调用需与 Auth 模块合部署；仅含 Harness 的独立 Cell 没有用户认证源。
 
 # 节点角色白名单：worker.<workerId>.role；workerId 必须与对应 Python 配置一致。
 # model 负责模型编排，runner 负责工具任务执行；真实模型的 model/backend 配置见下方。
@@ -32,8 +34,8 @@ store.enabled=false
 # 是否接收新任务；部署新 JVM 时先设为 false，验证通过后再显式开启。
 # 管理接口修改只作用于当前 JVM，重启后恢复此配置值；关闭接单后已有任务继续处理。
 execution.accepting=true
-# 可选接单管理凭据，至少 24 字符，且必须与 API、worker、诊断读取和审批凭据不同。
-# 此凭据用于切换当前 JVM 的接单状态，普通业务 API/worker 凭据无此权限。
+# 可选接单管理凭据，至少 24 字符，且必须与 worker 凭据不同。
+# 此凭据用于切换当前 JVM 的接单状态，普通 Cube 用户 token/worker 凭据无此权限。
 # admission.admin.credential=<private-independent-administrator-credential>
 
 # 任务执行与模型推理。
@@ -42,10 +44,8 @@ execution.accepting=true
 
 # 是否启用任务执行、资源循环与 Java 推理网关；默认关闭。
 execution.enabled=false
-# 服务端固定的执行租户与主体；当前为开发身份适配，调用方不能通过请求覆盖。
-execution.tenant=development
-execution.subject=developer
-# 执行主体的权限列表，使用英文逗号分隔；实际工具调用还受资源发布和 profile 权限约束。
+# 用户租户与主体由已验证的 Cube token 决定，不从请求或固定配置读取。
+# 服务端工具权限上限，使用英文逗号分隔；实际权限取与任务及资源发布权限的交集。
 execution.permissions=skill.list,skill.activate,resource.list,resource.read,resource.search
 # 同一租户的活跃任务接单上限，范围 1～256；达到上限后拒绝新任务。
 execution.max.active=128
@@ -85,7 +85,7 @@ worker.baize2-2.backend=baize2-dedicated
 backend.baize-dedicated.type=unit
 # 该后端的共享推理并发上限，范围 1～32；实际可派发量还受 Unit 健康和空闲容量限制。
 backend.baize-dedicated.capacity=1
-# 填写获准访问 Cube 模型的有效令牌；与 worker.credential、api.credential 分别配置。
+# 填写获准访问 Cube 模型的有效令牌；与 worker.credential 分别配置，由服务端用于模型后端访问。
 backend.baize-dedicated.token=
 # 单次推理调用超时，单位为秒，范围 1～600；超时后仍需对账确认物理执行是否结束。
 backend.baize-dedicated.timeoutSeconds=180
@@ -124,11 +124,9 @@ files.enabled=false
 # 文件根总配额，单位为字节；1073741824 = 1 GiB。
 # files.max.bytes=1073741824
 
-# 可选审批身份：凭据至少 24 字符，且须与 API/worker 凭据不同；
-# 若配置诊断读取或接单管理凭据，也必须与审批凭据不同。
-# control.approver.credential=REPLACE_WITH_DISTINCT_PRIVATE_CREDENTIAL
-# 审批主体，必须与 execution.subject 不同。
-# control.approver.subject=independent-reviewer
+# 可选审批用户白名单：域/联系人ID，使用英文逗号分隔；只允许审批同域任务。
+# 审批人使用自己的有效 Cube 用户 token，且不能审批自己的任务。
+# control.approver.subjects=example.com/10002,example.com/10003
 # 需要审批的工具名列表，使用英文逗号分隔；示例为文本产物写入工具。
 # control.approval.tools=artifact.write_text
 # 等待用户输入、审批等交互的超时时间，单位为毫秒；300000 = 5 分钟。
@@ -170,8 +168,9 @@ files.enabled=false
 
 # 可选诊断轨迹导出，默认关闭；任务恢复使用权威账本，不依赖诊断导出或外部追踪服务。
 trace.enabled=false
-# 独立诊断读取凭据；启用诊断或填写本项时须至少 24 字符，且不同于 API、worker、审批凭据。
-trace.reader.credential=
+# 诊断用户白名单：域/联系人ID，英文逗号分隔；启用 trace 时必须填写。
+# 使用这些用户自己的 Cube token，仅可导出同域任务；普通操作仍限定本人数据。
+trace.reader.subjects=
 # 从任务最后权威更新时间起计算的可导出期限，单位为秒；604800 = 7 天。
 trace.retention.seconds=604800
 # 单次诊断导出大小上限，单位为字节；262144 = 256 KiB。

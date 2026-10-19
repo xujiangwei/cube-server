@@ -45,7 +45,7 @@ def main():
     (stage / "cellets").mkdir(parents=True)
     shutil.copy2(module / "build/cube-service-harness-3.0.jar", stage / "cellets")
     xml = ET.parse(module / "config/standalone.xml")
-    xml.find(".//listeners/class").text = "cube.service.test.HarnessInferenceCarpet"
+    xml.find(".//listeners/class").text = "cube.service.harness.test.FixtureAuthCarpet"
     xml.find(".//server/port").text = str(cell_port)
     xml.find(".//cellet").set("port", str(cell_port))
     xml.write(stage / "cell.xml", encoding="utf-8", xml_declaration=True)
@@ -56,11 +56,11 @@ http.host=127.0.0.1
 http.port={http_port}
 lease.millis=1000
 worker.credential={credential}
-api.credential={api}
+fixture.user.token={api}
 store.enabled=true
 execution.enabled=true
-execution.tenant={fixture['tenant']}
-execution.subject={fixture['subject']}
+fixture.user.domain={fixture['tenant']}
+fixture.user.contact={fixture['subject']}
 execution.repository={root.as_posix()}/data/repository
 execution.repository.namespace=runtime-test-repo
 backend.shared.capacity=2
@@ -99,7 +99,7 @@ inference.node.id=offline-smoke
 
     hidden = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
     with (root / "cell.log").open("w") as log:
-        host = subprocess.Popen([str(args.java), "-Dharness.config=" + str(config), "-cp", cp,
+        host = subprocess.Popen([str(args.java), "-Dfixture.cell.listener=cube.service.test.HarnessInferenceCarpet", "-Dharness.config=" + str(config), "-cp", cp,
             "cube.service.harness.HarnessCell", str(stage / "cell.xml"), str(stage / "stop")],
             cwd=stage, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, **hidden)
         try:

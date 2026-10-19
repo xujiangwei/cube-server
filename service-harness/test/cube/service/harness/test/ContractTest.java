@@ -14,7 +14,6 @@ public final class ContractTest {
     public static void main(String[] args) throws Exception {
         Properties config=new Properties();
         config.setProperty("worker.credential","private-worker-credential-for-test");
-        config.setProperty("api.credential","private-api-credential-for-test");
         new HarnessConfig(config);
         for(String legacyMode:new String[]{"development","production","unused"}){
             config.setProperty("mode",legacyMode);
@@ -24,9 +23,9 @@ public final class ContractTest {
         try{new HarnessConfig(config);throw new AssertionError("remote health HTTP accepted");}
         catch(IOException expected){check(expected.getMessage().contains("loopback"),"health listener restriction lost");}
         config.remove("http.host");
-        config.setProperty("api.credential",config.getProperty("worker.credential"));
-        try{new HarnessConfig(config);throw new AssertionError("shared API/worker credential accepted");}
-        catch(IOException expected){check(expected.getMessage().contains("must differ"),"credential separation lost");}
+        config.setProperty("worker.credential", "short");
+        try{new HarnessConfig(config);throw new AssertionError("short worker credential accepted");}
+        catch(IOException expected){check(expected.getMessage().contains("worker.credential"),"worker authentication lost");}
         JSONObject manifest=StrictJson.object(Contract.resource("manifest.json"));
         for(String name:manifest.keySet())check(hex(MessageDigest.getInstance("SHA-256").digest(Contract.resource(name))).equals(manifest.getString(name)),"digest: "+name);
         JSONArray fixtures=(JSONArray)StrictJson.parse(Contract.resource("fixtures.json"));

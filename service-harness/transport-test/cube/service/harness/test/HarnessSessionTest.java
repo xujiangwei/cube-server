@@ -47,8 +47,8 @@ public final class HarnessSessionTest {
     public static void main(String[] args) throws Exception {
         Properties config = new Properties();
         try (InputStream in = Files.newInputStream(Paths.get(args[0]))) { config.load(in); }
-        try (Client a = new Client(Integer.parseInt(args[1]), config.getProperty("api.credential"));
-             Client b = new Client(Integer.parseInt(args[1]), config.getProperty("api.credential"))) {
+        try (Client a = new Client(Integer.parseInt(args[1]), config.getProperty("fixture.user.token"));
+             Client b = new Client(Integer.parseInt(args[1]), config.getProperty("fixture.user.token"))) {
             JSONObject body = new JSONObject().put("fileName", "session.bin").put("mediaType", "application/octet-stream")
                     .put("size", 3).put("sha256", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
             String file = a.call(HarnessAction.CreateInput, new JSONObject().put("key", UUID.randomUUID().toString())

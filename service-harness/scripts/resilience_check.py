@@ -200,6 +200,7 @@ class Drill:
         (self.stage / "cellets").mkdir(parents=True)
         shutil.copy2(MODULE / "build/cube-service-harness-3.0.jar", self.stage / "cellets")
         xml = ET.parse(MODULE / "config/standalone.xml")
+        xml.find(".//listeners/class").text = "cube.service.harness.test.FixtureAuthCarpet"
         xml.find(".//server/port").text = str(self.cell_port)
         xml.find(".//cellet").set("port", str(self.cell_port))
         xml.write(self.stage / "cell.xml", encoding="utf-8", xml_declaration=True)
@@ -208,13 +209,13 @@ http.host=127.0.0.1
 http.port={self.http_port}
 lease.millis=3000
 worker.credential={self.token}
-api.credential={self.api}
+fixture.user.token={self.api}
 admission.admin.credential={self.admin}
 store.enabled=true
 execution.enabled=true
 execution.accepting=false
-execution.tenant={self.fixture['tenant']}
-execution.subject={self.fixture['subject']}
+fixture.user.domain={self.fixture['tenant']}
+fixture.user.contact={self.fixture['subject']}
 execution.max.active={self.slo['loadProfile']['maxActive']}
 execution.repository={self.root.as_posix()}/data/repository
 execution.repository.namespace=runtime-test-repo

@@ -110,6 +110,7 @@ def main():
         (stage/"cellets").mkdir(parents=True, exist_ok=True)
         shutil.copy2(module/"build/cube-service-harness-3.0.jar", stage/"cellets")
         xml = ET.parse(module/"config/standalone.xml")
+        xml.find(".//listeners/class").text = "cube.service.harness.test.FixtureAuthCarpet"
         xml.find(".//server/host").text = args.cell_bind_host
         xml.find(".//server/port").text = str(cell_port)
         xml.find(".//log/level").text = "DEBUG"
@@ -120,7 +121,7 @@ def main():
         xml.write(stage/"cell.xml", encoding="utf-8", xml_declaration=True)
         (stage/"config").mkdir(exist_ok=True)
         config = stage/"config/harness.properties"
-        config.write_text("\n".join(["http.host=127.0.0.1", "http.port="+str(http_port), "lease.millis=3000", "worker.credential="+token, "api.credential="+api_token, "worker.model-1.role=model", "worker.model-2.role=model", "worker.runner-1.role=runner"]), encoding="utf-8")
+        config.write_text("\n".join(["http.host=127.0.0.1", "http.port="+str(http_port), "lease.millis=3000", "worker.credential="+token, "fixture.user.token="+api_token, "worker.model-1.role=model", "worker.model-2.role=model", "worker.runner-1.role=runner"]), encoding="utf-8")
         stop = stage/"stop"
         stop.unlink(missing_ok=True)
         cp = os.pathsep.join([str(Path(args.cell_jar).resolve()), str(Path(args.common_jar).resolve()), str(Path(args.libs).resolve()/"*"),

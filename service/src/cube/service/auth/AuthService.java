@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 授权服务。
  */
-public class AuthService extends AbstractModule {
+public class AuthService extends AbstractModule implements cube.auth.AuthTokenProvider {
 
     public static String NAME = "Auth";
 

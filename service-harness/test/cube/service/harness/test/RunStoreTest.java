@@ -79,7 +79,6 @@ public final class RunStoreTest {
         Properties values = new Properties(); values.putAll(properties);
         values.setProperty("mode", "development"); values.setProperty("http.port", "0");
         values.setProperty("worker.credential", "private-worker-test-credential-12345");
-        values.setProperty("api.credential", "private-api-test-credential-678901");
         values.setProperty("store.enabled", "true");
         HarnessService service = new HarnessService(new HarnessConfig(values));
         try { service.start(); check(service.isStarted() && service.runStore() != null, "Store not installed in service"); }

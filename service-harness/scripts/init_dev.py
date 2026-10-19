@@ -30,9 +30,9 @@ def main():
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(parents=True, mode=0o700, exist_ok=False)
-    token, api = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+    token = secrets.token_urlsafe(32)
     properties = '\n'.join(['http.host=127.0.0.1', 'http.port=' + str(args.http_port),
-                            'lease.millis=6000', 'worker.credential=' + token, 'api.credential=' + api,
+                            'lease.millis=6000', 'worker.credential=' + token,
                             'worker.model-1.role=model', 'worker.runner-1.role=runner']) + '\n'
     (out / 'harness.local.properties').write_text(properties, encoding='utf-8')
     for role in ['model', 'runner']:

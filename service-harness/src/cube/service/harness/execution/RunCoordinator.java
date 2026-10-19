@@ -39,6 +39,7 @@ public final class RunCoordinator implements AutoCloseable {
     private final CatalogStore catalog;
 
     private final ProfileRegistry.Identity identity;
+    private final java.util.Set<String> permissions;
 
     private final ResourceTools resources;
 
@@ -53,6 +54,7 @@ public final class RunCoordinator implements AutoCloseable {
     private final ScheduledExecutorService executor;
 
     private volatile String lastError;
+    private long scanOffset;
     private cube.service.harness.store.ControlStore controls;
     private cube.service.harness.files.FileService files;
     private java.util.Set<String> approvalTools = java.util.Collections.emptySet();
@@ -90,11 +92,23 @@ public final class RunCoordinator implements AutoCloseable {
             ProfileRegistry.Identity identity,
             ResourceTools resources,
             ToolBroker broker) {
+        this(store, jobs, catalog, identity, identity.permissions, resources, broker);
+    }
+
+    public RunCoordinator(JdbcRunStore store, ModelJobStore jobs, CatalogStore catalog,
+            java.util.Set<String> permissions, ResourceTools resources, ToolBroker broker) {
+        this(store, jobs, catalog, null, permissions, resources, broker);
+    }
+
+    private RunCoordinator(JdbcRunStore store, ModelJobStore jobs, CatalogStore catalog,
+            ProfileRegistry.Identity identity, java.util.Set<String> permissions,
+            ResourceTools resources, ToolBroker broker) {
         this.broker = broker;
         this.store = store;
         this.jobs = jobs;
         this.catalog = catalog;
         this.identity = identity;
+        this.permissions = java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(permissions));
         this.resources = resources;
         this.contexts = new ContextEngine(catalog, resources);
         executor =
@@ -116,12 +130,15 @@ public final class RunCoordinator implements AutoCloseable {
 
     private void scan() {
         try {
-            JSONArray batch = jobs.runnable(identity.tenant, 256);
+            // 多租户总任务数可超过单租户接单上限，轮换扫描页以免等待中的任务占满首批。
+            JSONArray batch = identity == null ? jobs.runnable(256, scanOffset) : jobs.runnable(identity.tenant, 256);
+            scanOffset = batch.length() < 256 ? 0 : scanOffset + batch.length();
             for (int i = 0; i < batch.length(); i++) {
                 JSONObject row = batch.getJSONObject(i);
-                if (!identity.subject.equals(row.getString("subject_id"))) continue;
+                if (identity != null && !identity.subject.equals(row.getString("subject_id"))) continue;
                 try {
-                    step(row.getString("run_id"));
+                    step(identity == null ? new ProfileRegistry.Identity(row.getString("tenant"),
+                            row.getString("subject_id"), permissions) : identity, row.getString("run_id"));
                 } catch (StoreException e) {
                     lastError = e.code;
                     if (Arrays.asList("STALE_OWNER", "LEASE_BUSY", "VERSION_CONFLICT").contains(e.code))
@@ -135,391 +152,407 @@ public final class RunCoordinator implements AutoCloseable {
         }
     }
 
-    private long version(String run) {
-        return store
-                .read(identity.tenant, identity.subject, run)
-                .getJSONObject("snapshot")
-                .getLong("version");
-    }
-
-    private JSONObject state(String run) {
-        return store.read(identity.tenant, identity.subject, run).getJSONObject("snapshot");
-    }
-
-    private JSONArray intents(String run, String kind) {
-        return store.intents(identity.tenant, identity.subject, run, kind);
-    }
-
-    private void confirm(JdbcRunStore.Lease l, String kind, JSONObject row, JSONObject result) {
-        store.confirmIntent(
-                l,
-                version(l.runId),
-                kind,
-                row.getString("intent_id"),
-                row.getInt("attempt"),
-                row.getLong("origin_fence"),
-                row.getString("intent_hash"),
-                result);
-    }
-
-    private void finish(JdbcRunStore.Lease l, String state, String settlement, JSONObject result) {
-        if (state.equals("succeeded") && files != null) {
-            try {
-                files.checkDelivery(l.runId);
-                result.put("artifacts", files.artifacts(l.runId));
-            } catch (Exception e) {
-                if (e instanceof StoreException
-                        && (((StoreException) e).code.startsWith("STORE_")
-                        || ((StoreException) e).code.equals("FILE_BUSY"))) throw (StoreException) e;
-                state = "failed";
-                result = new JSONObject().put("errorCode", "ARTIFACT_DELIVERY_FAILED");
-            }
-        }
-        store.finish(l, version(l.runId), state, settlement, result, new JSONArray());
-        leases.remove(l.runId);
-    }
-
-    private void fail(JdbcRunStore.Lease l, String code) {
-        finish(l, "failed", "confirmed", new JSONObject().put("errorCode", code));
-    }
-
-    private void tool(JdbcRunStore.Lease l, JSONObject row, boolean expired, boolean terminal)
-            throws Exception {
-        JSONObject call = new JSONObject(row.getString("payload_json")),
-                result = new JSONObject().put("artifacts", new JSONArray());
-        try {
-            JSONObject job =
-                    broker == null
-                            ? null
-                            : broker.jobs.find(l.runId, row.getString("intent_id"), row.getInt("attempt"));
-            if (job == null && !terminal && !expired && broker != null) {
-                JSONObject definition = resources.executable(identity, l.runId, call.getString("tool"));
-                if (definition != null) job = broker.enqueue(l, row, definition);
-            }
-            if (job != null) {
-                if (job.getInt("actual_finished") == 0) {
-                    if (expired || terminal) broker.jobs.cancel(l, job.getString("job_id"));
-                    if (!terminal && (expired || job.getString("status").equals("unknown")))
-                        finish(
-                                l,
-                                expired ? "timed_out" : "failed",
-                                "unknown",
-                                new JSONObject()
-                                        .put(
-                                                "errorCode", expired ? "RUN_LIFETIME_EXCEEDED" : "TOOL_EXECUTION_UNKNOWN"));
-                    return;
-                }
-                if (job.getString("effect_status").equals("unknown")) {
-                    if (!terminal)
-                        finish(
-                                l, "failed", "unknown", new JSONObject().put("errorCode", "TOOL_EFFECT_UNKNOWN"));
-                    return;
-                }
-                confirm(l, "call", row, new JSONObject(job.getString("result_json")));
-                return;
-            }
-            if (terminal || expired) {
-                confirm(l, "call", row, cube.service.harness.store.ToolJobStore.error("TOOL_CANCELLED"));
-                return;
-            }
-            JSONObject arguments =
-                    StrictJson.object(
-                            call.getString("argumentsJson").getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            String name = call.getString("tool");
-            if (files != null
-                    && java.util.Arrays.asList("input.read_text", "artifact.write_text").contains(name)) {
-                JSONObject definition = null;
-                JSONArray available = resources.tools(identity, l.runId);
-                for (int i = 0; i < available.length(); i++)
-                    if (available.getJSONObject(i).getString("name").equals(name))
-                        definition = available.getJSONObject(i);
-                if (definition == null) throw new StoreException("RESOURCE_FORBIDDEN");
-                Contract.validate(arguments, definition.getJSONObject("parameters"));
-                Object value = files.invoke(l, row.getString("intent_id"), name, arguments);
-                result.put("status", "success").put("dataJson", JdbcRunStore.canonical(value));
-                if (name.equals("artifact.write_text"))
-                    result.put("artifacts", new JSONArray().put(files.reference((JSONObject) value)));
-                Contract.parse("tool-result", RuntimeSupport.bytes(result));
-                confirm(l, "call", row, result);
-                if (name.equals("input.read_text"))
-                    files.consumed(l.runId, row.getString("intent_id"), arguments.getString("inputId"));
-                return;
-            }
-            Object value = resources.invoke(identity, l.runId, name, arguments, l);
-            result.put("status", "success").put("dataJson", JdbcRunStore.canonical(value));
-            Contract.parse("tool-result", RuntimeSupport.bytes(result));
-        } catch (Exception e) {
-            if (e instanceof StoreException
-                    && Arrays.asList(
-                            "STORE_UNAVAILABLE",
-                            "STORE_COMMIT_OUTCOME_UNKNOWN",
-                            "STALE_OWNER",
-                            "VERSION_CONFLICT",
-                            "TOOL_QUEUE_FULL",
-                            "FILE_BUSY")
-                    .contains(((StoreException) e).code)) throw e;
-            result =
-                    new JSONObject()
-                            .put("status", "error")
-                            .put("artifacts", new JSONArray())
-                            .put(
-                                    "errorCode",
-                                    e instanceof StoreException ? ((StoreException) e).code : "TOOL_OUTPUT_INVALID");
-        }
-        confirm(l, "call", row, result);
-    }
-
     public synchronized void step(String run) throws Exception {
-        JSONObject read = store.read(identity.tenant, identity.subject, run),
-                s = read.getJSONObject("snapshot");
-        String state = s.getString("state");
-        boolean cancelling = state.equals("cancelling");
-        boolean terminal =
-                Arrays.asList("succeeded", "failed", "cancelled", "timed_out").contains(state);
-        if (terminal
-                && s.getString("executionSettlement").equals("confirmed")
-                && read.getString("usageSettlement").equals("settled")) return;
-        JSONObject pin = catalog.pinned(identity.tenant, identity.subject, run),
-                task = pin.getJSONObject("task"),
-                model = pin.getJSONObject("model");
-        JSONObject limits = task.optJSONObject("executionLimits");
-        if (limits == null)
-            limits =
-                    new JSONObject()
-                            .put("maxRounds", 8)
-                            .put("maxTools", 32)
-                            .put("maxRepairs", 2)
-                            .put("maxLifetimeMillis", 300000);
-        boolean expired =
-                jobs.expired(identity.tenant, identity.subject, run, limits.getLong("maxLifetimeMillis"));
-        if (Arrays.asList("waiting_input", "waiting_approval").contains(state) && !expired) {
-            JSONObject wait =
-                    controls == null ? null : controls.current(identity.tenant, identity.subject, run);
-            if (wait == null || wait.getLong("expiresAt") > controls.now()) return;
-            expired = true;
+        if (identity == null) throw new IllegalStateException("TRUSTED_IDENTITY_REQUIRED");
+        step(identity, run);
+    }
+
+    public synchronized void step(ProfileRegistry.Identity identity, String run) throws Exception {
+        new RunStep(identity).step(run);
+    }
+
+    // 每一步持有独立的不可变身份；不在共享服务上切换当前用户。
+    private final class RunStep {
+        private final ProfileRegistry.Identity identity;
+        RunStep(ProfileRegistry.Identity identity) { this.identity = identity; }
+
+        private long version(String run) {
+            return store
+                    .read(identity.tenant, identity.subject, run)
+                    .getJSONObject("snapshot")
+                    .getLong("version");
         }
-        JdbcRunStore.Lease l = leases.get(run);
-        if (l == null) {
-            l = store.acquire(identity.tenant, identity.subject, run, owner, s.getLong("version"), 10000);
-            leases.put(run, l);
-        } else store.renew(l, 10000);
-        if (state.equals("queued")) store.transition(l, version(run), "running", new JSONObject());
-        if (Arrays.asList("waiting_input", "waiting_approval").contains(state)) {
-            if (expired)
-                finish(
-                        l,
-                        "timed_out",
-                        "confirmed",
-                        new JSONObject().put("errorCode", "RUN_LIFETIME_EXCEEDED"));
-            else {
-                store.release(l, version(run));
-                leases.remove(run);
-            }
-            return;
+
+        private JSONObject state(String run) {
+            return store.read(identity.tenant, identity.subject, run).getJSONObject("snapshot");
         }
-        JSONArray rounds = intents(run, "round"), calls = intents(run, "call");
-        int repairs = 0;
-        // Reconcile every historical round before any new intent. Callbacks only wrote evidence, never
-        // state.
-        for (int i = 0; i < rounds.length(); i++) {
-            JSONObject r = rounds.getJSONObject(i), j = jobs.enqueue(l, r, model);
-            if (!j.isNull("outcome_json")) {
-                JSONObject o = new JSONObject(j.getString("outcome_json"));
-                repairs += Math.max(0, o.getJSONArray("audit").length() - 1);
+
+        private JSONArray intents(String run, String kind) {
+            return store.intents(identity.tenant, identity.subject, run, kind);
+        }
+
+        private void confirm(JdbcRunStore.Lease l, String kind, JSONObject row, JSONObject result) {
+            store.confirmIntent(
+                    l,
+                    version(l.runId),
+                    kind,
+                    row.getString("intent_id"),
+                    row.getInt("attempt"),
+                    row.getLong("origin_fence"),
+                    row.getString("intent_hash"),
+                    result);
+        }
+
+        private void finish(JdbcRunStore.Lease l, String state, String settlement, JSONObject result) {
+            if (state.equals("succeeded") && files != null) {
+                try {
+                    files.checkDelivery(identity, l.runId);
+                    result.put("artifacts", files.artifacts(identity, l.runId));
+                } catch (Exception e) {
+                    if (e instanceof StoreException
+                            && (((StoreException) e).code.startsWith("STORE_")
+                            || ((StoreException) e).code.equals("FILE_BUSY"))) throw (StoreException) e;
+                    state = "failed";
+                    result = new JSONObject().put("errorCode", "ARTIFACT_DELIVERY_FAILED");
+                }
             }
-            if (!r.getString("status").equals("confirmed")) {
-                if (j.getInt("actual_finished") == 0) {
-                    if (expired || cancelling || terminal) {
-                        jobs.cancel(l, j.getString("job_id"));
-                        if (!terminal
-                                && (expired
-                                || (cancelling
-                                && controls != null
-                                && controls.now() - controls.cancelTime(run) >= cancelGrace)))
+            store.finish(l, version(l.runId), state, settlement, result, new JSONArray());
+            leases.remove(l.runId);
+        }
+
+        private void fail(JdbcRunStore.Lease l, String code) {
+            finish(l, "failed", "confirmed", new JSONObject().put("errorCode", code));
+        }
+
+        private void tool(JdbcRunStore.Lease l, JSONObject row, boolean expired, boolean terminal)
+                throws Exception {
+            JSONObject call = new JSONObject(row.getString("payload_json")),
+                    result = new JSONObject().put("artifacts", new JSONArray());
+            try {
+                JSONObject job =
+                        broker == null
+                                ? null
+                                : broker.jobs.find(l.runId, row.getString("intent_id"), row.getInt("attempt"));
+                if (job == null && !terminal && !expired && broker != null) {
+                    JSONObject definition = resources.executable(identity, l.runId, call.getString("tool"));
+                    if (definition != null) job = broker.enqueue(l, row, definition);
+                }
+                if (job != null) {
+                    if (job.getInt("actual_finished") == 0) {
+                        if (expired || terminal) broker.jobs.cancel(l, job.getString("job_id"));
+                        if (!terminal && (expired || job.getString("status").equals("unknown")))
                             finish(
                                     l,
-                                    expired ? "timed_out" : "cancelled",
+                                    expired ? "timed_out" : "failed",
                                     "unknown",
                                     new JSONObject()
                                             .put(
-                                                    "errorCode",
-                                                    expired ? "RUN_LIFETIME_EXCEEDED" : "CANCEL_OUTCOME_UNKNOWN"));
+                                                    "errorCode", expired ? "RUN_LIFETIME_EXCEEDED" : "TOOL_EXECUTION_UNKNOWN"));
+                        return;
                     }
+                    if (job.getString("effect_status").equals("unknown")) {
+                        if (!terminal)
+                            finish(
+                                    l, "failed", "unknown", new JSONObject().put("errorCode", "TOOL_EFFECT_UNKNOWN"));
+                        return;
+                    }
+                    confirm(l, "call", row, new JSONObject(job.getString("result_json")));
+                    return;
+                }
+                if (terminal || expired) {
+                    confirm(l, "call", row, cube.service.harness.store.ToolJobStore.error("TOOL_CANCELLED"));
+                    return;
+                }
+                JSONObject arguments =
+                        StrictJson.object(
+                                call.getString("argumentsJson").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                String name = call.getString("tool");
+                if (files != null
+                        && java.util.Arrays.asList("input.read_text", "artifact.write_text").contains(name)) {
+                    JSONObject definition = null;
+                    JSONArray available = resources.tools(identity, l.runId);
+                    for (int i = 0; i < available.length(); i++)
+                        if (available.getJSONObject(i).getString("name").equals(name))
+                            definition = available.getJSONObject(i);
+                    if (definition == null) throw new StoreException("RESOURCE_FORBIDDEN");
+                    Contract.validate(arguments, definition.getJSONObject("parameters"));
+                    Object value = files.invoke(l, row.getString("intent_id"), name, arguments);
+                    result.put("status", "success").put("dataJson", JdbcRunStore.canonical(value));
+                    if (name.equals("artifact.write_text"))
+                        result.put("artifacts", new JSONArray().put(files.reference((JSONObject) value)));
+                    Contract.parse("tool-result", RuntimeSupport.bytes(result));
+                    confirm(l, "call", row, result);
+                    if (name.equals("input.read_text"))
+                        files.consumed(l.runId, row.getString("intent_id"), arguments.getString("inputId"));
+                    return;
+                }
+                Object value = resources.invoke(identity, l.runId, name, arguments, l);
+                result.put("status", "success").put("dataJson", JdbcRunStore.canonical(value));
+                Contract.parse("tool-result", RuntimeSupport.bytes(result));
+            } catch (Exception e) {
+                if (e instanceof StoreException
+                        && Arrays.asList(
+                                "STORE_UNAVAILABLE",
+                                "STORE_COMMIT_OUTCOME_UNKNOWN",
+                                "STALE_OWNER",
+                                "VERSION_CONFLICT",
+                                "TOOL_QUEUE_FULL",
+                                "FILE_BUSY")
+                        .contains(((StoreException) e).code)) throw e;
+                result =
+                        new JSONObject()
+                                .put("status", "error")
+                                .put("artifacts", new JSONArray())
+                                .put(
+                                        "errorCode",
+                                        e instanceof StoreException ? ((StoreException) e).code : "TOOL_OUTPUT_INVALID");
+            }
+            confirm(l, "call", row, result);
+        }
+
+        private void step(String run) throws Exception {
+            JSONObject read = store.read(identity.tenant, identity.subject, run),
+                    s = read.getJSONObject("snapshot");
+            String state = s.getString("state");
+            boolean cancelling = state.equals("cancelling");
+            boolean terminal =
+                    Arrays.asList("succeeded", "failed", "cancelled", "timed_out").contains(state);
+            if (terminal
+                    && s.getString("executionSettlement").equals("confirmed")
+                    && read.getString("usageSettlement").equals("settled")) return;
+            JSONObject pin = catalog.pinned(identity.tenant, identity.subject, run),
+                    task = pin.getJSONObject("task"),
+                    model = pin.getJSONObject("model");
+            JSONObject limits = task.optJSONObject("executionLimits");
+            if (limits == null)
+                limits =
+                        new JSONObject()
+                                .put("maxRounds", 8)
+                                .put("maxTools", 32)
+                                .put("maxRepairs", 2)
+                                .put("maxLifetimeMillis", 300000);
+            boolean expired =
+                    jobs.expired(identity.tenant, identity.subject, run, limits.getLong("maxLifetimeMillis"));
+            if (Arrays.asList("waiting_input", "waiting_approval").contains(state) && !expired) {
+                JSONObject wait =
+                        controls == null ? null : controls.current(identity.tenant, identity.subject, run);
+                if (wait == null || wait.getLong("expiresAt") > controls.now()) return;
+                expired = true;
+            }
+            JdbcRunStore.Lease l = leases.get(run);
+            if (l == null) {
+                l = store.acquire(identity.tenant, identity.subject, run, owner, s.getLong("version"), 10000);
+                leases.put(run, l);
+            } else store.renew(l, 10000);
+            if (state.equals("queued")) store.transition(l, version(run), "running", new JSONObject());
+            if (Arrays.asList("waiting_input", "waiting_approval").contains(state)) {
+                if (expired)
+                    finish(
+                            l,
+                            "timed_out",
+                            "confirmed",
+                            new JSONObject().put("errorCode", "RUN_LIFETIME_EXCEEDED"));
+                else {
+                    store.release(l, version(run));
+                    leases.remove(run);
+                }
+                return;
+            }
+            JSONArray rounds = intents(run, "round"), calls = intents(run, "call");
+            int repairs = 0;
+            // Reconcile every historical round before any new intent. Callbacks only wrote evidence, never
+            // state.
+            for (int i = 0; i < rounds.length(); i++) {
+                JSONObject r = rounds.getJSONObject(i), j = jobs.enqueue(l, r, model);
+                if (!j.isNull("outcome_json")) {
+                    JSONObject o = new JSONObject(j.getString("outcome_json"));
+                    repairs += Math.max(0, o.getJSONArray("audit").length() - 1);
+                }
+                if (!r.getString("status").equals("confirmed")) {
+                    if (j.getInt("actual_finished") == 0) {
+                        if (expired || cancelling || terminal) {
+                            jobs.cancel(l, j.getString("job_id"));
+                            if (!terminal
+                                    && (expired
+                                    || (cancelling
+                                    && controls != null
+                                    && controls.now() - controls.cancelTime(run) >= cancelGrace)))
+                                finish(
+                                        l,
+                                        expired ? "timed_out" : "cancelled",
+                                        "unknown",
+                                        new JSONObject()
+                                                .put(
+                                                        "errorCode",
+                                                        expired ? "RUN_LIFETIME_EXCEEDED" : "CANCEL_OUTCOME_UNKNOWN"));
+                        }
+                        return;
+                    }
+                    JSONObject o = new JSONObject(j.getString("outcome_json"));
+                    if (!o.getString("status").equals("success")) {
+                        // Store the validated failure evidence. No next model context is built for a failed
+                        // round.
+                        confirm(l, "round", r, new JSONObject().put("errorCode", o.getString("errorCode")));
+                        if (o.has("usage")) settle(l, r, j, o);
+                        if (!terminal && !cancelling)
+                            finish(
+                                    l,
+                                    "failed",
+                                    "confirmed",
+                                    new JSONObject().put("errorCode", o.getString("errorCode")));
+                        return;
+                    }
+                    confirm(l, "round", r, o.getJSONObject("decision"));
                     return;
                 }
                 JSONObject o = new JSONObject(j.getString("outcome_json"));
-                if (!o.getString("status").equals("success")) {
-                    // Store the validated failure evidence. No next model context is built for a failed
-                    // round.
-                    confirm(l, "round", r, new JSONObject().put("errorCode", o.getString("errorCode")));
-                    if (o.has("usage")) settle(l, r, j, o);
-                    if (!terminal && !cancelling)
+                if (o.has("usage")) {
+                    settle(l, r, j, o);
+                }
+            }
+            for (int i = 0; i < calls.length(); i++)
+                if (!calls.getJSONObject(i).getString("status").equals("confirmed")) {
+                    tool(l, calls.getJSONObject(i), expired, terminal || cancelling);
+                    if (cancelling
+                            && controls != null
+                            && !state(run).getString("executionSettlement").equals("confirmed")
+                            && controls.now() - controls.cancelTime(run) >= cancelGrace)
                         finish(
                                 l,
-                                "failed",
-                                "confirmed",
-                                new JSONObject().put("errorCode", o.getString("errorCode")));
+                                "cancelled",
+                                "unknown",
+                                new JSONObject().put("errorCode", "CANCEL_OUTCOME_UNKNOWN"));
                     return;
                 }
-                confirm(l, "round", r, o.getJSONObject("decision"));
+            if (terminal) {
+                store.release(l, version(run));
+                leases.remove(run);
                 return;
             }
-            JSONObject o = new JSONObject(j.getString("outcome_json"));
-            if (o.has("usage")) {
-                settle(l, r, j, o);
-            }
-        }
-        for (int i = 0; i < calls.length(); i++)
-            if (!calls.getJSONObject(i).getString("status").equals("confirmed")) {
-                tool(l, calls.getJSONObject(i), expired, terminal || cancelling);
-                if (cancelling
-                        && controls != null
-                        && !state(run).getString("executionSettlement").equals("confirmed")
-                        && controls.now() - controls.cancelTime(run) >= cancelGrace)
-                    finish(
-                            l,
-                            "cancelled",
-                            "unknown",
-                            new JSONObject().put("errorCode", "CANCEL_OUTCOME_UNKNOWN"));
+            if (cancelling) {
+                finish(l, "cancelled", "confirmed", new JSONObject().put("errorCode", "CANCELLED"));
                 return;
             }
-        if (terminal) {
-            store.release(l, version(run));
-            leases.remove(run);
-            return;
-        }
-        if (cancelling) {
-            finish(l, "cancelled", "confirmed", new JSONObject().put("errorCode", "CANCELLED"));
-            return;
-        }
-        if (expired) {
-            finish(
-                    l, "timed_out", "confirmed", new JSONObject().put("errorCode", "RUN_LIFETIME_EXCEEDED"));
-            return;
-        }
-        if (repairs > limits.getInt("maxRepairs")) {
-            fail(l, "REPAIR_LIMIT_EXCEEDED");
-            return;
-        }
-        JSONObject snapshot;
-        try {
-            snapshot = contexts.assemble(identity, run, new JSONArray());
-        } catch (StoreException e) {
-            fail(l, e.code.split(":")[0]);
-            return;
-        }
-        contexts.checkpoint(l, version(run), snapshot);
-        JSONArray pending = snapshot.getJSONArray("pending");
-        if (pending.length() > 0) {
-            for (int i = 0; i < pending.length(); i++) {
-                JSONObject p = pending.getJSONObject(i);
-                if (!p.getString("kind").equals("proposal"))
-                    throw new StoreException("CONTEXT_PENDING_EXECUTION");
-                if (calls.length() + pending.length() > limits.getInt("maxTools")) {
-                    fail(l, "TOOL_LIMIT_EXCEEDED");
+            if (expired) {
+                finish(
+                        l, "timed_out", "confirmed", new JSONObject().put("errorCode", "RUN_LIFETIME_EXCEEDED"));
+                return;
+            }
+            if (repairs > limits.getInt("maxRepairs")) {
+                fail(l, "REPAIR_LIMIT_EXCEEDED");
+                return;
+            }
+            JSONObject snapshot;
+            try {
+                snapshot = contexts.assemble(identity, run, new JSONArray());
+            } catch (StoreException e) {
+                fail(l, e.code.split(":")[0]);
+                return;
+            }
+            contexts.checkpoint(l, version(run), snapshot);
+            JSONArray pending = snapshot.getJSONArray("pending");
+            if (pending.length() > 0) {
+                for (int i = 0; i < pending.length(); i++) {
+                    JSONObject p = pending.getJSONObject(i);
+                    if (!p.getString("kind").equals("proposal"))
+                        throw new StoreException("CONTEXT_PENDING_EXECUTION");
+                    if (calls.length() + pending.length() > limits.getInt("maxTools")) {
+                        fail(l, "TOOL_LIMIT_EXCEEDED");
+                        return;
+                    }
+                    JSONObject call = p.getJSONObject("call");
+                    if (controls != null && approvalTools.contains(call.getString("tool"))) {
+                        JSONObject args =
+                                StrictJson.object(
+                                        call.getString("argumentsJson")
+                                                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        JSONArray available = resources.tools(identity, run);
+                        JSONObject definition = null;
+                        for (int t = 0; t < available.length(); t++)
+                            if (available.getJSONObject(t).getString("name").equals(call.getString("tool")))
+                                definition = available.getJSONObject(t);
+                        if (definition == null) throw new StoreException("RESOURCE_FORBIDDEN");
+                        Contract.validate(args, definition.getJSONObject("parameters"));
+                        String binding =
+                                JdbcRunStore.hash(
+                                        new JSONObject().put("call", call).put("definition", definition).put("pin", pin));
+                        if (!controls.handled(run, "approval", binding)) {
+                            controls.waitFor(
+                                    l,
+                                    version(run),
+                                    "approval",
+                                    new JSONObject()
+                                            .put("binding", binding)
+                                            .put("tool", call.getString("tool"))
+                                            .put("arguments", args)
+                                            .put("argumentsHash", JdbcRunStore.hash(args))
+                                            .put("configDigest", JdbcRunStore.hash(pin)),
+                                    Math.min(
+                                            jobs.created(l) + limits.getLong("maxLifetimeMillis"),
+                                            controls.now() + waitMillis));
+                            store.release(l, version(run));
+                            leases.remove(run);
+                            return;
+                        }
+                    }
+                    store.intent(l, version(run), "call", call.getString("proposalId"), 1, call, 0, 0);
+                }
+                return;
+            }
+            if (rounds.length() > 0) {
+                // Round IDs are fixed-width, so the durable order and lexical order agree.
+                JSONObject last =
+                        new JSONObject(rounds.getJSONObject(rounds.length() - 1).getString("result_json"));
+                if (last.getString("kind").equals("final")) {
+                    finish(l, "succeeded", "confirmed", last);
                     return;
                 }
-                JSONObject call = p.getJSONObject("call");
-                if (controls != null && approvalTools.contains(call.getString("tool"))) {
-                    JSONObject args =
-                            StrictJson.object(
-                                    call.getString("argumentsJson")
-                                            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                    JSONArray available = resources.tools(identity, run);
-                    JSONObject definition = null;
-                    for (int t = 0; t < available.length(); t++)
-                        if (available.getJSONObject(t).getString("name").equals(call.getString("tool")))
-                            definition = available.getJSONObject(t);
-                    if (definition == null) throw new StoreException("RESOURCE_FORBIDDEN");
-                    Contract.validate(args, definition.getJSONObject("parameters"));
-                    String binding =
-                            JdbcRunStore.hash(
-                                    new JSONObject().put("call", call).put("definition", definition).put("pin", pin));
-                    if (!controls.handled(run, "approval", binding)) {
-                        controls.waitFor(
-                                l,
-                                version(run),
-                                "approval",
-                                new JSONObject()
-                                        .put("binding", binding)
-                                        .put("tool", call.getString("tool"))
-                                        .put("arguments", args)
-                                        .put("argumentsHash", JdbcRunStore.hash(args))
-                                        .put("configDigest", JdbcRunStore.hash(pin)),
-                                Math.min(
-                                        jobs.created(l) + limits.getLong("maxLifetimeMillis"),
-                                        controls.now() + waitMillis));
+                if (last.getString("kind").equals("need_input")) {
+                    String binding = rounds.getJSONObject(rounds.length() - 1).getString("intent_id");
+                    if (controls != null && controls.handled(run, "input", binding)) {
+                        // The durable resume event is included as a new user message below.
+                    } else {
+                        if (controls != null)
+                            controls.waitFor(
+                                    l,
+                                    version(run),
+                                    "input",
+                                    new JSONObject()
+                                            .put("binding", binding)
+                                            .put("question", last.getString("question"))
+                                            .put("checkpointDigest", JdbcRunStore.hash(snapshot)),
+                                    Math.min(
+                                            jobs.created(l) + limits.getLong("maxLifetimeMillis"),
+                                            controls.now() + waitMillis));
+                        else store.transition(l, version(run), "waiting_input", last);
                         store.release(l, version(run));
                         leases.remove(run);
                         return;
                     }
                 }
-                store.intent(l, version(run), "call", call.getString("proposalId"), 1, call, 0, 0);
             }
-            return;
-        }
-        if (rounds.length() > 0) {
-            // Round IDs are fixed-width, so the durable order and lexical order agree.
-            JSONObject last =
-                    new JSONObject(rounds.getJSONObject(rounds.length() - 1).getString("result_json"));
-            if (last.getString("kind").equals("final")) {
-                finish(l, "succeeded", "confirmed", last);
+            if (rounds.length() >= limits.getInt("maxRounds")) {
+                fail(l, "ROUND_LIMIT_EXCEEDED");
                 return;
             }
-            if (last.getString("kind").equals("need_input")) {
-                String binding = rounds.getJSONObject(rounds.length() - 1).getString("intent_id");
-                if (controls != null && controls.handled(run, "input", binding)) {
-                    // The durable resume event is included as a new user message below.
-                } else {
-                    if (controls != null)
-                        controls.waitFor(
-                                l,
-                                version(run),
-                                "input",
-                                new JSONObject()
-                                        .put("binding", binding)
-                                        .put("question", last.getString("question"))
-                                        .put("checkpointDigest", JdbcRunStore.hash(snapshot)),
-                                Math.min(
-                                        jobs.created(l) + limits.getLong("maxLifetimeMillis"),
-                                        controls.now() + waitMillis));
-                    else store.transition(l, version(run), "waiting_input", last);
-                    store.release(l, version(run));
-                    leases.remove(run);
-                    return;
-                }
-            }
+            JSONObject request = ContextEngine.modelInput(snapshot);
+            request.put("maxRepairs", Math.max(0, Math.min(1, limits.getInt("maxRepairs") - repairs)));
+            String round = String.format(java.util.Locale.ROOT, "round-%04d", rounds.length() + 1);
+            store.intent(
+                    l,
+                    version(run),
+                    "round",
+                    round,
+                    1,
+                    new JSONObject().put("contextDigest", JdbcRunStore.hash(snapshot)).put("request", request),
+                    snapshot.getLong("inputTokens"),
+                    snapshot.getLong("outputReserve"));
         }
-        if (rounds.length() >= limits.getInt("maxRounds")) {
-            fail(l, "ROUND_LIMIT_EXCEEDED");
-            return;
-        }
-        JSONObject request = ContextEngine.modelInput(snapshot);
-        request.put("maxRepairs", Math.max(0, Math.min(1, limits.getInt("maxRepairs") - repairs)));
-        String round = String.format(java.util.Locale.ROOT, "round-%04d", rounds.length() + 1);
-        store.intent(
-                l,
-                version(run),
-                "round",
-                round,
-                1,
-                new JSONObject().put("contextDigest", JdbcRunStore.hash(snapshot)).put("request", request),
-                snapshot.getLong("inputTokens"),
-                snapshot.getLong("outputReserve"));
-    }
 
-    private void settle(JdbcRunStore.Lease l, JSONObject r, JSONObject j, JSONObject o) {
-        JSONObject usage = o.getJSONObject("usage");
-        store.settleUsage(
-                l,
-                version(l.runId),
-                new JSONObject()
-                        .put("roundId", r.getString("intent_id"))
-                        .put("attempt", r.getInt("attempt"))
-                        .put("evidenceId", j.getString("job_id"))
-                        .put("expectedRevision", 0)
-                        .put("input", usage.getLong("input"))
-                        .put("output", usage.getLong("output")));
+        private void settle(JdbcRunStore.Lease l, JSONObject r, JSONObject j, JSONObject o) {
+            JSONObject usage = o.getJSONObject("usage");
+            store.settleUsage(
+                    l,
+                    version(l.runId),
+                    new JSONObject()
+                            .put("roundId", r.getString("intent_id"))
+                            .put("attempt", r.getInt("attempt"))
+                            .put("evidenceId", j.getString("job_id"))
+                            .put("expectedRevision", 0)
+                            .put("input", usage.getLong("input"))
+                            .put("output", usage.getLong("output")));
+        }
+
     }
 
     @Override
