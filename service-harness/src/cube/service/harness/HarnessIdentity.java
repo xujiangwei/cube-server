@@ -1,11 +1,23 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness;
 
 import cube.auth.AuthToken;
 import cube.auth.AuthTokenProvider;
 import cube.service.harness.runtime.ProfileRegistry;
-import java.util.*;
 
-/** 仅从 Cube Auth 模块取得用户身份，不接受客户端自报的域、用户或角色。 */
+import java.util.Collections;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TreeSet;
+
+/**
+ * 仅从 Cube Auth 模块取得用户身份，不接受客户端自报的域、用户或角色。
+ */
 final class HarnessIdentity {
     final ProfileRegistry.Identity user;
     final long expires;

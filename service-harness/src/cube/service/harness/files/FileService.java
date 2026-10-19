@@ -35,10 +35,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Dedicated local file adapter. Cross-JVM root lock protects actual handles as well as paths.
  */
 public final class FileService implements AutoCloseable {
+
     public final FileStore ledger;
+
     public final FileConfig config;
+
     private final AssetFiles disk;
+
     private final ProfileRegistry.Identity identity;
+
     private final ScheduledExecutorService timer =
             Executors.newScheduledThreadPool(
                     2,
@@ -47,8 +52,11 @@ public final class FileService implements AutoCloseable {
                         t.setDaemon(true);
                         return t;
                     });
+
     private final Semaphore transfers = new Semaphore(2);
+
     private volatile String lastError;
+
     private final String handleKey;
 
     public FileService(JdbcRunStore store, Properties p, ProfileRegistry.Identity identity)

@@ -81,7 +81,7 @@ public final class ToolBroker implements AutoCloseable {
     }
 
     private ToolBroker(ToolJobStore jobs, ProfileRegistry.Identity identity, Set<String> permissions,
-            Properties p) throws Exception {
+                       Properties p) throws Exception {
         ToolProtocol.verify();
         this.jobs = jobs;
         this.identity = identity;

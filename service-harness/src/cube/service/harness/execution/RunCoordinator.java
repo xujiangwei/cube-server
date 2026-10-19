@@ -96,13 +96,13 @@ public final class RunCoordinator implements AutoCloseable {
     }
 
     public RunCoordinator(JdbcRunStore store, ModelJobStore jobs, CatalogStore catalog,
-            java.util.Set<String> permissions, ResourceTools resources, ToolBroker broker) {
+                          java.util.Set<String> permissions, ResourceTools resources, ToolBroker broker) {
         this(store, jobs, catalog, null, permissions, resources, broker);
     }
 
     private RunCoordinator(JdbcRunStore store, ModelJobStore jobs, CatalogStore catalog,
-            ProfileRegistry.Identity identity, java.util.Set<String> permissions,
-            ResourceTools resources, ToolBroker broker) {
+                           ProfileRegistry.Identity identity, java.util.Set<String> permissions,
+                           ResourceTools resources, ToolBroker broker) {
         this.broker = broker;
         this.store = store;
         this.jobs = jobs;
@@ -164,7 +164,10 @@ public final class RunCoordinator implements AutoCloseable {
     // 每一步持有独立的不可变身份；不在共享服务上切换当前用户。
     private final class RunStep {
         private final ProfileRegistry.Identity identity;
-        RunStep(ProfileRegistry.Identity identity) { this.identity = identity; }
+
+        RunStep(ProfileRegistry.Identity identity) {
+            this.identity = identity;
+        }
 
         private long version(String run) {
             return store

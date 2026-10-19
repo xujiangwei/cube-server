@@ -457,7 +457,9 @@ public final class JdbcRunStore {
     /**
      * One transaction provides a consistent state/result/usage snapshot.
      */
-    /** 已获授权的服务端调用方才可使用；任务所有者查询始终限定域。 */
+    /**
+     * 已获授权的服务端调用方才可使用；任务所有者查询始终限定域。
+     */
     public String subject(String tenant, String runId) {
         return tx(c -> {
             JSONObject row = first(rows(c, "SELECT subject_id FROM harness_run WHERE tenant=? AND run_id=?",

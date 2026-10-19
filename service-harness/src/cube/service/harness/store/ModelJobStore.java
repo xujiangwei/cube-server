@@ -344,9 +344,13 @@ public final class ModelJobStore {
                                                 "SELECT worker_id,COUNT(*) AS occupied FROM harness_model_job WHERE status<>'queued' AND actual_finished=0 GROUP BY worker_id")));
     }
 
-    public JSONArray runnable(int limit) { return runnable(null, limit); }
+    public JSONArray runnable(int limit) {
+        return runnable(null, limit);
+    }
 
-    public JSONArray runnable(int limit, long offset) { return runnable(null, limit, offset); }
+    public JSONArray runnable(int limit, long offset) {
+        return runnable(null, limit, offset);
+    }
 
     public JSONArray runnable(String tenant, int limit) {
         return runnable(tenant, limit, 0);
@@ -383,7 +387,9 @@ public final class ModelJobStore {
     /**
      * Physical unknowns and unreconciled receipts must block an operational drain.
      */
-    public JSONObject drainStatus() { return drainStatus(null); }
+    public JSONObject drainStatus() {
+        return drainStatus(null);
+    }
 
     public JSONObject drainStatus(String tenant) {
         return store.tx(

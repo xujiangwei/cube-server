@@ -163,7 +163,9 @@ public final class ExecutionRuntime implements AutoCloseable {
                 .put("scope", "this-jvm; ledger counts cover all tenants");
     }
 
-    /** 仅供已获授权的同域审批人或 trace 读取者解析任务所有者。 */
+    /**
+     * 仅供已获授权的同域审批人或 trace 读取者解析任务所有者。
+     */
     public ProfileRegistry.Identity owner(ProfileRegistry.Identity caller, String run) {
         return new ProfileRegistry.Identity(caller.tenant, store.subject(caller.tenant, run), permissions);
     }
