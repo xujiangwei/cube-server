@@ -14,11 +14,7 @@ import cube.common.entity.Contact;
 import cube.service.aigc.event.EventCenter;
 import cube.service.aigc.resource.Relay;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -113,8 +109,7 @@ public class UnitScheduler {
             if (null != unit) {
                 unit.setContext(context);
                 unit.getCapability().setChatCompletion(capability.getChatCompletion());
-            }
-            else {
+            } else {
                 unit = new AIGCUnit(contact, capability, context);
                 this.unitMap.put(key, unit);
             }
