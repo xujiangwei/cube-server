@@ -59,6 +59,9 @@ public class Director {
 
     public static void copyPerformer(ActionDialect src, ActionDialect dest) {
         JSONObject performer = src.getParamAsJson(sPerformerKey);
-        dest.addParam(sPerformerKey, performer);
+        // Direct Cell callers have no dispatcher routing metadata.
+        if (performer != null) {
+            dest.addParam(sPerformerKey, performer);
+        }
     }
 }

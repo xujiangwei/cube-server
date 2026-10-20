@@ -50,6 +50,7 @@ public final class ChatCompletionServiceTest {
         FakeService service = new FakeService(cellet);
         try {
             testModels(service);
+            testModelTaskReplies();
             testEvents(service, cellet);
             testCancellation(service, cellet);
             testMalformedAndTimeout(service, cellet);
@@ -83,6 +84,49 @@ public final class ChatCompletionServiceTest {
         check(!registered.getCapability().getChatCompletion().optBoolean("text"), "older units default unsupported");
         scheduler.setup(contact, Collections.singletonList(updated), service.owner);
         check(registered.getCapability().getChatCompletion().getBoolean("text"), "capabilities refreshed on re-registration");
+    }
+
+    static void testModelTaskReplies() throws Exception {
+        final cell.api.Nucleus testNucleus = new cell.api.Nucleus();
+        final FakeService[] current = new FakeService[1];
+        FakeCellet cellet = new FakeCellet() {
+            @Override public cell.api.Nucleus getNucleus() { return testNucleus; }
+            @Override public AIGCService getService() { return current[0]; }
+        };
+        FakeService service = new FakeService(cellet);
+        current[0] = service;
+        try {
+            for (boolean routed : new boolean[]{false, true}) {
+                for (String token : new String[]{"bad", "token"}) {
+                    ActionDialect request = new Packet(AIGCAction.ListChatModels.name, new JSONObject()).toDialect();
+                    request.addParam("token", token);
+                    JSONObject performer = new JSONObject().put("sn", 7).put("ts", 1);
+                    if (routed) request.addParam("_performer", performer);
+                    int before = cellet.sent.size();
+                    new cube.service.aigc.task.ChatCompletionTask(cellet, service.origin, request, null).run();
+                    check(cellet.sent.size() == before + 1, "model task always sends a reply");
+                    Sent sent = cellet.sent.get(before);
+                    Packet response = new Packet(sent.dialect);
+                    check(sent.context == service.origin && response.sn.equals(request.getParamAsLong("sn")),
+                            "model task preserves direct reply correlation");
+                    if (token.equals("bad")) {
+                        check(response.data.getJSONObject("data").getJSONObject("error").getInt("status") == 401,
+                                "missing routing metadata does not hide authentication error");
+                    } else {
+                        check(response.data.getJSONObject("data").getJSONArray("models").length() == 1,
+                                "model list supports direct and dispatcher callers");
+                    }
+                    check(sent.dialect.containsParam("_performer") == routed,
+                            "routing metadata is optional on direct model replies");
+                    if (routed) check(sent.dialect.getParamAsJson("_performer").toString().equals(performer.toString()),
+                            "dispatcher routing metadata remains intact");
+                }
+            }
+        } finally {
+            service.getCompletions().stop();
+            service.queue.shutdown();
+            testNucleus.destroy();
+        }
     }
 
     static JSONObject request(String model) {
