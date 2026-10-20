@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Structured generation has no channel, hidden history, SKILL or tool executor.
  */
 public class ChatCompletionService {
+
     private final AIGCService service;
 
     private final AIGCCellet cellet;
@@ -183,7 +184,10 @@ public class ChatCompletionService {
             for (AIGCUnit candidate : service.getAllUnits()) {
                 if (model.getUnitName().equals(candidate.getCapability().getName()) && candidate.getContext() != null
                         && candidate.getContext().isValid() && !quarantined(candidate)
-                        && candidate.getCapability().getChatCompletion().optBoolean("text")) { unit = candidate; break; }
+                        && candidate.getCapability().getChatCompletion().optBoolean("text")) {
+                    unit = candidate;
+                    break;
+                }
             }
             if (unit != null) data.put(new JSONObject().put("id", model.getModel())
                     .put("name", model.getName()).put("created", 0)
@@ -462,8 +466,7 @@ public class ChatCompletionService {
             } else if (kind.equals("error")) {
                 actualFinished = actualFinished || event.optBoolean("actualFinished", false);
                 terminal = true;
-            }
-            else if (!kind.equals("started") && !kind.equals("delta")) {
+            } else if (!kind.equals("started") && !kind.equals("delta")) {
                 fail(new CompletionError(502, "upstream_error", "Unknown generation event", null));
                 return;
             }

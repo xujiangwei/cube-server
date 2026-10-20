@@ -1,15 +1,20 @@
 /*
  * This source file is part of Cube.
+ *
  * Copyright (c) 2023-2026 Ambrose Xu.
  */
+
 package cube.service.harness;
 
 import cell.util.log.Logger;
 import org.json.JSONObject;
 
-/** Log only bounded identity fields and server error codes, including schema/authentication rejections. */
+/**
+ * Log only bounded identity fields and server error codes, including schema/authentication rejections.
+ */
 final class WorkerRegistrationLog {
-    private WorkerRegistrationLog() {}
+    private WorkerRegistrationLog() {
+    }
 
     private static String field(Object value) {
         return value instanceof String && ((String) value).matches("[A-Za-z0-9_.:@/-]{1,128}") ? (String) value : "-";
@@ -40,8 +45,9 @@ final class WorkerRegistrationLog {
                     + " ready=" + ready + (ready ? "" : " (registered; backend or worker is not ready)"));
         } else {
             message += " errorCode=" + field(response == null ? null : response.opt("errorCode"));
-            if (unexpected == null) Logger.w(HarnessService.class, message);
-            else {
+            if (unexpected == null) {
+                Logger.w(HarnessService.class, message);
+            } else {
                 // Throwable messages and causes can contain a credential or an entire rejected JSON object.
                 Exception safe = new Exception(unexpected.getClass().getSimpleName());
                 safe.setStackTrace(unexpected.getStackTrace());

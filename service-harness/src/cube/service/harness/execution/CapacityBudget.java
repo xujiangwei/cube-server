@@ -1,16 +1,26 @@
 /*
  * This source file is part of Cube.
+ *
  * Copyright (c) 2023-2026 Ambrose Xu.
  */
+
 package cube.service.harness.execution;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import java.util.*;
 
-/** One snapshot's allocation of shared inference routes, including aliases and different backend IDs. */
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * One snapshot's allocation of shared inference routes, including aliases and different backend IDs.
+ */
 final class CapacityBudget {
+
     private final Map<String, Integer> total = new HashMap<>(), free = new HashMap<>();
+
     private final Set<String> counted = new HashSet<>(), available = new HashSet<>();
 
     static JSONArray entries(JSONObject capacity) {
@@ -22,9 +32,10 @@ final class CapacityBudget {
         int registered = Math.max(0, capacity.getInt("registered"));
         int available = Math.max(0, Math.min(registered, capacity.getInt("available")));
         String group = capacity.getString("capacityGroup");
-        for (int i = 0; i < registered; i++) entries.put(new JSONObject().put("capacityGroup", group)
-                .put("route", "slot:" + i).put("registered", 1).put("available", i < available ? 1 : 0)
-                .put("groupCapacity", registered).put("groupAvailable", available));
+        for (int i = 0; i < registered; i++)
+            entries.put(new JSONObject().put("capacityGroup", group)
+                    .put("route", "slot:" + i).put("registered", 1).put("available", i < available ? 1 : 0)
+                    .put("groupCapacity", registered).put("groupAvailable", available));
         return entries;
     }
 

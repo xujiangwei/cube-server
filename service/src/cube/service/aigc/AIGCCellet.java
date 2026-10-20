@@ -298,8 +298,8 @@ public class AIGCCellet extends AbstractCellet {
      * 对既有动作分支与未匹配请求不产生任何可观测差异。</p>
      *
      * @param talkContext 会话上下文。
-     * @param primitive 原始数据。
-     * @param dialect 动作方言，复用已构造的实例。
+     * @param primitive   原始数据。
+     * @param dialect     动作方言，复用已构造的实例。
      * @return 已由业务模块接管并提交任务时返回 <code>true</code>。
      */
     private boolean dispatchToModule(TalkContext talkContext, Primitive primitive, ActionDialect dialect) {
@@ -399,83 +399,67 @@ public class AIGCCellet extends AbstractCellet {
                     break;
                 }
             }
-        }
-        else if (AIGCAction.CheckToken.name.equals(action)) {
+        } else if (AIGCAction.CheckToken.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new CheckTokenTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AppGetOrCreateUser.name.equals(action)) {
+        } else if (AIGCAction.AppGetOrCreateUser.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AppGetOrCreateUserTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AppModifyUser.name.equals(action)) {
+        } else if (AIGCAction.AppModifyUser.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AppModifyUserTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AppCheckInUser.name.equals(action)) {
+        } else if (AIGCAction.AppCheckInUser.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AppCheckInUserTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AppInjectOrGetToken.name.equals(action)) {
+        } else if (AIGCAction.AppInjectOrGetToken.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AppInjectOrGetTokenTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AppGetUserProfile.name.equals(action)) {
+        } else if (AIGCAction.AppGetUserProfile.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AppGetUserProfileTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AppActivateMembership.name.equals(action)) {
+        } else if (AIGCAction.AppActivateMembership.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AppActivateMembershipTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetWordCloud.name.equals(action)) {
+        } else if (AIGCAction.GetWordCloud.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetWordCloudTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AppSignOutUser.name.equals(action)) {
+        } else if (AIGCAction.AppSignOutUser.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AppSignOutUserTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AppVersion.name.equals(action)) {
+        } else if (AIGCAction.AppVersion.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AppVersionTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AppASCIIArt.name.equals(action)) {
+        } else if (AIGCAction.AppASCIIArt.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AppASCIIArtTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.Summarization.name.equals(action)) {
+        } else if (AIGCAction.Summarization.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new SummarizationTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.SemanticSearch.name.equals(action)) {
+        } else if (AIGCAction.SemanticSearch.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new SemanticSearchTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.Segmentation.name.equals(action)) {
+        } else if (AIGCAction.Segmentation.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new SegmentationTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.Chat.name.equals(action)) {
+        } else if (AIGCAction.Chat.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new ChatTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.Multimodal.name.equals(action)) {
+        } else if (AIGCAction.Multimodal.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new MultimodalTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
@@ -489,253 +473,203 @@ public class AIGCCellet extends AbstractCellet {
             // 来自 Dispatcher 的请求
             this.execute(new GetSearchResultsTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetContextInference.name.equals(action)) {
+        } else if (AIGCAction.GetContextInference.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetContextInferenceTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.KeepAliveChannel.name.equals(action)) {
+        } else if (AIGCAction.KeepAliveChannel.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new KeepAliveChannelTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetChannelInfo.name.equals(action)) {
+        } else if (AIGCAction.GetChannelInfo.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetChannelTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.RequestChannel.name.equals(action)) {
+        } else if (AIGCAction.RequestChannel.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new RequestChannelTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.StopChannel.name.equals(action)) {
+        } else if (AIGCAction.StopChannel.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new StopChannelTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.Evaluate.name.equals(action)) {
+        } else if (AIGCAction.Evaluate.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new EvaluateTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AddAppEvent.name.equals(action)) {
+        } else if (AIGCAction.AddAppEvent.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AddAppEventTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.QueryAppEvent.name.equals(action)) {
+        } else if (AIGCAction.QueryAppEvent.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new QueryAppEventTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.QueryUsages.name.equals(action)) {
+        } else if (AIGCAction.QueryUsages.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new QueryUsageTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.QueryChatHistory.name.equals(action)) {
+        } else if (AIGCAction.QueryChatHistory.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new QueryChatHistoryTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AutomaticSpeechRecognition.name.equals(action)) {
+        } else if (AIGCAction.AutomaticSpeechRecognition.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AutomaticSpeechRecognitionTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.FacialExpressionRecognition.name.equals(action)) {
+        } else if (AIGCAction.FacialExpressionRecognition.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new FacialExpressionRecognitionTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetSpeechDiarization.name.equals(action)) {
+        } else if (AIGCAction.GetSpeechDiarization.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetSpeechDiarizationTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.SpeechDiarization.name.equals(action)) {
+        } else if (AIGCAction.SpeechDiarization.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new SpeechDiarizationTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.ListSpeechDiarizations.name.equals(action)) {
+        } else if (AIGCAction.ListSpeechDiarizations.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new ListSpeechDiarizationsTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.DeleteSpeechDiarization.name.equals(action)) {
+        } else if (AIGCAction.DeleteSpeechDiarization.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new DeleteSpeechDiarizationTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.SpeechEmotionRecognition.name.equals(action)) {
+        } else if (AIGCAction.SpeechEmotionRecognition.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new SpeechEmotionRecognitionTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetEmotionRecords.name.equals(action)) {
+        } else if (AIGCAction.GetEmotionRecords.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetEmotionRecordsTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetQueueCount.name.equals(action)) {
+        } else if (AIGCAction.GetQueueCount.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetQueueCountTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.TextToFile.name.equals(action)) {
+        } else if (AIGCAction.TextToFile.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new TextToFileTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetConfig.name.equals(action)) {
+        } else if (AIGCAction.GetConfig.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetConfigTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GenerateKnowledge.name.equals(action)) {
+        } else if (AIGCAction.GenerateKnowledge.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GenerateKnowledgeTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetKnowledgeProfile.name.equals(action)) {
+        } else if (AIGCAction.GetKnowledgeProfile.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetKnowledgeProfileTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.UpdateKnowledgeProfile.name.equals(action)) {
+        } else if (AIGCAction.UpdateKnowledgeProfile.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new UpdateKnowledgeProfileTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetKnowledgeQAProgress.name.equals(action)) {
+        } else if (AIGCAction.GetKnowledgeQAProgress.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetKnowledgeQAProgressTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.PerformKnowledgeQA.name.equals(action)) {
+        } else if (AIGCAction.PerformKnowledgeQA.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new PerformKnowledgeQATask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetKnowledgeFramework.name.equals(action)) {
+        } else if (AIGCAction.GetKnowledgeFramework.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetKnowledgeFrameworkTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.NewKnowledgeBase.name.equals(action)) {
+        } else if (AIGCAction.NewKnowledgeBase.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new NewKnowledgeBaseTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.DeleteKnowledgeBase.name.equals(action)) {
+        } else if (AIGCAction.DeleteKnowledgeBase.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new DeleteKnowledgeBaseTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.UpdateKnowledgeBase.name.equals(action)) {
+        } else if (AIGCAction.UpdateKnowledgeBase.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new UpdateKnowledgeBaseTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.ListKnowledgeDocs.name.equals(action)) {
+        } else if (AIGCAction.ListKnowledgeDocs.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new ListKnowledgeDocsTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.ImportKnowledgeDoc.name.equals(action)) {
+        } else if (AIGCAction.ImportKnowledgeDoc.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new ImportKnowledgeDocTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.RemoveKnowledgeDoc.name.equals(action)) {
+        } else if (AIGCAction.RemoveKnowledgeDoc.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new RemoveKnowledgeDocTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetKnowledgeSegments.name.equals(action)) {
+        } else if (AIGCAction.GetKnowledgeSegments.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetKnowledgeSegmentsTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetResetKnowledgeProgress.name.equals(action)) {
+        } else if (AIGCAction.GetResetKnowledgeProgress.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetResetKnowledgeProgressTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.ResetKnowledgeStore.name.equals(action)) {
+        } else if (AIGCAction.ResetKnowledgeStore.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new ResetKnowledgeStoreTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetBackupKnowledgeStores.name.equals(action)) {
+        } else if (AIGCAction.GetBackupKnowledgeStores.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetKnowledgeBackupTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetKnowledgeProgress.name.equals(action)) {
+        } else if (AIGCAction.GetKnowledgeProgress.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetKnowledgeProgressTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.ListKnowledgeArticles.name.equals(action)) {
+        } else if (AIGCAction.ListKnowledgeArticles.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new ListKnowledgeArticlesTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.ActivateKnowledgeArticle.name.equals(action)) {
+        } else if (AIGCAction.ActivateKnowledgeArticle.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new ActivateKnowledgeArticleTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.DeactivateKnowledgeArticle.name.equals(action)) {
+        } else if (AIGCAction.DeactivateKnowledgeArticle.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new DeactivateKnowledgeArticleTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.AppendKnowledgeArticle.name.equals(action)) {
+        } else if (AIGCAction.AppendKnowledgeArticle.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new AppendKnowledgeArticleTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.RemoveKnowledgeArticle.name.equals(action)) {
+        } else if (AIGCAction.RemoveKnowledgeArticle.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new RemoveKnowledgeArticleTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.UpdateKnowledgeArticle.name.equals(action)) {
+        } else if (AIGCAction.UpdateKnowledgeArticle.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new UpdateKnowledgeArticleTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.QueryAllArticleCategories.name.equals(action)) {
+        } else if (AIGCAction.QueryAllArticleCategories.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new QueryAllArticleCategoriesTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.ChartData.name.equals(action)) {
+        } else if (AIGCAction.ChartData.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new ChartDataTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.GetPrompts.name.equals(action)) {
+        } else if (AIGCAction.GetPrompts.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new GetPromptsTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.SetPrompts.name.equals(action)) {
+        } else if (AIGCAction.SetPrompts.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new SetPromptsTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.SubmitEvent.name.equals(action)) {
+        } else if (AIGCAction.SubmitEvent.name.equals(action)) {
             // 来自 Dispatcher 的请求
             this.execute(new SubmitEventTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.Event.name.equalsIgnoreCase(action)) {
+        } else if (AIGCAction.Event.name.equalsIgnoreCase(action)) {
             // 来自 Unit 的请求
             this.execute(new Runnable() {
                 @Override
@@ -743,18 +677,15 @@ public class AIGCCellet extends AbstractCellet {
                     EventCenter.getInstance().notifyEvent(dialect);
                 }
             });
-        }
-        else if (AIGCAction.SubmitSegments.name.equals(action)) {
+        } else if (AIGCAction.SubmitSegments.name.equals(action)) {
             // 来自 Unit 的请求
             this.execute(new SubmitSegmentTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.Setup.name.equals(action)) {
+        } else if (AIGCAction.Setup.name.equals(action)) {
             // 来自 Unit 的请求
             this.execute(new SetupTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
-        }
-        else if (AIGCAction.Teardown.name.equals(action)) {
+        } else if (AIGCAction.Teardown.name.equals(action)) {
             // 来自 Unit 的请求
             this.execute(new TeardownTask(this, talkContext, primitive,
                     this.markResponseTime(action)));

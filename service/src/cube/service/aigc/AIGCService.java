@@ -554,8 +554,9 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
             // 是否启用中继（Relay）
             Relay relay;
-            try { relay = Relay.configure(properties); }
-            catch (IllegalArgumentException e) {
+            try {
+                relay = Relay.configure(properties);
+            } catch (IllegalArgumentException e) {
                 Logger.e(this.getClass(), "#loadConfig - " + e.getMessage());
                 relay = Relay.getInstance();
             }

@@ -6,13 +6,14 @@
 
 package cube.service.aigc.knowledge;
 
-import cube.aigc.listener.GenerateTextListener;
 import cell.core.talk.dialect.ActionDialect;
 import cell.util.Utils;
 import cell.util.log.Logger;
 import cube.aigc.AppEvent;
 import cube.aigc.ModelConfig;
 import cube.aigc.TextSplitter;
+import cube.aigc.listener.GenerateTextListener;
+import cube.aigc.text.Keyword;
 import cube.auth.AuthToken;
 import cube.common.Packet;
 import cube.common.action.AIGCAction;
@@ -24,8 +25,10 @@ import cube.service.aigc.AIGCHook;
 import cube.service.aigc.AIGCPluginContext;
 import cube.service.aigc.AIGCService;
 import cube.service.aigc.AIGCStorage;
-import cube.service.aigc.listener.*;
-import cube.aigc.text.Keyword;
+import cube.service.aigc.listener.KnowledgeProgressListener;
+import cube.service.aigc.listener.KnowledgeQAListener;
+import cube.service.aigc.listener.ResetKnowledgeStoreListener;
+import cube.service.aigc.listener.SummarizationListener;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -272,8 +275,7 @@ public class KnowledgeBase {
                     if (this.resource.checkUnit()) {
                         KnowledgeDocument deactivatedDoc = this.deactivateKnowledgeDoc(doc);
                         doc = deactivatedDoc;
-                    }
-                    else {
+                    } else {
                         Logger.w(this.getClass(), "#removeKnowledgeDoc - " + this.getName() + " - Unit error: " + fileCode);
                         return null;
                     }
@@ -285,8 +287,7 @@ public class KnowledgeBase {
                 this.storage.deleteKnowledgeSegments(doc.getId());
 
                 this.resource.removeDoc(doc);
-            }
-            else {
+            } else {
                 doc = this.resource.removeDoc(fileCode);
             }
 
@@ -368,8 +369,7 @@ public class KnowledgeBase {
                     }
 
                     doc.setFileLabel(new FileLabel(fileLabelJson));
-                }
-                else {
+                } else {
                     // 该文件已经导入，跳过
                     if (doc.activated) {
                         continue;
@@ -443,7 +443,7 @@ public class KnowledgeBase {
                             ActionDialect dialect = service.getCellet().transmit(resource.unit.getContext(),
                                     packet.toDialect(), 3 * 60 * 1000);
                             if (null == dialect) {
-                                Logger.w(this.getClass(),"#batchImportKnowledgeDocuments - " +
+                                Logger.w(this.getClass(), "#batchImportKnowledgeDocuments - " +
                                         baseInfo.name + " - Request unit error: "
                                         + resource.unit.getCapability().getName());
                                 // 更新进度
@@ -491,8 +491,7 @@ public class KnowledgeBase {
                             if (currentList.contains(doc)) {
                                 // 已经存在
                                 storage.updateKnowledgeDoc(doc);
-                            }
-                            else {
+                            } else {
                                 // 新文档
                                 storage.writeKnowledgeDoc(doc);
                             }
@@ -618,7 +617,7 @@ public class KnowledgeBase {
                             ActionDialect dialect = service.getCellet().transmit(resource.unit.getContext(),
                                     packet.toDialect(), 3 * 60 * 1000);
                             if (null == dialect) {
-                                Logger.w(this.getClass(),"#batchRemoveKnowledgeDocuments - " +
+                                Logger.w(this.getClass(), "#batchRemoveKnowledgeDocuments - " +
                                         baseInfo.name + " - Request unit error: "
                                         + resource.unit.getCapability().getName());
                                 // 更新进度
@@ -702,7 +701,7 @@ public class KnowledgeBase {
         ActionDialect dialect = this.service.getCellet().transmit(this.resource.unit.getContext(),
                 packet.toDialect(), 3 * 60 * 1000);
         if (null == dialect) {
-            Logger.w(this.getClass(),"#activateKnowledgeDoc - " + this.baseInfo.name + " - Request unit error: "
+            Logger.w(this.getClass(), "#activateKnowledgeDoc - " + this.baseInfo.name + " - Request unit error: "
                     + this.resource.unit.getCapability().getName());
             return null;
         }
@@ -720,8 +719,7 @@ public class KnowledgeBase {
             Logger.w(this.getClass(), "#activateKnowledgeDoc - No segments: " +
                     this.baseInfo.name + " - " + activatedDoc.getFileLabel().getFileCode());
             return null;
-        }
-        else {
+        } else {
             Logger.d(this.getClass(), "#activateKnowledgeDoc - Num of segments: "
                     + activatedDoc.getFileLabel().getFileCode() + " - " + activatedDoc.numSegments);
         }
@@ -741,7 +739,7 @@ public class KnowledgeBase {
         ActionDialect dialect = this.service.getCellet().transmit(this.resource.unit.getContext(),
                 packet.toDialect());
         if (null == dialect) {
-            Logger.w(this.getClass(),"#deactivateKnowledgeDoc - " + this.baseInfo.name + " - Request unit error: "
+            Logger.w(this.getClass(), "#deactivateKnowledgeDoc - " + this.baseInfo.name + " - Request unit error: "
                     + this.resource.unit.getCapability().getName());
             return null;
         }
@@ -1087,7 +1085,7 @@ public class KnowledgeBase {
 
                     JSONObject responseData = Packet.extractDataPayload(response);
                     Logger.d(this.getClass(), "#destroy - cid: " + authToken.getContactId() +
-                                    " - base: " + baseInfo.name + "\n" + responseData.toString(4));
+                            " - base: " + baseInfo.name + "\n" + responseData.toString(4));
                     // 记录事件
                     AppEvent appEvent = new AppEvent(AppEvent.DeleteKnowledgeBase, System.currentTimeMillis(),
                             authToken.getContactId(),
@@ -1110,8 +1108,7 @@ public class KnowledgeBase {
         JSONObject payload = new JSONObject();
         if (KnowledgeScope.Private == this.scope) {
             payload.put("contactId", this.authToken.getContactId());
-        }
-        else {
+        } else {
             payload.put("domain", this.authToken.getDomain());
         }
         payload.put("name", this.baseInfo.name);
@@ -1119,7 +1116,7 @@ public class KnowledgeBase {
         ActionDialect dialect = this.service.getCellet().transmit(this.resource.unit.getContext(),
                 packet.toDialect(), 30 * 1000);
         if (null == dialect) {
-            Logger.w(this.getClass(),"#getKnowledgeBackups - " + baseInfo.name + " - Request unit error: "
+            Logger.w(this.getClass(), "#getKnowledgeBackups - " + baseInfo.name + " - Request unit error: "
                     + this.resource.unit.getCapability().getName());
             return null;
         }
@@ -1150,7 +1147,7 @@ public class KnowledgeBase {
         List<KnowledgeArticle> list = new ArrayList<>();
         for (KnowledgeArticle article : articles) {
             if (article.getTimestamp() >= startTime && article.getTimestamp() <= endTime &&
-                article.activated == activated) {
+                    article.activated == activated) {
                 list.add(article);
             }
         }
@@ -1306,8 +1303,7 @@ public class KnowledgeBase {
             }
 
             return article;
-        }
-        else {
+        } else {
             Logger.e(this.getClass(), "#appendKnowledgeArticle - Write article to DB failed: " + article.getId());
             return null;
         }
@@ -1360,15 +1356,14 @@ public class KnowledgeBase {
         JSONObject payload = new JSONObject();
         if (KnowledgeScope.Private == this.scope) {
             payload.put("contactId", this.authToken.getContactId());
-        }
-        else {
+        } else {
             payload.put("domain", this.authToken.getDomain());
         }
         Packet packet = new Packet(AIGCAction.ListKnowledgeArticles.name, payload);
         ActionDialect dialect = this.service.getCellet().transmit(this.resource.unit.getContext(),
                 packet.toDialect(), 60 * 1000);
         if (null == dialect) {
-            Logger.w(this.getClass(),"#queryActivatedArticles - " + baseInfo.name + " - Request unit error: "
+            Logger.w(this.getClass(), "#queryActivatedArticles - " + baseInfo.name + " - Request unit error: "
                     + this.resource.unit.getCapability().getName());
             return new ArrayList<>();
         }
@@ -1399,7 +1394,7 @@ public class KnowledgeBase {
      */
     public List<KnowledgeArticle> activateKnowledgeArticles(List<Long> articleIdList, TextSplitter splitter) {
         if (!this.resource.checkUnit()) {
-            Logger.w(this.getClass(),"#activateKnowledgeArticles - " + baseInfo.name + " - No knowledge unit");
+            Logger.w(this.getClass(), "#activateKnowledgeArticles - " + baseInfo.name + " - No knowledge unit");
             return null;
         }
 
@@ -1413,7 +1408,7 @@ public class KnowledgeBase {
             ActionDialect dialect = this.service.getCellet().transmit(this.resource.unit.getContext(),
                     packet.toDialect(), 2 * 60 * 1000);
             if (null == dialect) {
-                Logger.w(this.getClass(),"#activateKnowledgeArticles - " + baseInfo.name + " - Request unit error: "
+                Logger.w(this.getClass(), "#activateKnowledgeArticles - " + baseInfo.name + " - Request unit error: "
                         + article.getId());
                 continue;
             }
@@ -1443,7 +1438,7 @@ public class KnowledgeBase {
 
     public List<KnowledgeArticle> deactivateKnowledgeArticles(List<Long> articleIdList) {
         if (!this.resource.checkUnit()) {
-            Logger.w(this.getClass(),"#deactivateKnowledgeArticles - " + baseInfo.name + " - No knowledge unit");
+            Logger.w(this.getClass(), "#deactivateKnowledgeArticles - " + baseInfo.name + " - No knowledge unit");
             return null;
         }
 
@@ -1455,7 +1450,7 @@ public class KnowledgeBase {
             ActionDialect dialect = this.service.getCellet().transmit(this.resource.unit.getContext(),
                     packet.toDialect(), 60 * 1000);
             if (null == dialect) {
-                Logger.w(this.getClass(),"#deactivateKnowledgeArticles - " + baseInfo.name + " - Request unit error: "
+                Logger.w(this.getClass(), "#deactivateKnowledgeArticles - " + baseInfo.name + " - Request unit error: "
                         + article.getId());
                 continue;
             }
@@ -1526,8 +1521,7 @@ public class KnowledgeBase {
                     e.printStackTrace();
                 }
             }
-        }
-        else {
+        } else {
             Logger.w(this.getClass(), "#performKnowledgeQA - Knowledge QA progress is null: " + channel.getCode());
             return null;
         }
@@ -1957,8 +1951,7 @@ public class KnowledgeBase {
                         // 文件码相同
                         fileLabels.remove(fileLabel);
                         break;
-                    }
-                    else if (fileLabel.getFileName().equalsIgnoreCase(doc.getFileLabel().getFileName())) {
+                    } else if (fileLabel.getFileName().equalsIgnoreCase(doc.getFileLabel().getFileName())) {
                         // 文件名相同
                         fileLabels.remove(fileLabel);
                         break;
@@ -2448,7 +2441,7 @@ public class KnowledgeBase {
      */
     public Knowledge generateKnowledge(String query, int topK) {
         if (!this.resource.checkUnit()) {
-            Logger.w(this.getClass(),"#generateKnowledge - No unit for knowledge base");
+            Logger.w(this.getClass(), "#generateKnowledge - No unit for knowledge base");
             return null;
         }
 
@@ -2464,7 +2457,7 @@ public class KnowledgeBase {
         ActionDialect dialect = this.service.getCellet().transmit(this.resource.unit.getContext(),
                 packet.toDialect(), 60 * 1000);
         if (null == dialect) {
-            Logger.w(this.getClass(),"#generateKnowledge - Request unit error: "
+            Logger.w(this.getClass(), "#generateKnowledge - Request unit error: "
                     + this.resource.unit.getCapability().getName());
             return null;
         }
@@ -2511,12 +2504,10 @@ public class KnowledgeBase {
         for (Knowledge.Metadata metadata : knowledge.metadataList) {
             if (metadata.isDocument()) {
                 metadata.setKnowledgeSource(new KnowledgeSource(getKnowledgeDocByFileCode(metadata.getSourceKey())));
-            }
-            else if (metadata.isArticle()) {
+            } else if (metadata.isArticle()) {
                 long articleId = Long.parseLong(metadata.getSourceKey());
                 metadata.setKnowledgeSource(new KnowledgeSource(storage.readKnowledgeArticle(articleId)));
-            }
-            else {
+            } else {
                 metadata.setKnowledgeSource(new KnowledgeSource(metadata.getSourceKey()));
             }
         }
@@ -2545,8 +2536,7 @@ public class KnowledgeBase {
         public boolean checkUnit() {
             if (null == this.unit) {
                 this.reselectUnit();
-            }
-            else if (!this.unit.getContext().isValid()) {
+            } else if (!this.unit.getContext().isValid()) {
                 this.reselectUnit();
             }
 
@@ -2575,8 +2565,7 @@ public class KnowledgeBase {
         public void clearDocs() {
             if (null == this.docList) {
                 this.docList = new LinkedList<>();
-            }
-            else {
+            } else {
                 this.docList.clear();
             }
         }
@@ -2636,8 +2625,7 @@ public class KnowledgeBase {
 
             if (!this.articleList.contains(article)) {
                 this.articleList.add(article);
-            }
-            else {
+            } else {
                 int index = this.articleList.indexOf(article);
                 this.articleList.set(index, article);
             }

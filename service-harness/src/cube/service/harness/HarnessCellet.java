@@ -84,7 +84,8 @@ public final class HarnessCellet extends AbstractCellet {
             execute(() -> {
                 if (current != null && context.isValid())
                     reply(context, current.process(primitive.getStuff(0).getValue(), context.getSessionId(), context::isValid));
-                else HarnessService.logWorkerRejection(current == null ? "HARNESS_NOT_READY" : "STALE_SESSION", context.getSessionId());
+                else
+                    HarnessService.logWorkerRejection(current == null ? "HARNESS_NOT_READY" : "STALE_SESSION", context.getSessionId());
             });
         } catch (RejectedExecutionException e) {
             HarnessService.logWorkerRejection("HARNESS_BUSY", context.getSessionId());

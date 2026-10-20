@@ -16,12 +16,19 @@ import java.util.TreeMap;
  * Strict single-choice OpenAI JSON/SSE decoder shared by Java inference backends.
  */
 public final class OpenAIResponseAccumulator {
+
     private final StringBuilder text = new StringBuilder(), refusal = new StringBuilder();
+
     private final Map<Integer, JSONObject> calls = new TreeMap<>();
+
     private String finish;
+
     private JSONObject usage;
+
     private String stopSequence;
+
     private final java.util.List<Object> blocks = new java.util.ArrayList<>();
+
     private StringBuilder textBlock;
 
     public boolean terminal() {
@@ -45,7 +52,10 @@ public final class OpenAIResponseAccumulator {
             String part = delta.getString("content");
             text.append(part);
             if (!part.isEmpty()) {
-                if (textBlock == null) { textBlock = new StringBuilder(); blocks.add(textBlock); }
+                if (textBlock == null) {
+                    textBlock = new StringBuilder();
+                    blocks.add(textBlock);
+                }
                 textBlock.append(part);
             }
         }
@@ -88,7 +98,8 @@ public final class OpenAIResponseAccumulator {
         if (stopSequence != null) result.put("stop_sequence", stopSequence);
         JSONArray ordered = new JSONArray();
         for (Object block : blocks) {
-            if (block instanceof StringBuilder) ordered.put(new JSONObject().put("type", "text").put("text", block.toString()));
+            if (block instanceof StringBuilder)
+                ordered.put(new JSONObject().put("type", "text").put("text", block.toString()));
             else {
                 JSONObject call = calls.get((Integer) block), f = call.getJSONObject("function");
                 ordered.put(new JSONObject().put("type", "tool_use").put("id", call.getString("id"))

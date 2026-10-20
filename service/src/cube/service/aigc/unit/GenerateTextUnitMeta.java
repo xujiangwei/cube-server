@@ -15,6 +15,7 @@ import cube.aigc.Page;
 import cube.aigc.Usage;
 import cube.aigc.complex.attachment.Attachment;
 import cube.aigc.complex.attachment.FileAttachment;
+import cube.aigc.listener.GenerateTextListener;
 import cube.common.Packet;
 import cube.common.action.AIGCAction;
 import cube.common.entity.*;
@@ -25,7 +26,6 @@ import cube.service.aigc.guidance.PromptComposer;
 import cube.service.aigc.guidance.SkillMeta;
 import cube.service.aigc.guidance.SkillRegistry;
 import cube.service.aigc.guidance.SkillSession;
-import cube.aigc.listener.GenerateTextListener;
 import cube.service.aigc.listener.ReadPageListener;
 import cube.service.aigc.resource.ResourceAnswer;
 import cube.service.contact.ContactManager;
@@ -219,8 +219,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
                 for (int i = candidateRecords.size() - 1; i >= 0; --i) {
                     input.historyTexts.add(candidateRecords.get(i).toJSON().toString());
                 }
-            }
-            else {
+            } else {
                 for (GeneratingRecord record : candidateRecords) {
                     input.historyTexts.add(record.toJSON().toString());
                 }
@@ -247,8 +246,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
                 if (null == this.histories) {
                     candidateRecords = new ArrayList<>(candidateRecords.subList(
                             candidateRecords.size() - historyLimit, candidateRecords.size()));
-                }
-                else {
+                } else {
                     candidateRecords = new ArrayList<>(candidateRecords.subList(0, historyLimit));
                 }
             }
@@ -272,8 +270,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
                 result = this.channel.appendRecord(this.sn, this.unit.getCapability().getName(),
                         (null != this.originalQuery) ? this.originalQuery : this.content,
                         responseText, "", null, complexContext);
-            }
-            else if (this.networkingEnabled) {
+            } else if (this.networkingEnabled) {
                 // 启用搜索或者启用联网信息检索都执行搜索
                 this.service.getExecutor().execute(new Runnable() {
                     @Override
@@ -285,8 +282,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
                             // 执行搜索问答
                             performSearchPageQA(content, unit.getCapability().getName(),
                                     searchResult, complexContext, 3);
-                        }
-                        else {
+                        } else {
                             // 没有搜索结果
                             complexContext.fixNetworkingResult(null, null);
                         }
@@ -297,8 +293,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
                 result = this.channel.appendRecord(this.sn, this.unit.getCapability().getName(),
                         (null != this.originalQuery) ? this.originalQuery : this.content,
                         responseText, "", null, complexContext);
-            }
-            else {
+            } else {
                 Packet request = new Packet(AIGCAction.TextToText.name, data);
                 ActionDialect dialect = this.service.getCellet().transmit(this.unit.getContext(), request.toDialect(),
                         3 * 60 * 1000, this.sn);
@@ -359,8 +354,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
                 // 设置用量
                 result.usage = usage;
             }
-        }
-        else {
+        } else {
             // 复杂上下文：提取资源内容后进行推理
             ResourceAnswer resourceAnswer = new ResourceAnswer(complexContext);
             // 提取内容
@@ -376,8 +370,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
                 // 缓存上下文
                 Explorer.getInstance().cacheComplexContext(complexContext);
             }
-        }
-        else {
+        } else {
             // 缓存上下文
             Explorer.getInstance().cacheComplexContext(complexContext);
         }
@@ -407,8 +400,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
 
                     // 用模型单元返回的真实用量校准 Token 估算器，使后续请求的预算更贴近实际
                     service.getTokenEstimator().observe(promptText.length(), usage.inputTokens);
-                }
-                else {
+                } else {
                     List<String> tokens = calcTokens(promptText);
                     int promptTokens = tokens.size();
                     tokens = calcTokens(history.answerContent);
@@ -432,12 +424,10 @@ public class GenerateTextUnitMeta extends UnitMeta {
         if (unit.getCapability().getName().equalsIgnoreCase(ModelConfig.BAIZE_UNIT)) {
             if (TextUtils.containsChinese(text)) {
                 return text.replaceAll(",", "，");
-            }
-            else {
+            } else {
                 return text;
             }
-        }
-        else {
+        } else {
             return text;
         }
     }
@@ -569,8 +559,8 @@ public class GenerateTextUnitMeta extends UnitMeta {
      * <p>未被识别为技能的显式分类仍然收集到 {@code knowledgeCategories}，按知识释义加载，
      * 保持与旧版本一致的行为。</p>
      *
-     * @param registry 技能注册表。
-     * @param domain 域名。
+     * @param registry            技能注册表。
+     * @param domain              域名。
      * @param knowledgeCategories 输出参数，收集未被识别为技能的分类名称。
      * @return 返回最终生效的技能名称列表。
      */
@@ -721,8 +711,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
             if (this.maxHistories > 0) {
                 candidates.addAll(this.channel.getLastHistory(this.maxHistories));
             }
-        }
-        else {
+        } else {
             for (int i = 0; i < this.histories.size(); ++i) {
                 GeneratingRecord record = this.histories.get(i);
                 if (record.hasQueryFile() || record.hasQueryAddition()) {

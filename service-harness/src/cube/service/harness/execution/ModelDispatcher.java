@@ -17,11 +17,17 @@ import java.util.*;
  * Worker pull transport with instance/session fencing; only trusted configuration grants capacity.
  */
 public final class ModelDispatcher {
+
     private final WorkerRegistry sessions;
+
     private final ModelJobStore jobs;
+
     private final Properties config;
+
     private final InferenceGateway inference;
+
     private final Map<String, JSONObject> descriptions = new HashMap<>();
+
     private final Map<String, Boolean> health = new HashMap<>();
 
     public ModelDispatcher(ModelJobStore jobs, Properties config, long lease) {
@@ -141,7 +147,8 @@ public final class ModelDispatcher {
                 if (idle) row.idle++;
                 String model = d.getString("model");
                 int[] processing = row.processing.computeIfAbsent(model, key -> new int[2]);
-                processing[0]++; if (idle) processing[1]++;
+                processing[0]++;
+                if (idle) processing[1]++;
                 if (d.optInt("protocolVersion", 2) == 3) {
                     if (!row.models.containsKey(model)) row.models.put(model, inference.capacity(d));
                 } else row.legacy = true;
@@ -152,10 +159,11 @@ public final class ModelDispatcher {
         views.sort((a, b) -> Integer.compare(b.executable(), a.executable()));
         int available = 0, total = 0;
         CapacityBudget budgets = new CapacityBudget();
-        for (CapacityView row : views) for (JSONObject capacity : row.models.values()) {
-            JSONArray groups = CapacityBudget.entries(capacity);
-            if (groups != null) budgets.observe(groups);
-        }
+        for (CapacityView row : views)
+            for (JSONObject capacity : row.models.values()) {
+                JSONArray groups = CapacityBudget.entries(capacity);
+                if (groups != null) budgets.observe(groups);
+            }
         for (CapacityView row : views) {
             JSONObject backend = row.backend;
             int physical = Math.max(0, backend.getInt("capacity") - backend.getInt("occupied"));
@@ -179,7 +187,8 @@ public final class ModelDispatcher {
                     registered = Math.max(registered, capacity.getInt("registered"));
                 }
             }
-            row.live = live; row.registered = registered;
+            row.live = live;
+            row.registered = registered;
         }
         // Allocate remaining registered capacity only after every backend's available routes
         // have reserved their share. One busy model must not hide another backend's free route.
@@ -211,8 +220,15 @@ public final class ModelDispatcher {
         final Map<String, Integer> assigned = new HashMap<>();
         int ready, idle, live, registered;
         boolean legacy;
-        CapacityView(JSONObject backend) { this.backend = backend; }
-        int modelAvailable(String model) { return Math.min(processing.get(model)[1], models.get(model).getInt("available")); }
+
+        CapacityView(JSONObject backend) {
+            this.backend = backend;
+        }
+
+        int modelAvailable(String model) {
+            return Math.min(processing.get(model)[1], models.get(model).getInt("available"));
+        }
+
         int executable() {
             int free = legacy ? idle : 0;
             for (String model : models.keySet()) free += modelAvailable(model);
