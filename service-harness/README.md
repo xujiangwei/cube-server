@@ -2,6 +2,8 @@
 
 Java 会记录每次 Python 节点注册结果：协议 1 的 `register`、协议 2–6 的 `describe`。成功使用 INFO，预期拒绝使用 WARN，内部异常使用 ERROR，沿用 `#process - ...` 日志格式。日志包含 workerId、角色、实例、协议、requestId；模型节点另有 model/backend。`registered=true ready=false` 表示登记成功但后端或节点未就绪，拒绝则打印现有 errorCode（例如 UNAUTHORIZED、FORBIDDEN、DUPLICATE_WORKER）。正常心跳和 poll 不重复打印注册日志，凭据和 sessionId 不进入日志。
 
+Python 单元正常停机时，Java 还会为成功的 `drain`（停止接单）和 `unregister`（注销）打印 INFO 日志，包含相同的身份字段以及 registered/ready 状态，用于区分同一 JVM 下不同单元的停机过程。
+
 开发环境可通过同 JVM AIGCService 的 [Relay](../service/RELAY.md) 联调远端 Cube。Relay 代理保留 `100000` 联系人身份，但 Harness 依据远端真实 `chatCompletion` 能力判断就绪，并按共享容量组限制多个模型及节点的总并发。
 
 业务 REST 统一由 dispatcher 提供，通过 `Performer.syncTransmit` 和 Cell SHM 长连接访问 HarnessCellet；文件使用同连接的原生 SHM 流。service HTTP 只保留健康检查和现有运维入口，业务路径返回 404。部署、身份、协议与完整传输测试见 [TRANSPORT.md](TRANSPORT.md)。dispatcher 与 service-harness 需配套升级，数据库与 Python worker 协议不变。

@@ -23,13 +23,14 @@ final class WorkerRegistrationLog {
     static void outcome(JSONObject request, JSONObject response, HarnessConfig config, long transport, Exception unexpected) {
         String action = request == null ? "" : request.optString("action", "");
         boolean registration = action.equals("register") || action.equals("describe");
+        boolean stopping = action.equals("drain") || action.equals("unregister");
         boolean ok = response != null && response.optBoolean("ok");
-        if (!registration && ok) return;
+        if (!registration && !stopping && ok) return;
         int protocol = request == null ? 0 : request.optInt("protocolVersion", 0);
         String worker = request == null ? "-" : field(request.opt("workerId"));
         String role = protocol >= 4 && protocol <= 6 ? "runner" : protocol == 2 || protocol == 3 ? "model"
                 : request == null ? "-" : field(request.opt("role"));
-        String message = "#process - Harness " + (registration ? "registration " : "worker request ")
+        String message = "#process - Harness " + (registration ? "registration " : stopping ? "worker " + action + " " : "worker request ")
                 + (ok ? "succeeded" : "rejected") + ": workerId=" + worker + " role=" + role
                 + " instanceId=" + (request == null ? "-" : field(request.opt("instanceId")))
                 + " protocol=" + protocol + " requestId=" + (request == null ? "-" : field(request.opt("requestId")))
@@ -42,7 +43,7 @@ final class WorkerRegistrationLog {
         if (ok) {
             boolean ready = response.optBoolean("ready");
             Logger.i(HarnessService.class, message + " registered=" + response.optBoolean("registered")
-                    + " ready=" + ready + (ready ? "" : " (registered; backend or worker is not ready)"));
+                    + " ready=" + ready + (registration && !ready ? " (registered; backend or worker is not ready)" : ""));
         } else {
             message += " errorCode=" + field(response == null ? null : response.opt("errorCode"));
             if (unexpected == null) {
