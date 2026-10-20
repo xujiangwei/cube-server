@@ -127,41 +127,96 @@ public final class ModelDispatcher {
         JSONArray workers = snapshot(), backends = view.getJSONArray("backends"), occupied = view.getJSONArray("workers");
         Set<String> busy = new HashSet<>();
         for (int n = 0; n < occupied.length(); n++) busy.add(occupied.getJSONObject(n).getString("worker_id"));
-        int available = 0, total = 0;
+        List<CapacityView> views = new ArrayList<>();
         for (int n = 0; n < backends.length(); n++) {
             JSONObject backend = backends.getJSONObject(n);
             String id = backend.getString("backend_id");
-            int ready = 0, idle = 0, live = 0, registered = 0;
-            Set<String> models = new HashSet<>();
+            CapacityView row = new CapacityView(backend);
+            views.add(row);
             for (int j = 0; j < workers.length(); j++) {
                 JSONObject worker = workers.getJSONObject(j), d = worker.getJSONObject("descriptor");
                 if (!d.getString("backendId").equals(id) || !worker.getBoolean("ready")) continue;
-                ready++;
-                if (!busy.contains(worker.getString("workerId"))) idle++;
+                row.ready++;
+                boolean idle = !busy.contains(worker.getString("workerId"));
+                if (idle) row.idle++;
+                String model = d.getString("model");
+                int[] processing = row.processing.computeIfAbsent(model, key -> new int[2]);
+                processing[0]++; if (idle) processing[1]++;
                 if (d.optInt("protocolVersion", 2) == 3) {
-                    if (!models.add(d.getString("model"))) continue;
-                    JSONObject capacity = inference.capacity(d);
-                    if (config.getProperty("backend." + id + ".type", "unit").equals("unit")) {
-                        live += capacity.getInt("available");
-                        registered += capacity.getInt("registered");
-                    } else {
-                        live = Math.max(live, capacity.getInt("available"));
-                        registered = Math.max(registered, capacity.getInt("registered"));
-                    }
+                    if (!row.models.containsKey(model)) row.models.put(model, inference.capacity(d));
+                } else row.legacy = true;
+            }
+        }
+        // Assign shared groups to backends with executable work first, so a busy alias cannot
+        // consume the entire reported concurrency while another alias reports available slots.
+        views.sort((a, b) -> Integer.compare(b.executable(), a.executable()));
+        int available = 0, total = 0;
+        CapacityBudget budgets = new CapacityBudget();
+        for (CapacityView row : views) for (JSONObject capacity : row.models.values()) {
+            JSONArray groups = CapacityBudget.entries(capacity);
+            if (groups != null) budgets.observe(groups);
+        }
+        for (CapacityView row : views) {
+            JSONObject backend = row.backend;
+            int physical = Math.max(0, backend.getInt("capacity") - backend.getInt("occupied"));
+            int live = row.legacy ? physical : 0, registered = row.legacy ? row.ready : 0;
+            List<String> modelOrder = new ArrayList<>(row.models.keySet());
+            modelOrder.sort((a, b) -> Integer.compare(row.modelAvailable(b), row.modelAvailable(a)));
+            for (String model : modelOrder) {
+                JSONObject capacity = row.models.get(model);
+                int[] processing = row.processing.get(model);
+                JSONArray groups = CapacityBudget.entries(capacity);
+                if (groups != null) {
+                    int free = budgets.claim(groups, true, Math.max(0, Math.min(processing[1], physical - live)));
+                    live += free;
+                    registered += free;
+                    row.assigned.put(model, free);
+                } else if (config.getProperty("backend." + backend.getString("backend_id") + ".type", "unit").equals("unit")) {
+                    live += Math.min(processing[1], capacity.getInt("available"));
+                    registered += Math.min(processing[0], capacity.getInt("registered"));
                 } else {
-                    live = backend.getInt("capacity");
-                    registered = ready;
+                    live = Math.max(live, capacity.getInt("available"));
+                    registered = Math.max(registered, capacity.getInt("registered"));
                 }
             }
+            row.live = live; row.registered = registered;
+        }
+        // Allocate remaining registered capacity only after every backend's available routes
+        // have reserved their share. One busy model must not hide another backend's free route.
+        for (CapacityView row : views) {
+            JSONObject backend = row.backend;
             int physical = Math.max(0, backend.getInt("capacity") - backend.getInt("occupied"));
-            int free = Math.min(idle, Math.min(physical, live));
-            int concurrency = Math.min(ready, Math.min(backend.getInt("capacity"), registered));
-            backend.put("processingSlots", ready).put("processingAvailable", idle).put("inferenceUnits", registered)
-                    .put("inferenceAvailable", Math.min(physical, live)).put("readyUnits", ready).put("available", free).put("executableConcurrency", concurrency);
+            int live = row.live, registered = row.registered;
+            for (String model : row.models.keySet()) {
+                JSONArray groups = CapacityBudget.entries(row.models.get(model));
+                if (groups != null) registered += budgets.claim(groups, false,
+                        Math.max(0, Math.min(row.processing.get(model)[0] - row.assigned.getOrDefault(model, 0),
+                                backend.getInt("capacity") - registered)));
+            }
+            int free = Math.min(row.idle, Math.min(physical, live));
+            int concurrency = Math.min(row.ready, Math.min(backend.getInt("capacity"), registered));
+            backend.put("processingSlots", row.ready).put("processingAvailable", row.idle).put("inferenceUnits", registered)
+                    .put("inferenceAvailable", Math.min(physical, live)).put("readyUnits", row.ready).put("available", free).put("executableConcurrency", concurrency);
             available += free;
             total += concurrency;
         }
         view.remove("workers");
         return view.put("registeredUnits", workers.length()).put("available", available).put("executableConcurrency", total);
+    }
+
+    private static final class CapacityView {
+        final JSONObject backend;
+        final Map<String, JSONObject> models = new LinkedHashMap<>();
+        final Map<String, int[]> processing = new HashMap<>();
+        final Map<String, Integer> assigned = new HashMap<>();
+        int ready, idle, live, registered;
+        boolean legacy;
+        CapacityView(JSONObject backend) { this.backend = backend; }
+        int modelAvailable(String model) { return Math.min(processing.get(model)[1], models.get(model).getInt("available")); }
+        int executable() {
+            int free = legacy ? idle : 0;
+            for (String model : models.keySet()) free += modelAvailable(model);
+            return Math.min(free, Math.max(0, backend.getInt("capacity") - backend.getInt("occupied")));
+        }
     }
 }

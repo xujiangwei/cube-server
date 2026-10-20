@@ -362,6 +362,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     @Override
     public void stop() {
         this.completions.stop();
+        Relay relay = Relay.getInstance();
+        if (relay != null) relay.close();
         // 关闭两层线程池：后台短任务池 + 单元排空池
         this.taskExecutor.shutdown();
 
@@ -551,13 +553,16 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             this.loadSkillConfig(properties);
 
             // 是否启用中继（Relay）
-            this.useRelay = Boolean.parseBoolean(
-                    properties.getProperty("relay", "false"));
-            if (this.useRelay) {
-                Relay.createInstance(properties.getProperty("relay.url", "http://127.0.0.1:7010"),
-                        properties.getProperty("relay.token", ""));
+            Relay relay;
+            try { relay = Relay.configure(properties); }
+            catch (IllegalArgumentException e) {
+                Logger.e(this.getClass(), "#loadConfig - " + e.getMessage());
+                relay = Relay.getInstance();
+            }
+            this.useRelay = relay != null;
+            if (relay != null) {
                 // 添加单元
-                this.unitScheduler.fillFromRelay(Relay.getInstance());
+                this.unitScheduler.fillFromRelay(relay);
             }
         } catch (IOException e) {
             Logger.e(this.getClass(), "#loadConfig - Load config properties error", e);
@@ -2023,13 +2028,9 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         // 查找有该能力的单元
         // 优先按照单元名称进行检索，然后按照描述进行检索
         AIGCUnit unit = null;
-        if (this.useRelay) {
-            unit = Relay.getInstance().selectUnit(unitName);
-        } else {
-            unit = this.selectUnitByName(unitName);
-            if (null == unit) {
-                unit = this.selectUnitBySubtask(AICapability.NaturalLanguageProcessing.Conversational);
-            }
+        unit = this.selectUnitByName(unitName);
+        if (null == unit) {
+            unit = this.selectUnitBySubtask(AICapability.NaturalLanguageProcessing.Conversational);
         }
 
         if (null == unit) {
@@ -2147,13 +2148,6 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         long sn = Utils.generateSerialNumber();
         unit.setRunning(true);
         try {
-            if (this.useRelay) {
-                Logger.d(this.getClass(), "#syncGenerateText - Relay - \"" + unit.getCapability().getName() + "\" - history:"
-                        + ((null != history) ? history.size() : 0));
-                return Relay.getInstance().generateText(Utils.randomString(16),
-                        unit.getCapability().getName(), prompt, option, history);
-            }
-
             JSONArray historyArray = new JSONArray();
             if (null != history) {
                 for (GeneratingRecord record : history) {
@@ -2252,10 +2246,6 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     public void generateText(AIGCChannel channel, AIGCUnit unit, String query, String prompt, GeneratingOption option,
                              List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
                              List<String> categories, boolean recordable, GenerateTextListener listener) {
-        if (this.useRelay) {
-            unit = Relay.getInstance().selectUnit(unit.getCapability().getName());
-        }
-
         if (null == unit) {
             // 没有单元数据：异步回告失败，避免在调用方线程上回调
             this.taskExecutor.execute(new Runnable() {

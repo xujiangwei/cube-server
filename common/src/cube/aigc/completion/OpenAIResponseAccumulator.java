@@ -20,6 +20,13 @@ public final class OpenAIResponseAccumulator {
     private final Map<Integer, JSONObject> calls = new TreeMap<>();
     private String finish;
     private JSONObject usage;
+    private String stopSequence;
+    private final java.util.List<Object> blocks = new java.util.ArrayList<>();
+    private StringBuilder textBlock;
+
+    public boolean terminal() {
+        return java.util.Arrays.asList("stop", "length", "tool_calls", "content_filter").contains(finish);
+    }
 
     public JSONObject add(JSONObject chunk) {
         if (chunk.has("error")) throw invalid();
@@ -34,7 +41,14 @@ public final class OpenAIResponseAccumulator {
         if (choice.optInt("index", 0) != 0 || finish != null) throw invalid();
         JSONObject delta = choice.optJSONObject("delta");
         if (delta == null) delta = new JSONObject();
-        if (!delta.isNull("content")) text.append(delta.getString("content"));
+        if (!delta.isNull("content")) {
+            String part = delta.getString("content");
+            text.append(part);
+            if (!part.isEmpty()) {
+                if (textBlock == null) { textBlock = new StringBuilder(); blocks.add(textBlock); }
+                textBlock.append(part);
+            }
+        }
         if (!delta.isNull("refusal")) refusal.append(delta.getString("refusal"));
         JSONArray parts = delta.optJSONArray("tool_calls");
         if (parts != null) for (int n = 0; n < parts.length(); n++) {
@@ -46,7 +60,9 @@ public final class OpenAIResponseAccumulator {
                 call = new JSONObject().put("id", "").put("type", "function")
                         .put("function", new JSONObject().put("name", "").put("arguments", ""));
                 calls.put(index, call);
+                blocks.add(index);
             }
+            textBlock = null;
             if (!part.isNull("id")) call.put("id", call.getString("id") + part.getString("id"));
             JSONObject function = part.optJSONObject("function");
             if (function != null) for (String key : new String[]{"name", "arguments"})
@@ -54,6 +70,7 @@ public final class OpenAIResponseAccumulator {
                         call.getJSONObject("function").getString(key) + function.getString(key));
         }
         if (!choice.isNull("finish_reason")) finish = choice.getString("finish_reason");
+        if (!choice.isNull("stop_sequence")) stopSequence = choice.getString("stop_sequence");
         if (text.length() + refusal.length() + calls.toString().length() > 65536) throw invalid();
         return delta;
     }
@@ -68,6 +85,17 @@ public final class OpenAIResponseAccumulator {
         JSONObject result = new JSONObject().put("message", message).put("finish_reason", finish);
         if (usage == null) throw new CompletionError(502, "usage_missing", "Model response omitted usage", null);
         result.put("usage", usage);
+        if (stopSequence != null) result.put("stop_sequence", stopSequence);
+        JSONArray ordered = new JSONArray();
+        for (Object block : blocks) {
+            if (block instanceof StringBuilder) ordered.put(new JSONObject().put("type", "text").put("text", block.toString()));
+            else {
+                JSONObject call = calls.get((Integer) block), f = call.getJSONObject("function");
+                ordered.put(new JSONObject().put("type", "tool_use").put("id", call.getString("id"))
+                        .put("name", f.getString("name")).put("input", new JSONObject(f.getString("arguments"))));
+            }
+        }
+        result.put("content_blocks", ordered);
         CompletionResult.validate(result);
         return result;
     }
@@ -79,6 +107,7 @@ public final class OpenAIResponseAccumulator {
         JSONObject choice = choices.getJSONObject(0);
         JSONObject result = new JSONObject().put("message", choice.getJSONObject("message"))
                 .put("finish_reason", choice.getString("finish_reason"));
+        if (!choice.isNull("stop_sequence")) result.put("stop_sequence", choice.getString("stop_sequence"));
         if (response.optJSONObject("usage") == null)
             throw new CompletionError(502, "usage_missing", "Model response omitted usage", null);
         result.put("usage", response.getJSONObject("usage"));

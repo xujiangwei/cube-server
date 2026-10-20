@@ -27,7 +27,6 @@ import cube.service.aigc.guidance.SkillRegistry;
 import cube.service.aigc.guidance.SkillSession;
 import cube.aigc.listener.GenerateTextListener;
 import cube.service.aigc.listener.ReadPageListener;
-import cube.service.aigc.resource.Relay;
 import cube.service.aigc.resource.ResourceAnswer;
 import cube.service.contact.ContactManager;
 import cube.util.TextUtils;
@@ -298,23 +297,6 @@ public class GenerateTextUnitMeta extends UnitMeta {
                 result = this.channel.appendRecord(this.sn, this.unit.getCapability().getName(),
                         (null != this.originalQuery) ? this.originalQuery : this.content,
                         responseText, "", null, complexContext);
-            }
-            else if (this.service.useRelay) {
-                GeneratingRecord generatingRecord =
-                        Relay.getInstance().generateText(channel.getCode(), this.unit.getCapability().getName(),
-                                this.content, new GeneratingOption(), this.histories);
-                if (null != generatingRecord) {
-                    // 过滤中文字符
-                    result = this.channel.appendRecord(this.sn, this.unit.getCapability().getName(),
-                            (null != this.originalQuery) ? this.originalQuery : this.content,
-                            generatingRecord.answer, generatingRecord.thought, null, complexContext);
-                }
-                else {
-                    this.channel.setProcessing(false);
-                    // 回调失败
-                    this.listener.onFailed(this.channel, AIGCStateCode.UnitError);
-                    return;
-                }
             }
             else {
                 Packet request = new Packet(AIGCAction.TextToText.name, data);

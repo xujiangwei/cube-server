@@ -24,6 +24,9 @@ public interface CompletionProvider {
 
     /**
      * Authorized healthy compatible Units and currently idle inference slots, independent of orchestration workers.
+     * Optional capacityGroup identifies one aggregate shared pool; its counts describe that pool.
+     * Optional capacityGroups entries identify shared budgets (capacityGroup, route, registered,
+     * available, groupCapacity, groupAvailable). Count a route once and cap its group across models/backends.
      */
     JSONObject completionCapacity(String token, String model, boolean nativeTools);
 

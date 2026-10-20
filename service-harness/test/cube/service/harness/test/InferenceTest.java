@@ -202,6 +202,77 @@ public final class InferenceTest {
             }
             return;
         }
-        migration();ledger();http();System.out.println("PASS: inference gateway offline integration");
+        migration();ledger();sharedCapacity();http();System.out.println("PASS: inference gateway offline integration");
+    }
+
+    static void sharedCapacity() throws Exception {
+        ExecutionTest.prepare(Files.createTempDirectory("harness-relay-capacity-"), "");
+        Properties p = new Properties();
+        for (String worker : Arrays.asList("relay-a", "relay-b", "relay-c", "relay-d")) {
+            p.setProperty("worker." + worker + ".role", "model");
+            p.setProperty("worker." + worker + ".model", worker.equals("relay-c") || worker.equals("relay-d") ? "Baize2" : "Baize");
+            p.setProperty("worker." + worker + ".backend", worker.equals("relay-d") ? "other" : "shared");
+        }
+        p.setProperty("backend.shared.capacity", "4"); p.setProperty("backend.other.capacity", "4");
+        final java.util.concurrent.atomic.AtomicInteger budget = new java.util.concurrent.atomic.AtomicInteger(1);
+        final java.util.concurrent.atomic.AtomicBoolean firstAvailable = new java.util.concurrent.atomic.AtomicBoolean(true);
+        final java.util.concurrent.atomic.AtomicBoolean detailed = new java.util.concurrent.atomic.AtomicBoolean(true);
+        CompletionProvider provider = new CompletionProvider() {
+            public JSONArray completionModels(String token) { return new JSONArray()
+                    .put(new JSONObject().put("id", "Baize").put("capabilities", new JSONObject().put("text", true)))
+                    .put(new JSONObject().put("id", "Baize2").put("capabilities", new JSONObject().put("text", true))); }
+            public JSONObject completionCapacity(String token, String model, boolean tools) {
+                int free = model.equals("Baize") && !firstAvailable.get() ? 0 : 1;
+                if (!detailed.get()) return new JSONObject().put("registered", 1).put("available", 1).put("capacityGroup", "shared-relay");
+                return new JSONObject().put("registered", 1).put("available", free).put("capacityGroup", "shared-relay")
+                        .put("capacityGroups", new JSONArray().put(new JSONObject().put("capacityGroup", "shared-relay").put("route", model)
+                                .put("registered", 1).put("available", free).put("groupCapacity", budget.get()).put("groupAvailable", budget.get())));
+            }
+            public void submitCompletion(String token, String id, JSONObject request, long timeout, Listener listener) {}
+        };
+        ModelJobStore jobs = new ModelJobStore(store, false);
+        try (InferenceGateway gateway = new InferenceGateway(new InferenceStore(store, false), p, () -> provider)) {
+            ModelDispatcher dispatcher = new ModelDispatcher(jobs, p, 60000, gateway);
+            int transport = 0;
+            for (String worker : Arrays.asList("relay-a", "relay-b", "relay-c", "relay-d")) {
+                JSONObject d = descriptor().put("model", p.getProperty("worker." + worker + ".model"));
+                dispatcher.apply(envelope(worker, "describe", null).put("descriptor", d), ++transport, () -> true);
+            }
+            JSONObject capacity = dispatcher.capacity();
+            check(capacity.getInt("registeredUnits") == 4 && capacity.getInt("available") == 1
+                    && capacity.getInt("executableConcurrency") == 1, "Relay capacity duplicated across models/workers/backends");
+            budget.set(2); capacity = dispatcher.capacity();
+            check(capacity.getInt("available") == 2 && capacity.getInt("executableConcurrency") == 2,
+                    "Distinct Relay model routes cannot use configured shared capacity");
+            budget.set(1); firstAvailable.set(false); capacity = dispatcher.capacity();
+            check(capacity.getInt("available") == 1, "Unavailable alias hid another model's free shared route");
+            assertCapacityBounds(capacity);
+            budget.set(1); detailed.set(false); capacity = dispatcher.capacity();
+            check(capacity.getInt("available") == 1 && capacity.getInt("executableConcurrency") == 1,
+                    "Aggregate capacityGroup without route detail was counted multiple times");
+            assertCapacityBounds(capacity);
+            budget.set(2); firstAvailable.set(true); detailed.set(true);
+            // A Python worker can be busy processing a response while physical inference is
+            // free. The same model on another backend must retain its executable slot.
+            try (Connection c = config.connect(); Statement s = c.createStatement()) {
+                s.execute("INSERT INTO harness_run VALUES ('capacity-run','tenant','subject','profile','running',1,1,NULL,0,0,'pending','settled',1,1)");
+                s.execute("INSERT INTO harness_model_job (job_id,run_id,tenant,subject_id,round_id,attempt,origin_fence,intent_hash,model_id,profile_digest,request_hash,request_json,backend_id,worker_id,instance_id,session_id,status,actual_finished,cancel_requested,created_at,execution_protocol) "
+                        + "VALUES ('capacity-job','capacity-run','tenant','subject','round',1,1,'intent','Baize2','profile','request','{}','shared','relay-c','irelay-c','session','assigned',0,0,1,3)");
+            }
+            capacity = dispatcher.capacity();
+            check(capacity.getInt("available") == 2 && capacity.getInt("executableConcurrency") == 2,
+                    "Busy processing alias consumed another backend's registered inference route");
+            assertCapacityBounds(capacity);
+        }
+        pass("Relay shared capacity across multiple workers, models and backend IDs");
+    }
+
+    static void assertCapacityBounds(JSONObject capacity) {
+        JSONArray backends = capacity.getJSONArray("backends");
+        for (int i = 0; i < backends.length(); i++) {
+            JSONObject backend = backends.getJSONObject(i);
+            check(backend.getInt("available") <= backend.getInt("executableConcurrency"),
+                    "Backend available capacity exceeds its executable concurrency: " + backend.getString("backend_id"));
+        }
     }
 }

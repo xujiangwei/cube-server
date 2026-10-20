@@ -285,10 +285,12 @@ public class OpenAICompletionProtocol {
 
     public static JSONObject result(JSONObject result, boolean claude, String id, String model, long created) {
         CompletionResult.validate(result);
-        if (!claude) return base(id, model, created, false).put("choices", new JSONArray().put(new JSONObject()
-                        .put("index", 0).put("message", result.getJSONObject("message"))
-                        .put("finish_reason", result.getString("finish_reason")).put("logprobs", JSONObject.NULL)))
-                .put("usage", result.getJSONObject("usage"));
+        if (!claude) {
+            JSONObject choice = new JSONObject().put("index", 0).put("message", result.getJSONObject("message"))
+                    .put("finish_reason", result.getString("finish_reason")).put("logprobs", JSONObject.NULL);
+            if (!result.isNull("stop_sequence")) choice.put("stop_sequence", result.getString("stop_sequence"));
+            return base(id, model, created, false).put("choices", new JSONArray().put(choice)).put("usage", result.getJSONObject("usage"));
+        }
         JSONObject message = result.getJSONObject("message");
         JSONArray content = new JSONArray();
         String text = message.optString("content", "");
@@ -516,7 +518,12 @@ public class OpenAICompletionProtocol {
             }
             StringBuilder frames = new StringBuilder(start());
             if (!claude) {
-                frames.append(openChunk(new JSONObject(), result.getString("finish_reason")));
+                JSONObject terminal = base(id, model, created, true).put("choices", new JSONArray().put(new JSONObject()
+                        .put("index", 0).put("delta", new JSONObject()).put("finish_reason", result.getString("finish_reason"))
+                        .put("logprobs", JSONObject.NULL)));
+                if (!result.isNull("stop_sequence")) terminal.getJSONArray("choices").getJSONObject(0)
+                        .put("stop_sequence", result.getString("stop_sequence"));
+                frames.append(data(terminal));
                 if (includeUsage)
                     frames.append(data(base(id, model, created, true).put("choices", new JSONArray()).put("usage", result.getJSONObject("usage"))));
                 return frames.append("data: [DONE]\n\n").toString();

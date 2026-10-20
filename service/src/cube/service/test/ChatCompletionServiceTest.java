@@ -291,6 +291,7 @@ public final class ChatCompletionServiceTest {
 
         @Override
         public boolean speak(TalkContext context, Primitive primitive) {
+            if (context instanceof cube.service.aigc.resource.Relay.Context) return super.speak(context, primitive);
             sent.add(new Sent(context, primitive));
             return true;
         }

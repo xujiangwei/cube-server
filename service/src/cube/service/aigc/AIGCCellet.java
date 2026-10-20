@@ -19,6 +19,7 @@ import cube.core.AbstractCellet;
 import cube.core.Kernel;
 import cube.service.Director;
 import cube.service.aigc.event.EventCenter;
+import cube.service.aigc.resource.Relay;
 import cube.service.aigc.spi.AIGCHostImpl;
 import cube.service.aigc.spi.ActionRunner;
 import cube.service.aigc.spi.ModuleRegistry;
@@ -234,6 +235,10 @@ public class AIGCCellet extends AbstractCellet {
     }
 
     public ActionDialect transmit(TalkContext talkContext, ActionDialect dialect, long timeout, long sn) {
+        if (talkContext instanceof Relay.Context) {
+            Relay.Context context = (Relay.Context) talkContext;
+            return context.owner.transmit(context, dialect, timeout);
+        }
         Responder responder = new Responder(sn, dialect);
         this.responderList.add(responder);
 
@@ -251,6 +256,16 @@ public class AIGCCellet extends AbstractCellet {
         }
 
         return response;
+    }
+
+    @Override
+    public boolean speak(TalkContext context, Primitive primitive) {
+        if (context instanceof Relay.Context) {
+            Relay.Context relay = (Relay.Context) context;
+            return relay.owner.send(relay, new ActionDialect(primitive), event -> getService().getCompletions()
+                    .onUnitEvent(context, new Packet(AIGCAction.ChatCompletionEvent.name, event).toDialect()));
+        }
+        return super.speak(context, primitive);
     }
 
     public void interrupt(long sn) {

@@ -22,6 +22,7 @@ import cube.common.entity.AIGCUnit;
 import cube.service.Director;
 import cube.service.aigc.AIGCCellet;
 import cube.service.aigc.AIGCService;
+import cube.service.aigc.resource.Relay;
 import cube.service.aigc.unit.UnitMeta;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -118,6 +119,8 @@ public class ChatCompletionService {
     public JSONObject capacity(String code, String modelId, boolean nativeTools) {
         AuthToken token = authenticate(code);
         int registered = 0, available = 0;
+        JSONArray groups = new JSONArray();
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (ModelConfig model : allowedModels(token)) {
             if (!model.getModel().equals(modelId)) continue;
             for (AIGCUnit unit : service.getAllUnits()) {
@@ -125,11 +128,24 @@ public class ChatCompletionService {
                 if (!model.getUnitName().equals(unit.getCapability().getName()) || unit.getContext() == null
                         || !unit.getContext().isValid() || !caps.optBoolean("text")
                         || (nativeTools && !caps.optBoolean("tools"))) continue;
+                if (!seen.add(unit.getQueryKey())) continue;
                 registered++;
-                if (!unit.isRunning() && !reserved(unit)) available++;
+                int free = !unit.isRunning() && !reserved(unit) ? 1 : 0;
+                Relay relay = Relay.owner(unit);
+                if (relay != null) {
+                    JSONObject group = relay.capacity(unit);
+                    free = Math.min(free, group.getInt("groupAvailable"));
+                    group.put("registered", 1).put("available", free).put("route", unit.getQueryKey());
+                    groups.put(group);
+                } else groups.put(new JSONObject().put("capacityGroup", unit.getQueryKey())
+                        .put("route", unit.getQueryKey()).put("registered", 1).put("available", free)
+                        .put("groupCapacity", 1).put("groupAvailable", free));
+                available += free;
             }
         }
-        return new JSONObject().put("registered", registered).put("available", available);
+        JSONObject result = new JSONObject().put("registered", registered).put("available", available).put("capacityGroups", groups);
+        if (groups.length() == 1) result.put("capacityGroup", groups.getJSONObject(0).getString("capacityGroup"));
+        return result;
     }
 
     private boolean reserved(AIGCUnit unit) {
@@ -162,7 +178,13 @@ public class ChatCompletionService {
         AuthToken token = authenticate(code);
         JSONArray data = new JSONArray();
         for (ModelConfig model : allowedModels(token)) {
-            AIGCUnit unit = select(model.getUnitName());
+            // A model lookup is a capability snapshot, never a scheduling operation.
+            AIGCUnit unit = null;
+            for (AIGCUnit candidate : service.getAllUnits()) {
+                if (model.getUnitName().equals(candidate.getCapability().getName()) && candidate.getContext() != null
+                        && candidate.getContext().isValid() && !quarantined(candidate)
+                        && candidate.getCapability().getChatCompletion().optBoolean("text")) { unit = candidate; break; }
+            }
             if (unit != null) data.put(new JSONObject().put("id", model.getModel())
                     .put("name", model.getName()).put("created", 0)
                     .put("capabilities", unit.getCapability().getChatCompletion()));
@@ -411,7 +433,8 @@ public class ChatCompletionService {
         synchronized void accept(JSONObject event) {
             boolean observing = terminal && listener != null && !actualFinished;
             if (terminal && !observing) return;
-            if (observing && !"completed".equals(event.optString("kind"))) return;
+            if (observing && !"completed".equals(event.optString("kind"))
+                    && !("error".equals(event.optString("kind")) && event.optBoolean("actualFinished"))) return;
             long next = CompletionResult.tokens(event, "sequence");
             if (next == 0) throw new IllegalArgumentException("Invalid event sequence");
             if (next <= sequence) return;
@@ -436,7 +459,10 @@ public class ChatCompletionService {
                     return;
                 }
                 terminal = true;
-            } else if (kind.equals("error")) terminal = true;
+            } else if (kind.equals("error")) {
+                actualFinished = actualFinished || event.optBoolean("actualFinished", false);
+                terminal = true;
+            }
             else if (!kind.equals("started") && !kind.equals("delta")) {
                 fail(new CompletionError(502, "upstream_error", "Unknown generation event", null));
                 return;

@@ -260,9 +260,11 @@ public final class HarnessService extends AbstractModule {
             byte[] raw, long transport, java.util.function.BooleanSupplier valid) {
         String id = "";
         int protocol = 1;
+        JSONObject request = null, response = null;
+        Exception unexpected = null;
         try {
+            request = StrictJson.object(raw);
             if (!started.get()) throw new IllegalArgumentException("HARNESS_NOT_READY");
-            JSONObject request = StrictJson.object(raw);
             if (request.optInt("protocolVersion", 0) == 2
                     || request.optInt("protocolVersion", 0) == 3
                     || request.optInt("protocolVersion", 0) == 4
@@ -280,7 +282,7 @@ public final class HarnessService extends AbstractModule {
                     throw new IllegalArgumentException("UNAUTHORIZED");
                 if (execution == null || execution.runners == null)
                     throw new IllegalArgumentException("RUNNER_DISABLED");
-                return execution.runners.apply(request, transport, valid);
+                return response = execution.runners.apply(request, transport, valid);
             }
             if (protocol == 2 || protocol == 3) {
                 if (execution == null) {
@@ -293,7 +295,7 @@ public final class HarnessService extends AbstractModule {
                         config.values.getProperty("worker.credential"),
                         request.getString("credential")))
                     throw new IllegalArgumentException("UNAUTHORIZED");
-                return execution.workers.apply(request, transport, valid);
+                return response = execution.workers.apply(request, transport, valid);
             }
             if (request.has("protocolVersion")
                     && (!(request.get("protocolVersion") instanceof Number)
@@ -311,17 +313,24 @@ public final class HarnessService extends AbstractModule {
                 throw new IllegalArgumentException("UNAUTHORIZED");
             if (!config.authorizedWorker(request.getString("workerId"), request.getString("role")))
                 throw new IllegalArgumentException("FORBIDDEN");
-            return registry.apply(request, transport, valid)
+            return response = registry.apply(request, transport, valid)
                     .put("protocolVersion", 1)
                     .put("requestId", id)
                     .put("ok", true);
         } catch (StoreException e) {
-            return error(id, e.code).put("protocolVersion", protocol);
+            return response = error(id, e.code).put("protocolVersion", protocol);
         } catch (IllegalArgumentException e) {
-            return error(id, e.getMessage()).put("protocolVersion", protocol);
+            return response = error(id, e.getMessage()).put("protocolVersion", protocol);
         } catch (Exception e) {
-            return error(id, "INTERNAL_ERROR").put("protocolVersion", protocol);
+            unexpected = e;
+            return response = error(id, "INTERNAL_ERROR").put("protocolVersion", protocol);
+        } finally {
+            WorkerRegistrationLog.outcome(request, response, config, transport, unexpected);
         }
+    }
+
+    public static void logWorkerRejection(String code, long transport) {
+        WorkerRegistrationLog.outcome(null, error("", code), null, transport, null);
     }
 
     public static JSONObject error(String id, String code) {

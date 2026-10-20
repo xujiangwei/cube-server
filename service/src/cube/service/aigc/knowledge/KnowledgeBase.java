@@ -25,7 +25,6 @@ import cube.service.aigc.AIGCPluginContext;
 import cube.service.aigc.AIGCService;
 import cube.service.aigc.AIGCStorage;
 import cube.service.aigc.listener.*;
-import cube.service.aigc.resource.Relay;
 import cube.aigc.text.Keyword;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -2233,8 +2232,7 @@ public class KnowledgeBase {
             return null;
         }
 
-        final AIGCUnit unit = (Relay.getInstance() != null) ? Relay.getInstance().selectUnit(unitName)
-                : this.service.selectUnitByName(unitName);
+        final AIGCUnit unit = this.service.selectUnitByName(unitName);
         if (null == unit) {
             Logger.w(this.getClass(), "#performKnowledgeQA - Select unit error: " + unitName);
             this.qaLock.set(false);

@@ -75,6 +75,7 @@ public final class HarnessCellet extends AbstractCellet {
         }
         // Check the envelope before queueing or decoding its original STRING payload.
         if (primitive.numStuff() != 1 || primitive.getStuff(0).getLiteralBase() != LiteralBase.STRING || primitive.getStuff(0).getValue().length > 262144) {
+            HarnessService.logWorkerRejection("INVALID_ENVELOPE", context.getSessionId());
             reply(context, HarnessService.error("", "INVALID_ENVELOPE"));
             return;
         }
@@ -83,8 +84,10 @@ public final class HarnessCellet extends AbstractCellet {
             execute(() -> {
                 if (current != null && context.isValid())
                     reply(context, current.process(primitive.getStuff(0).getValue(), context.getSessionId(), context::isValid));
+                else HarnessService.logWorkerRejection(current == null ? "HARNESS_NOT_READY" : "STALE_SESSION", context.getSessionId());
             });
         } catch (RejectedExecutionException e) {
+            HarnessService.logWorkerRejection("HARNESS_BUSY", context.getSessionId());
             reply(context, HarnessService.error("", "HARNESS_BUSY"));
         }
     }
@@ -100,11 +103,13 @@ public final class HarnessCellet extends AbstractCellet {
         try {
             request = new ActionDialect(primitive);
         } catch (Exception e) {
+            HarnessService.logWorkerRejection("INVALID_ENVELOPE", context.getSessionId());
             reply(context, HarnessService.error("", "INVALID_ENVELOPE"));
             return;
         }
         // Only a correlated dispatcher envelope can enter the business executor.
         if (!request.containsParam("sn") || !request.containsParam("_performer")) {
+            HarnessService.logWorkerRejection("INVALID_ENVELOPE", context.getSessionId());
             reply(context, HarnessService.error("", "INVALID_ENVELOPE"));
             return;
         }
