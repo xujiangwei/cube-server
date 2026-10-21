@@ -23,7 +23,7 @@ public final class ExecutionAdmin {
     public static void main(String[] args) throws Exception {
         if (args.length != 1) throw new IllegalArgumentException("ExecutionAdmin <new-directory>");
         Path root = Files.createDirectory(Paths.get(args[0]));
-        JSONObject runtime = new JSONObject().put("schemaVersion", 1).put("id", "resources").put("version", "1").put("kind", "runtime").put("mode", "resources-only")
+        JSONObject runtime = new JSONObject().put("schemaVersion", 2).put("id", "resources").put("version", "1").put("kind", "runtime").put("mode", "resources-only")
                 .put("capabilities", new JSONArray().put("resources")).put("maxWorkspaceBytes", 1048576).put("maxWorkspaceFiles", 128).put("certification", "offline-resources");
         Files.write(root.resolve("resources.json"), RuntimeSupport.bytes(runtime), StandardOpenOption.CREATE_NEW);
         for (String model : new String[]{"Baize", "Baize2"}) {

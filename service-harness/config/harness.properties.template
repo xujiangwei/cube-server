@@ -178,10 +178,10 @@ trace.export.max.bytes=262144
 # 是否允许业务 API 追加任务反馈，默认关闭；此开关独立于 trace.enabled。
 feedback.enabled=false
 # 外部扩展提供方默认不注册，详见 TRACE.md 和工作区 skill/harness-extensions/README.md。
-# 普通 Runner 默认使用 v4 协议；在 Python 配置的 runner 对象中设置 protocolVersion=5，
+# 普通工具 Runner 在 Python 配置中使用 runner.type=tool，
 # 可启用经过审核的通用 IPC 入口，需按扩展文档配套发布。
 
-# 可选已认证 Python 沙箱 Runner，使用 Cell v6 协议；控制器与 KVM 路径配置在 Python 端。
+# 可选已认证 Python 沙箱 Runner，使用 runner.type=sandbox；控制器与 KVM 路径配置在 Python 端。
 # Java 逐节点授权 runner 角色、容量及认证摘要；摘要须与实际发布的执行配置和证书匹配。
 # worker.sandbox-a.role=runner
 # 当前沙箱节点容量固定为 1，需与 Python 上报值一致。

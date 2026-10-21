@@ -9,7 +9,7 @@ package cube.service.harness.execution;
 import org.json.JSONObject;
 
 /**
- * Trusted, administrator-installed extension for the bounded targets/fields query protocol.
+ * Trusted, administrator-installed extension for schema-validated tool arguments.
  * Business APIs, credentials, projection and interpretation belong to the extension. Extensions run
  * with JVM privileges; uploaded SKILL code cannot install one.
  */
@@ -21,8 +21,8 @@ public interface QueryProvider extends AutoCloseable {
         return false;
     }
 
-    default int protocolVersion() {
-        return 4;
+    default String runnerType() {
+        return "tool";
     }
 
     default boolean independentExecution() {

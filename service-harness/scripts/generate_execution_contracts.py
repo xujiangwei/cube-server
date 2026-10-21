@@ -1,4 +1,4 @@
-"""Additive N06 execution contracts; never rewrites the frozen v1 manifest."""
+"""Current scripted execution contracts, REST schemas and adapter attestation."""
 import argparse
 import hashlib
 import json
@@ -15,12 +15,12 @@ def enum(*values):
 
 def generate(target, python_root):
     digest = dict(type='string', pattern='^[a-f0-9]{64}$')
-    descriptor = obj(dict(model=enum('Baize','Baize2','scripted'), backendId=ID, adapter=enum('scripted-v1','baize-json-v1','baize2-tools-v1'),
+    descriptor = obj(dict(model=enum('scripted'), backendId=ID, adapter=enum('scripted-v1'),
                           capacity=integer(1,32), nativeTools=dict(type='boolean'), cancellation=enum('observe-only'),
                           budget=enum('transport-bytes-v1'), profileDigest=digest))
     job = obj(dict(jobId=digest, runId=ID, roundId=ID, attempt=integer(1,1), originFence=integer(1,10**12),
                    intentHash=digest, requestHash=digest, requestJson=dict(type='string',maxLength=65536),
-                   workerId=ID, instanceId=ID, sessionId=ID, model=enum('Baize','Baize2','scripted')))
+                   workerId=ID, instanceId=ID, sessionId=ID, model=enum('scripted')))
     report = obj(dict(jobId=digest, requestHash=digest, instanceId=ID, actualFinished=dict(type='boolean'),
                       outcomeJson=dict(type='string',maxLength=65536)))
     base = dict(protocolVersion=dict(type='integer',enum=[2]), requestId=ID, credential=dict(type='string',minLength=24,maxLength=512),
@@ -58,7 +58,7 @@ def generate(target, python_root):
         raw=(json.dumps(dict(value,**{'$schema':'http://json-schema.org/draft-07/schema#'}),ensure_ascii=False,indent=2)+'\n').encode()
         name='schemas/'+name+'.json'; (path/name).write_bytes(raw);manifest[name]=hashlib.sha256(raw).hexdigest()
     adapters={}
-    for name,model in [('scripted-v1','scripted'),('baize-json-v1','Baize'),('baize2-tools-v1','Baize2')]:
+    for name,model in [('scripted-v1','scripted')]:
         sources={p:hashlib.sha256((python_root/'harness'/p).read_bytes()).hexdigest() for p in ('model_adapter.py','model_worker.py')}
         spec=dict(adapter=name,model=model,sources=sources,tokenizer='transport-bytes-v1; remote tokenizer unverified',template='harness-json-template-v1; remote chat template unverified',cancellation='observe-only',maxRepairs=1)
         adapters[name]=dict(spec=spec,digest=hashlib.sha256(json.dumps(spec,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest())

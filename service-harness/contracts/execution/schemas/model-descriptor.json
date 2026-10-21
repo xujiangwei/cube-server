@@ -4,8 +4,6 @@
     "model": {
       "type": "string",
       "enum": [
-        "Baize",
-        "Baize2",
         "scripted"
       ]
     },
@@ -18,9 +16,7 @@
     "adapter": {
       "type": "string",
       "enum": [
-        "scripted-v1",
-        "baize-json-v1",
-        "baize2-tools-v1"
+        "scripted-v1"
       ]
     },
     "capacity": {

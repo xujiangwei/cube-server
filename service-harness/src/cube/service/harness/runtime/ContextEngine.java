@@ -50,28 +50,12 @@ public final class ContextEngine {
     }
 
     private static void certify(JSONObject model) {
-        if (model.optInt("schemaVersion", 1) == 3) {
+        if (model.getString("backend").equals("java-inference")) {
             String adapter = model.getBoolean("nativeTools") ? "openai-tools-v2" : "openai-json-v2";
             if (!model.getString("backend").equals("java-inference")
                     || !adapter.equals(model.getString("adapter"))
                     || !cube.service.harness.execution.ModelProfiles.adapterDigest(adapter)
                     .equals(model.getString("adapterDigest"))
-                    || !JdbcRunStore.canonical(cube.service.harness.execution.ModelProfiles.tokenizer())
-                    .equals(JdbcRunStore.canonical(model.getJSONObject("tokenizer"))))
-                throw RuntimeSupport.error("TOKENIZER_MISMATCH");
-            if (!JdbcRunStore.canonical(template())
-                    .equals(JdbcRunStore.canonical(model.getJSONObject("template"))))
-                throw RuntimeSupport.error("TEMPLATE_MISMATCH");
-            return;
-        }
-        if (model.optInt("schemaVersion", 1) == 2) {
-            String adapter = model.getString("adapter");
-            if (!Arrays.asList("Baize", "Baize2").contains(model.getString("id"))
-                    || !adapter.equals(
-                    model.getString("id").equals("Baize") ? "baize-json-v1" : "baize2-tools-v1")
-                    || !cube.service.harness.execution.ModelProfiles.adapterDigest(adapter)
-                    .equals(model.getString("adapterDigest"))
-                    || model.getBoolean("nativeTools") != model.getString("id").equals("Baize2")
                     || !JdbcRunStore.canonical(cube.service.harness.execution.ModelProfiles.tokenizer())
                     .equals(JdbcRunStore.canonical(model.getJSONObject("tokenizer"))))
                 throw RuntimeSupport.error("TOKENIZER_MISMATCH");
@@ -147,11 +131,11 @@ public final class ContextEngine {
         if (!policy
                 .getString("budgetVersion")
                 .equals(
-                        model.optInt("schemaVersion", 1) >= 2 ? "transport-bytes-v1" : "full-json-bytes-v1")
+                        model.getString("backend").equals("java-inference") ? "transport-bytes-v1" : "full-json-bytes-v1")
                 || !policy.getString("version").equals("context-v1")
                 || !(Arrays.asList("resource-tools-v1", "file-tools-v1")
                 .contains(task.getString("toolSetVersion"))
-                || (Arrays.asList("mock-tools-v1", "console-tools-v1", "broker-tools-v5", "sandbox-tools-v6")
+                || (Arrays.asList("broker-tools", "sandbox-tools")
                 .contains(task.getString("toolSetVersion"))
                 && pin.getJSONObject("runtime").getString("mode").equals("trusted-python-v1"))))
             throw RuntimeSupport.error("CONTEXT_POLICY_UNSUPPORTED");
@@ -331,9 +315,9 @@ public final class ContextEngine {
                                 "responseSchema",
                                 StrictJson.object(Contract.resource("schemas/model-decision.json")))
                         .put("outputReserve", policy.getInt("outputReserve"));
-        if (model.optInt("schemaVersion", 1) >= 2)
+        if (model.getString("backend").equals("java-inference"))
             modelRequest.put("generation", model.getJSONObject("generation"));
-        if (model.optInt("schemaVersion", 1) == 3)
+        if (model.getString("backend").equals("java-inference"))
             modelRequest.put("nativeTools", model.getBoolean("nativeTools"));
         long tokens;
         String rendered;

@@ -260,21 +260,20 @@ public final class HarnessService extends AbstractModule {
             byte[] raw, long transport, java.util.function.BooleanSupplier valid) {
         String id = "";
         int protocol = 1;
+        String runnerType = null;
         JSONObject request = null, response = null;
         Exception unexpected = null;
         try {
             request = StrictJson.object(raw);
+            if (request.has("runnerType")) runnerType = request.optString("runnerType", "");
             if (!started.get()) throw new IllegalArgumentException("HARNESS_NOT_READY");
             if (request.optInt("protocolVersion", 0) == 2
-                    || request.optInt("protocolVersion", 0) == 3
-                    || request.optInt("protocolVersion", 0) == 4
-                    || request.optInt("protocolVersion", 0) == 5
-                    || request.optInt("protocolVersion", 0) == 6)
+                    || request.optInt("protocolVersion", 0) == 3)
                 protocol = request.getInt("protocolVersion");
             if (request.opt("requestId") instanceof String
                     && request.getString("requestId").length() <= 128)
                 id = request.getString("requestId");
-            if (protocol == 4 || protocol == 5 || protocol == 6) {
+            if (runnerType != null) {
                 cube.service.harness.execution.ToolProtocol.parse("runner-request", raw);
                 if (!equal(
                         config.values.getProperty("worker.credential"),
@@ -318,15 +317,22 @@ public final class HarnessService extends AbstractModule {
                     .put("requestId", id)
                     .put("ok", true);
         } catch (StoreException e) {
-            return response = error(id, e.code).put("protocolVersion", protocol);
+            return response = workerError(id, e.code, protocol, runnerType);
         } catch (IllegalArgumentException e) {
-            return response = error(id, e.getMessage()).put("protocolVersion", protocol);
+            return response = workerError(id, e.getMessage(), protocol, runnerType);
         } catch (Exception e) {
             unexpected = e;
-            return response = error(id, "INTERNAL_ERROR").put("protocolVersion", protocol);
+            return response = workerError(id, "INTERNAL_ERROR", protocol, runnerType);
         } finally {
             WorkerRegistrationLog.outcome(request, response, config, transport, unexpected);
         }
+    }
+
+    private static JSONObject workerError(String id, String code, int protocol, String runnerType) {
+        JSONObject response = error(id, code);
+        if (runnerType == null) return response.put("protocolVersion", protocol);
+        response.remove("protocolVersion");
+        return response.put("runnerType", runnerType);
     }
 
     public static void logWorkerRejection(String code, long transport) {
@@ -350,7 +356,9 @@ public final class HarnessService extends AbstractModule {
             }
             return new JSONObject()
                     .put("service", NAME)
-                    .put("protocolVersion", execution.runners == null ? 3 : 4)
+                    .put("protocolVersion", 3)
+                    .put("runnerTypes", execution.runners == null ? new JSONArray()
+                            : new JSONArray().put("tool").put("sandbox"))
                     .put("registeredWorkers", all)
                     .put("infrastructureReady", true)
                     .put("runsReady", execution.accepting() && execution.workers.ready())

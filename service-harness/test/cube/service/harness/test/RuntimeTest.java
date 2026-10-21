@@ -33,9 +33,10 @@ public final class RuntimeTest {
     static long version(String run){return store.read(T,S,run).getJSONObject("snapshot").getLong("version");}
     static JSONObject ref(String id){return new JSONObject().put("id",id).put("version","1");}
     static JSONObject request(String text){return new JSONObject().put("taskProfileId","task").put("input",new JSONObject().put("instruction",text).put("attachmentIds",new JSONArray()));}
-    static JSONObject task(String ver,String digest,String modelId,int maxChars){return new JSONObject().put("schemaVersion",1).put("id","task").put("version",ver).put("kind","task")
+    static JSONObject task(String ver,String digest,String modelId,int maxChars){return new JSONObject().put("schemaVersion",2).put("id","task").put("version",ver).put("kind","task")
         .put("model",ref(modelId)).put("runtime",ref("resources")).put("skillReleases",new JSONArray().put(digest))
         .put("permissions",new JSONArray(TEST_PERMISSIONS)).put("requiredCapabilities",new JSONArray().put("resources"))
+        .put("executionLimits",new JSONObject().put("maxRounds",8).put("maxTools",32).put("maxRepairs",1).put("maxLifetimeMillis",300000))
         .put("toolSetVersion","resource-tools-v1").put("contextPolicy",new JSONObject().put("version","context-v1").put("budgetVersion","full-json-bytes-v1")
             .put("outputReserve",256).put("maxSourceChars",maxChars).put("compaction","extractive-v1").put("maxInputBytes",2097152));}
     static String run(String taskVersion,String text) {
@@ -51,7 +52,7 @@ public final class RuntimeTest {
     static JSONObject manifest(Map<String,byte[]> entries) {
         JSONArray files=new JSONArray();for(Map.Entry<String,byte[]> e:entries.entrySet())files.put(new JSONObject().put("path",e.getKey()).put("sha256",RuntimeSupport.sha(e.getValue())).put("size",e.getValue().length)
             .put("mediaType",e.getKey().endsWith("json")?"application/json":"text/plain").put("role",e.getKey().equals("SKILL.md")?"skill":e.getKey().equals("dependencies.lock.json")?"lock":e.getKey().endsWith("schema.json")?"schema":"resource"));
-        return new JSONObject().put("schemaVersion",1).put("name","test/guide").put("version","1").put("runtime",ref("resources")).put("skillFile","SKILL.md")
+        return new JSONObject().put("schemaVersion",6).put("name","test/guide").put("version","1").put("runtime",ref("resources")).put("skillFile","SKILL.md")
             .put("dependencyLock","dependencies.lock.json").put("permissions",new JSONArray(TEST_PERMISSIONS)).put("files",files).put("tools",new JSONArray());
     }
     static byte[] zip(JSONObject manifest,Map<String,byte[]> entries) throws Exception {
@@ -80,9 +81,9 @@ public final class RuntimeTest {
     }
     static void setup() throws Exception {
         store=new JdbcRunStore(config);catalog=new CatalogStore(store,config.mysql());profiles=new ProfileRegistry(catalog);
-        runtime=new JSONObject().put("schemaVersion",1).put("id","resources").put("version","1").put("kind","runtime").put("mode","resources-only")
+        runtime=new JSONObject().put("schemaVersion",2).put("id","resources").put("version","1").put("kind","runtime").put("mode","resources-only")
             .put("capabilities",new JSONArray().put("resources")).put("maxWorkspaceBytes",256).put("maxWorkspaceFiles",2).put("certification","offline-resources");profiles.publish(T,runtime);
-        model=new JSONObject().put("schemaVersion",1).put("id","scripted").put("version","1").put("kind","model").put("backend","scripted")
+        model=new JSONObject().put("schemaVersion",3).put("id","scripted").put("version","1").put("kind","model").put("backend","scripted")
             .put("capabilities",new JSONArray().put("tool_calls")).put("tokenizer",ContextEngine.tokenizer()).put("template",ContextEngine.template())
             .put("templateOverhead",17).put("maxContextTokens",20000).put("certification","offline-scripted");profiles.publish(T,model);
         repo=new PackageRepository(catalog,new AssetFiles(Files.createDirectory(root.resolve("repository")),8000000,"runtime-test-repo"),Collections.emptyMap(),true);
@@ -98,7 +99,24 @@ public final class RuntimeTest {
         Map<String,byte[]> changed=entries("new content");String next=upload(zip(manifest(changed),changed)).getString("digest");check(!next.equals(release),"changed content reused digest");
         Map<String,byte[]> traversal=new TreeMap<>(e);traversal.put("../escape",bytes("x"));invalid(()->repo.validate(new ByteArrayInputStream(zip(m,traversal))));
         Map<String,byte[]> undeclared=new TreeMap<>(e);undeclared.put("secret.txt",bytes("x"));fail("UNDECLARED_PACKAGE_FILE",()->repo.validate(new ByteArrayInputStream(zip(m,undeclared))));
-        JSONObject unknown=RuntimeSupport.copy(m).put("schemaVersion",2);invalid(()->repo.validate(new ByteArrayInputStream(zip(unknown,e))));
+        for(int prior=1;prior<6;prior++) {
+            JSONObject unknown=RuntimeSupport.copy(m).put("schemaVersion",prior);
+            fail("UNKNOWN_PACKAGE_SCHEMA",()->repo.validate(new ByteArrayInputStream(zip(unknown,e))));
+        }
+        invalid(()->profiles.publish(T,RuntimeSupport.copy(model).put("schemaVersion",1)));
+        invalid(()->profiles.publish(T,RuntimeSupport.copy(model).put("schemaVersion",2)));
+        invalid(()->profiles.publish(T,RuntimeSupport.copy(model).put("backend","java-inference")));
+        invalid(()->profiles.publish(T,RuntimeSupport.copy(runtime).put("schemaVersion",1)));
+        invalid(()->profiles.publish(T,RuntimeSupport.copy(runtime).put("mode","trusted-python-v1")));
+        JSONObject ordinary=new JSONObject().put("name","test.guide.execute").put("kind","executable")
+            .put("permission","example.read").put("effect","read-only").put("brokerOperation","example.query")
+            .put("runnerType", "tool").put("entrypoint","main.py").put("inputSchema","input.json").put("outputSchema","output.json");
+        RuntimeSupport.validate("package-manifest",RuntimeSupport.copy(m).put("tools",new JSONArray().put(ordinary)));
+        invalid(()->RuntimeSupport.validate("package-manifest",RuntimeSupport.copy(m).put("tools",new JSONArray().put(RuntimeSupport.copy(ordinary).put("runnerType", "sandbox")))));
+        JSONObject sandbox=RuntimeSupport.copy(ordinary).put("permission","sandbox.execute")
+            .put("brokerOperation","extensions.code.python.v1").put("runnerType", "sandbox");
+        RuntimeSupport.validate("package-manifest",RuntimeSupport.copy(m).put("tools",new JSONArray().put(sandbox)));
+        invalid(()->RuntimeSupport.validate("package-manifest",RuntimeSupport.copy(m).put("tools",new JSONArray().put(RuntimeSupport.copy(sandbox).put("permission","example.read")))));
         Map<String,byte[]> badschema=new TreeMap<>(e);badschema.put("bad.schema.json",bytes("{\"type\":\"string\",\"maxLength\":8,\"$ref\":\"https://evil\"}"));invalid(()->repo.validate(new ByteArrayInputStream(zip(manifest(badschema),badschema))));
         byte[] link=good.clone();for(int i=0;i<link.length-46;i++)if((link[i]&255)==0x50&&(link[i+1]&255)==0x4b&&(link[i+2]&255)==1&&(link[i+3]&255)==2){link[i+5]=3;int attr=0120777<<16;for(int b=0;b<4;b++)link[i+38+b]=(byte)(attr>>>(8*b));break;}
         fail("UNSAFE_PACKAGE_ENTRY",()->repo.validate(new ByteArrayInputStream(link)));

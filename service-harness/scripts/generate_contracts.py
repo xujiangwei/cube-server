@@ -135,8 +135,8 @@ for root in roots:
     for name,value in schemas.items():(root/'schemas'/f'{name}.json').write_text(json.dumps(dict(value,**{'$schema':'http://json-schema.org/draft-07/schema#'}),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     (root/'openapi.json').write_text(json.dumps(openapi,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     (root/'fixtures.json').write_text(json.dumps(fixtures,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    # Version 2 execution assets have their own manifest and must not change the frozen G0 digest.
-    files=sorted(p for p in root.rglob('*.json') if p.name!='manifest.json' and 'execution' not in p.relative_to(root).parts)
+    # Each capability family owns its own digest index.
+    files=[root/'fixtures.json', root/'openapi.json'] + sorted((root/'schemas').glob('*.json'))
     manifest={str(p.relative_to(root)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
     (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
 print('Created mirrored schemas, OpenAPI and',len(fixtures),'fixtures')

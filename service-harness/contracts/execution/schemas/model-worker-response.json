@@ -98,8 +98,6 @@
             "model": {
               "type": "string",
               "enum": [
-                "Baize",
-                "Baize2",
                 "scripted"
               ]
             }

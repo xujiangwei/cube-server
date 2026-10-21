@@ -42,9 +42,9 @@ Python 重启可以回放同一原 attempt 读取 Java 证据；没有既存推�
 1. 按 [STORE.md](STORE.md) 显式执行 `StoreMigrations upgrade` 到 schema7。004 迁移引入推理/事件表与 job.execution_protocol，后续迁移随包分发并保留旧行；MySQL 迁移账户另需专用库 ALTER 权限，运行账户仍只需 DML。
 2. 将唯一的 `config/harness.properties.template` 复制为工作目录下的 `config/harness.properties`，在其中统一填写基础、执行与模型后端配置；Java 默认加载该文件，启动无需 `-Dharness.config`。Python 使用 `harness/config/model-baize*.template.json`。workerCredential 与 Java 后端模型 token 分别配置；业务调用携带已有 Cube 用户 token，无需 API 共享凭据。
 3. 默认 Unit 后端要求 Harness 和 AIGCService 位于同一 Kernel/JVM。沿用宿主 ServiceCarpet 和 `config/cohost-cellet.xml`；独立 standalone.xml 只有 Harness，没有 AIGCService，默认推理保持未就绪。外部模型必须显式 type=openai，并设置 baseUrl、model、token、capacity、timeoutSeconds。
-4. `ExecutionAdmin <new-directory>` 导出 ModelProfile schemaVersion=3/version=2 与 TaskProfile version=2。填写已 ready 的资源 release、权限与限额，显式 publish 后再切 active 绑定。旧直连 schemaVersion=2 model 禁止新建 run（LEGACY_DIRECT_MODEL_DISABLED），旧契约、profile、pin 和在途证据保留供对账。
+4. `ExecutionAdmin <new-directory>` 导出 ModelProfile schemaVersion=3/version=2 与 TaskProfile version=2。填写已 ready 的资源 release、权限与限额，显式 publish 后再切 active 绑定。清单和各类 profile 只接受当前格式；已发布旧格式需重新构建、审核并发布新版本，切换前先 drain 和完成在途对账。
 
-新版 `contracts/inference/` 在两仓逐字节镜像。openai-json-v2/openai-tools-v2 摘要绑定 Python adapter、worker、inference_client；源码固定 LF，避免跨平台摘要漂移。旧 `contracts/execution/` 保持原字节和历史摘要；冻结 v2 摘要不再认证新版源码，当前实现由 v3 source digest 认证。更新实现后生成新契约并发布新的不可变 profile 版本：
+新版 `contracts/inference/` 在两仓逐字节镜像。openai-json-v2/openai-tools-v2 摘要绑定 Python adapter、worker、inference_client；源码固定 LF，避免跨平台摘要漂移。`contracts/execution/` 仅保留 scripted 执行和共享 REST 定义；旧 Baize 直连 adapter 定义已删除。更新实现后生成新契约并发布新的不可变 profile 版本：
 
 ```powershell
 python -B service-harness/scripts/generate_inference_contracts.py --python-root C:/Users/hermi/workspace/apexnova-wisdom

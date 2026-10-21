@@ -6,6 +6,7 @@
 
 package cube.service.harness.store;
 
+import cube.service.harness.execution.ToolProtocol;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -26,6 +27,21 @@ public final class ToolJobStore {
     public ToolJobStore(JdbcRunStore store, boolean mysql) {
         this.store = store;
         lock = mysql ? " FOR UPDATE" : "";
+    }
+
+    // Keep schema7's integer encoding stable for existing databases. It is not a public Runner version.
+    private static int storageCode(String runnerType) {
+        if (ToolProtocol.TOOL.equals(runnerType)) return 5;
+        if (ToolProtocol.SANDBOX.equals(runnerType)) return 6;
+        throw new StoreException("RUNNER_TYPE_INVALID");
+    }
+
+    public static String runnerType(JSONObject job) {
+        switch (job.getInt("broker_protocol")) {
+            case 5: return ToolProtocol.TOOL;
+            case 6: return ToolProtocol.SANDBOX;
+            default: throw new StoreException("RUNNER_TYPE_INVALID");
+        }
     }
 
     public JSONObject enqueue(Lease lease, JSONObject intent, JSONObject definition) {
@@ -78,7 +94,7 @@ public final class ToolJobStore {
                             canonical(definition),
                             canonical(arguments),
                             hash(arguments),
-                            definition.getJSONObject("tool").optInt("brokerProtocol", 4),
+                            storageCode(definition.getJSONObject("tool").getString("runnerType")),
                             store.now(c));
                     return first(rows(c, "SELECT * FROM harness_tool_job WHERE job_id=?", job));
                 });
@@ -103,7 +119,7 @@ public final class ToolJobStore {
 
     public JSONObject poll(
             String worker, String runtime, String instance, boolean healthy, WireFactory factory) {
-        return poll(worker, runtime, instance, healthy, 4, factory);
+        return poll(worker, runtime, instance, healthy, ToolProtocol.TOOL, factory);
     }
 
     public JSONObject poll(
@@ -111,8 +127,9 @@ public final class ToolJobStore {
             String runtime,
             String instance,
             boolean healthy,
-            int protocol,
+            String runnerType,
             WireFactory factory) {
+        final int runnerCode = storageCode(runnerType);
         return store.tx(
                 c -> {
                     JSONObject identity =
@@ -132,9 +149,10 @@ public final class ToolJobStore {
                             first(
                                     rows(
                                             c,
-                                            "SELECT * FROM harness_tool_job WHERE worker_id=? AND runtime_id=? AND status='assigned' AND cancel_requested=0 ORDER BY created_at LIMIT 1",
+                                            "SELECT * FROM harness_tool_job WHERE worker_id=? AND runtime_id=? AND broker_protocol=? AND status='assigned' AND cancel_requested=0 ORDER BY created_at LIMIT 1",
                                             worker,
-                                            runtime));
+                                            runtime,
+                                            runnerCode));
                     if (existing != null) return new JSONObject(existing.getString("wire_json"));
                     if (!healthy
                             || first(
@@ -148,10 +166,10 @@ public final class ToolJobStore {
                             first(
                                     rows(
                                             c,
-                                            "SELECT * FROM harness_tool_job WHERE status='queued' AND broker_protocol"
-                                                    + (protocol == 6 ? "=6" : "<=" + protocol)
+                                            "SELECT * FROM harness_tool_job WHERE status='queued' AND broker_protocol=?"
                                                     + " AND cancel_requested=0 AND EXISTS (SELECT run_id FROM harness_run r WHERE r.run_id=harness_tool_job.run_id AND r.state='running') ORDER BY created_at,job_id LIMIT 1"
-                                                    + lock));
+                                                    + lock,
+                                            runnerCode));
                     if (job == null) return null;
                     JSONObject wire = factory.create(job, worker, runtime, instance);
                     if (update(

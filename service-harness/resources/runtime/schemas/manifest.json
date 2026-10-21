@@ -1,16 +1,7 @@
 {
-  "dependencies-v1.json": "2190afb6e5b893a73631455201021374f5326127969bdfe5353867bc5d226d83",
-  "manifest-v1.json": "8138c2ca7c8e7fd924466715f2155b887877e99f7deebbd1be176f07b398326e",
-  "model-profile-v1.json": "f45fd0ae3ff1de8c6fc02991ca8db3de0be6908d9d4a5ddfb7beebc1dd58a949",
-  "runtime-profile-v1.json": "d1144f53ba36b346083eb12f4ad4fe9309c7b4b0df2568ca09f062358c8edf46",
-  "task-profile-v1.json": "a6aa9c85c92748ad0c050518adc9e5fc800cd2da0c647ad61ad130244673ac05",
-  "model-profile-v2.json": "2ad128708153f9dc778efd8a251a53042159acd75b137a98974f200d05440996",
-  "task-profile-v2.json": "88831ef045c859ce9a16b4f3dff8796e3b938ed6fc12e803e35057a504890ad7",
-  "model-profile-v3.json": "05f027bf8d0fd698034f52efbf4e84c9fd49933ac58fa1140790cfc6a18c6c5c",
-  "runtime-profile-v2.json": "7984eb17db51b55dafe2955f039dc683c5209751ffa4096a0189f9f05bee426e",
-  "manifest-v2.json": "e704b71d3f6d7d27eac508373293015d2774b1998a80cc2e1a8058f0228c2131",
-  "manifest-v3.json": "daf9aa3d38857ded65be985977ac256b5328edeee6bb485fcb3199af24fa116d",
-  "manifest-v4.json": "80b330a390bbc0cb206f7a93eeb1e6afe75dc4fec440819299da709dcd1f11b9",
-  "manifest-v5.json": "ddbde19be7c4818e524c5fe7943b3bbaa12850702821a94702d72c5722739b0b",
-  "manifest-v6.json": "cb1792ff2d5b82b8b9d894f5eeca40df94ef17c57912f5b54eb4b1b53685797d"
+  "dependencies.json": "8943ed9df06116e7ea2e04dce360058a5d373573d4c4f62e616d0f20e00b961e",
+  "model-profile.json": "ca98df9b9f1f78276da9f95dd83a0c04c15979fac5f6daaa0ae48395d347a56f",
+  "package-manifest.json": "4f4871fa1847402b741e32432fc0a9100dbfc19bcb73be8095a382eb094c617a",
+  "runtime-profile.json": "2a4b3b382eebcf8da4f3a57112bd538df83fd571010b5a9649ac5205b0c6f7da",
+  "task-profile.json": "88831ef045c859ce9a16b4f3dff8796e3b938ed6fc12e803e35057a504890ad7"
 }

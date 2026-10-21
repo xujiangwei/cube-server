@@ -27,12 +27,12 @@ public final class ToolTest {
         Map<String,byte[]> e=entries("Activate this release, then call test.status.query for the requested nodes/fields. Only MockConsole is supported.");
         e.put("input.schema.json",RuntimeSupport.bytes(ToolBroker.parameters()));e.put("output.schema.json",RuntimeSupport.bytes(ToolBroker.outputSchema()));
         e.put("main.py",bytes("from runner_sdk import context,query_status,result\nimport time\ntime.sleep(0.3)\nresult(query_status(**context()['arguments']))\n"));
-        JSONObject m=manifest(e).put("schemaVersion",2).put("name","test/status").put("runtime",ref("cpu"));
+        JSONObject m=manifest(e).put("schemaVersion",6).put("name","test/status").put("runtime",ref("cpu"));
         for(int i=0;i<m.getJSONArray("files").length();i++){JSONObject f=m.getJSONArray("files").getJSONObject(i);if(f.getString("path").equals("main.py"))f.put("role","entrypoint");}
         m.getJSONArray("tools").put(new JSONObject().put("name",TOOL).put("kind","executable").put("entrypoint","main.py").put("inputSchema","input.schema.json").put("outputSchema","output.schema.json")
-            .put("permission","console.status.read").put("effect","read-only").put("brokerOperation","mockconsole.query_status"));
+            .put("permission","console.status.read").put("effect","read-only").put("brokerOperation","mockconsole.query_status").put("runnerType", "tool"));
         release=upload(zip(m,e)).getString("digest");catalog.lifecycle(T,release,1,"ready");
-        JSONObject t=task("1",release,"scripted",4096).put("id","tools").put("schemaVersion",2).put("runtime",ref("cpu")).put("toolSetVersion","mock-tools-v1")
+        JSONObject t=task("1",release,"scripted",4096).put("id","tools").put("schemaVersion",2).put("runtime",ref("cpu")).put("toolSetVersion","broker-tools")
             .put("requiredCapabilities",new JSONArray().put("resources").put("tool.execute")).put("executionLimits",new JSONObject().put("maxRounds",8).put("maxTools",16).put("maxRepairs",1).put("maxLifetimeMillis",60000));
         t.getJSONObject("contextPolicy").put("maxInputBytes",48000);profiles.publish(T,t);catalog.bind(T,"task","tools","tools@1",0);
         Files.write(root.resolve("tool-fixture.json"),RuntimeSupport.bytes(new JSONObject().put("release",release).put("tenant",T).put("subject",S)));
@@ -123,7 +123,7 @@ public final class ToolTest {
             make();check(tools.occupied("q")==1&&!tools.healthy("q")&&tools.poll("q","runtime-q","replacement",true,broker::wire)==null,"healthy claim bypassed durable quarantine with spare capacity");
             pass("durable unknown quarantines a capacity-two Runner even when its heartbeat claims healthy");
             for(String w:Arrays.asList("r1","r2")){p.setProperty("worker."+w+".role","runner");p.setProperty("worker."+w+".capacity","1");}
-            RunnerDispatcher registry=new RunnerDispatcher(broker,p,150);JSONObject e=new JSONObject().put("protocolVersion",4).put("requestId",key()).put("credential",key()).put("workerId","r1").put("instanceId","i1").put("role","runner").put("capabilities",new JSONArray().put("tool.execute")).put("action","describe")
+            RunnerDispatcher registry=new RunnerDispatcher(broker,p,150);JSONObject e=new JSONObject().put("runnerType", "tool").put("requestId",key()).put("credential",key()).put("workerId","r1").put("instanceId","i1").put("role","runner").put("capabilities",new JSONArray().put("tool.execute")).put("action","describe")
                 .put("descriptor",new JSONObject().put("runtimeId","registry-runtime").put("capacity",1).put("runtime","trusted-python-v1").put("sourceDigest",ToolProtocol.runtime().getString("digest")));
             String session=registry.apply(e,100,()->true).getString("sessionId");
             fail("DUPLICATE_WORKER",()->registry.apply(RuntimeSupport.copy(e).put("instanceId","other"),101,()->true));

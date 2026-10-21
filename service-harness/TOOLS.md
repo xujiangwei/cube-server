@@ -1,6 +1,6 @@
 # 可信 CPU Runner 与通用工具 Broker
 
-本实现面向经管理员审核的 Python 标准库工具包，使用实际 JDK 8、Python 3.11、独立数据库 schema7 和 Cell v4。一个 Java Harness JVM 可连接多个同角色 Runner；每个单元独占 workerId、runtimeDir、journal、实例身份和租约。原 v1 注册、v2 scripted 模型及 v3 Java 推理网关保持各自协议。
+本实现面向经管理员审核的 Python 标准库工具包，使用实际 JDK 8、Python 3.11、独立数据库 schema7 和 tool Runner 契约。一个 Java Harness JVM 可连接多个同角色 Runner；每个单元独占 workerId、runtimeDir、journal、实例身份和租约。原 v1 注册、v2 scripted 模型及 v3 Java 推理网关保持各自协议。
 
 核心仅保留显式启用的 loopback Mock 测试 provider（`mockconsole.query_status`），用于离线协议回归。实际业务由各个 SKILL/provider 独立提供，核心不包含 Console 业务实现。此实现不能执行模型生成代码，也不是动态代码沙箱。
 
@@ -30,9 +30,9 @@ Python 使用原 `harness/requirements.txt` 的六个固定版本依赖，无 to
 
 ## 发布与执行
 
-新包使用 manifest schemaVersion=2，固定审核后的 `.py` entrypoint、文件 SHA256、空 `dependencies.lock.json` 和明确的输入/输出 schema。包内容不超过 64 KiB；工具的参数/结果 schema 必须与服务端注册完全一致。发布端必须显式配置 `runtime.allowTrustedExecutables=true` 才能 validate/upload；原签名、公钥和本地 unsigned 开关继续生效。默认拒绝 executable。
+新包使用 manifest schemaVersion=6，固定审核后的 `.py` entrypoint、文件 SHA256、空 `dependencies.lock.json` 和明确的输入/输出 schema。包内容不超过 64 KiB；工具的参数/结果 schema 必须与服务端注册完全一致。发布端必须显式配置 `runtime.allowTrustedExecutables=true` 才能 validate/upload；原签名、公钥和本地 unsigned 开关继续生效。默认拒绝 executable。
 
-作者样例在工作区 `skill/harness-packages/mock-status/`。用既有 `build_package.py` 生成 ZIP，再通过 `RuntimeAdmin` validate/upload。先发布 schemaVersion=2 的 `trusted-python-v1` RuntimeProfile，再发布引用该 runtime/release 的新 TaskProfile；toolSetVersion=`mock-tools-v1`，requiredCapabilities 包含 `tool.execute`。模型仍先 `skill.activate`，然后才能提议该包工具；不会读取旁边任意脚本后自动执行。
+作者样例在工作区 `skill/harness-packages/mock-status/`。用既有 `build_package.py` 生成 ZIP，再通过 `RuntimeAdmin` validate/upload。先发布 schemaVersion=2 的 `trusted-python-v1` RuntimeProfile，再发布引用该 runtime/release 的新 TaskProfile；toolSetVersion=`broker-tools`，requiredCapabilities 包含 `tool.execute`。模型仍先 `skill.activate`，然后才能提议该包工具；不会读取旁边任意脚本后自动执行。
 
 唯一 RunCoordinator 写入 call intent；Broker 验证固定 profile、权限交集、effect、schema、目标和字段，然后进入持久化有界队列（256）。Runner pull 仅选择健康、未 drain 且具有实际容量的单元，先提交本地 SQLite FULL journal，再请求 Java durable accepted。grant 固定 run/call/attempt/release/参数摘要/目标/字段/tenant/subject/原 fence/worker/runtime/60 秒 TTL；accepted 和上游派发前重新授权。
 
@@ -54,7 +54,7 @@ Runner 用固定解释器 `-I -S -B` 运行已校验包，子环境仅含必要�
 
 ## 独立业务 SKILL 的 provider 注册
 
-新增包使用 manifest-v4，工具名必须以技能命名空间开头；自定义 `brokerOperation`/权限通过部署端 `QueryProvider` 注册绑定。输入/输出 schema 必须与该 provider 一致。v1 资源包与 v2 Mock 包继续支持；旧 v3 Console 特例保持历史 schema，不再接收新发布/新 run，需先 drain 旧节点再重新发布 v4。
+所有新包统一使用 `package-manifest.json`（包内 `schemaVersion=6`）。工具名必须以技能命名空间开头，普通工具显式声明 `runnerType: "tool"`，自定义 `brokerOperation`/权限通过部署端 `QueryProvider` 注册绑定。输入/输出 schema 必须与 provider 一致。资源包、Mock 包和实际业务包使用同一清单格式；历史清单 schema 已删除。
 
 ```properties
 broker.providers=your-skill
@@ -64,14 +64,18 @@ broker.provider.your-skill.config=C:/private/your-skill.properties
 
 管理员单独安装可信扩展 JAR 到 stage `libs/`。扩展在 JVM 内运行，必须审核；上传技能不会安装 Java 类。每个 provider 使用独立配置与 operation；可并存多个 provider。不配置任何 provider 时服务可启动，相关调用返回 TOOL_PROVIDER_UNAVAILABLE。旧 broker.type 配置会明确拒绝，避免误用历史业务内建入口。
 
-平台常量只列核心资源/文件权限；业务权限取已固定 release 声明与可信身份/TaskProfile 的交集，派发和访问前再次核验 provider 的权限、schema 与范围。Cell v4 的当前 query 协议限定 targets/fields，并未提供任意 HTTP、shell 或动态代码能力。
+平台常量只列核心资源/文件权限；业务权限取已固定 release 声明与可信身份/TaskProfile 的交集，派发和访问前再次核验 provider 的权限、schema 与范围。`query(targets, fields)` 是通用调用的便利接口，参数仍受 provider schema 和授权范围校验，不提供任意 HTTP 或 shell。
 
 服务器状态业务示例、独立 Console 配置和认证脚本位于工作区 [server-status](../../skill/harness-packages/server-status/README.md)。`test-tools` 包括另一个 weather 夹具 provider，验证自定义权限、独立注册、未安装拒绝、schema 绑定、私有配置隔离与持久结果重放；没有访问天气网络服务。业务 API/单位的专项由各技能测试负责。
 
 
-## 通用调用扩展（Cell v5/v6）
+## 通用调用扩展（tool / sandbox Runner）
 
-原Cell v4 targets/fields协议保持不变；manifest-v5 + Cell v5新增broker_invoke，可信调用身份和受控input/artifact由Broker提供，不从模型参数读取。v4 Runner不能领取v5作业；Python配置runner.protocolVersion=5选择通用协议，默认4。部署时drain旧worker并按匹配摘要升级两端。新SKILL使用固定broker-tools-v5工具集；普通Runner仍只执行审核薄入口，动态代码交给另装的强隔离provider。扩展契约、安装/认证和默认关闭范围见工作区 `skill/harness-extensions/README.md`，追踪与质量见 [TRACE.md](TRACE.md)。
+Runner 按用途命名：`tool` 执行经审核的普通工具入口，`sandbox` 执行隔离的动态代码。Python 配置使用 `runner.type`，Cell 请求/响应/作业和包内工具声明使用 `runnerType`；provider 接口为 `runnerType()`。契约目录为 `contracts/runner-tool/` 和 `contracts/runner-sandbox/`，TaskProfile 的 toolSetVersion 分别为 `broker-tools` 和 `sandbox-tools`。省略 runner.type 时默认 tool；历史数字协议配置不再接受。
+
+`schemaVersion` 仍表示数据格式版本，与 Runner 类型无关。更改类型名称后须同步更新 Java/Python、重建发布包与 TaskProfile，并重新认证；升级前 drain 旧单元、完成在途作业及 journal 对账，保留原运行目录。现有数据库 schema7 的整数编码仅供存储兼容，不作为公开 Runner 类型。
+
+普通 Runner 统一使用 tool 类型的 `broker_invoke`，Python 默认 `runner.type="tool"`。可信调用身份和受控 input/artifact 由 Broker 提供，不从模型参数读取。技能清单统一 `schemaVersion=6`、普通工具 `runnerType: "tool"`。`query` 保留为 SDK 便利接口并转换为通用调用。部署前 drain 旧 worker，按匹配摘要升级两端，重新发布当前格式的 release/profile；保留 journal 和在途证据直至对账完成。通用扩展使用 `broker-tools`。扩展安装和认证见工作区 `skill/harness-extensions/README.md`。
 
 
-动态代码另用 manifest-v6 + Cell v6 + sandbox-tools-v6。专用Python Runner的可信父进程启动Firecracker/KVM；Java WorkerExecutionProvider只声明profile并转换认证单元回执，不启动宿主程序或做本机清理。按worker核对profile/certificate摘要，v4/v5不得领取v6作业；v6仅领取sandbox任务。控制器、宿主路径及权限只在配套Python工程harness/microvm部署，见工作区skill/harness-extensions/microvm/README.md。
+动态代码使用同一清单格式，工具声明 `runnerType: "sandbox"`，配合 sandbox 专用单元和 `sandbox-tools`。专用Python Runner的可信父进程启动Firecracker/KVM；Java WorkerExecutionProvider只声明profile并转换认证单元回执，不启动宿主程序或做本机清理。按worker核对profile/certificate摘要，tool不得领取sandbox作业；sandbox仅领取sandbox任务。控制器、宿主路径及权限只在配套Python工程harness/microvm部署，见工作区skill/harness-extensions/microvm/README.md。

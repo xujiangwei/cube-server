@@ -1,6 +1,12 @@
 {
   "type": "object",
   "properties": {
+    "runnerType": {
+      "type": "string",
+      "enum": [
+        "tool"
+      ]
+    },
     "jobId": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$",
@@ -125,6 +131,7 @@
     }
   },
   "required": [
+    "runnerType",
     "jobId",
     "jobHash",
     "runId",

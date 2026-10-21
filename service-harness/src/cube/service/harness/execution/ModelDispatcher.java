@@ -52,7 +52,7 @@ public final class ModelDispatcher {
                 throw new IllegalArgumentException("FORBIDDEN");
             String model = descriptor.getString("model");
             String adapter = protocol == 3 ? (descriptor.getBoolean("nativeTools") ? "openai-tools-v2" : "openai-json-v2")
-                    : model.equals("scripted") ? "scripted-v1" : model.equals("Baize") ? "baize-json-v1" : "baize2-tools-v1";
+                    : "scripted-v1";
             if (!adapter.equals(descriptor.getString("adapter")) || !ModelProfiles.adapterDigest(adapter).equals(descriptor.getString("profileDigest")))
                 throw new IllegalArgumentException("MODEL_PROFILE_MISMATCH");
             String backend = config.getProperty(prefix + "backend");

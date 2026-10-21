@@ -90,7 +90,7 @@ public final class QueryProviderTest {
             "from runner_sdk import context,query,result\nresult(query(**context()['arguments']))\n"));
     JSONObject m =
         manifest(e)
-            .put("schemaVersion", 4)
+            .put("schemaVersion", 6)
             .put("name", "example/weather")
             .put("runtime", ref("cpu"))
             .put(
@@ -116,7 +116,7 @@ public final class QueryProviderTest {
                 .put("outputSchema", "output.schema.json")
                 .put("permission", "weather.read")
                 .put("effect", "read-only")
-                .put("brokerOperation", weather.operation()));
+                .put("brokerOperation", weather.operation()).put("runnerType", "tool"));
     String digest = upload(zip(m, e)).getString("digest");
     catalog.lifecycle(T, digest, 1, "ready");
     Set<String> scopes = new HashSet<>(TEST_PERMISSIONS);
@@ -223,7 +223,7 @@ public final class QueryProviderTest {
     }
     JSONObject legacy = RuntimeSupport.copy(m).put("schemaVersion", 3);
     fail(
-        "LEGACY_BUILTIN_PACKAGE_DISABLED",
+        "UNKNOWN_PACKAGE_SCHEMA",
         () -> repo.validate(new java.io.ByteArrayInputStream(zip(legacy, e))));
     pass(
         "generic weather SKILL: optional provider, custom scope intersection, private configuration, schema pin, authorization and durable query replay");

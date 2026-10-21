@@ -138,11 +138,6 @@ public final class ToolBroker implements AutoCloseable {
 
     private void arguments(JSONObject args, QueryProvider provider) {
         Contract.validate(args, provider.inputSchema());
-        // Cell v4 query grants remain bounded targets/fields; schemas belong to each provider.
-        if (provider.protocolVersion() == 4) {
-            RuntimeSupport.strings(args.getJSONArray("targets"));
-            RuntimeSupport.strings(args.getJSONArray("fields"));
-        }
         provider.validate(args);
     }
 
@@ -150,7 +145,7 @@ public final class ToolBroker implements AutoCloseable {
         JSONObject tool = definition.getJSONObject("tool"),
                 runtime = definition.getJSONObject("runtime");
         QueryProvider provider = providers.get(tool.getString("brokerOperation"));
-        if ((provider.protocolVersion() == 6) != (provider instanceof WorkerExecutionProvider))
+        if ((ToolProtocol.SANDBOX.equals(provider.runnerType())) != (provider instanceof WorkerExecutionProvider))
             throw new StoreException("PROVIDER_EXECUTION_OWNER_INVALID");
         if (!runtime.getString("mode").equals("trusted-python-v1")
                 || !runtime.getString("certification").equals("offline-trusted-runner")
@@ -159,7 +154,7 @@ public final class ToolBroker implements AutoCloseable {
                 || !tool.getString("permission").equals(provider.permission())
                 || !permissions.contains(provider.permission()))
             throw new StoreException("TOOL_PROFILE_FORBIDDEN");
-        if (tool.optInt("brokerProtocol", 4) != provider.protocolVersion())
+        if (!tool.getString("runnerType").equals(provider.runnerType()))
             throw new StoreException("PROVIDER_PROTOCOL_MISMATCH");
         if (!canonical(provider.inputSchema()).equals(canonical(definition.getJSONObject("parameters")))
                 || !canonical(provider.resultSchema())
@@ -178,6 +173,7 @@ public final class ToolBroker implements AutoCloseable {
         JSONObject d = new JSONObject(j.getString("definition_json"));
         JSONObject w =
                 new JSONObject()
+                        .put("runnerType", provider(j).runnerType())
                         .put("jobId", j.getString("job_id"))
                         .put("runId", j.getString("run_id"))
                         .put("callId", j.getString("call_id"))
@@ -207,8 +203,7 @@ public final class ToolBroker implements AutoCloseable {
                                 "maxWorkspaceFiles",
                                 Math.min(256, d.getJSONObject("runtime").getInt("maxWorkspaceFiles")));
         if (provider(j) instanceof WorkerExecutionProvider)
-            w.put("protocolVersion", 6)
-                    .put("executionProfile", ((WorkerExecutionProvider) provider(j)).executionProfile());
+            w.put("executionProfile", ((WorkerExecutionProvider) provider(j)).executionProfile());
         w.put("jobHash", hash(w));
         JSONObject a = new JSONObject(j.getString("arguments_json"));
         JSONObject claims =
@@ -227,8 +222,6 @@ public final class ToolBroker implements AutoCloseable {
                         .put("workerId", worker)
                         .put("runtimeId", runtime)
                         .put("expiresAt", System.currentTimeMillis() + 60000);
-        if (provider(j).protocolVersion() == 4)
-            claims.put("targets", a.getJSONArray("targets")).put("fields", a.getJSONArray("fields"));
         String body = canonical(claims);
         w.put("grant", new JSONObject().put("bodyJson", body).put("signature", sign(body)));
         ToolProtocol.parse("runner-job", RuntimeSupport.bytes(w));
@@ -314,7 +307,7 @@ public final class ToolBroker implements AutoCloseable {
 
     private WorkerExecutionProvider workerProvider(JSONObject j) {
         QueryProvider p = provider(j);
-        if (!(p instanceof WorkerExecutionProvider) || p.protocolVersion() != 6)
+        if (!(p instanceof WorkerExecutionProvider) || !ToolProtocol.SANDBOX.equals(p.runnerType()))
             throw new StoreException("PROVIDER_EXECUTION_OWNER_INVALID");
         return (WorkerExecutionProvider) p;
     }
@@ -455,7 +448,7 @@ public final class ToolBroker implements AutoCloseable {
                 validateData(
                         j,
                         StrictJson.object(normalized.getString("dataJson").getBytes(StandardCharsets.UTF_8)));
-                if (provider(j).protocolVersion() >= 5) {
+                { // Every successful tool result must match durable Broker evidence.
                     JSONObject evidence =
                             jobs.brokerExchange(
                                     j.getString("job_id"),

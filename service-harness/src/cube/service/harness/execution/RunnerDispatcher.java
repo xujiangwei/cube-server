@@ -21,9 +21,9 @@ import java.util.UUID;
  */
 public final class RunnerDispatcher {
     private static final class Worker {
-        String id, instance, nonce, runtime;
+        String id, instance, nonce, runtime, runnerType;
         long transport, deadline;
-        int capacity, protocol;
+        int capacity;
         boolean draining, healthy;
     }
 
@@ -59,14 +59,14 @@ public final class RunnerDispatcher {
         if (action.equals("describe")) {
             if (r.has("sessionId")) throw new StoreException("SCHEMA_INVALID");
             JSONObject d = r.getJSONObject("descriptor");
-            if (!ToolProtocol.runtime(r.getInt("protocolVersion"))
+            if (!ToolProtocol.runtime(r.getString("runnerType"))
                     .getString("digest")
                     .equals(d.getString("sourceDigest"))
                     || !d.getString("runtime").equals("trusted-python-v1"))
                 throw new StoreException("RUNNER_SOURCE_DIGEST_MISMATCH");
             int capacity = Integer.parseInt(config.getProperty("worker." + id + ".capacity", "1"));
             if (capacity != d.getInt("capacity")) throw new StoreException("RUNNER_CAPACITY_MISMATCH");
-            if (r.getInt("protocolVersion") == 6) {
+            if (ToolProtocol.SANDBOX.equals(r.getString("runnerType"))) {
                 String prefix = "worker." + id + ".sandbox.";
                 if (capacity != 1
                         || !d.getString("executionProfile").equals("linux-firecracker-python-v1")
@@ -87,7 +87,7 @@ public final class RunnerDispatcher {
                 w.instance = r.getString("instanceId");
                 w.runtime = d.getString("runtimeId");
                 w.capacity = capacity;
-                w.protocol = r.getInt("protocolVersion");
+                w.runnerType = r.getString("runnerType");
                 w.nonce = UUID.randomUUID().toString();
                 workers.put(id, w);
             }
@@ -95,13 +95,13 @@ public final class RunnerDispatcher {
                 || w.transport != transport
                 || !w.instance.equals(r.getString("instanceId"))
                 || !w.nonce.equals(r.optString("sessionId"))) throw new StoreException("STALE_SESSION");
-        if (w.protocol != r.getInt("protocolVersion")) throw new StoreException("PROTOCOL_MISMATCH");
+        if (!w.runnerType.equals(r.getString("runnerType"))) throw new StoreException("PROTOCOL_MISMATCH");
         w.deadline = now() + lease;
         w.healthy = r.optBoolean("healthy", true) && jobs.healthy(id);
         if (action.equals("drain")) w.draining = true;
         JSONObject out =
                 new JSONObject()
-                        .put("protocolVersion", w.protocol)
+                        .put("runnerType", w.runnerType)
                         .put("requestId", r.getString("requestId"))
                         .put("ok", true)
                         .put("sessionId", w.nonce)
@@ -123,14 +123,13 @@ public final class RunnerDispatcher {
             jobs.cleaned(
                     id, w.runtime, r.getString("jobId"), r.getString("jobHash"), r.getString("resultHash"));
         if (action.equals("poll") && !w.draining) {
-            JSONObject job = jobs.poll(id, w.runtime, w.instance, w.healthy, w.protocol, broker::wire);
+            JSONObject job = jobs.poll(id, w.runtime, w.instance, w.healthy, w.runnerType, broker::wire);
             if (job != null) out.put("job", job);
         }
         if (action.equals("accepted")
                 || action.equals("status")
                 || action.equals("sandbox_prepare")
                 || action.equals("sandbox_complete")
-                || action.equals("broker_query")
                 || action.equals("broker_invoke")) {
             JSONObject j = jobs.evidence(id, w.runtime, r.getString("jobId"), r.getString("jobHash"));
             if (action.equals("accepted")) {
@@ -141,7 +140,7 @@ public final class RunnerDispatcher {
                 out.put("status", j.getString("status"))
                         .put("actualFinished", j.getInt("actual_finished") == 1);
             } else if (action.equals("sandbox_prepare") || action.equals("sandbox_complete")) {
-                if (w.protocol != 6 || j.getInt("broker_protocol") != 6)
+                if (!ToolProtocol.SANDBOX.equals(w.runnerType) || !ToolProtocol.SANDBOX.equals(ToolJobStore.runnerType(j)))
                     throw new StoreException("PROTOCOL_MISMATCH");
                 JSONObject result;
                 try {
@@ -160,19 +159,12 @@ public final class RunnerDispatcher {
                 }
                 for (String k : result.keySet()) out.put(k, result.get(k));
             } else {
-                JSONObject result =
-                        action.equals("broker_invoke")
-                                ? broker.invokeArguments(
+                JSONObject result = broker.invokeArguments(
                                 j,
                                 r.getJSONObject("grant"),
                                 cube.service.harness.protocol.StrictJson.object(
                                         r.getString("argumentsJson")
-                                                .getBytes(java.nio.charset.StandardCharsets.UTF_8)))
-                                : broker.query(
-                                j,
-                                r.getJSONObject("grant"),
-                                r.getJSONArray("targets"),
-                                r.getJSONArray("fields"));
+                                                .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
                 for (String k : result.keySet()) out.put(k, result.get(k));
             }
         }
@@ -206,6 +198,7 @@ public final class RunnerDispatcher {
                             .put("instanceId", w.instance)
                             .put("runtimeId", w.runtime)
                             .put("role", "runner")
+                            .put("runnerType", w.runnerType)
                             .put("ready", !w.draining && healthy)
                             .put("capacity", w.capacity)
                             .put("occupied", used)

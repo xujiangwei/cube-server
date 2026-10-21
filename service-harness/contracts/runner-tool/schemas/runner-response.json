@@ -3,10 +3,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            4
+            "tool"
           ]
         },
         "requestId": {
@@ -47,6 +47,12 @@
         "job": {
           "type": "object",
           "properties": {
+            "runnerType": {
+              "type": "string",
+              "enum": [
+                "tool"
+              ]
+            },
             "jobId": {
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
@@ -171,6 +177,7 @@
             }
           },
           "required": [
+            "runnerType",
             "jobId",
             "jobHash",
             "runId",
@@ -250,7 +257,7 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "requestId",
         "ok",
         "sessionId",
@@ -264,10 +271,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            4
+            "tool"
           ]
         },
         "requestId": {
@@ -286,7 +293,7 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "requestId",
         "ok",
         "errorCode"

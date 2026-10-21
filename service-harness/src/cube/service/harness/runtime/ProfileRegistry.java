@@ -56,7 +56,7 @@ public final class ProfileRegistry {
         String kind = definition.getString("kind");
         if (!Arrays.asList("model", "runtime", "task").contains(kind))
             throw RuntimeSupport.error("UNKNOWN_PROFILE_KIND");
-        RuntimeSupport.validate(kind + "-profile-v" + definition.getInt("schemaVersion"), definition);
+        RuntimeSupport.validate(kind + "-profile", definition);
         if (definition.has("capabilities")) RuntimeSupport.strings(definition.getJSONArray("capabilities"));
         if (kind.equals("task")) {
             RuntimeSupport.strings(definition.getJSONArray("skillReleases"));
@@ -85,8 +85,10 @@ public final class ProfileRegistry {
             JSONObject task = catalog.profile(c, identity.tenant, "task", ref[0], ref[1]);
             JSONObject mr = task.getJSONObject("model"), rr = task.getJSONObject("runtime");
             JSONObject model = catalog.profile(c, identity.tenant, "model", mr.getString("id"), mr.getString("version"));
-            if (model.optInt("schemaVersion", 1) == 2) throw RuntimeSupport.error("LEGACY_DIRECT_MODEL_DISABLED");
+            RuntimeSupport.validate("task-profile", task);
+            RuntimeSupport.validate("model-profile", model);
             JSONObject runtime = catalog.profile(c, identity.tenant, "runtime", rr.getString("id"), rr.getString("version"));
+            RuntimeSupport.validate("runtime-profile", runtime);
             Set<String> available = RuntimeSupport.strings(model.getJSONArray("capabilities"));
             available.addAll(RuntimeSupport.strings(runtime.getJSONArray("capabilities")));
             if (!available.containsAll(RuntimeSupport.strings(task.getJSONArray("requiredCapabilities"))))
@@ -100,8 +102,7 @@ public final class ProfileRegistry {
                 JSONObject row = catalog.release(c, identity.tenant, digest, true);
                 if (!row.getString("state").equals("ready")) throw RuntimeSupport.error("RELEASE_NOT_READY");
                 JSONObject manifest = new JSONObject(row.getString("manifest_json"));
-                if (manifest.getInt("schemaVersion") == 3)
-                    throw RuntimeSupport.error("LEGACY_BUILTIN_PACKAGE_DISABLED");
+                RuntimeSupport.validate("package-manifest", manifest);
                 declaredPermissions.addAll(RuntimeSupport.strings(manifest.getJSONArray("permissions")));
                 if (!skillNames.add(manifest.getString("name"))) throw RuntimeSupport.error("PROFILE_DUPLICATE_SKILL");
                 if (!JdbcRunStore.canonical(manifest.getJSONObject("runtime")).equals(JdbcRunStore.canonical(rr)))

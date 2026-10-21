@@ -1,6 +1,6 @@
 # 隔离负载、故障与发布兼容性
 
-适用 JDK 8、独立 `service-harness` Cell 和独立 Python Harness 单元。默认开发配置只监听 loopback。回归工具覆盖 SQLite/scripted CPU 环境；生产负载、真实模型物理取消、Linux/KVM、跨主机滚动升级或旧生产流稳定性须另行认证。Firecracker/KVM 只由 Python Harness v6 单元执行，这些回归不启动 microVM。
+适用 JDK 8、独立 `service-harness` Cell 和独立 Python Harness 单元。默认开发配置只监听 loopback。回归工具覆盖 SQLite/scripted CPU 环境；生产负载、真实模型物理取消、Linux/KVM、跨主机滚动升级或旧生产流稳定性须另行认证。Firecracker/KVM 只由 Python Harness sandbox 单元执行，这些回归不启动 microVM。
 
 业务负载统一通过 dispatcher/SHM，健康和接单管理直达单独配置的 service HTTP 地址，详见 [TRANSPORT.md](TRANSPORT.md)。先用 JDK 8 构建 common、dispatcher、service-harness；`resilience_check.py` 会另启 dispatcher fixture，并将该 JVM 纳入 CPU/RSS 采样。原直连 HTTP 认证记录不能当作新链路 SLO 结果，升级后须按相应负载重新执行冻结的认证。
 

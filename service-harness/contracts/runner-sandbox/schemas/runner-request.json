@@ -3,10 +3,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
@@ -70,7 +70,7 @@
             "capacity": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 8
+              "maximum": 1
             },
             "runtime": {
               "type": "string",
@@ -82,19 +82,38 @@
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
               "maxLength": 64
+            },
+            "executionProfile": {
+              "type": "string",
+              "enum": [
+                "linux-firecracker-python-v1"
+              ]
+            },
+            "sandboxProfileDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "maxLength": 64
+            },
+            "certificateDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "maxLength": 64
             }
           },
           "required": [
             "runtimeId",
             "capacity",
             "runtime",
-            "sourceDigest"
+            "sourceDigest",
+            "executionProfile",
+            "sandboxProfileDigest",
+            "certificateDigest"
           ],
           "additionalProperties": false
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -109,10 +128,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
@@ -167,7 +186,7 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -182,10 +201,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
@@ -240,7 +259,7 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -255,10 +274,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
@@ -313,7 +332,7 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -328,10 +347,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
@@ -386,7 +405,7 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -401,10 +420,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
@@ -469,7 +488,7 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -486,10 +505,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
@@ -554,7 +573,7 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -571,10 +590,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
@@ -667,7 +686,7 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -683,10 +702,10 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
@@ -756,7 +775,7 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -774,16 +793,16 @@
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
           "type": "string",
           "enum": [
-            "broker_query"
+            "sandbox_prepare"
           ]
         },
         "requestId": {
@@ -858,28 +877,10 @@
             "signature"
           ],
           "additionalProperties": false
-        },
-        "targets": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
-            "maxLength": 128
-          },
-          "maxItems": 32
-        },
-        "fields": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
-            "maxLength": 128
-          },
-          "maxItems": 32
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -890,25 +891,23 @@
         "sessionId",
         "jobId",
         "jobHash",
-        "grant",
-        "targets",
-        "fields"
+        "grant"
       ],
       "additionalProperties": false
     },
     {
       "type": "object",
       "properties": {
-        "protocolVersion": {
-          "type": "integer",
+        "runnerType": {
+          "type": "string",
           "enum": [
-            5
+            "sandbox"
           ]
         },
         "action": {
           "type": "string",
           "enum": [
-            "broker_invoke"
+            "sandbox_complete"
           ]
         },
         "requestId": {
@@ -965,32 +964,13 @@
           "pattern": "^[a-f0-9]{64}$",
           "maxLength": 64
         },
-        "grant": {
-          "type": "object",
-          "properties": {
-            "bodyJson": {
-              "type": "string",
-              "maxLength": 8192
-            },
-            "signature": {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$",
-              "maxLength": 64
-            }
-          },
-          "required": [
-            "bodyJson",
-            "signature"
-          ],
-          "additionalProperties": false
-        },
-        "argumentsJson": {
+        "receiptJson": {
           "type": "string",
-          "maxLength": 16384
+          "maxLength": 65536
         }
       },
       "required": [
-        "protocolVersion",
+        "runnerType",
         "action",
         "requestId",
         "credential",
@@ -1001,8 +981,7 @@
         "sessionId",
         "jobId",
         "jobHash",
-        "grant",
-        "argumentsJson"
+        "receiptJson"
       ],
       "additionalProperties": false
     }

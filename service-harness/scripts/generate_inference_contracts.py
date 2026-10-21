@@ -1,4 +1,4 @@
-"""Generate additive Cell v3 contracts. Frozen v1/v2 execution contracts are never overwritten."""
+"""Generate the current Java inference contracts and adapter attestations."""
 import argparse
 import copy
 import hashlib
@@ -68,13 +68,6 @@ def generate(python_root):
     for root in (ROOT / "contracts/inference", python_root / "harness/contracts/inference"):
         for key, value in files.items():
             path = root / key; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(value)
-    schema = copy.deepcopy(json.loads((ROOT / "resources/runtime/schemas/model-profile-v2.json").read_text()))
-    schema["properties"]["schemaVersion"] = dict(type="integer", enum=[3])
-    schema["properties"]["backend"] = enum("java-inference")
-    schema["properties"]["adapter"] = enum("openai-json-v2", "openai-tools-v2")
-    path = ROOT / "resources/runtime/schemas/model-profile-v3.json"; path.write_bytes(raw(schema))
-    path = path.parent / "manifest.json"; manifest = json.loads(path.read_text())
-    manifest["model-profile-v3.json"] = hashlib.sha256(raw(schema)).hexdigest(); path.write_bytes(raw(manifest))
 
 
 if __name__ == "__main__":

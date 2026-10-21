@@ -18,7 +18,7 @@ Harness REST 在 `dispatcher.properties` 设置 `harness.rest.enabled=true` 后�
 
 请求采用 `Packet/ActionDialect`，带 `sn`、JSON `data` 和 Performer 添加的 `_performer`。data 包含资源 `id`、`approvalId`、幂等 `key`、`contentType`、原始 `query`、`lastEventId` 和原始 Bearer `credential`；角色由 service 认证后确定。JSON 正文放在独立二进制 `body` 参数，不能先解码再序列化；service 沿用严格 UTF-8、重复键/schema 检查及 262144 字节上限。身份、权限、幂等、版本、事务和状态码由 service 决定。
 
-响应保留 `sn` 并复制 `_performer`，data 为 `{status,headers,body}`。校验失败、内部异常、业务队列满均使用同一关联格式；队列满返回 503/HARNESS_BUSY。dispatcher 对 JSON 应答设 8 MiB 上限，保留业务错误结构。Python v1～v6 继续使用原来单 STRING 原语，不进入业务执行池。
+响应保留 `sn` 并复制 `_performer`，data 为 `{status,headers,body}`。校验失败、内部异常、业务队列满均使用同一关联格式；队列满返回 503/HARNESS_BUSY。dispatcher 对 JSON 应答设 8 MiB 上限，保留业务错误结构。Python 基础探针、模型及 tool/sandbox Runner 继续使用原来单 STRING 原语，不进入业务执行池。
 
 ## 事件与文件
 

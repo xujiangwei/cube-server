@@ -1,0 +1,14 @@
+{
+  "runtime": "trusted-python-v1",
+  "sources": {
+    "runner_worker.py": "0eba698b6b7606ada08011ea21356e8121a288a818e106477de96613e4863c36",
+    "runner_journal.py": "26bee6de629182576faf266c02bd2461a784ecc42a78a11b990d6873faa7ca7e",
+    "runner_process.py": "5640ec5f1357fbb59e449921a3542ea46d067b36f10c613b8a693c4545a989a8",
+    "runner_bootstrap.py": "e12c1d8836d448e449b73436a998db74da23924580df41ef0e8af74b49aa4dd0",
+    "runner_sdk.py": "aa210ce8643af22dc87a133d6def64a7222b2bcf576529b380e8d67a3a4a1818",
+    "sandbox_worker.py": "1a7f50d5b7ca0a7f0b9b31ca75b7e66e3437255cc626345fc50c6ce3cbc7db15",
+    "microvm/sandbox.py": "d6f1e68bbc2244423be36e0c737f55ea318c9e8c50adde5d992bbd995bf8c5ea",
+    "microvm/firecracker.py": "ff66d14eb0f82559ae94a549cdb36ebd1a56978e30ed98c1060f62fdee3479a5"
+  },
+  "digest": "d3b3e8a5616acf2e5855b372b3720bec3c9c195a22fd2e467c5db2c0965cef2b"
+}

@@ -21,7 +21,7 @@ java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrat
 
 作者样例位于工作区 `skill/harness-packages/`，独立于旧 SKILL 教程。包包含 `manifest.json`、`SKILL.md`、`dependencies.lock.json` 及完整白名单。release digest 是规范化 manifest 的 SHA256，manifest 固定每个文件的 SHA256、长度、role 和媒体类型。只接受本地声明的 schema、锁定的 ready 依赖和已注册 runtime；不拉取远程依赖、不读取未声明文件。
 
-ZIP 最多 65 项、每项 256 KiB、总解压 2 MiB、压缩包 8 MiB，超过 1 KiB 的项目压缩比不得超过 100。拒绝重复/大小写冲突路径、穿越、绝对路径、反斜线、DOS 设备名、Unix symlink/special attrs、目录项、加密及不支持的 ZIP 格式。默认使用 `resources-only`，拒绝 executable/entrypoint。可信标准库 executable v2 使用 64 KiB 包上限和 Cell v4 CPU Runner，需显式启用；部署/授权/配额/撤回以 [TOOLS.md](TOOLS.md) 为准。模型生成的代码不进入该执行路径。
+ZIP 最多 65 项、每项 256 KiB、总解压 2 MiB、压缩包 8 MiB，超过 1 KiB 的项目压缩比不得超过 100。拒绝重复/大小写冲突路径、穿越、绝对路径、反斜线、DOS 设备名、Unix symlink/special attrs、目录项、加密及不支持的 ZIP 格式。默认使用 `resources-only`，拒绝 executable/entrypoint。可信标准库 executable 使用 64 KiB 包上限和 tool Runner，需显式启用；部署/授权/配额/撤回以 [TOOLS.md](TOOLS.md) 为准。模型生成的代码不进入该执行路径。
 
 在私有 Store 配置中增加：
 
@@ -81,4 +81,4 @@ ant -f service-harness/build.xml '-Druntime.test.config=C:/private/runtime.local
 
 外部测试配置必须声明 `store.test.disposable=true`；`test-runtime` 要求空库并建立真实 v1 后验证升级，不能对生产或已有业务测试库执行。源码 fixture 覆盖两个节点的内容分发、签名、ZIP/path/schema 攻击、CAS/pin、资源授权、工作区接管/配额/真实路径逃逸、注入、配对、超长 schema、tokenizer/template 不匹配、重复压缩、未决恢复和精确输入复现。Windows 使用实际 junction 越界测试及 ZIP symlink attrs；普通 OS symlink 创建权限不足有记录。原生 Linux 与真实模型在线认证需单独执行，独立 CI 文件存在不表示远端已运行。
 
-业务 SKILL 使用 manifest-v4 与独立 QueryProvider 扩展。平台不枚举 Console 等业务权限；部署端注册的 operation/permission/schema 与技能声明绑定。旧 v3 Console 特例仅保留历史 schema，新发布/新 run 拒绝，先 drain 再发布新 release/profile。扩展与技能发布说明见 [TOOLS.md](TOOLS.md) 和工作区 [server-status](../../skill/harness-packages/server-status/README.md)。
+业务 SKILL 使用统一 `package-manifest.json`（schemaVersion=6），普通工具声明 runnerType="tool"，与独立 QueryProvider 扩展绑定。平台不枚举 Console 等业务权限；operation/permission/schema 由可信部署配置与技能声明共同约束。旧清单格式不再接受，先 drain 再重新发布当前格式的 release/profile。扩展与技能发布说明见 [TOOLS.md](TOOLS.md) 和工作区 [server-status](../../skill/harness-packages/server-status/README.md)。

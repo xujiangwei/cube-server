@@ -45,7 +45,7 @@ public final class WorkerRegistrationLogTest {
             int before = capture.messages.size();
             send(service, new JSONObject(request.toString()).put("action", "heartbeat").put("sessionId", registered.getString("sessionId")), 1);
             check(capture.messages.size() == before, "heartbeat repeated registration log");
-            for (int protocol = 2; protocol <= 6; protocol++) {
+            for (int protocol = 2; protocol <= 3; protocol++) {
                 JSONObject model = new JSONObject(request.toString()).put("protocolVersion", protocol).put("action", "describe")
                         .put("descriptor", new JSONObject().put("model", "Baize2"));
                 before = capture.messages.size(); send(service, model, protocol);
@@ -53,6 +53,30 @@ public final class WorkerRegistrationLogTest {
                 WorkerRegistrationLog.outcome(model, new JSONObject().put("ok", true).put("registered", true).put("ready", true), config, protocol, null);
                 check(capture.messages.get(capture.messages.size() - 1).contains("registered=true ready=true"), "versioned success format");
             }
+            for (String type : new String[]{"tool", "sandbox"}) {
+                JSONObject runner = new JSONObject(request.toString());
+                runner.remove("protocolVersion");
+                runner.put("runnerType", type).put("role", "runner").put("action", "describe")
+                        .put("capabilities", new JSONArray().put("tool.execute"))
+                        .put("descriptor", new JSONObject().put("runtimeId", "runtime-test").put("capacity", 1)
+                                .put("runtime", "trusted-python-v1")
+                                .put("sourceDigest", cube.service.harness.execution.ToolProtocol.runtime(type).getString("digest")));
+                if (type.equals("sandbox")) runner.getJSONObject("descriptor")
+                        .put("executionProfile", "linux-firecracker-python-v1")
+                        .put("sandboxProfileDigest", String.join("", Collections.nCopies(64, "a")))
+                        .put("certificateDigest", String.join("", Collections.nCopies(64, "b")));
+                JSONObject rejected = send(service, runner, 7);
+                check(rejected.getString("errorCode").equals("RUNNER_DISABLED")
+                        && rejected.getString("runnerType").equals(type) && !rejected.has("protocolVersion"), "named Runner error envelope");
+                check(capture.messages.get(capture.messages.size() - 1).contains("runnerType=" + type), "Runner type missing from log");
+                check(send(service, new JSONObject(runner.toString()).put("protocolVersion", 5), 7)
+                        .getString("errorCode").equals("SCHEMA_INVALID"), "mixed numeric/named protocol accepted");
+                check(send(service, new JSONObject(runner.toString()).put("runnerType", "unknown"), 7)
+                        .getString("errorCode").equals("RUNNER_TYPE_INVALID"), "unknown Runner type accepted");
+            }
+            for (int legacy : new int[]{4, 5, 6})
+                check(send(service, new JSONObject(request.toString()).put("protocolVersion", legacy), 8)
+                        .getString("errorCode").equals("PROTOCOL_MISMATCH"), "legacy numeric Runner selector accepted");
             service.process("{invalid".getBytes(StandardCharsets.UTF_8), 1);
             check(capture.messages.get(capture.messages.size() - 1).contains("worker request rejected"), "invalid JSON rejection missing");
             WorkerRegistrationLog.outcome(request, HarnessService.error("register-1", "INTERNAL_ERROR"), config, 1,
@@ -63,7 +87,7 @@ public final class WorkerRegistrationLogTest {
             String all = capture.messages.toString();
             check(!all.contains("never-log-this-private-credential") && !all.contains(p.getProperty("worker.credential"))
                     && !all.contains(registered.getString("sessionId")), "private fields leaked into logs");
-            System.out.println("PASS: registration success/not-ready, versions 1-6, rejection, heartbeat silence and private-field redaction");
+            System.out.println("PASS: registration success/not-ready, probe/model versions, named Runner types, legacy rejection, heartbeat silence and private-field redaction");
         } finally { service.stop(); LogManager.getInstance().removeHandle(capture); }
     }
 }

@@ -104,7 +104,7 @@ broker.mock.targets=node-a
         path=root/(name+".local.json")
         value=dict(host="127.0.0.1",port=cell_port,workerId=name,role="model" if name=="model" else "runner",workerCredential=credential,runtimeDir=str(root/("worker-"+name)),requestTimeout=2,startupTimeout=15)
         if name=="model":value["model"]=dict(model="scripted",backendId="shared",backendCapacity=1,script=script)
-        else:value["runner"]=dict(runtime="trusted-python-v1",capacity=1)
+        else:value["runner"]=dict(type="tool",runtime="trusted-python-v1",capacity=1)
         path.write_text(json.dumps(value),encoding="utf-8");paths.append(path);return path
     try:
         log=(root/"cell.log").open("w")

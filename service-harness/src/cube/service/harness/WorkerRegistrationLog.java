@@ -27,13 +27,15 @@ final class WorkerRegistrationLog {
         boolean ok = response != null && response.optBoolean("ok");
         if (!registration && !stopping && ok) return;
         int protocol = request == null ? 0 : request.optInt("protocolVersion", 0);
+        String runnerType = request == null ? "-" : field(request.opt("runnerType"));
         String worker = request == null ? "-" : field(request.opt("workerId"));
-        String role = protocol >= 4 && protocol <= 6 ? "runner" : protocol == 2 || protocol == 3 ? "model"
+        String role = !runnerType.equals("-") ? "runner" : protocol == 2 || protocol == 3 ? "model"
                 : request == null ? "-" : field(request.opt("role"));
         String message = "#process - Harness " + (registration ? "registration " : stopping ? "worker " + action + " " : "worker request ")
                 + (ok ? "succeeded" : "rejected") + ": workerId=" + worker + " role=" + role
                 + " instanceId=" + (request == null ? "-" : field(request.opt("instanceId")))
-                + " protocol=" + protocol + " requestId=" + (request == null ? "-" : field(request.opt("requestId")))
+                + (role.equals("runner") ? " runnerType=" + runnerType : " protocol=" + protocol)
+                + " requestId=" + (request == null ? "-" : field(request.opt("requestId")))
                 + " transport=" + transport;
         if (role.equals("model")) {
             JSONObject descriptor = request == null ? null : request.optJSONObject("descriptor");

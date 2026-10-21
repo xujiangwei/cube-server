@@ -1,6 +1,12 @@
 {
   "type": "object",
   "properties": {
+    "runnerType": {
+      "type": "string",
+      "enum": [
+        "sandbox"
+      ]
+    },
     "jobId": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$",
@@ -122,9 +128,16 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 256
+    },
+    "executionProfile": {
+      "type": "string",
+      "enum": [
+        "linux-firecracker-python-v1"
+      ]
     }
   },
   "required": [
+    "runnerType",
     "jobId",
     "jobHash",
     "runId",
@@ -146,7 +159,8 @@
     "timeoutMillis",
     "maxOutputBytes",
     "maxWorkspaceBytes",
-    "maxWorkspaceFiles"
+    "maxWorkspaceFiles",
+    "executionProfile"
   ],
   "additionalProperties": false,
   "$schema": "http://json-schema.org/draft-07/schema#"

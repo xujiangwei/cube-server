@@ -4,44 +4,14 @@
       "adapter": "scripted-v1",
       "model": "scripted",
       "sources": {
-        "model_adapter.py": "4506b19de9de9533a083aa29e47e4eb7957864b1d04a7c7502907bc64008593b",
-        "model_worker.py": "a7f9e20f17bd573ad0ba26b188b8c132959a20da4d666bb1d4b8d3ebcd22e9f2"
+        "model_adapter.py": "bae181e12ef3bc147189fbfe69a35ef0039412e04294b15d9aa6fbeb36adaf22",
+        "model_worker.py": "3579f0965a1ca7eeedcd337048d767f57e01c31af1b9da0dd745cb3670affb60"
       },
       "tokenizer": "transport-bytes-v1; remote tokenizer unverified",
       "template": "harness-json-template-v1; remote chat template unverified",
       "cancellation": "observe-only",
       "maxRepairs": 1
     },
-    "digest": "476ada056565878d0554bbe1ae476bce4bd4c422d5b6380a3ca920bba4647de1"
-  },
-  "baize-json-v1": {
-    "spec": {
-      "adapter": "baize-json-v1",
-      "model": "Baize",
-      "sources": {
-        "model_adapter.py": "4506b19de9de9533a083aa29e47e4eb7957864b1d04a7c7502907bc64008593b",
-        "model_worker.py": "a7f9e20f17bd573ad0ba26b188b8c132959a20da4d666bb1d4b8d3ebcd22e9f2"
-      },
-      "tokenizer": "transport-bytes-v1; remote tokenizer unverified",
-      "template": "harness-json-template-v1; remote chat template unverified",
-      "cancellation": "observe-only",
-      "maxRepairs": 1
-    },
-    "digest": "3885da9ebed93b30ebad336430e8c2e3bcf34ee96d6125623234e2804ae06cc8"
-  },
-  "baize2-tools-v1": {
-    "spec": {
-      "adapter": "baize2-tools-v1",
-      "model": "Baize2",
-      "sources": {
-        "model_adapter.py": "4506b19de9de9533a083aa29e47e4eb7957864b1d04a7c7502907bc64008593b",
-        "model_worker.py": "a7f9e20f17bd573ad0ba26b188b8c132959a20da4d666bb1d4b8d3ebcd22e9f2"
-      },
-      "tokenizer": "transport-bytes-v1; remote tokenizer unverified",
-      "template": "harness-json-template-v1; remote chat template unverified",
-      "cancellation": "observe-only",
-      "maxRepairs": 1
-    },
-    "digest": "223521fe3fdf1cb923ae8de48d7b901a4ca28e2e35bfc5780b02907054b80a03"
+    "digest": "32bbca1b883b684c50f175b1ba4afff2e76bce6ad789a95cffafbbc981a57585"
   }
 }
