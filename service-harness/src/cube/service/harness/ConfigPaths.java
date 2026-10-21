@@ -20,6 +20,9 @@ import java.util.Properties;
  * 也与宿主服务自身 {@code storage/} 目录的习惯一致；绝对路径原样保留。
  */
 public final class ConfigPaths {
+    /**
+     * 纯工具类，禁止实例化。
+     */
     private ConfigPaths() {
     }
 
@@ -35,31 +38,53 @@ public final class ConfigPaths {
      * @throws IOException 创建目录失败
      */
     public static void normalize(Properties p) throws IOException {
-        if ("sqlite".equals(p.getProperty("store.dialect", "")))
+        if ("sqlite".equals(p.getProperty("store.dialect", ""))) {
             normalizeStore(p);
-        if (Boolean.parseBoolean(p.getProperty("execution.enabled", "false")))
+        }
+        if (Boolean.parseBoolean(p.getProperty("execution.enabled", "false"))) {
             normalizeDirectory(p, "execution.repository");
+        }
     }
 
+    /**
+     * 归一化 SQLite 专用目录键：root 与数据库文件一律转为绝对路径并创建缺失目录。
+     * 仅创建位于专用 root 之下的数据库父目录；越界路径留给 StoreConfig 拒绝。
+     *
+     * @param p 已加载的私有配置，方法会就地覆写 store.sqlite.root 与 store.sqlite.file
+     * @throws IOException 创建目录失败
+     */
     private static void normalizeStore(Properties p) throws IOException {
         String rootValue = p.getProperty("store.sqlite.root", "");
         String fileValue = p.getProperty("store.sqlite.file", "");
-        if (rootValue.isEmpty() || fileValue.isEmpty()) return;
+        if (rootValue.isEmpty() || fileValue.isEmpty()) {
+            return;
+        }
 
         Path root = Paths.get(rootValue).toAbsolutePath().normalize();
         Path file = Paths.get(fileValue).toAbsolutePath().normalize();
         Files.createDirectories(root);
         Path parent = file.getParent();
         // 仅创建位于专用 root 之下的父目录；越界路径留给 StoreConfig 拒绝。
-        if (parent != null && parent.startsWith(root)) Files.createDirectories(parent);
+        if (parent != null && parent.startsWith(root)) {
+            Files.createDirectories(parent);
+        }
 
         p.setProperty("store.sqlite.root", root.toString());
         p.setProperty("store.sqlite.file", file.toString());
     }
 
+    /**
+     * 归一化单个目录类路径键：转为绝对路径、创建缺失目录并就地写回配置。
+     *
+     * @param p   已加载的私有配置，方法会就地覆写指定键
+     * @param key 目录类配置键（如 execution.repository）；键缺失或为空时保持原样
+     * @throws IOException 创建目录失败
+     */
     private static void normalizeDirectory(Properties p, String key) throws IOException {
         String value = p.getProperty(key, "");
-        if (value.isEmpty()) return;
+        if (value.isEmpty()) {
+            return;
+        }
         Path path = Paths.get(value).toAbsolutePath().normalize();
         Files.createDirectories(path);
         p.setProperty(key, path.toString());
