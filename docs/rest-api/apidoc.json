@@ -1,0 +1,14 @@
+{
+  "name": "白泽 API 文档",
+  "version": "1.0.0",
+  "description": "该文档用于说明白泽服务器提供的 RESTful 接口详情。",
+  "title": "白泽 API 文档",
+  "url": "http://211.157.179.37:7010",
+  "template": {
+    "showRequiredLabels": true,
+    "withCompare": true,
+    "withGenerator": false,
+    "aloneDisplay": false,
+    "forceLanguage": "zh_cn"
+  }
+}
