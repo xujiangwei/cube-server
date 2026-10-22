@@ -33,7 +33,7 @@ public final class ModelProfiles {
     }
 
     /**
-     * 读取契约中注册的 adapter 摘要；缺失或解析失败一律拒绝。
+     * 读取 adapter 能力规范的内容摘要，用于固定不可变模型 profile；不含源码或构建身份。
      *
      * <p>以 "-v2" 结尾的 adapter 查 contracts/inference/adapter-profiles.json，
      * 其余查 contracts/execution/adapter-profiles.json；两边在两仓逐字节镜像。

@@ -430,6 +430,11 @@ public final class HarnessService extends AbstractModule {
                 id = request.getString("requestId");
             }
             if (runnerType != null) {
+                Object version = request.opt("protocolVersion");
+                if (!(version instanceof Number)
+                        || ((Number) version).doubleValue() != cube.service.harness.execution.ToolProtocol.VERSION) {
+                    throw new IllegalArgumentException("PROTOCOL_MISMATCH");
+                }
                 cube.service.harness.execution.ToolProtocol.parse("runner-request", raw);
                 if (!equal(
                         config.values.getProperty("worker.credential"),
@@ -492,7 +497,7 @@ public final class HarnessService extends AbstractModule {
 
     /**
      * 组装 worker 侧错误响应：非 runner 请求附带 protocolVersion，
-     * runner 请求改带 runnerType（不使用协议版本协商）。
+     * runner 请求同时附带 runnerType 与该家族当前协议版本。
      *
      * @param id         requestId，解析失败时为空串
      * @param code       服务端错误码
@@ -505,8 +510,8 @@ public final class HarnessService extends AbstractModule {
         if (runnerType == null) {
             return response.put("protocolVersion", protocol);
         }
-        response.remove("protocolVersion");
-        return response.put("runnerType", runnerType);
+        return response.put("runnerType", runnerType)
+                .put("protocolVersion", cube.service.harness.execution.ToolProtocol.VERSION);
     }
 
     /**

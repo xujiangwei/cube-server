@@ -1,6 +1,5 @@
-"""Generate the current Java inference contracts and adapter attestations."""
+"""Generate the current Java inference contracts and adapter capabilities."""
 import argparse
-import copy
 import hashlib
 import json
 from pathlib import Path
@@ -16,7 +15,7 @@ def raw(value):
 def generate(python_root):
     digest = dict(type="string", pattern="^[a-f0-9]{64}$")
     descriptor = obj(dict(model=ID, adapter=enum("openai-json-v2", "openai-tools-v2"),
-        nativeTools=dict(type="boolean"), cancellation=enum("observe-only"), budget=enum("transport-bytes-v1"), profileDigest=digest))
+        nativeTools=dict(type="boolean"), cancellation=enum("observe-only"), budget=enum("transport-bytes-v1")))
     job = json.loads((ROOT / "contracts/execution/schemas/model-job.json").read_text())
     job["properties"]["model"] = ID
     report = json.loads((ROOT / "contracts/execution/schemas/model-report.json").read_text())
@@ -54,9 +53,7 @@ def generate(python_root):
                "model-v3-job": job, "model-v3-descriptor": descriptor, "model-v3-report": report}
     profiles = {}
     for adapter, native in (("openai-json-v2", False), ("openai-tools-v2", True)):
-        sources = {p: hashlib.sha256((python_root / "harness" / p).read_bytes()).hexdigest()
-                   for p in ("model_adapter.py", "model_worker.py", "inference_client.py")}
-        spec = dict(adapter=adapter, protocolVersion=3, nativeTools=native, sources=sources,
+        spec = dict(adapter=adapter, protocolVersion=3, nativeTools=native, budget="transport-bytes-v1",
                     transport="cell-java-inference", cancellation="observe-only", maxRepairs=1)
         profiles[adapter] = dict(spec=spec, digest=hashlib.sha256(json.dumps(spec, ensure_ascii=False,
             sort_keys=True, separators=(",", ":")).encode()).hexdigest())

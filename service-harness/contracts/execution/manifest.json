@@ -1,12 +1,12 @@
 {
-  "schemas/model-worker-request.json": "f42609e4a4e08a3014f993243283ccf880f4cf1c80a7cc09cdfa8bf9078fcb79",
+  "schemas/model-worker-request.json": "f21fc75550a38d9f1c019e1f42c071b66a7960c29bd6c0ee0161d2c07e4fa6e2",
   "schemas/model-worker-response.json": "ceef1083cc8f4412450223f924c667ca159f7aee1ac436e76a94bbfef02951f5",
-  "schemas/model-descriptor.json": "f2074f8da4f6aae03a14a9915ad255c30c49d7a4b6d849c9c5e8e77e84e82816",
+  "schemas/model-descriptor.json": "0ac6af1de8e3fb0cce515fc00d36e87231c928abd38fff92f8498018758433d3",
   "schemas/model-job.json": "dee0b2d7c256dfb8a3f6910a421b5bdc4421cb68b21c8122e0db1f0567b68a17",
   "schemas/model-report.json": "cde24fdab77ff5d01527b2a10c4a0c419422f1e009bbd5d4b569bc456d982169",
   "schemas/model-outcome.json": "63884920477f3db6785d13b067906c51b46495bff316579c749f10611e44b5f3",
   "schemas/run-read.json": "58ca37929089e2b073fc9e710f2142303a4c5d2ad9f63ef59c0406137266c3d1",
   "schemas/events-page.json": "61f0cf37f9c93ec03f743be70213db0385178bac8e64955a34138f26a098242a",
-  "adapter-profiles.json": "7ded3a3122fec662329cf7df6d89d7df4b9a08e2aa9726576ac3b24e133ab1ec",
+  "adapter-profiles.json": "60d59c321eb05abdb409e783477e25cb729068f3da977ceda95b64f5cf54c3df",
   "openapi.json": "0b9fe666931c4fe147ac194058fe6feee9e17cbb9b9b3f492fed40abc2675ec4"
 }

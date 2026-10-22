@@ -3,6 +3,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -257,6 +263,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "requestId",
         "ok",
@@ -271,6 +278,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -293,6 +306,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "requestId",
         "ok",

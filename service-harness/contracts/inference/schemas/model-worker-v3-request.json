@@ -85,10 +85,6 @@
               "enum": [
                 "transport-bytes-v1"
               ]
-            },
-            "profileDigest": {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$"
             }
           },
           "required": [
@@ -96,8 +92,7 @@
             "adapter",
             "nativeTools",
             "cancellation",
-            "budget",
-            "profileDigest"
+            "budget"
           ],
           "additionalProperties": false
         }

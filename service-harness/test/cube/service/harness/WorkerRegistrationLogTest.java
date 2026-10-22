@@ -165,15 +165,13 @@ public final class WorkerRegistrationLogTest {
                 WorkerRegistrationLog.outcome(model, new JSONObject().put("ok", true).put("registered", true).put("ready", true), config, protocol, null);
                 check(capture.messages.get(capture.messages.size() - 1).contains("registered=true ready=true"), "versioned success format");
             }
-            // 命名 Runner（tool/sandbox）：错误信封带 runnerType 且不带 protocolVersion。
+            // 命名 Runner（tool/sandbox）：错误信封同时携带类型和当前协议版本。
             for (String type : new String[]{"tool", "sandbox"}) {
                 JSONObject runner = new JSONObject(request.toString());
-                runner.remove("protocolVersion");
                 runner.put("runnerType", type).put("role", "runner").put("action", "describe")
                         .put("capabilities", new JSONArray().put("tool.execute"))
                         .put("descriptor", new JSONObject().put("runtimeId", "runtime-test").put("capacity", 1)
-                                .put("runtime", "trusted-python-v1")
-                                .put("sourceDigest", cube.service.harness.execution.ToolProtocol.runtime(type).getString("digest")));
+                                .put("runtime", "trusted-python-v1"));
                 // sandbox 单元追加执行 profile 与两份 64 位十六进制摘要。
                 if (type.equals("sandbox")) {
                     runner.getJSONObject("descriptor")
@@ -184,12 +182,20 @@ public final class WorkerRegistrationLogTest {
                 // 工具执行未启用（execution.runners 缺失）时命名 Runner 按 RUNNER_DISABLED 拒绝。
                 JSONObject rejected = send(service, runner, 7);
                 check(rejected.getString("errorCode").equals("RUNNER_DISABLED")
-                        && rejected.getString("runnerType").equals(type) && !rejected.has("protocolVersion"), "named Runner error envelope");
+                        && rejected.getString("runnerType").equals(type) && rejected.getInt("protocolVersion") == 1, "named Runner error envelope");
                 // 拒绝日志须含 runnerType=<type>。
                 check(capture.messages.get(capture.messages.size() - 1).contains("runnerType=" + type), "Runner type missing from log");
-                // 命名 Runner 混合数字协议版本按 SCHEMA_INVALID 拒绝。
+                // 不支持的协议版本拒绝，缺失版本也不能被默认为兼容。
                 check(send(service, new JSONObject(runner.toString()).put("protocolVersion", 5), 7)
-                        .getString("errorCode").equals("SCHEMA_INVALID"), "mixed numeric/named protocol accepted");
+                        .getString("errorCode").equals("PROTOCOL_MISMATCH"), "unsupported Runner version accepted");
+                JSONObject missingVersion = new JSONObject(runner.toString());
+                missingVersion.remove("protocolVersion");
+                check(send(service, missingVersion, 7).getString("errorCode").equals("PROTOCOL_MISMATCH"), "missing Runner version accepted");
+                check(send(service, new JSONObject(runner.toString()).put("capabilities", new JSONArray().put("model.round")), 7)
+                        .getString("errorCode").equals("SCHEMA_INVALID"), "unsupported Runner capability accepted");
+                JSONObject oldDigest = new JSONObject(runner.toString());
+                oldDigest.getJSONObject("descriptor").put("sourceDigest", String.join("", Collections.nCopies(64, "a")));
+                check(send(service, oldDigest, 7).getString("errorCode").equals("SCHEMA_INVALID"), "obsolete source identity accepted");
                 // 未知 runnerType 按 RUNNER_TYPE_INVALID 拒绝。
                 check(send(service, new JSONObject(runner.toString()).put("runnerType", "unknown"), 7)
                         .getString("errorCode").equals("RUNNER_TYPE_INVALID"), "unknown Runner type accepted");

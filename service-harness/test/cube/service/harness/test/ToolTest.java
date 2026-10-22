@@ -422,12 +422,11 @@ public final class ToolTest {
                 p.setProperty("worker." + w + ".capacity", "1");
             }
             RunnerDispatcher registry = new RunnerDispatcher(broker, p, 150);
-            JSONObject e = new JSONObject().put("runnerType", "tool").put("requestId", key()).put("credential", key())
+            JSONObject e = new JSONObject().put("protocolVersion", 1).put("runnerType", "tool").put("requestId", key()).put("credential", key())
                     .put("workerId", "r1").put("instanceId", "i1").put("role", "runner")
                     .put("capabilities", new JSONArray().put("tool.execute")).put("action", "describe")
                     .put("descriptor", new JSONObject().put("runtimeId", "registry-runtime").put("capacity", 1)
-                            .put("runtime", "trusted-python-v1")
-                            .put("sourceDigest", ToolProtocol.runtime().getString("digest")));
+                            .put("runtime", "trusted-python-v1"));
             String session = registry.apply(e, 100, () -> true).getString("sessionId");
             fail("DUPLICATE_WORKER", () -> registry.apply(RuntimeSupport.copy(e).put("instanceId", "other"), 101, () -> true));
             JSONObject heartbeat = RuntimeSupport.copy(e);

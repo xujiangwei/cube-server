@@ -17,7 +17,7 @@ import java.util.*;
  * 模型 worker 的拉取传输：instance/session 护栏 + 描述符登记 + 就绪/容量聚合。
  *
  * <p>只有可信配置授予容量：describe 时按 worker.&lt;id&gt;.* 白名单校验角色、模型、adapter
- * 摘要与 backend 容量，未授权一律拒绝。protocolVersion=2 为 scripted 执行，
+ * 能力与 backend 容量，未授权一律拒绝。protocolVersion=2 为 scripted 执行，
  * protocolVersion=3 走 Java 推理网关（inference_* 动作、usage 账本以 Java 为准）。
  * actual_finished 的 outcome 先过 ModelProtocol 语义校验，再经推理账本 reconcile 对账，
  * 覆盖 worker 对物理结束与用量的自行断言。
@@ -110,7 +110,9 @@ public final class ModelDispatcher {
             String model = descriptor.getString("model");
             String adapter = protocol == 3 ? (descriptor.getBoolean("nativeTools") ? "openai-tools-v2" : "openai-json-v2")
                     : "scripted-v1";
-            if (!adapter.equals(descriptor.getString("adapter")) || !ModelProfiles.adapterDigest(adapter).equals(descriptor.getString("profileDigest"))) {
+            if (!adapter.equals(descriptor.getString("adapter"))
+                    || !"observe-only".equals(descriptor.getString("cancellation"))
+                    || !"transport-bytes-v1".equals(descriptor.getString("budget"))) {
                 throw new IllegalArgumentException("MODEL_PROFILE_MISMATCH");
             }
             String backend = config.getProperty(prefix + "backend");

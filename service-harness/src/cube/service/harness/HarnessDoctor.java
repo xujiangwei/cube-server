@@ -7,20 +7,24 @@
 package cube.service.harness;
 
 import cube.service.harness.protocol.Contract;
+import cube.service.harness.protocol.StrictJson;
+import cube.service.harness.execution.ModelProtocol;
+import cube.service.harness.execution.ToolProtocol;
+import cube.service.harness.runtime.RuntimeSupport;
 import cube.service.harness.store.JdbcRunStore;
 import cube.service.harness.store.StoreConfig;
 
-import java.security.MessageDigest;
+import org.json.JSONObject;
 
 /**
  * 私有配置静态自检入口：只加载并校验配置、（按需）建连校验存储，不启动任何服务。
  * 适用于部署前确认 harness.properties 可用、数据库可达、契约清单完整；
- * 输出只含非敏感摘要，凭据一律不打印。
+ * 输出配置与协议支持情况，凭据一律不打印。
  */
 public final class HarnessDoctor {
     /**
      * 执行配置自检：要求 JDK 8，加载私有配置，启用存储时构造 JdbcRunStore 校验连通性，
-     * 最后打印健康/运维监听地址与契约清单（manifest.json）的 SHA-256 摘要。
+     * 最后打印健康/运维监听地址、本地契约校验结果与支持的 worker 协议版本。
      *
      * @param args 命令行参数，当前实现未使用
      * @throws IllegalStateException 运行的 JVM 不是 JDK 8（java.version 非 1.8.*）
@@ -34,11 +38,15 @@ public final class HarnessDoctor {
         if (Boolean.parseBoolean(config.values.getProperty("store.enabled", "false"))) {
             new JdbcRunStore(new StoreConfig(config.values));
         }
-        byte[] digest = MessageDigest.getInstance("SHA-256").digest(Contract.resource("manifest.json"));
-        StringBuilder hex = new StringBuilder();
-        for (byte b : digest) {
-            hex.append(String.format("%02x", b & 255));
+        JSONObject manifest = StrictJson.object(Contract.resource("manifest.json"));
+        for (String path : manifest.keySet()) {
+            if (!RuntimeSupport.sha(Contract.resource(path)).equals(manifest.getString(path))) {
+                throw new IllegalArgumentException("CONTRACT_DIGEST_MISMATCH");
+            }
         }
-        System.out.println("Harness config valid; execution=scripted; HTTP=" + config.host() + ":" + config.port() + "; contracts=" + hex);
+        ModelProtocol.verify();
+        ToolProtocol.verify();
+        System.out.println("Harness config valid; HTTP=" + config.host() + ":" + config.port()
+                + "; contracts=valid; workerProtocols=probe:1,model:2/3,runner:" + ToolProtocol.VERSION);
     }
 }

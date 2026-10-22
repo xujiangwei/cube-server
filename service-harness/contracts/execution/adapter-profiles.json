@@ -3,15 +3,14 @@
     "spec": {
       "adapter": "scripted-v1",
       "model": "scripted",
-      "sources": {
-        "model_adapter.py": "bae181e12ef3bc147189fbfe69a35ef0039412e04294b15d9aa6fbeb36adaf22",
-        "model_worker.py": "3579f0965a1ca7eeedcd337048d767f57e01c31af1b9da0dd745cb3670affb60"
-      },
+      "protocolVersion": 2,
+      "nativeTools": false,
+      "budget": "transport-bytes-v1",
       "tokenizer": "transport-bytes-v1; remote tokenizer unverified",
       "template": "harness-json-template-v1; remote chat template unverified",
       "cancellation": "observe-only",
       "maxRepairs": 1
     },
-    "digest": "32bbca1b883b684c50f175b1ba4afff2e76bce6ad789a95cffafbbc981a57585"
+    "digest": "eec5eed6e8f5ad2ee7f2ee32e3f8302ec5d2db7d8c9e805e43c6b0aac37cad04"
   }
 }

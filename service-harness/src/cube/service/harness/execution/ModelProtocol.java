@@ -26,7 +26,7 @@ public final class ModelProtocol {
     /**
      * 启动时核对全部契约摘要：manifest 逐文件 SHA-256、adapter-profiles 的 spec 摘要。
      *
-     * <p>任何一处不匹配都拒绝启动；契约在两仓逐字节镜像，摘要漂移意味着跨端不一致。
+     * <p>仅检查本地契约完整性；跨端兼容性由协议版本、schema 与能力声明判断。
      *
      * @throws IllegalArgumentException EXECUTION/INFERENCE_CONTRACT_DIGEST_MISMATCH、
      *                                  ADAPTER_PROFILE_DIGEST_MISMATCH 或契约读取失败的

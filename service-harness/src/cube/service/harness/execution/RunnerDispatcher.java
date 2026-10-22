@@ -160,8 +160,7 @@ public final class RunnerDispatcher {
      * @return runner 响应对象，含 sessionId、租约、取消清单、作业/状态/结果等字段
      * @throws StoreException 出现以下情况时抛出：STALE_SESSION（会话无效或过期）、
      *                        FORBIDDEN（workerId 未授权 runner 角色）、SCHEMA_INVALID
-     *                        （describe 携带 sessionId）、RUNNER_SOURCE_DIGEST_MISMATCH
-     *                        （runtime 源码摘要不符）、RUNNER_CAPACITY_MISMATCH（容量与配置不符）、
+     *                        （describe 携带 sessionId）、RUNNER_CAPACITY_MISMATCH（容量与配置不符）、
      *                        SANDBOX_WORKER_NOT_CERTIFIED（沙箱 worker 档案或证书摘要不符）、
      *                        DUPLICATE_WORKER（同 workerId 被其他实例/传输占用）、
      *                        REGISTRY_FULL（注册表已满）、PROTOCOL_MISMATCH（runnerType 不一致）、
@@ -169,6 +168,9 @@ public final class RunnerDispatcher {
      */
     public synchronized JSONObject apply(
             JSONObject r, long transport, java.util.function.BooleanSupplier valid) {
+        if (r.getInt("protocolVersion") != ToolProtocol.VERSION) {
+            throw new StoreException("PROTOCOL_MISMATCH");
+        }
         if (!valid.getAsBoolean()) {
             throw new StoreException("STALE_SESSION");
         }
@@ -179,16 +181,13 @@ public final class RunnerDispatcher {
         }
         Worker w = workers.get(id);
         if (action.equals("describe")) {
-            // 登记/重注册：描述符中的摘要、容量与档案必须与部署配置逐项一致。
+            // 登记/重注册：运行时能力、容量与沙箱认证须符合部署配置。
             if (r.has("sessionId")) {
                 throw new StoreException("SCHEMA_INVALID");
             }
             JSONObject d = r.getJSONObject("descriptor");
-            if (!ToolProtocol.runtime(r.getString("runnerType"))
-                    .getString("digest")
-                    .equals(d.getString("sourceDigest"))
-                    || !d.getString("runtime").equals("trusted-python-v1")) {
-                throw new StoreException("RUNNER_SOURCE_DIGEST_MISMATCH");
+            if (!d.getString("runtime").equals("trusted-python-v1")) {
+                throw new StoreException("PROTOCOL_MISMATCH");
             }
             int capacity = Integer.parseInt(config.getProperty("worker." + id + ".capacity", "1"));
             if (capacity != d.getInt("capacity")) {
@@ -241,6 +240,7 @@ public final class RunnerDispatcher {
         }
         JSONObject out =
                 new JSONObject()
+                        .put("protocolVersion", ToolProtocol.VERSION)
                         .put("runnerType", w.runnerType)
                         .put("requestId", r.getString("requestId"))
                         .put("ok", true)
@@ -365,6 +365,7 @@ public final class RunnerDispatcher {
                             .put("instanceId", w.instance)
                             .put("runtimeId", w.runtime)
                             .put("role", "runner")
+                            .put("protocolVersion", ToolProtocol.VERSION)
                             .put("runnerType", w.runnerType)
                             .put("ready", !w.draining && healthy)
                             .put("capacity", w.capacity)

@@ -45,6 +45,6 @@ Console 状态查询由工作区 [server-status SKILL](../../skill/harness-packa
 
 `ant -f service-harness/build.xml test-control-files test-tools test-execution test-inference`；MySQL 专项使用全新专用库及 `-Dcontrol.test.config=<私有 migrator 配置>`。Python 用 `python -B -m unittest discover -s harness/tests -v`；选择状态 SKILL 的 Cell 集成回归见工作区 `skill/harness-packages/server-status/tests/integration_smoke.py --help`。
 
-Runner 契约和源摘要需要两工程同步部署，先 drain 旧实例，保留运行目录与 journal，不能混用旧摘要。撤回仅停止新交互接单/上传/状态 profile，保留兼容当前 schema7 的恢复节点至在途执行、文件保留和清理收敛。原生 Linux、多主机存储及生产身份需在目标环境认证，Windows 测试不能代替。
+Runner 兼容性由协议版本、消息 schema 和能力声明判断；变更契约时同步两工程，升级前 drain 旧实例并保留运行目录与 journal。源码或构建摘要不用于通信检查或部署版本记录。撤回仅停止新交互接单/上传/状态 profile，保留兼容当前 schema7 的恢复节点至在途执行、文件保留和清理收敛。原生 Linux、多主机存储及生产身份需在目标环境认证，Windows 测试不能代替。
 
 业务技能的真实数据源与质量认证由相应 SKILL 维护，不纳入控制/文件模块的固定依赖。

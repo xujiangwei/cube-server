@@ -17,18 +17,20 @@ import org.json.JSONObject;
  * <p>关键设计点：
  * <ul>
  *   <li>契约资源按 runner 家族目录组织：{@code runner-tool} 与 {@code runner-sandbox}，
- *       与 Python 侧 {@code contracts/} 逐字节镜像，摘要漂移即视为部署损坏；</li>
- *   <li>{@link #verify()} 在 Broker 构造时执行启动自检：逐文件核对 manifest 摘要，
- *       并核对 runtime 清单 sources 的派生摘要，任一不符均拒绝启动；</li>
+ *       与 Python 侧 {@code contracts/} 逐字节镜像；</li>
+ *   <li>通信兼容性由协议版本、消息 schema 和能力声明决定；
+ *       {@link #verify()} 仅核对本地契约文件完整性，不读取或记录源码/构建摘要；</li>
  *   <li>{@link #parse} 校验所有跨进程线报（runner-job/runner-report/sandbox-receipt 等），
  *       线报格式不合法由契约校验直接拒绝；</li>
  *   <li>错误码约定：{@code RUNNER_TYPE_INVALID}（未知 runner 类型）、
  *       {@code RUNNER_CONTRACT_MISSING}（契约资源缺失，部署不完整）、
- *       {@code RUNNER_CONTRACT_DIGEST_MISMATCH} / {@code RUNNER_SOURCE_DIGEST_MISMATCH}
- *       （契约或源码摘要不符）。</li>
+ *       {@code RUNNER_CONTRACT_DIGEST_MISMATCH}（本地契约文件损坏）。</li>
  * </ul>
  */
 public final class ToolProtocol {
+    /** tool/sandbox 请求与响应的当前协议版本。 */
+    public static final int VERSION = 1;
+
     /**
      * 通用工具 runner 类型标识，对应契约目录 runner-tool。
      */
@@ -79,42 +81,12 @@ public final class ToolProtocol {
     }
 
     /**
-     * 返回默认（tool）runner 的运行时清单。
+     * 执行契约启动自检：核对两类 runner 家族的本地文件完整性。
      *
-     * @return runtime 清单对象，含 sources 摘要 digest 等字段
-     * @throws IllegalStateException 契约资源缺失时抛出，错误码为 {@code RUNNER_CONTRACT_MISSING}
-     */
-    public static JSONObject runtime() {
-        return runtime(TOOL);
-    }
-
-    /**
-     * 返回指定 runner 类型的运行时清单。
-     *
-     * @param runnerType runner 类型标识，只能是 {@link #TOOL} 或 {@link #SANDBOX}
-     * @return runtime 清单对象，含 sources 摘要 digest 等字段
-     * @throws IllegalArgumentException 类型非法时抛出，错误码为 {@code RUNNER_TYPE_INVALID}
-     * @throws IllegalStateException    契约资源缺失时抛出，错误码为 {@code RUNNER_CONTRACT_MISSING}
-     */
-    public static JSONObject runtime(String runnerType) {
-        String root = family(runnerType);
-        try {
-            return StrictJson.object(
-                    Contract.resource(root + "/runtime.json"));
-        } catch (java.io.IOException e) {
-            throw new IllegalStateException("RUNNER_CONTRACT_MISSING", e);
-        }
-    }
-
-    /**
-     * 执行契约启动自检：两类 runner 家族的全部文件摘要与 runtime 源码摘要。
-     *
-     * <p>任一文件摘要与 manifest 不符、或 runtime 的 sources 派生摘要与清单 digest 不符，
-     * 均视为部署损坏，直接拒绝启动，避免带病节点参与作业路由。
+     * <p>manifest 只用于发现本地契约文件损坏，不参与跨端版本比较。
      *
      * @throws IllegalArgumentException 摘要不符时抛出，错误码为
-     *                                  {@code RUNNER_CONTRACT_DIGEST_MISMATCH} 或
-     *                                  {@code RUNNER_SOURCE_DIGEST_MISMATCH}
+     *                                  {@code RUNNER_CONTRACT_DIGEST_MISMATCH}
      * @throws IllegalStateException    契约资源缺失时抛出，错误码为 {@code RUNNER_CONTRACT_MISSING}
      */
     public static void verify() {
@@ -125,13 +97,6 @@ public final class ToolProtocol {
                     if (!RuntimeSupport.sha(Contract.resource(root + "/" + p)).equals(manifest.getString(p))) {
                         throw new IllegalArgumentException("RUNNER_CONTRACT_DIGEST_MISMATCH");
                     }
-                }
-            }
-            for (String type : new String[]{TOOL, SANDBOX}) {
-                JSONObject runtime = runtime(type);
-                if (!cube.service.harness.store.JdbcRunStore.hash(runtime.getJSONObject("sources"))
-                        .equals(runtime.getString("digest"))) {
-                    throw new IllegalArgumentException("RUNNER_SOURCE_DIGEST_MISMATCH");
                 }
             }
         } catch (java.io.IOException e) {

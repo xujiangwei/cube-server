@@ -38,10 +38,6 @@
       "enum": [
         "transport-bytes-v1"
       ]
-    },
-    "profileDigest": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -51,8 +47,7 @@
     "capacity",
     "nativeTools",
     "cancellation",
-    "budget",
-    "profileDigest"
+    "budget"
   ],
   "additionalProperties": false,
   "$schema": "http://json-schema.org/draft-07/schema#"

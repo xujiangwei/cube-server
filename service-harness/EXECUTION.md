@@ -44,7 +44,7 @@ Python 重启可以回放同一原 attempt 读取 Java 证据；没有既存推�
 3. 默认 Unit 后端要求 Harness 和 AIGCService 位于同一 Kernel/JVM。沿用宿主 ServiceCarpet 和 `config/cohost-cellet.xml`；独立 standalone.xml 只有 Harness，没有 AIGCService，默认推理保持未就绪。外部模型必须显式 type=openai，并设置 baseUrl、model、token、capacity、timeoutSeconds。
 4. `ExecutionAdmin <new-directory>` 导出 ModelProfile schemaVersion=3/version=2 与 TaskProfile version=2。填写已 ready 的资源 release、权限与限额，显式 publish 后再切 active 绑定。清单和各类 profile 只接受当前格式；已发布旧格式需重新构建、审核并发布新版本，切换前先 drain 和完成在途对账。
 
-新版 `contracts/inference/` 在两仓逐字节镜像。openai-json-v2/openai-tools-v2 摘要绑定 Python adapter、worker、inference_client；源码固定 LF，避免跨平台摘要漂移。`contracts/execution/` 仅保留 scripted 执行和共享 REST 定义；旧 Baize 直连 adapter 定义已删除。更新实现后生成新契约并发布新的不可变 profile 版本：
+`contracts/inference/` 在两仓逐字节镜像。openai-json-v2/openai-tools-v2 的规范只声明协议版本、adapter 和能力，不绑定 Python 源码或构建摘要，也不用于记录部署版本。模型 describe 直接校验 adapter/nativeTools/cancellation/budget 与消息 schema。`contracts/execution/` 仅保留 scripted 执行和共享 REST 定义；旧 Baize 直连 adapter 定义已删除。变更协议或能力规范时生成契约；不可变 profile 内容变化时发布新版本，单纯实现修改无需重新生成：
 
 ```powershell
 python -B service-harness/scripts/generate_inference_contracts.py --python-root C:/Users/hermi/workspace/apexnova-wisdom

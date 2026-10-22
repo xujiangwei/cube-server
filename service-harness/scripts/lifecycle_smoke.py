@@ -4,7 +4,6 @@ Run after `ant test`. Every subprocess and configuration belongs to --runtime.
 Credentials stay there; only sanitized assertions and logs go to --evidence.
 """
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -165,13 +164,14 @@ def main():
         check(java_manifest == (ROOT/"manifest.json").read_bytes(), "Contract mirror drift")
         for name in json.loads(java_manifest):
             check((module/"contracts"/name).read_bytes() == (ROOT/name).read_bytes(), "Contract bytes drift")
-        record("shared-contract-digests", verify_contracts())
+        verify_contracts()
+        record("shared-contract-integrity")
         import zipfile
         with zipfile.ZipFile(module/"build/cube-service-harness-3.0.jar") as jar:
             check(not any("/test/" in n or "Sentinel" in n for n in jar.namelist()), "Tests leaked into artifact")
             for cls in ("HarnessCellet", "HarnessService", "HarnessCarpet"):
                 check("cube/service/harness/"+cls+".class" in jar.namelist(), "Missing class")
-        record("production-jar-layout", hashlib.sha256((module/"build/cube-service-harness-3.0.jar").read_bytes()).hexdigest())
+        record("production-jar-layout")
         stage = launch(False)
         record("standalone-xml-start", {"cellBindHost":args.cell_bind_host,"cellHost":args.cell_host,
                                         "healthHost":"127.0.0.1"})

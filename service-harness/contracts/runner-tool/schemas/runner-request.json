@@ -3,6 +3,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -77,23 +83,18 @@
               "enum": [
                 "trusted-python-v1"
               ]
-            },
-            "sourceDigest": {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$",
-              "maxLength": 64
             }
           },
           "required": [
             "runtimeId",
             "capacity",
-            "runtime",
-            "sourceDigest"
+            "runtime"
           ],
           "additionalProperties": false
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -109,6 +110,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -167,6 +174,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -182,6 +190,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -240,6 +254,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -255,6 +270,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -313,6 +334,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -328,6 +350,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -386,6 +414,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -401,6 +430,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -469,6 +504,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -486,6 +522,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -554,6 +596,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -571,6 +614,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -667,6 +716,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -683,6 +733,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -756,6 +812,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -774,6 +831,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -865,6 +928,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",

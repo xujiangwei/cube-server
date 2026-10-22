@@ -30,13 +30,12 @@ public final class ExecutionTest {
      * 构造 scripted 后端描述符，供 describe 动作注册模型 worker。
      *
      * @param backend 后端标识；共享同一物理引擎的 worker 使用同一 backendId 与容量
-     * @return 含 model/adapter/capacity/cancellation/budget/profileDigest 键的描述符
+     * @return 含 model/adapter/capacity/cancellation/budget 能力声明的描述符
      */
     static JSONObject descriptor(String backend) {
         return new JSONObject().put("model", "scripted").put("backendId", backend)
                 .put("adapter", "scripted-v1").put("capacity", 1).put("nativeTools", false)
-                .put("cancellation", "observe-only").put("budget", "transport-bytes-v1")
-                .put("profileDigest", ModelProfiles.adapterDigest("scripted-v1"));
+                .put("cancellation", "observe-only").put("budget", "transport-bytes-v1");
     }
 
     /**

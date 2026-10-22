@@ -163,12 +163,13 @@ public final class ModelJobStore {
      *
      * <p>已有 assigned 作业按原样重放；protocolVersion=2 时受 backend 物理容量
      * 与 worker 自身容量双重约束；仅领取所属 run 处于 running 的 queued 作业，
-     * 认领冲突抛错。
+     * 认领冲突抛错。profile_digest 固定的是服务端 adapter 能力规范内容，
+     * 由已校验的 adapter 声明选择，不读取 worker 摘要或部署身份。
      *
      * @param worker         worker ID
      * @param instance       实例 ID
      * @param session        会话 ID
-     * @param descriptor     worker 描述（backendId、model、profileDigest、protocolVersion）
+     * @param descriptor     worker 能力描述（backendId、model、adapter、protocolVersion）
      * @param workerCapacity 该 worker 的模型处理容量
      * @param healthy        worker 自报健康；不健康则不派发
      * @return wire 作业对象；无合适作业时返回 null
@@ -234,7 +235,8 @@ public final class ModelJobStore {
                                             "SELECT * FROM harness_model_job WHERE status='queued' AND cancel_requested=0 AND model_id=? AND profile_digest=? AND run_id IN (SELECT run_id FROM harness_run WHERE state='running') ORDER BY created_at,job_id LIMIT 1"
                                                     + lock,
                                             descriptor.getString("model"),
-                                            descriptor.getString("profileDigest")));
+                                            cube.service.harness.execution.ModelProfiles.adapterDigest(
+                                                    descriptor.getString("adapter"))));
                     if (job == null) {
                         return null;
                     }

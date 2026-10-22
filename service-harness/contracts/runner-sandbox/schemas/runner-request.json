@@ -3,6 +3,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -78,11 +84,6 @@
                 "trusted-python-v1"
               ]
             },
-            "sourceDigest": {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$",
-              "maxLength": 64
-            },
             "executionProfile": {
               "type": "string",
               "enum": [
@@ -104,7 +105,6 @@
             "runtimeId",
             "capacity",
             "runtime",
-            "sourceDigest",
             "executionProfile",
             "sandboxProfileDigest",
             "certificateDigest"
@@ -113,6 +113,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -128,6 +129,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -186,6 +193,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -201,6 +209,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -259,6 +273,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -274,6 +289,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -332,6 +353,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -347,6 +369,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -405,6 +433,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -420,6 +449,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -488,6 +523,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -505,6 +541,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -573,6 +615,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -590,6 +633,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -686,6 +735,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -702,6 +752,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -775,6 +831,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -793,6 +850,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -880,6 +943,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",
@@ -898,6 +962,12 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
         "runnerType": {
           "type": "string",
           "enum": [
@@ -970,6 +1040,7 @@
         }
       },
       "required": [
+        "protocolVersion",
         "runnerType",
         "action",
         "requestId",

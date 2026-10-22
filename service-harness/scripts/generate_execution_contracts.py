@@ -1,4 +1,4 @@
-"""Current scripted execution contracts, REST schemas and adapter attestation."""
+"""Current scripted execution contracts, REST schemas and adapter capabilities."""
 import argparse
 import hashlib
 import json
@@ -13,11 +13,11 @@ def integer(low, high):
 def enum(*values):
     return dict(type='string', enum=list(values))
 
-def generate(target, python_root):
+def generate(target):
     digest = dict(type='string', pattern='^[a-f0-9]{64}$')
     descriptor = obj(dict(model=enum('scripted'), backendId=ID, adapter=enum('scripted-v1'),
                           capacity=integer(1,32), nativeTools=dict(type='boolean'), cancellation=enum('observe-only'),
-                          budget=enum('transport-bytes-v1'), profileDigest=digest))
+                          budget=enum('transport-bytes-v1')))
     job = obj(dict(jobId=digest, runId=ID, roundId=ID, attempt=integer(1,1), originFence=integer(1,10**12),
                    intentHash=digest, requestHash=digest, requestJson=dict(type='string',maxLength=65536),
                    workerId=ID, instanceId=ID, sessionId=ID, model=enum('scripted')))
@@ -59,8 +59,7 @@ def generate(target, python_root):
         name='schemas/'+name+'.json'; (path/name).write_bytes(raw);manifest[name]=hashlib.sha256(raw).hexdigest()
     adapters={}
     for name,model in [('scripted-v1','scripted')]:
-        sources={p:hashlib.sha256((python_root/'harness'/p).read_bytes()).hexdigest() for p in ('model_adapter.py','model_worker.py')}
-        spec=dict(adapter=name,model=model,sources=sources,tokenizer='transport-bytes-v1; remote tokenizer unverified',template='harness-json-template-v1; remote chat template unverified',cancellation='observe-only',maxRepairs=1)
+        spec=dict(adapter=name,model=model,protocolVersion=2,nativeTools=False,budget='transport-bytes-v1',tokenizer='transport-bytes-v1; remote tokenizer unverified',template='harness-json-template-v1; remote chat template unverified',cancellation='observe-only',maxRepairs=1)
         adapters[name]=dict(spec=spec,digest=hashlib.sha256(json.dumps(spec,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest())
     raw=(json.dumps(adapters,indent=2)+'\n').encode();(path/'adapter-profiles.json').write_bytes(raw);manifest['adapter-profiles.json']=hashlib.sha256(raw).hexdigest()
     def success(schema,status='200'):
@@ -82,8 +81,8 @@ def generate(target, python_root):
                 operation['responses'][code]=dict(description=description,content={'application/json':dict(schema={'$ref':'../schemas/error.json'})})
     raw=(json.dumps(dict(openapi='3.0.3',info=dict(title='Cube Harness enabled N06/N07 execution',version='2'),paths=operations,components=dict(securitySchemes=dict(HarnessBearer=dict(type='http',scheme='bearer')))),indent=2)+'\n').encode()
     (path/'openapi.json').write_bytes(raw);manifest['openapi.json']=hashlib.sha256(raw).hexdigest()
-    (path/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n',encoding='utf-8')
+    (path/'manifest.json').write_bytes((json.dumps(manifest,indent=2)+'\n').encode('utf-8'))
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--python-root',type=Path,required=True);args=parser.parse_args()
-    generate(ROOT/'contracts',args.python_root);generate(args.python_root/'harness'/'contracts',args.python_root)
+    generate(ROOT/'contracts');generate(args.python_root/'harness'/'contracts')

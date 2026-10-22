@@ -34,8 +34,8 @@ def generate(python_root):
     report = obj(dict(jobId=digest, jobHash=digest, actualFinished=boolean,
         effectStatus=dict(type="string", enum=["none", "completed", "unknown"]), resultJson=text(65536)))
     descriptor = obj(dict(runtimeId=ident, capacity=dict(type="integer", minimum=1, maximum=8),
-        runtime=dict(type="string", enum=["trusted-python-v1"]), sourceDigest=digest))
-    common = dict(runnerType=dict(type="string", enum=["tool"]), action=ident, requestId=ident,
+        runtime=dict(type="string", enum=["trusted-python-v1"])))
+    common = dict(protocolVersion=dict(type="integer", enum=[1]), runnerType=dict(type="string", enum=["tool"]), action=ident, requestId=ident,
         credential=text(256), workerId=ident, instanceId=ident, role=dict(type="string", enum=["runner"]),
         capabilities=dict(type="array", items=dict(type="string", enum=["tool.execute"]), minItems=1, maxItems=1),
         sessionId=ident, healthy=boolean)
@@ -54,20 +54,17 @@ def generate(python_root):
         if action != "describe":
             required.append("sessionId")
         branches.append(obj(properties, required + list(extra)))
-    success = obj(dict(runnerType=dict(type="string", enum=["tool"]), requestId=text(128), ok=dict(type="boolean", enum=[True]),
+    success = obj(dict(protocolVersion=dict(type="integer", enum=[1]), runnerType=dict(type="string", enum=["tool"]), requestId=text(128), ok=dict(type="boolean", enum=[True]),
         sessionId=ident, leaseMillis=integer, registered=boolean, ready=boolean, cancellations=dict(type="array", items=digest,maxItems=64),
         job=job, dataJson=text(65536), status=text(32), resultHash=digest, actualFinished=boolean,
         cleanup=dict(type="array",items=obj(dict(jobId=digest,jobHash=digest,runtimeId=ident,resultHash=digest)),maxItems=32)),
-        ["runnerType", "requestId", "ok", "sessionId", "leaseMillis", "registered", "ready", "cancellations"])
-    error = obj(dict(runnerType=dict(type="string", enum=["tool"]), requestId=text(128), ok=dict(type="boolean", enum=[False]), errorCode=text(128)))
+        ["protocolVersion", "runnerType", "requestId", "ok", "sessionId", "leaseMillis", "registered", "ready", "cancellations"])
+    error = obj(dict(protocolVersion=dict(type="integer", enum=[1]), runnerType=dict(type="string", enum=["tool"]), requestId=text(128), ok=dict(type="boolean", enum=[False]), errorCode=text(128)))
     schemas = {"runner-request": dict(oneOf=branches), "runner-response": dict(oneOf=[success,error]), "runner-job": job, "runner-report": report}
     files = {"schemas/" + k + ".json": raw(dict(v, **{"$schema": "http://json-schema.org/draft-07/schema#"})) for k,v in schemas.items()}
-    sources = {p: hashlib.sha256((python_root / "harness" / p).read_bytes()).hexdigest()
-               for p in ("runner_worker.py", "runner_journal.py", "runner_process.py", "runner_bootstrap.py", "runner_sdk.py")}
-    files["runtime.json"] = raw(dict(runtime="trusted-python-v1", sources=sources,
-        digest=hashlib.sha256(json.dumps(sources,sort_keys=True,separators=(",",":")).encode()).hexdigest()))
     files["manifest.json"] = raw({k: hashlib.sha256(v).hexdigest() for k,v in files.items()})
     for root in (MODULE / "contracts/runner-tool", python_root / "harness/contracts/runner-tool"):
+        (root / "runtime.json").unlink(missing_ok=True)
         for path, value in files.items():
             target = root / path
             target.parent.mkdir(parents=True,exist_ok=True)
@@ -138,17 +135,9 @@ def generate_sandbox(python_root):
              additionalProperties=False)
         for keys in (('actualFinished', 'proofHash', 'output'),
                      ('actualFinished', 'proofHash', 'errorCode'))])
-    names = ['runner_worker.py', 'runner_journal.py', 'runner_process.py',
-             'runner_bootstrap.py', 'runner_sdk.py', 'sandbox_worker.py',
-             'microvm/sandbox.py', 'microvm/firecracker.py']
-    sources = {name: hashlib.sha256((python_root/'harness'/name).read_bytes()).hexdigest()
-               for name in names}
-    runtime = dict(runtime='trusted-python-v1', sources=sources,
-                   digest=hashlib.sha256(json.dumps(sources, sort_keys=True,
-                       separators=(',', ':')).encode()).hexdigest())
     for root in (MODULE/'contracts/runner-sandbox', python_root/'harness/contracts/runner-sandbox'):
         root.mkdir(parents=True, exist_ok=True)
-        (root/'runtime.json').write_bytes(raw(runtime))
+        (root/'runtime.json').unlink(missing_ok=True)
         for name, value in files.items():
             target = root/'schemas'/name
             target.parent.mkdir(parents=True, exist_ok=True)

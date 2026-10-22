@@ -139,8 +139,7 @@ public final class InferenceTest {
      */
     static JSONObject descriptor() {
         return new JSONObject().put("model", "Baize").put("adapter", "openai-json-v2").put("nativeTools", false)
-                .put("cancellation", "observe-only").put("budget", "transport-bytes-v1")
-                .put("profileDigest", ModelProfiles.adapterDigest("openai-json-v2"));
+                .put("cancellation", "observe-only").put("budget", "transport-bytes-v1");
     }
 
     /**
@@ -245,6 +244,18 @@ public final class InferenceTest {
         try (InferenceGateway gateway = new InferenceGateway(ledger, p, () -> provider);
              RunCoordinator coordinator = new RunCoordinator(store, jobs, catalog, identity, resources)) {
             ModelDispatcher dispatcher = new ModelDispatcher(jobs, p, 60000, gateway);
+            for (JSONObject unsupported : Arrays.asList(
+                    descriptor().put("nativeTools", true),
+                    descriptor().put("adapter", "scripted-v1"),
+                    descriptor().put("cancellation", "interrupt"),
+                    descriptor().put("budget", "unknown"))) {
+                try {
+                    dispatcher.apply(envelope("a", "describe", null).put("descriptor", unsupported), 1, () -> true);
+                    throw new AssertionError("Unsupported model capability accepted");
+                } catch (IllegalArgumentException expected) {
+                    check("MODEL_PROFILE_MISMATCH".equals(expected.getMessage()), "wrong model capability rejection");
+                }
+            }
             String sa = dispatcher.apply(envelope("a", "describe", null).put("descriptor", descriptor()), 1, () -> true)
                     .getString("sessionId");
             String sb = dispatcher.apply(envelope("b", "describe", null).put("descriptor", descriptor()), 2, () -> true)
