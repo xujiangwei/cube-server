@@ -2,7 +2,7 @@
 
 Python Harness 是注册到 Java Harness 的独立服务节点。一个 Java JVM 可以接入多个 model/runner，同一角色也可有多个节点。节点主动建立 Cell TCP 长连接并注册、续租、拉取任务和提交结果；Java 按角色、能力、健康与实际可用容量调度。
 
-下面使用 Linux `192.168.1.35` 上的 service + dispatcher，以及 Windows 上的两个 model 和一个 CPU runner。无需 SSH 转发，也无需设置 development/production `mode`；旧配置中的 mode 被忽略。IPv4 或主机名直接写入 Python host，端口单独配置，配置校验不执行 DNS 查询。当前 Cell TCP 连接使用 IPv4。
+下面使用 Linux `192.168.1.35` 上的 service + dispatcher，以及 Windows 上的两个 model 和一个 CPU runner。Python 节点直接连接 Java Cell。IPv4 或主机名直接写入 Python host，端口单独配置，配置校验不执行 DNS 查询。当前 Cell TCP 连接使用 IPv4。
 
 | 入口 | 配置 | 本例地址 |
 | --- | --- | --- |
@@ -24,7 +24,7 @@ Python Harness 是注册到 Java Harness 的独立服务节点。一个 Java JVM
 
 在现有 dispatcher.properties 中设置 `harness.rest.enabled=true`，并在 `cellets`、`director.1.cellets` 的原列表末尾追加 `Harness`。Java Cell 绑定 `0.0.0.0` 时，同机 dispatcher 可指向 `director.1.address=127.0.0.1`、`director.1.port=6000`；若 Cell 仅绑定 `192.168.1.35`，Director 地址也使用该 IP。REST 监听 `http.host=0.0.0.0`、`http.port=7010`；外部地址使用 `external.http.host=192.168.1.35`。dispatcher 不配置 worker/API credential。
 
-按 [STORE.md](STORE.md) 初始化独立数据库到当前任务账本结构，并按 [EXECUTION.md](EXECUTION.md) 发布 model/runtime/task profile 和 active task 绑定。`execution.enabled=true`、`store.enabled=true` 才启用任务执行。以下是补入同一私有 Harness 配置的节点相关设置，所有占位密钥须替换为不同的实际私有值：
+按 [STORE.md](STORE.md) 配置专用数据库，服务启动自动建表；按[租户配置说明](config/harness-tenant/README.md) 部署初始 model/runtime/task 模板，已有租户通过 [RUNTIME.md](RUNTIME.md) 发布和切换配置。`execution.enabled=true`、`store.enabled=true` 才启用任务执行。以下是补入同一私有 Harness 配置的节点相关设置，所有占位密钥须替换为不同的实际私有值：
 
 ```properties
 http.host=127.0.0.1
@@ -94,31 +94,10 @@ python -B service-harness/scripts/init_dev.py --output C:/private/new-harness-co
 ./harness/scripts/start.ps1 -Config C:/private/harness/runner-a.json -Python C:/private/harness-venv/Scripts/python.exe
 ```
 
-## 实机验收
+## 部署检查
 
 1. Linux 启动 service、dispatcher；本机请求 `http://127.0.0.1:7088/healthz`。Windows 用 `Test-NetConnection 192.168.1.35 -Port 6000` 确认连接目标可达。
-2. 启动上述三个 Python 节点，分别使用 status 脚本确认 connected、registered、ready。用普通 Harness API Bearer 请求 dispatcher 的 `/harness/v1/capabilities`，应看到 baize2-1、baize2-2、runner-a 和三个独立 instanceId。注册成功不代替模型后端就绪检查。
-3. 请求 `/harness/v1/task-profiles`，确认存在已发布 active task。使用普通 API Bearer、Content-Type 和唯一 Idempotency-Key 向 `/harness/v1/runs` 提交 `{"taskProfileId":"resources-Baize2","input":{"instruction":"请简短介绍自己","attachmentIds":[]}}`。查询 run/events 直到终态；并发请求核对共享 backend 的 occupied 不超过配置容量。
+2. 启动上述三个 Python 节点，分别使用 status 脚本确认 connected、registered、ready。用有效 Cube 用户 Bearer token 请求 dispatcher 的 `/harness/v1/capabilities`，应看到 baize2-1、baize2-2、runner-a 和三个独立 instanceId。注册成功不代替模型后端就绪检查。
+3. 请求 `/harness/v1/task-profiles`，确认存在已发布 active task。使用有效 Cube 用户 Bearer token、Content-Type 和唯一 Idempotency-Key 向 `/harness/v1/runs` 提交 `{"taskProfileId":"resources-Baize2","input":{"instruction":"请简短介绍自己","attachmentIds":[]}}`。查询 run/events 直到终态；并发请求核对共享 backend 的 occupied 不超过配置容量。
 4. 使用 `stop.ps1 -Config C:/private/harness/baize2-1.json` 只停止该节点。capabilities 中应保留 baize2-2、runner-a，原有两个进程与实例保持在线；新任务可由剩余健康模型节点处理。
 5. 保留原 runtimeDir 重启 baize2-1。它应重新注册并获得新会话，其他节点不受影响；已有 unknown 执行仍按原账本对账，不通过换目录清空容量。
-6. 在独立失败测试配置中验证错误凭据、未授权 workerId、角色不匹配、重复 workerId 均启动失败，且不影响现有节点。只停止本次启动的测试节点。
-
-实机结果与下述本机自动化结果分别记录。此指南不代表已连接或部署 `192.168.1.35`。
-
-## 自动化验证
-
-```powershell
-python -B -m unittest discover -s service-harness/scripts/tests -v
-# 在 Python 工程根执行：
-python -B -m unittest discover -s harness/tests -v
-# 使用 JDK 8：
-ant -f service-harness/build.xml test-inference test-execution test-tools test-store test-transport
-```
-
-`lifecycle_smoke.py` 默认仍启动隔离的 loopback Java Cell。增加 `--cell-bind-host 0.0.0.0 --cell-host <测试机自己的LAN-IPv4>` 可验证经非 loopback 地址的真实 Cell 连接（不是连接现有服务器）：
-
-```powershell
-python -B service-harness/scripts/lifecycle_smoke.py --java C:/jdk8/bin/java.exe --common-jar build/cube-common-3.0.jar --cell-jar deploy/bin/cell.jar --libs deploy/libs --python-root C:/Users/hermi/workspace/apexnova-wisdom --runtime C:/private/new-smoke --evidence C:/private/new-evidence --cell-bind-host 0.0.0.0 --cell-host <测试机自己的LAN-IPv4>
-```
-
-脚本覆盖三个独立 Python 进程、两个同角色节点、单节点停止/租约到期、凭据与角色拒绝、重连及旧会话拒绝。健康 HTTP 保持 loopback；所有测试实例和临时配置归 runtime 目录所有，不修改现有部署。

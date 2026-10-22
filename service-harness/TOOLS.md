@@ -1,60 +1,40 @@
-# 可信 CPU Runner 与通用工具 Broker
+# Harness 工具与 Runner
 
-本实现面向经管理员审核的 Python 标准库工具包，使用实际 JDK 8、Python 3.11、独立任务账本和 tool Runner 契约。一个 Java Harness JVM 可连接多个同角色 Runner；每个单元独占 workerId、runtimeDir、journal、实例身份和租约。原 v1 注册、v2 scripted 模型及 v3 Java 推理网关保持各自协议。
+工具链路由 Java Coordinator/Broker、可信业务 provider 和 Python Runner 组成。Java 固定调用身份、权限、参数及执行意图；Runner 执行受控作业并持久保存结果，Java 在确认执行证据后推进任务。
 
-核心仅保留显式启用的 loopback Mock 测试 provider（`mockconsole.query_status`），用于离线协议回归。实际业务由各个 SKILL/provider 独立提供，核心不包含 Console 业务实现。此实现不能执行模型生成代码，也不是动态代码沙箱。
+| 类型 | 用途 | 配套契约 / task 工具集 |
+| --- | --- | --- |
+| 内建资源工具 | Java 读取固定技能资源，不运行代码 | `resource-tools-v1` |
+| `tool` Runner | 执行管理员审核的 Python 标准库工具入口，通过 Broker 调用业务 provider | `contracts/runner-tool/` / `broker-tools` |
+| `sandbox` Runner | 在专用 Python 单元中隔离执行动态代码 | `contracts/runner-sandbox/` / `sandbox-tools` |
 
-## 显式启用
+一个 Java JVM 可连接多个同角色 Runner，每个独占 workerId、runtimeDir、journal、实例身份和租约。调度检查角色、类型、能力、健康、drain 状态及实际容量。
 
-保留 [EXECUTION.md](EXECUTION.md) 的独立身份、模型、仓库和存储配置，增加下列私有配置。先用专用迁移账户运行现有 `StoreMigrations` CLI，显式升级到当前任务账本结构；运行账户不执行 DDL。Runner/Broker 四张表由 005 迁移引入，全部迁移保持固定摘要。
+## 启用可信工具
+
+按 [EXECUTION.md](EXECUTION.md) 配置存储、执行、模型与资源仓库，然后补充私有配置：
 
 ```properties
 execution.tools.enabled=true
-execution.permissions=skill.list,skill.activate,resource.list,resource.read,resource.search,console.status.read
 worker.runner-a.role=runner
 worker.runner-a.capacity=1
 worker.runner-b.role=runner
 worker.runner-b.capacity=1
-runner.grant.key=replace-with-private-random-key-at-least-32-characters
-broker.node.id=unique-stable-harness-node-id
-broker.mock.enabled=true
-broker.mock.url=http://127.0.0.1:18090/status
-broker.mock.token=replace-with-private-random-token-at-least-24-characters
-broker.mock.targets=node-a,node-b
-broker.mock.fields=cpuPercent,memoryMiB
+runner.grant.key=<至少32字符的私有随机密钥>
+broker.node.id=<当前Java实例唯一且重启后稳定的标识>
 ```
 
-多个 Java 节点必须使用不同且重启后稳定的 `broker.node.id`。构造 Broker 时只将该节点原有 dispatched 窗口转为 unknown，避免重发可能已发送的上游请求。Java 保存的 grant 使用 HMAC-SHA256；key、上游 token 和地址均不进入脚本或模型上下文。API 身份来自 Cube Auth 的用户 token，后台工具使用持久任务的域与联系人 ID。
+`execution.permissions`、TaskProfile 和技能 release 均须包含实际业务权限。grant key、上游 token 和地址留在 Java 私有配置中，不进入脚本或模型上下文。服务启动自动建立工具调度与 Broker 所需账本结构。
 
-Python 使用原 `harness/requirements.txt` 的六个固定版本依赖，无 torch、模型库或额外 Runner 包。配置参见 Python `harness/config/runner-cpu.template.json`，一个进程可配置 1～8 个槽，必须与 Java 白名单一致。`requestTimeout` 不超过 3 秒。以非管理员/非 root 身份运行，提升身份直接拒绝；未提供提升身份绕过开关。无 `runner` 配置的基础 runner 保留 scripted.echo。
+Python 使用 `harness/config/runner-cpu.template.json`，`runner.type=tool`、runtime=`trusted-python-v1`，每进程容量为 1～8，须与 Java 授权一致；requestTimeout 不超过 3 秒。以非管理员/非 root 身份运行。依赖使用 Python 工程的 `harness/requirements.txt`。未配置执行 Runner 的基础单元仅保留 scripted.echo。
 
-## 发布与执行
+## 技能包与 provider 部署
 
-新包使用 manifest schemaVersion=6，固定审核后的 `.py` entrypoint、文件 SHA256、空 `dependencies.lock.json` 和明确的输入/输出 schema。包内容不超过 64 KiB；工具的参数/结果 schema 必须与服务端注册完全一致。发布端必须显式配置 `runtime.allowTrustedExecutables=true` 才能 validate/upload；原签名、公钥和本地 unsigned 开关继续生效。默认拒绝 executable。
+manifest 使用 `schemaVersion=6`，工具名处于技能命名空间，普通工具声明 `runnerType: "tool"`、固定 brokerOperation/权限、输入输出 schema 及审核后的 `.py` entrypoint。包固定文件摘要、空 dependencies lock，总大小不超过 64 KiB。模型输出代码不能通过普通工具入口运行。
 
-作者样例在工作区 `skill/harness-packages/mock-status/`。用既有 `build_package.py` 生成 ZIP，再通过 `RuntimeAdmin` validate/upload。先发布 schemaVersion=2 的 `trusted-python-v1` RuntimeProfile，再发布引用该 runtime/release 的新 TaskProfile；toolSetVersion=`broker-tools`，requiredCapabilities 包含 `tool.execute`。模型仍先 `skill.activate`，然后才能提议该包工具；不会读取旁边任意脚本后自动执行。
+发布端设置 `runtime.allowTrustedExecutables=true`，使用 [RUNTIME.md](RUNTIME.md) 的签名发布流程。先发布 `trusted-python-v1` RuntimeProfile，再发布引用其 runtime/release 的 TaskProfile，toolSetVersion=`broker-tools`，requiredCapabilities 包含 `tool.execute`。模型须先激活该固定技能，再调用包内工具。
 
-唯一 RunCoordinator 写入 call intent；Broker 验证固定 profile、权限交集、effect、schema、目标和字段，然后进入持久化有界队列（256）。Runner pull 仅选择健康、未 drain 且具有实际容量的单元，先提交本地 SQLite FULL journal，再请求 Java durable accepted。grant 固定 run/call/attempt/release/参数摘要/目标/字段/tenant/subject/原 fence/worker/runtime/60 秒 TTL；accepted 和上游派发前重新授权。
-
-Runner 用固定解释器 `-I -S -B` 运行已校验包，子环境仅含必要的系统目录和独立临时目录。脚本只有 arguments、packageRoot、workspace；stdin/stdout 使用严格逐行 JSON IPC。SDK `query` 只传目标和字段（旧 `query_status` 为兼容别名）；Broker 选择已安装的 provider，provider 按私有配置访问并投影结果，核心验证固定 schema，再返回脚本。stdout 调试文本、重复字段、额外消息、超限或无合法结果均失败；stderr 有界。Python worker 的网络等待与进程监督分离，丢失 Cell 响应不会阻止监督线程检查超时/取消。
-
-每任务最多 30 秒、stdout/stderr 各 32 KiB、工作区最多 10 MiB/256 项，并进一步收紧到 RuntimeProfile 的配额。工作区按周期扫描，超额后终止整树；这不是恶意进程的 OS 硬磁盘配额。审核策略默认拒绝 socket/native 注册表访问、任意 subprocess 和工作区外写入。SDK 只允许启动同包声明的子 entrypoint。Windows 在交付脚本 context 前绑定 kill-on-close Job Object，取消后核验活动进程数为零；POSIX 使用独立进程组，原生 Linux 验收仍待完成。
-
-结果先进入 Runner journal，再重送给 Java；Java 校验严格 tool-result、包输出 schema 及授权投影后保存，才返回原 report 摘要作为 ACK。无效输出保存 `TOOL_OUTPUT_INVALID` 并 ACK，坏输出不进入模型。传输重送不增加 attempt。Broker 有 2 个 provider 查询线程、32 个排队项和最多 34 个执行/待提交结果；HTTP 超时、大小及截止限制独立于 Cell 回调。结果 DB 提交失败只重试提交内存中的同一结果，不重复 HTTP。
-
-## 故障、保留与撤回
-
-断线、租约过期、drain、取消请求或 ACK 都不能证明执行结束。真实树收尾前保留 Java 槽；journal 中 running 在重启后转 unknown，不自动重跑，即使 unknown report 已 ACK 也不恢复健康。workerId 持久绑定原 runtimeId 和容量；换目录或换实例不能绕开未决任务。Runner 可注册为 ready=false 并重送 unknown 证据，启动 CLI 会保留这种隔离状态。
-
-执行结束而 Broker 效果仍未知时，物理槽可以依据实际结束释放，但 run 的 executionSettlement 保持 unknown，禁止下一模型轮或自动补执行。当前 owner 可以接收原 intent/fence 的历史结果；旧 fence 无权发起新的 Broker 操作。不承诺通用 exactly-once。HTTP 已开放 cancel/resume/approval，见 [CONTROL-FILES.md](CONTROL-FILES.md)。
-
-保留 journal、结果未 ACK 的工作区和 Java 未决账本。支持 ACK/结算后的过程文件自动清理，见 [CONTROL-FILES.md](CONTROL-FILES.md)；为独立运行根配置磁盘预算，不能删除 unknown 记录以恢复容量。撤回先禁用 executable profile/新派发，定向停止各 Runner 并保存 journal；不要直接用 `execution.tools.enabled=false` 切断仍需报告的未决 Runner。结算后再关闭入口。任务账本结构由迁移链校验，不兼容的旧二进制会拒绝启动；撤回保留兼容恢复节点和账本，不删除新表伪造降级。
-
-验证使用 `ant test-tools`、既有 test-store/runtime/execution/inference、Python unittest 及 `scripts/runner_smoke.py`。Windows 本机专项不能替代原生 Linux、真实模型和具体业务技能的质量认证。
-
-## 独立业务 SKILL 的 provider 注册
-
-所有新包统一使用 `package-manifest.json`（包内 `schemaVersion=6`）。工具名必须以技能命名空间开头，普通工具显式声明 `runnerType: "tool"`，自定义 `brokerOperation`/权限通过部署端 `QueryProvider` 注册绑定。输入/输出 schema 必须与 provider 一致。资源包、Mock 包和实际业务包使用同一清单格式；历史清单 schema 已删除。
+实际业务由独立 QueryProvider 扩展提供。安装审核后的扩展 JAR 到发布目录 `libs/`，配置：
 
 ```properties
 broker.providers=your-skill
@@ -62,20 +42,33 @@ broker.provider.your-skill.class=your.skills.ReadOnlyProvider
 broker.provider.your-skill.config=C:/private/your-skill.properties
 ```
 
-管理员单独安装可信扩展 JAR 到 stage `libs/`。扩展在 JVM 内运行，必须审核；上传技能不会安装 Java 类。每个 provider 使用独立配置与 operation；可并存多个 provider。不配置任何 provider 时服务可启动，相关调用返回 TOOL_PROVIDER_UNAVAILABLE。旧 broker.type 配置会明确拒绝，避免误用历史业务内建入口。
+provider 在 JVM 内运行，独立配置地址、密钥、operation 和策略；可并存多个 provider，重启时注册。上传技能包不会安装 Java 类。未安装 provider 的相关调用返回 `TOOL_PROVIDER_UNAVAILABLE`；schema、权限及范围须与技能声明一致。SDK `query(targets,fields)` 转换为受控调用，不提供任意 HTTP 或 shell。
 
-平台常量只列核心资源/文件权限；业务权限取已固定 release 声明与可信身份/TaskProfile 的交集，派发和访问前再次核验 provider 的权限、schema 与范围。`query(targets, fields)` 是通用调用的便利接口，参数仍受 provider schema 和授权范围校验，不提供任意 HTTP 或 shell。
+服务器状态示例见工作区 [server-status](../../skill/harness-packages/server-status/README.md)；Console 地址与认证在该 provider 独立配置。通用扩展见 [harness-extensions](../../skill/harness-extensions/README.md)。
 
-服务器状态业务示例、独立 Console 配置和认证脚本位于工作区 [server-status](../../skill/harness-packages/server-status/README.md)。`test-tools` 包括另一个 weather 夹具 provider，验证自定义权限、独立注册、未安装拒绝、schema 绑定、私有配置隔离与持久结果重放；没有访问天气网络服务。业务 API/单位的专项由各技能测试负责。
+离线联调可显式启用 `mockconsole.query_status`，配置 `broker.mock.enabled/url/token/targets/fields`；仅访问 loopback Mock 服务。实际业务部署使用自己的 provider。
 
+## 工具数据流
 
-## 通用调用扩展（tool / sandbox Runner）
+1. Coordinator 保存唯一 call intent。Broker 复核固定 profile、有效权限、effect、schema 和范围，放入最多 256 项的持久队列。
+2. Runner 拉取作业，先写本地 SQLite FULL journal，再向 Java 提交 durable accepted。grant 绑定 run/call/attempt/release、参数摘要、范围、tenant/subject、原 fence 和 worker/runtime，有效期 60 秒；accepted 和上游派发前再次授权。
+3. Runner 用固定解释器 `-I -S -B` 启动已校验入口。脚本获得 arguments、packageRoot、workspace，通过严格逐行 JSON IPC 访问 SDK；Broker 根据固定定义选择 provider，访问上游并校验投影结果。
+4. Runner 将结果写 journal，再向 Java 报告。Java 校验 tool-result、输出 schema 和授权范围，持久保存后 ACK 原 report 摘要。坏输出保存为 `TOOL_OUTPUT_INVALID`，不进入模型；传输重送不增加 attempt。
 
-Runner 按用途命名：`tool` 执行经审核的普通工具入口，`sandbox` 执行隔离的动态代码。Python 配置使用 `runner.type`，Cell 请求/响应/作业和包内工具声明使用 `runnerType`；provider 接口为 `runnerType()`。契约目录为 `contracts/runner-tool/` 和 `contracts/runner-sandbox/`，TaskProfile 的 toolSetVersion 分别为 `broker-tools` 和 `sandbox-tools`。省略 runner.type 时默认 tool；历史数字协议配置不再接受。
+普通工具每次最多 30 秒，stdout/stderr 各 32 KiB，工作区最多 10 MiB/256 项，并受 RuntimeProfile 配额进一步收紧。工作区周期扫描，超额终止执行树。脚本只可通过 SDK 启动同包声明的子入口，拒绝任意网络、子进程及工作区外写入；可信工具进程不是恶意代码的通用安全沙箱。
 
-`schemaVersion` 仍表示数据格式版本，与 Runner 类型无关。更改类型名称后须同步更新 Java/Python、重建发布包与 TaskProfile，并重新认证；升级前 drain 旧单元、完成在途作业及 journal 对账，保留原运行目录。现有任务账本的整数编码仅供存储兼容，不作为公开 Runner 类型。
+Windows 使用 kill-on-close Job Object，取消后核验进程树结束；POSIX 使用独立进程组。网络等待与进程监督分离，Cell 超时不阻止本地取消/超时处理。Broker 使用独立有界 provider 线程池；数据库提交失败只重试保存同一结果，不重复上游 HTTP。
 
-普通 Runner 统一使用 tool 类型的 `broker_invoke`，Python 默认 `runner.type="tool"`。可信调用身份和受控 input/artifact 由 Broker 提供，不从模型参数读取。技能清单统一 `schemaVersion=6`、普通工具 `runnerType: "tool"`。`query` 保留为 SDK 便利接口并转换为通用调用。部署前 drain 旧 worker，按匹配摘要升级两端，重新发布当前格式的 release/profile；保留 journal 和在途证据直至对账完成。通用扩展使用 `broker-tools`。扩展安装和认证见工作区 `skill/harness-extensions/README.md`。
+## 执行证据与清理
 
+断线、租约过期、drain、取消或 ACK 不能单独证明物理执行结束。Runner journal 中 running 在重启后转 unknown，不自动重跑；workerId 绑定原 runtimeId 和容量，换目录不能绕开未决任务。未确认执行保留槽，单元可注册为 ready=false 并重送证据。
 
-动态代码使用同一清单格式，工具声明 `runnerType: "sandbox"`，配合 sandbox 专用单元和 `sandbox-tools`。专用Python Runner的可信父进程启动Firecracker/KVM；Java WorkerExecutionProvider只声明profile并转换认证单元回执，不启动宿主程序或做本机清理。按worker核对profile/certificate摘要，tool不得领取sandbox作业；sandbox仅领取sandbox任务。控制器、宿主路径及权限只在配套Python工程harness/microvm部署，见工作区skill/harness-extensions/microvm/README.md。
+工具进程已结束但上游业务效果未知时，可据物理证据释放进程槽，run 的 executionSettlement 仍为 unknown，禁止下一模型轮或自动补执行。当前 owner 可核验原 intent/fence 后接收历史结果；旧 owner 无权发起新的 Broker 请求。
+
+结果 ACK、call.confirmed、非 unknown 且物理树已结束后，Runner 按绑定 runtime/jobHash/resultHash 的清理指令删除自己的过程目录，保留 journal；见 [CONTROL-FILES.md](CONTROL-FILES.md)。停机先关闭新准入并完成对账，保留未决作业所需 provider 和原配置。
+
+## sandbox 部署
+
+动态代码工具声明 `runnerType: "sandbox"`，task 使用 `sandbox-tools`，由专用 Python `runner.type=sandbox` 单元执行。可信父进程启动 Firecracker/KVM；Java WorkerExecutionProvider 只转换认证配置与回执，不在 Java 宿主执行程序或清理 microVM。
+
+Java 逐 worker 授权 runner 角色、容量及 sandbox profile/certificate 摘要，须与实际部署一致；tool 单元不能领取 sandbox 作业，sandbox 只领取其专用作业。控制器、宿主路径和 KVM 权限配置在 Python 工程，部署说明见 [microvm](../../skill/harness-extensions/microvm/README.md)。

@@ -1,0 +1,132 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
+package cube.service.harness.store;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.sql.*;
+import java.util.*;
+
+/** Current store definition and startup-only construction; readers only verify. */
+public final class StoreBootstrap {
+    private StoreBootstrap() { }
+
+    private static String source(StoreConfig config) throws Exception {
+        try (InputStream in = StoreBootstrap.class.getResourceAsStream("/store/" + config.dialect + ".sql")) {
+            if (in == null) throw new StoreException("STORE_SCHEMA_MISSING");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int count;
+            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            return new String(out.toByteArray(), StandardCharsets.UTF_8).replace("\r\n", "\n");
+        }
+    }
+
+    /** Stable digest of the current definition, independent of platform line endings. */
+    public static String digest(StoreConfig config) throws Exception {
+        MessageDigest hash = MessageDigest.getInstance("SHA-256");
+        StringBuilder out = new StringBuilder();
+        for (byte b : hash.digest(source(config).getBytes(StandardCharsets.UTF_8))) {
+            out.append(String.format("%02x", b & 255));
+        }
+        return out.toString();
+    }
+
+    private static List<String> statements(StoreConfig config) throws Exception {
+        List<String> out = new ArrayList<>();
+        for (String sql : source(config).split(";")) if (!sql.trim().isEmpty()) out.add(sql.trim());
+        return out;
+    }
+
+    private static StoreSchema schema(List<String> statements) {
+        StoreSchema schema = new StoreSchema();
+        for (String sql : statements) schema.add(sql);
+        return schema;
+    }
+
+    static Set<String> tables(Connection c, StoreConfig config) throws SQLException {
+        Set<String> names = new HashSet<>();
+        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(config.mysql()
+                ? "SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE()"
+                : "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")) {
+            while (r.next()) names.add(r.getString(1));
+        }
+        return names;
+    }
+
+    /** Read-only validation, also used by doctor and JdbcRunStore. */
+    public static void verify(Connection c, StoreConfig config) throws Exception {
+        schema(statements(config)).verify(c, config, false);
+        verifyIdentity(c, config);
+    }
+
+    private static void verifyIdentity(Connection c, StoreConfig config) throws Exception {
+        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(
+                "SELECT singleton,store_id,schema_hash FROM harness_store_identity")) {
+            if (!r.next() || r.getInt(1) != 1 || !config.identity.equals(r.getString(2))
+                    || !digest(config).equals(r.getString(3)) || r.next()) {
+                throw new StoreException("STORE_IDENTITY_MISMATCH");
+            }
+        }
+    }
+
+    /** Service startup constructs and checks the current schema before accepting requests. */
+    public static void selfCheck(StoreConfig config) throws Exception {
+        List<String> statements = statements(config);
+        StoreSchema expected = schema(statements);
+        try (Connection c = config.connect()) {
+            if (config.mysql()) {
+                try (PreparedStatement s = c.prepareStatement("SELECT GET_LOCK(?,10)")) {
+                    // The database name is at most 56 characters; MySQL lock names allow 64.
+                    s.setString(1, "harness:" + config.database);
+                    try (ResultSet r = s.executeQuery()) {
+                        if (!r.next() || r.getInt(1) != 1) throw new StoreException("STORE_BOOTSTRAP_BUSY");
+                    }
+                }
+            } else StoreConfig.begin(c, false);
+            try {
+                Set<String> existing = tables(c, config);
+                expected.verify(c, config, true);
+                boolean empty = existing.isEmpty();
+                boolean markerOnly = existing.equals(Collections.singleton("harness_store_identity"));
+                if (empty) execute(c, statements.get(0));
+                else if (!existing.contains("harness_store_identity")) throw new StoreException("STORE_SCHEMA_MISMATCH");
+                boolean hasIdentity;
+                try (Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT COUNT(*) FROM harness_store_identity")) {
+                    r.next(); hasIdentity = r.getInt(1) != 0;
+                }
+                if (!hasIdentity) {
+                    // MySQL may have stopped between creating the marker table and writing its identity.
+                    if (!empty && !markerOnly) throw new StoreException("STORE_IDENTITY_MISMATCH");
+                    try (PreparedStatement s = c.prepareStatement("INSERT INTO harness_store_identity VALUES (1,?,?)")) {
+                        s.setString(1, config.identity); s.setString(2, digest(config)); s.executeUpdate();
+                    }
+                }
+                verifyIdentity(c, config);
+                for (String sql : expected.missingColumns(c, config)) execute(c, sql);
+                for (String sql : statements) if (!expected.applied(c, config, sql)) execute(c, sql);
+                verify(c, config);
+                if (!config.mysql()) StoreConfig.end(c, false, true);
+            } catch (Exception e) {
+                if (!config.mysql()) StoreConfig.end(c, false, false);
+                throw e;
+            } finally {
+                if (config.mysql()) {
+                    try (PreparedStatement s = c.prepareStatement("SELECT RELEASE_LOCK(?)")) {
+                        s.setString(1, "harness:" + config.database); s.execute();
+                    }
+                }
+            }
+        }
+    }
+
+    private static void execute(Connection c, String sql) throws SQLException {
+        try (Statement s = c.createStatement()) { s.execute(sql); }
+    }
+}

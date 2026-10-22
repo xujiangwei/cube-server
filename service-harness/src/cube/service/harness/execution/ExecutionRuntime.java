@@ -88,6 +88,8 @@ public final class ExecutionRuntime implements AutoCloseable {
      */
     private final CatalogStore catalog;
 
+    private final TenantTemplates tenantTemplates;
+
     /**
      * run 权威账本（私有）：findCreate/read/events/subject/admissionLimit。
      */
@@ -147,6 +149,7 @@ public final class ExecutionRuntime implements AutoCloseable {
         traces = new TraceStore(store, p);
         StoreConfig sc = new StoreConfig(p);
         catalog = new CatalogStore(store, sc.mysql());
+        tenantTemplates = TenantTemplates.load(Paths.get(p.getProperty("execution.tenant.templates", "./config/harness-tenant")));
         Set<String> configured = new TreeSet<>();
         for (String value : p.getProperty("execution.permissions",
                 "skill.list,skill.activate,resource.list,resource.read,resource.search").split(",")) {
@@ -213,6 +216,11 @@ public final class ExecutionRuntime implements AutoCloseable {
         }
         inference.start();
         coordinator.start();
+    }
+
+    /** Called only after the business request has passed trusted authentication and validation. */
+    public void ensureTenant(ProfileRegistry.Identity identity) {
+        catalog.ensureTenant(identity.tenant, tenantTemplates);
     }
 
     /**

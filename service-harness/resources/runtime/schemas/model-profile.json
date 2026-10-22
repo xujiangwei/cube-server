@@ -59,14 +59,12 @@
               "pattern": "^[A-Za-z0-9_.:-]+$"
             },
             "digest": {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$"
+              "type": "string"
             }
           },
           "required": [
             "id",
-            "version",
-            "digest"
+            "version"
           ],
           "additionalProperties": false
         },
@@ -86,14 +84,12 @@
               "pattern": "^[A-Za-z0-9_.:-]+$"
             },
             "digest": {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$"
+              "type": "string"
             }
           },
           "required": [
             "id",
-            "version",
-            "digest"
+            "version"
           ],
           "additionalProperties": false
         },
@@ -115,7 +111,6 @@
         }
       },
       "required": [
-        "schemaVersion",
         "id",
         "version",
         "kind",
@@ -189,14 +184,12 @@
               "pattern": "^[A-Za-z0-9_.:-]+$"
             },
             "digest": {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$"
+              "type": "string"
             }
           },
           "required": [
             "id",
-            "version",
-            "digest"
+            "version"
           ],
           "additionalProperties": false
         },
@@ -216,14 +209,12 @@
               "pattern": "^[A-Za-z0-9_.:-]+$"
             },
             "digest": {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$"
+              "type": "string"
             }
           },
           "required": [
             "id",
-            "version",
-            "digest"
+            "version"
           ],
           "additionalProperties": false
         },
@@ -252,8 +243,7 @@
           ]
         },
         "adapterDigest": {
-          "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "type": "string"
         },
         "nativeTools": {
           "type": "boolean"
@@ -292,7 +282,6 @@
         }
       },
       "required": [
-        "schemaVersion",
         "id",
         "version",
         "kind",
@@ -304,7 +293,6 @@
         "maxContextTokens",
         "certification",
         "adapter",
-        "adapterDigest",
         "nativeTools",
         "generation"
       ],

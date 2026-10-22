@@ -556,6 +556,7 @@ public final class ControlFileTest {
     settings.setProperty("files.root", root.resolve("files").toString());
     settings.setProperty("files.root.id", "test-files-" + key());
     settings.setProperty("execution.repository", root.resolve("repository").toString());
+    settings.setProperty("execution.tenant.templates", RuntimeTest.templateDirectory().toString());
     settings.setProperty("files.download.key", "test-only-download-key-01234567890123456789");
     settings.setProperty("cleanup.temp.grace.seconds", "0");
     Files.createDirectory(root.resolve("files"));

@@ -40,7 +40,7 @@ public final class TraceTest {
       }
     }
     config = new StoreConfig(p);
-    StoreMigrations.migrate(config, true);
+    StoreBootstrap.selfCheck(config);
     store = new JdbcRunStore(config);
     String r =
         store

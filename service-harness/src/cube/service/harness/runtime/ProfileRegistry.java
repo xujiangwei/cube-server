@@ -114,6 +114,22 @@ public final class ProfileRegistry {
      */
     public JSONObject publish(String tenant, JSONObject definition) {
         String kind = definition.getString("kind");
+        validateDefinition(definition);
+        if (kind.equals("task")) {
+            for (String refKind : Arrays.asList("model", "runtime")) {
+                JSONObject ref = definition.getJSONObject(refKind);
+                catalog.profile(tenant, refKind, ref.getString("id"), ref.getString("version"));
+            }
+            for (String digest : RuntimeSupport.strings(definition.getJSONArray("skillReleases"))) {
+                catalog.release(tenant, digest);
+            }
+        }
+        return catalog.putProfile(tenant, RuntimeSupport.copy(definition));
+    }
+
+    /** Schema and declaration validation shared by publishing and startup templates. */
+    public static void validateDefinition(JSONObject definition) {
+        String kind = definition.getString("kind");
         if (!Arrays.asList("model", "runtime", "task").contains(kind)) {
             throw RuntimeSupport.error("UNKNOWN_PROFILE_KIND");
         }
@@ -125,15 +141,7 @@ public final class ProfileRegistry {
             RuntimeSupport.strings(definition.getJSONArray("skillReleases"));
             RuntimeSupport.strings(definition.getJSONArray("permissions"));
             RuntimeSupport.strings(definition.getJSONArray("requiredCapabilities"));
-            for (String refKind : Arrays.asList("model", "runtime")) {
-                JSONObject ref = definition.getJSONObject(refKind);
-                catalog.profile(tenant, refKind, ref.getString("id"), ref.getString("version"));
-            }
-            for (String digest : RuntimeSupport.strings(definition.getJSONArray("skillReleases"))) {
-                catalog.release(tenant, digest);
-            }
         }
-        return catalog.putProfile(tenant, RuntimeSupport.copy(definition));
     }
 
     /**

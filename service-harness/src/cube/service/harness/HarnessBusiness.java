@@ -127,6 +127,9 @@ final class HarnessBusiness implements AutoCloseable {
                 }
                 body = Contract.parse(action.schema, raw);
             }
+            if (execution != null) {
+                execution.ensureTenant(identity);
+            }
             if (action == HarnessAction.Capabilities) {
                 return reply(200, service.capabilities());
             }

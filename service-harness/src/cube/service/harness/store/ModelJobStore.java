@@ -100,7 +100,7 @@ public final class ModelJobStore {
      *
      * @param lease  当前租约
      * @param intent 权威 harness_round 行
-     * @param model  模型描述（id、adapterDigest 等）
+     * @param model  模型描述（id、adapter 等）
      * @return 新建或已存在的 harness_model_job 行
      * @throws StoreException INTENT_EVIDENCE_MISMATCH：权威 intent 缺失或与传入内容不一致
      * @throws StoreException MODEL_REQUEST_TOO_LARGE：规范化请求超过 48000 字节
@@ -147,10 +147,8 @@ public final class ModelJobStore {
                             intent.getLong("origin_fence"),
                             intent.getString("intent_hash"),
                             model.getString("id"),
-                            model.optString(
-                                    "adapterDigest",
-                                    cube.service.harness.execution.ModelProfiles.adapterDigest(
-                                            "scripted-v1")),
+                            cube.service.harness.execution.ModelProfiles.adapterDigest(
+                                    model.optString("adapter", "scripted-v1")),
                             hash(payload.getJSONObject("request")),
                             request,
                             store.now(c));

@@ -183,7 +183,7 @@ public final class HarnessService extends AbstractModule {
 
     /**
      * 启动模块（Kernel 调用，synchronized 与 stop 互斥）：
-     * 加载配置 → 可选建 RunStore（仅校验不迁移）→ 建注册表 →
+     * 加载配置 → 可选自检数据库并建 RunStore→ 建注册表 →
      * execution.enabled 时构建 ExecutionRuntime（store 必须就绪）→
      * 建三个线程池与业务分发器 → 起健康/运维监听（执行启用走 Jetty，否则 JDK HttpServer）→
      * 启动 execution。任一失败只记录 startupError 并回滚 stop，不向 Kernel 抛出。
@@ -197,9 +197,11 @@ public final class HarnessService extends AbstractModule {
             if (config == null) {
                 config = HarnessConfig.load();
             }
-            // 任务账本为可选且 fail-closed；DDL 只在显式迁移 CLI 中提供。
+            // 接受业务请求前自动补齐任务账本结构；失败仅停止 Harness。
             if (Boolean.parseBoolean(config.values.getProperty("store.enabled", "false"))) {
-                store = new JdbcRunStore(new StoreConfig(config.values));
+                StoreConfig storeConfig = new StoreConfig(config.values);
+                cube.service.harness.store.StoreBootstrap.selfCheck(storeConfig);
+                store = new JdbcRunStore(storeConfig);
             }
 
             registry = new WorkerRegistry(config.leaseMillis());

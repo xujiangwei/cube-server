@@ -28,7 +28,7 @@ worker.runner-1.role=runner
 # 每个节点使用独立 workerId、runtimeDir、实例身份和租约，运行目录不可作为新节点直接复用。
 
 # 是否启用独立 JDBC 持久化账本；启用后需按 STORE.md 补齐 store.* 数据库配置。
-# 任务账本需显式初始化或升级；目标结构由随 JAR 分发的迁移链确定，启动不会自动迁移。
+# 启动时自动连接数据库、自检并补齐必要表、列和索引；使用随 JAR 分发的当前结构定义。
 # 任务执行还需在同一私有文件中显式配置 execution.enabled=true。
 store.enabled=false
 # 是否接收新任务；部署新 JVM 时先设为 false，验证通过后再显式开启。
@@ -39,11 +39,14 @@ execution.accepting=true
 # admission.admin.credential=<private-independent-administrator-credential>
 
 # 任务执行与模型推理。
-# 启用前需设置 store.enabled=true、补齐数据库配置，并显式升级专用任务账本。
-# 服务启动只校验数据库，不自动迁移；详见 STORE.md、EXECUTION.md。
+# 启用前需设置 store.enabled=true，并补齐数据库配置；启动自动构建专用任务账本。
+# MySQL 配置账号需具备本库 DML、CREATE、INDEX、REFERENCES、ALTER 权限；详见 STORE.md、EXECUTION.md。
 
 # 是否启用任务执行、资源循环与 Java 推理网关；默认关闭。
 execution.enabled=false
+# 合法租户首次访问时复制并启用此目录中的 model/runtime/task JSON；已有租户不随模板修改。
+# 相对路径按进程工作目录解析。模板不能为空，初始 task 的 skillReleases 必须为空。
+execution.tenant.templates=./config/harness-tenant
 # 用户租户与主体由已验证的 Cube token 决定，不从请求或固定配置读取。
 # 服务端工具权限上限，使用英文逗号分隔；实际权限取与任务及资源发布权限的交集。
 execution.permissions=skill.list,skill.activate,resource.list,resource.read,resource.search
@@ -110,7 +113,7 @@ backend.baize2-dedicated.timeoutSeconds=180
 # backend.external-example.capacity=1
 # backend.external-example.timeoutSeconds=180
 
-# 可选文件与控制能力，依赖 execution.enabled=true 及已迁移至当前版本的账本。
+# 可选文件与控制能力，依赖 execution.enabled=true 及启动时自动构建的任务账本。
 # 详见 CONTROL-FILES.md；启用文件能力前创建由服务账户独占的独立空目录。
 files.enabled=false
 # 文件存储根目录，需与资源包仓库及其他存储目录分开；首次初始化后保持其归属一致。

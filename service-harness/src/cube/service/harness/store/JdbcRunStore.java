@@ -143,10 +143,10 @@ public final class JdbcRunStore {
     }
 
     /**
-     * 使用空故障钩子构造存储；构造时校验 schema 迁移状态。
+     * 使用空故障钩子构造存储；构造时校验当前数据库结构和身份。
      *
      * @param config 存储连接配置
-     * @throws Exception 连接失败或迁移校验未通过
+     * @throws Exception 连接失败，或结构、身份校验未通过
      */
     public JdbcRunStore(StoreConfig config) throws Exception {
         this(config, boundary -> {
@@ -158,13 +158,13 @@ public final class JdbcRunStore {
      *
      * @param config 存储连接配置
      * @param faults 事务边界钩子实现
-     * @throws Exception 连接失败或迁移校验未通过
+     * @throws Exception 连接失败，或结构、身份校验未通过
      */
     public JdbcRunStore(StoreConfig config, Faults faults) throws Exception {
         this.config = config;
         this.faults = faults;
         try (Connection c = config.connect()) {
-            StoreMigrations.verify(c, config);
+            StoreBootstrap.verify(c, config);
         }
     }
 

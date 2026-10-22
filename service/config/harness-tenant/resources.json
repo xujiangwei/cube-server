@@ -1,0 +1,13 @@
+{
+  "capabilities": [
+    "resources"
+  ],
+  "certification": "offline-resources",
+  "id": "resources",
+  "kind": "runtime",
+  "maxWorkspaceBytes": 1048576,
+  "maxWorkspaceFiles": 128,
+  "mode": "resources-only",
+  "schemaVersion": 2,
+  "version": "1"
+}

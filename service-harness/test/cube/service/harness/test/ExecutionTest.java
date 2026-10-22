@@ -63,7 +63,7 @@ public final class ExecutionTest {
      *
      * @param directory 测试运行根目录；资产、SQLite 文件与导出文件均置于其下
      * @param file 可选的外部一次性存储配置路径；为空时使用默认 sqlite 一次性库
-     * @throws Exception 配置加载、迁移、上传或文件写入失败
+     * @throws Exception 配置加载、启动自检、上传或文件写入失败
      */
     static void prepare(Path directory, String file) throws Exception {
         root = directory;
@@ -80,18 +80,9 @@ public final class ExecutionTest {
             p.setProperty("store.sqlite.root", root.toString());
             p.setProperty("store.sqlite.file", root.resolve("harness_execution.db").toString());
         }
+        p.setProperty("execution.tenant.templates", RuntimeTest.templateDirectory().toString());
         config = new StoreConfig(p);
-        StoreMigrations.migrate(config, true);
-        String runtimeConfig = System.getProperty("execution.test.runtime", "");
-        if (!runtimeConfig.isEmpty()) {
-            Properties rp = new Properties();
-            try (InputStream in = Files.newInputStream(Paths.get(runtimeConfig))) {
-                rp.load(in);
-            }
-            check("true".equals(rp.getProperty("store.test.disposable")), "Disposable runtime required");
-            p = rp;
-            config = new StoreConfig(p);
-        }
+        StoreBootstrap.selfCheck(config);
         setup();
         Map<String, byte[]> entries = entries("A resource used by the real Harness coordinator.");
         release = upload(zip(manifest(entries), entries)).getString("digest");

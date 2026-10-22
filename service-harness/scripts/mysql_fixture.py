@@ -83,27 +83,28 @@ def main():
         proc.terminate()
         raise SystemExit("Private mysqld startup timeout")
     password, root_password, identity = secrets.token_hex(24), secrets.token_hex(24), secrets.token_hex(24)
-    state = dict(port=port, pid=proc.pid, rootPassword=root_password, runtime=str(runtime), database="harness_n03_fixture")
+    state = dict(port=port, pid=proc.pid, rootPassword=root_password, runtime=str(runtime), database="harness_fixture")
     # This file must survive errors so the helper can always stop its own server.
     marker.write_text(json.dumps(state, indent=2), encoding="utf-8")
     if os.name != "nt":
         marker.chmod(0o600)
     sql = f"""
 ALTER USER 'root'@'localhost' IDENTIFIED BY '{root_password}';
-CREATE DATABASE harness_n03_fixture CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
-CREATE DATABASE n03_legacy_probe;
-CREATE TABLE n03_legacy_probe.protected_table (id INT);
-CREATE USER 'harness_migrator'@'127.0.0.1' IDENTIFIED BY '{password}';
+CREATE DATABASE harness_fixture CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE DATABASE isolation_probe;
+CREATE TABLE isolation_probe.protected_table (id INT);
 CREATE USER 'harness_runtime'@'127.0.0.1' IDENTIFIED BY '{password}';
+CREATE USER 'harness_bootstrap'@'127.0.0.1' IDENTIFIED BY '{password}';
 CREATE USER 'harness_overprivileged'@'127.0.0.1' IDENTIFIED BY '{password}';
-GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,INDEX,REFERENCES,ALTER ON `harness_n03_fixture`.* TO 'harness_migrator'@'127.0.0.1';
-GRANT SELECT,INSERT,UPDATE,DELETE ON `harness_n03_fixture`.* TO 'harness_runtime'@'127.0.0.1';
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,INDEX,REFERENCES,ALTER ON `harness_fixture`.* TO 'harness_runtime'@'127.0.0.1';
+-- Test-only account: DROP simulates absent/conflicting objects in the disposable store.
+GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,INDEX,REFERENCES,ALTER,DROP ON `harness_fixture`.* TO 'harness_bootstrap'@'127.0.0.1';
 GRANT ALL PRIVILEGES ON *.* TO 'harness_overprivileged'@'127.0.0.1';
 """
     provision = query(sql)
     if provision.returncode:
         raise SystemExit("Provision failed; private fixture marker retained for stop")
-    for account, name in [("harness_migrator", "migrator"), ("harness_runtime", "runtime"), ("harness_overprivileged", "overprivileged")]:
+    for account, name in [("harness_runtime", "runtime"), ("harness_bootstrap", "bootstrap"), ("harness_overprivileged", "overprivileged")]:
         properties = dict({"store.dialect": "mysql", "store.database": state["database"], "store.identity": identity,
                            "store.test.disposable": "true",
                            "store.mysql.host": "127.0.0.1", "store.mysql.port": str(port), "store.mysql.user": account,
@@ -112,12 +113,12 @@ GRANT ALL PRIVILEGES ON *.* TO 'harness_overprivileged'@'127.0.0.1';
         path.write_text("\n".join(k+"="+v for k,v in properties.items())+"\n", encoding="ascii")
         if os.name != "nt":
             path.chmod(0o600)
-    denied = query("INSERT INTO n03_legacy_probe.protected_table VALUES (1);", "harness_runtime", password)
+    denied = query("INSERT INTO isolation_probe.protected_table VALUES (1);", "harness_runtime", password)
     if denied.returncode == 0:
         raise SystemExit("Isolation check failed: fixture runtime can write another database")
     print(json.dumps(dict(result="PASS", database=state["database"], port=port,
                           serverVersion=query("SELECT VERSION();", password=root_password).stdout.strip(),
-                          legacyWriteDenied=True, properties=str(runtime/"migrator.local.properties"))))
+                          otherDatabaseWriteDenied=True, properties=str(runtime/"runtime.local.properties"))))
 
 
 if __name__ == "__main__":

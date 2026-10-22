@@ -34,6 +34,7 @@ public final class ResilienceTest {
             p.load(in);
         }
         p.setProperty("execution.repository", root.resolve("repository").toString());
+        p.setProperty("execution.tenant.templates", RuntimeTest.templateDirectory().toString());
         p.setProperty("execution.repository.namespace", "runtime-test-repo");
         p.setProperty("execution.accepting", "false");
         return p;

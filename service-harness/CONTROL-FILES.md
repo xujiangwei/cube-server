@@ -2,11 +2,11 @@
 
 以下业务接口统一使用 dispatcher 地址，经 Performer/SHM 访问 service。文件控制使用同步消息，字节使用同节点、同会话的 Cell 原生流；上传成功必须等待 service 校验及入库完成。service HTTP 不提供业务接口；传输与部署见 [TRANSPORT.md](TRANSPORT.md)。
 
-使用实际 JDK 8；这是独立 `service-harness` 的可选开发入口。数据库显式升级至当前任务账本结构，服务启动只校验。升级前停止新写入并备份专用库，升级后由兼容当前任务账本结构的节点恢复；旧二进制不能直接读新库。控制与文件由 `006.sql` 引入（等待/回执与文件/root 身份等八表，加 tool job 清理列），全部迁移按固定摘要分发。
+文件能力由 `files.enabled` 显式启用，运行环境为 JDK 8。数据库在服务启动时自动自检并建立当前任务账本结构，包含等待/回执、文件/root 身份、清理状态等表和列。
 
 ## 控制接口
 
-新接口沿用 `/harness/v1`、已有 Cube 用户 Bearer token和 `Idempotency-Key`。完整新增响应契约见 [control-files/openapi.json](contracts/control-files/openapi.json)；原冻结契约保留。
+控制接口使用 `/harness/v1`、已有 Cube 用户 Bearer token 和 `Idempotency-Key`。完整响应契约见 [control-files/openapi.json](contracts/control-files/openapi.json)。
 
 - `GET /runs/{runId}`：等待时附加 `interaction`（waitId、kind、expiresAt、argumentsHash、details）。
 - `POST /runs/{runId}/resume`：`{expectedVersion,waitId,input:{instruction,attachmentIds:[]}}`。
@@ -31,7 +31,7 @@
 
 支持 text/plain、text/csv、application/json（顶层 object）、application/octet-stream。文本严格 UTF-8、拒绝 NUL；JSON 拒绝重复字段。文件大小默认 10 MiB、根配额默认 1 GiB。每个文件身份使用独立随机 storageKey，**不共享或去重 blob**；同内容文件分别计额、分别到期，避免一个引用的删除影响另一个身份。上传意图与可信工具调用分账，失败仅补传/complete，不重做业务工具。
 
-`harness.properties` 参数、单位与范围见 [设计](../../harness/FILE-LIFECYCLE-DESIGN.md) 和 [模板](config/harness.properties.template)。默认 Input 7 天、Artifact 30 天、未完成上传 24 小时；重启应用新配置，不追溯重算已保存 expiresAt。活跃多 JVM 的同根策略不同会拒绝启动，需先 drain 全部旧策略节点再改。
+`harness.properties` 参数、单位与范围见 [设计](../../harness/FILE-LIFECYCLE-DESIGN.md) 和 [主配置模板](config/harness.properties.template)。默认 Input 7 天、Artifact 30 天、未完成上传 24 小时；重启应用新配置，不追溯重算已保存 expiresAt。活跃多 JVM 的同根策略不同会拒绝启动，需先 drain 全部旧策略节点再改。
 
 到期时间满足 `now >= expiresAt` 就禁止新绑定、消费、下载和句柄；有权主体返回 FILE_EXPIRED/410。`cleanup.enabled=false` 只暂停物理删除。消费 pin 保留到 call.confirmed；下载 pin 保留至流关闭，下载最长 `file.download.lease.seconds`。到期前开始的消费可按原 run/call pin 恢复；新增消费仍拒绝。unknown 执行、未确认结果及在途 pin 不因 TTL 被清除。
 
@@ -40,11 +40,3 @@ Java 在 OS 根锁内执行文件回收，DB claim/fence/CAS 与失败退避记�
 ## 业务 SKILL 的边界
 
 Console 状态查询由工作区 [server-status SKILL](../../skill/harness-packages/server-status/README.md) 提供，使用独立 provider、私有配置与认证入口。Harness 不包含 Console API/Cookie/节点解释逻辑；通用扩展注册见 [TOOLS.md](TOOLS.md)。是否配置 Console 不影响控制和文件能力。
-
-## 验证与撤回
-
-`ant -f service-harness/build.xml test-control-files test-tools test-execution test-inference`；MySQL 专项使用全新专用库及 `-Dcontrol.test.config=<私有 migrator 配置>`。Python 用 `python -B -m unittest discover -s harness/tests -v`；选择状态 SKILL 的 Cell 集成回归见工作区 `skill/harness-packages/server-status/tests/integration_smoke.py --help`。
-
-Runner 兼容性由协议版本、消息 schema 和能力声明判断；变更契约时同步两工程，升级前 drain 旧实例并保留运行目录与 journal。源码或构建摘要不用于通信检查或部署版本记录。撤回仅停止新交互接单/上传/状态 profile，保留兼容当前任务账本结构的恢复节点至在途执行、文件保留和清理收敛。原生 Linux、多主机存储及生产身份需在目标环境认证，Windows 测试不能代替。
-
-业务技能的真实数据源与质量认证由相应 SKILL 维护，不纳入控制/文件模块的固定依赖。

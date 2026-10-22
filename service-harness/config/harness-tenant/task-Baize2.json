@@ -1,0 +1,43 @@
+{
+  "contextPolicy": {
+    "budgetVersion": "transport-bytes-v1",
+    "compaction": "extractive-v1",
+    "maxInputBytes": 48000,
+    "maxSourceChars": 4096,
+    "outputReserve": 2048,
+    "version": "context-v1"
+  },
+  "executionLimits": {
+    "maxLifetimeMillis": 300000,
+    "maxRepairs": 2,
+    "maxRounds": 8,
+    "maxTools": 32
+  },
+  "id": "resources-Baize2",
+  "kind": "task",
+  "model": {
+    "id": "Baize2",
+    "version": "2"
+  },
+  "permissions": [
+    "artifact.write_text",
+    "input.read_text",
+    "resource.list",
+    "resource.read",
+    "resource.search",
+    "skill.activate",
+    "skill.list"
+  ],
+  "requiredCapabilities": [
+    "resources",
+    "resource_decisions"
+  ],
+  "runtime": {
+    "id": "resources",
+    "version": "1"
+  },
+  "schemaVersion": 2,
+  "skillReleases": [],
+  "toolSetVersion": "resource-tools-v1",
+  "version": "2"
+}

@@ -3,6 +3,7 @@ package cube.service.harness.test;
 import cube.aigc.completion.*;
 import cube.service.harness.execution.*;
 import cube.service.harness.store.*;
+import cube.service.harness.runtime.ProfileRegistry;
 import cube.service.harness.runtime.RuntimeSupport;
 import com.sun.net.httpserver.HttpServer;
 import org.json.*;
@@ -20,74 +21,11 @@ import static cube.service.harness.test.RuntimeTest.*;
  * 模拟；属 执行编排的推理链路（Cell v3 inference_submit/poll/cancel），
  * 底层为一次性 sqlite 存储库。
  *
- * <p>覆盖 v3→v4 显式迁移保留在途作业、跨语言 canonical 摘要向量、共享物理容量
+ * <p>覆盖跨语言 canonical 摘要向量、共享物理容量
  * 记账、提交幂等与冲突、未知完成隔离、JVM 崩溃窗口、迟到完成与权威 usage 结算，
  * 以及外部 OpenAI HTTP 的 JSON/SSE、工具参数增量、截断、拒绝与缺失 usage 解码。
  */
 public final class InferenceTest {
-    /**
-     * v3→v4 显式迁移校验：在全新一次性库上手工执行 001~003 迁移并写入旧身份、
-     * 在途作业与未知物理占用，再执行两次当前迁移，验证旧行原样保留且旧 backend
-     * 可按新路由身份重新注册。
-     *
-     * @throws Exception 迁移、SQL 或断言失败
-     */
-    static void migration() throws Exception {
-        java.nio.file.Path dir = Files.createTempDirectory("harness-v3-upgrade-");
-        Properties p = new Properties();
-        p.setProperty("store.dialect", "sqlite");
-        p.setProperty("store.database", "harness_upgrade");
-        p.setProperty("store.identity", "inference-upgrade-identity-123456");
-        p.setProperty("store.sqlite.root", dir.toString());
-        p.setProperty("store.sqlite.file", dir.resolve("harness_upgrade.db").toString());
-        StoreConfig cfg = new StoreConfig(p);
-        java.security.MessageDigest sha = java.security.MessageDigest.getInstance("SHA-256");
-        JSONObject oldDescriptor = ExecutionTest.descriptor("old-backend");
-        String oldHash = JdbcRunStore.hash(oldDescriptor);
-        try (Connection c = cfg.connect(); Statement s = c.createStatement()) {
-            for (int n = 1; n <= 3; n++) {
-                byte[] raw;
-                try (java.io.InputStream in = InferenceTest.class.getResourceAsStream("/store/migrations/sqlite/00" + n + ".sql")) {
-                    raw = RuntimeSupport.read(in, 262144);
-                }
-                sha.update(raw);
-                for (String sql : new String(raw, StandardCharsets.UTF_8).split(";")) {
-                    if (!sql.trim().isEmpty()) {
-                        s.execute(sql);
-                    }
-                }
-            }
-            StringBuilder digest = new StringBuilder();
-            for (byte b : sha.digest()) {
-                digest.append(String.format("%02x", b & 255));
-            }
-            try (PreparedStatement insert = c.prepareStatement("INSERT INTO harness_store_identity VALUES (1,?,3,?)")) {
-                insert.setString(1, cfg.identity);
-                insert.setString(2, digest.toString());
-                insert.executeUpdate();
-            }
-            s.execute("INSERT INTO harness_run VALUES ('retained','tenant','subject','profile','running',1,1,NULL,0,0,'pending','settled',1,1)");
-            try (PreparedStatement insert = c.prepareStatement("INSERT INTO harness_model_backend VALUES ('old-backend',?,1)")) {
-                insert.setString(1, oldHash);
-                insert.executeUpdate();
-            }
-            s.execute("INSERT INTO harness_model_job VALUES ('old-job','retained','tenant','subject','round',1,1,'intent','Baize','profile','request','{\"before\":true}','old-backend','old-worker','old-instance','session','unknown',0,0,NULL,1)");
-        }
-        // 重复迁移必须安全且保留旧行。
-        StoreMigrations.migrate(cfg, false);
-        StoreMigrations.migrate(cfg, false);
-        JdbcRunStore upgraded = new JdbcRunStore(cfg);
-        ModelJobStore jobs = new ModelJobStore(upgraded, false);
-        JSONObject retained = jobs.jobById("old-job");
-        check(retained.getInt("execution_protocol") == 2 && retained.getString("request_json").equals("{\"before\":true}"),
-                "v3 in-flight job changed during upgrade");
-        jobs.backend("old-backend", new JSONObject().put("backendId", "old-backend").put("type", "unit"), 1);
-        jobs.backend("old-backend", oldDescriptor, 1);
-        check(jobs.capacity().getJSONArray("backends").getJSONObject(0).getInt("occupied") == 1,
-                "Migration released old unknown physical execution");
-        pass("explicit inference-ledger migration retains raw job, old identity and unknown capacity alongside the new routing identity");
-    }
-
     /**
      * 在 5 秒内轮询等待推理证据条件成立。
      *
@@ -221,7 +159,20 @@ public final class InferenceTest {
         check(JdbcRunStore.canonical(vector.getJSONObject("value")).equals(vector.getString("canonical")),
                 "Cross-language canonical digest vector failed");
         ExecutionTest.prepare(Files.createTempDirectory("harness-inference-"), System.getProperty("inference.test.config", ""));
-        profiles.publish(T, ModelProfiles.model("Baize"));
+        JSONObject model = ModelProfiles.model("Baize");
+        check(!model.has("schemaVersion"), "Generated profile still requires schemaVersion");
+        ProfileRegistry.validateDefinition(RuntimeSupport.copy(model).put("schemaVersion", 3));
+        invalid(() -> ProfileRegistry.validateDefinition(RuntimeSupport.copy(model).put("schemaVersion", 1)));
+        invalid(() -> ProfileRegistry.validateDefinition(RuntimeSupport.copy(model).put("schemaVersion", 2)));
+        invalid(() -> ProfileRegistry.validateDefinition(RuntimeSupport.copy(model).put("schemaVersion", 4)));
+        invalid(() -> ProfileRegistry.validateDefinition(RuntimeSupport.copy(model).put("schemaVersion", "3")));
+        check(!model.has("adapterDigest") && !model.getJSONObject("tokenizer").has("digest")
+                && !model.getJSONObject("template").has("digest"), "Generated profile still requires digests");
+        // Legacy configured digests are ignored by validation and actual job routing.
+        model.put("adapterDigest", "obsolete-adapter");
+        model.getJSONObject("tokenizer").put("digest", "obsolete-tokenizer");
+        model.getJSONObject("template").put("digest", "obsolete-template");
+        profiles.publish(T, model);
         JSONObject task = task("2", release, "Baize", 1024).put("schemaVersion", 2)
                 .put("executionLimits", new JSONObject().put("maxRounds", 8).put("maxTools", 16).put("maxRepairs", 1).put("maxLifetimeMillis", 60000));
         task.getJSONObject("model").put("version", "2");
@@ -499,7 +450,6 @@ public final class InferenceTest {
             }
             return;
         }
-        migration();
         ledger();
         sharedCapacity();
         http();

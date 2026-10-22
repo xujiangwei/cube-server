@@ -6,6 +6,7 @@ import cube.common.Packet;
 import cube.common.action.HarnessAction;
 import cube.core.Kernel;
 import cube.service.harness.HarnessCellet;
+import cube.service.harness.store.StoreConfig;
 import org.json.JSONObject;
 
 import java.io.OutputStream;
@@ -13,6 +14,7 @@ import java.net.ServerSocket;
 import java.nio.file.*;
 import java.util.Properties;
 import java.util.concurrent.*;
+import java.sql.*;
 
 /**
  * HarnessCellet 在真实 Cell 环境下的业务应答测试。
@@ -48,6 +50,16 @@ public final class HarnessCelletTest {
         p.setProperty("mode", "development");
         p.setProperty("http.port", "0");
         p.setProperty("worker.credential", "worker-private-cellet-fixture-1234");
+        Path root = Files.createTempDirectory("harness-cellet-store-");
+        p.setProperty("store.enabled", "true");
+        p.setProperty("store.dialect", "sqlite");
+        p.setProperty("store.database", "harness_cellet");
+        p.setProperty("store.identity", "cellet-bootstrap-identity-123456");
+        p.setProperty("store.sqlite.root", root.toString());
+        p.setProperty("store.sqlite.file", root.resolve("harness_cellet.db").toString());
+        p.setProperty("execution.enabled", "true");
+        p.setProperty("execution.repository", root.resolve("repository").toString());
+        p.setProperty("execution.tenant.templates", StoreBootstrapTest.writeTemplates(root.resolve("templates"), "resources-Baize2").toString());
         try (OutputStream out = Files.newOutputStream(config)) {
             p.store(out, "Private test-only configuration");
         }
@@ -60,6 +72,7 @@ public final class HarnessCelletTest {
         server.setParameter("kernel", kernel);
         FixtureAuth auth = new FixtureAuth();
         auth.add("user-private-cellet-fixture-123456", "example.com", 10001, 600000);
+        auth.add("second-private-cellet-fixture-123456", "second.example.com", 10002, 600000);
         kernel.installModule("Auth", auth);
         HarnessCellet cellet = new HarnessCellet();
         // gate 阻塞业务任务直到放行；running 等待 4 个业务线程全部启动
@@ -75,6 +88,27 @@ public final class HarnessCelletTest {
             server.getCelletService().activateCellet(port, cellet);
             kernel.startup();
             try (HarnessSessionTest.Client client = new HarnessSessionTest.Client(port, "user-private-cellet-fixture-123456")) {
+                // A rejected token must never create tenant data.
+                ActionDialect invalid = new Packet(HarnessAction.TaskProfiles.name, new JSONObject().put("credential", "invalid-user-token")).toDialect();
+                ActionDialect denied = client.performer.syncTransmit(client.director, "Harness", invalid, 5000);
+                HarnessSessionTest.check(denied != null && new Packet(denied).data.getInt("status") == 401, "Invalid token was accepted");
+                StoreConfig database = new StoreConfig(p);
+                try (Connection c = database.connect(); Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT COUNT(*) FROM harness_tenant")) {
+                    HarnessSessionTest.check(r.next() && r.getInt(1) == 0, "Invalid token initialized a tenant");
+                }
+                JSONObject listed = client.call(HarnessAction.TaskProfiles, new JSONObject(), null, 200);
+                HarnessSessionTest.check(listed.getJSONArray("profiles").length() == 1
+                        && listed.getJSONArray("profiles").getJSONObject(0).getString("profileId").equals("resources-Baize2"), "First access did not initialize task profiles");
+                // A different tenant can create a run without first fetching task-profiles.
+                JSONObject body = new JSONObject().put("taskProfileId", "resources-Baize2")
+                        .put("input", new JSONObject().put("instruction", "hello").put("attachmentIds", new org.json.JSONArray()));
+                ActionDialect direct = new Packet(HarnessAction.CreateRun.name, new JSONObject()
+                        .put("credential", "second-private-cellet-fixture-123456").put("key", "direct-first-access")
+                        .put("contentType", "application/json")).toDialect();
+                direct.addParam("body", body.toString().getBytes("UTF-8"));
+                ActionDialect created = client.performer.syncTransmit(client.director, "Harness", direct, 5000);
+                HarnessSessionTest.check(created != null && new Packet(created).data.getInt("status") == 202, "Direct run did not initialize tenant");
+                System.out.println("PASS: real Cell invalid-token isolation, first task-profiles and direct-run tenant initialization");
                 ThreadPoolExecutor executor = (ThreadPoolExecutor) cellet.getService().businessExecutor();
                 // 先以 4 个任务占满业务执行器线程并阻塞在 gate 上
                 for (int i = 0; i < 4; i++) {

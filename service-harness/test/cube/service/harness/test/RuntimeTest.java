@@ -91,6 +91,12 @@ public final class RuntimeTest {
     /** 已发布的 model profile（scripted 离线替身）。 */
     static JSONObject model;
 
+    public static Path templateDirectory() {
+        Path path = Paths.get("config/harness-tenant");
+        if (!Files.isDirectory(path)) path = Paths.get("service-harness/config/harness-tenant");
+        return path.toAbsolutePath().normalize();
+    }
+
     /**
      * @param s 文本
      * @return UTF-8 编码字节
@@ -353,49 +359,6 @@ public final class RuntimeTest {
     }
 
     /**
-     * v1→当前升级校验：手工执行 001 迁移建库并写入旧 run/event，验证 v1 启动被
-     * 拒绝、重复迁移安全且原始事件字节不变。
-     *
-     * @throws Exception 迁移、SQL 或断言失败
-     */
-    static void migrationUpgrade() throws Exception {
-        // 本测试独占全新一次性库：先手工建实际 v1 账本，再做附加升级。
-        try (Connection c = config.connect(); Statement s = c.createStatement()) {
-            String sql;
-            try (InputStream in = RuntimeTest.class.getResourceAsStream("/store/migrations/" + config.dialect + "/001.sql")) {
-                byte[] raw = RuntimeSupport.read(in, 262144);
-                sql = new String(raw, StandardCharsets.UTF_8);
-                for (String part : sql.split(";")) {
-                    if (!part.trim().isEmpty()) {
-                        s.execute(part);
-                    }
-                }
-                try (PreparedStatement p = c.prepareStatement("INSERT INTO harness_store_identity VALUES (1,?,1,?)")) {
-                    p.setString(1, config.identity);
-                    p.setString(2, RuntimeSupport.sha(raw));
-                    p.executeUpdate();
-                }
-            }
-            s.executeUpdate("INSERT INTO harness_run VALUES ('v1-retained','v1-tenant','v1-subject','v1-profile','queued',1,1,NULL,0,0,'pending','settled',1,1)");
-            s.executeUpdate("INSERT INTO harness_event VALUES ('v1-retained',1,'v1-tenant',1,'run.created',1,1,'{\"original\":true}')");
-        }
-        // 只懂旧 schema 的二进制必须拒绝启动。
-        try {
-            new JdbcRunStore(config);
-            throw new AssertionError("v1 startup accepted");
-        } catch (StoreException expected) {
-        }
-        StoreMigrations.migrate(config, false);
-        StoreMigrations.migrate(config, false);
-        try (Connection c = config.connect(); Statement s = c.createStatement();
-             ResultSet r = s.executeQuery("SELECT data_json FROM harness_event WHERE run_id='v1-retained'")) {
-            check(r.next() && r.getString(1).equals("{\"original\":true}"), "v1 data lost");
-            StoreMigrations.verify(c, config);
-        }
-        pass("explicit v1-to-current upgrade preserves original run/event; repeat safe; v1 startup refused");
-    }
-
-    /**
      * 建立存储、目录、profile 注册表、包仓库、资源工具、上下文与工作区，并发布
      * resources-only runtime 与 scripted model profile。
      *
@@ -409,7 +372,7 @@ public final class RuntimeTest {
                 .put("capabilities", new JSONArray().put("resources"))
                 .put("maxWorkspaceBytes", 256).put("maxWorkspaceFiles", 2).put("certification", "offline-resources");
         profiles.publish(T, runtime);
-        model = new JSONObject().put("schemaVersion", 3).put("id", "scripted").put("version", "1").put("kind", "model").put("backend", "scripted")
+        model = new JSONObject().put("id", "scripted").put("version", "1").put("kind", "model").put("backend", "scripted")
                 .put("capabilities", new JSONArray().put("tool_calls")).put("tokenizer", ContextEngine.tokenizer()).put("template", ContextEngine.template())
                 .put("templateOverhead", 17).put("maxContextTokens", 20000).put("certification", "offline-scripted");
         profiles.publish(T, model);
@@ -460,6 +423,8 @@ public final class RuntimeTest {
         // model/runtime profile：旧 schema、错误 backend/mode 一律拒绝。
         invalid(() -> profiles.publish(T, RuntimeSupport.copy(model).put("schemaVersion", 1)));
         invalid(() -> profiles.publish(T, RuntimeSupport.copy(model).put("schemaVersion", 2)));
+        invalid(() -> profiles.publish(T, RuntimeSupport.copy(model).put("schemaVersion", 4)));
+        invalid(() -> profiles.publish(T, RuntimeSupport.copy(model).put("schemaVersion", "3")));
         invalid(() -> profiles.publish(T, RuntimeSupport.copy(model).put("backend", "java-inference")));
         invalid(() -> profiles.publish(T, RuntimeSupport.copy(runtime).put("schemaVersion", 1)));
         invalid(() -> profiles.publish(T, RuntimeSupport.copy(runtime).put("mode", "trusted-python-v1")));
@@ -699,11 +664,23 @@ public final class RuntimeTest {
         confirm(dl, "round", "r", new JSONObject().put("kind", "tool_calls").put("calls", new JSONArray().put(call("same", "{}")).put(call("same", "{}"))));
         fail("CONTEXT_DUPLICATE_CALL", () -> contexts.assemble(identity, dup, new JSONArray()));
         JSONObject wrong = RuntimeSupport.copy(model).put("id", "wrong-tokenizer");
-        wrong.getJSONObject("tokenizer").put("digest", RuntimeSupport.sha(bytes("wrong")));
+        wrong.getJSONObject("tokenizer").put("id", "unsupported-tokenizer");
         profiles.publish(T, wrong);
         profiles.publish(T, task("bad", release, "wrong-tokenizer", 16));
         String mismatch = run("bad", "test");
         fail("TOKENIZER_MISMATCH", () -> contexts.assemble(identity, mismatch, new JSONArray()));
+        // 旧 schemaVersion=3 与摘要字段允许保留，恢复仍校验完整快照证据。
+        JSONObject legacy = RuntimeSupport.copy(model).put("id", "legacy-descriptors").put("schemaVersion", 3);
+        legacy.getJSONObject("tokenizer").put("digest", "obsolete-tokenizer");
+        legacy.getJSONObject("template").put("digest", "obsolete-template");
+        profiles.publish(T, legacy);
+        profiles.publish(T, task("legacy", release, "legacy-descriptors", 16));
+        String compatible = run("legacy", "legacy descriptor compatibility");
+        JdbcRunStore.Lease compatibleLease = running(compatible, 60000);
+        JSONObject legacySnapshot = contexts.assemble(identity, compatible, new JSONArray());
+        JSONObject legacySaved = contexts.checkpoint(compatibleLease, version(compatible), legacySnapshot);
+        check(JdbcRunStore.canonical(contexts.restore(identity, compatible, legacySaved.getString("digest")))
+                .equals(JdbcRunStore.canonical(legacySnapshot)), "legacy descriptor restore mismatch");
         JSONObject tiny = RuntimeSupport.copy(model).put("id", "tiny").put("maxContextTokens", 128);
         profiles.publish(T, tiny);
         profiles.publish(T, task("tiny", release, "tiny", 0));
@@ -713,7 +690,7 @@ public final class RuntimeTest {
     }
 
     /**
-     * 测试入口：按系统属性选择临时 sqlite 或显式一次性配置，依次执行升级、初始化、
+     * 测试入口：按系统属性选择临时 sqlite 或显式一次性配置，依次执行启动自检、初始化、
      * 包/工作区/上下文/附加夹具，并写出结果 JSON。
      *
      * @param args 未使用的命令行参数
@@ -739,18 +716,7 @@ public final class RuntimeTest {
             p.setProperty("store.sqlite.file", root.resolve("harness_runtime.db").toString());
         }
         config = new StoreConfig(p);
-        StoreConfig runtimeConfig = config;
-        String migrator = System.getProperty("runtime.test.migrator", "");
-        if (!migrator.isEmpty() && !migrator.startsWith("${")) {
-            Properties mp = new Properties();
-            try (InputStream in = Files.newInputStream(Paths.get(migrator))) {
-                mp.load(in);
-            }
-            check("true".equals(mp.getProperty("store.test.disposable")), "disposable migrator required");
-            config = new StoreConfig(mp);
-        }
-        migrationUpgrade();
-        config = runtimeConfig;
+        StoreBootstrap.selfCheck(config);
         setup();
         packages();
         workspace();

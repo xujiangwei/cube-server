@@ -124,7 +124,7 @@ public final class StoreConfig {
      *
      * <p>MySQL：设置 READ COMMITTED，核对当前库即为目标专用库，并逐条解析
      * SHOW GRANTS，拒绝全局/跨库/角色授权与 WITH GRANT OPTION，只保留
-     * 本库 DML 级授权。SQLite：开启 busy_timeout、外键与 synchronous=FULL。
+     * 本库授权（服务启动自检需要 DML 和 CREATE/INDEX/REFERENCES/ALTER）。SQLite：开启 busy_timeout、外键与 synchronous=FULL。
      *
      * @return 已完成校验的连接；调用方负责关闭
      * @throws SQLException   连接失败或校验查询执行失败

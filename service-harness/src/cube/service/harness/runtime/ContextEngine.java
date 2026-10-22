@@ -65,45 +65,49 @@ public final class ContextEngine {
     }
 
     /**
-     * 返回 tokenizer 描述符（id/version/digest）；digest 是定义字符串的 SHA256。
+     * 返回 tokenizer 描述符（id/version）。
      *
      * @return tokenizer 描述符 JSON
      */
     public static JSONObject tokenizer() {
-        return descriptor(TOKENIZER, "One token per UTF-8 byte; offline only.");
+        return descriptor(TOKENIZER);
     }
 
     /**
-     * 返回模板描述符（id/version/digest）；digest 是定义字符串的 SHA256。
+     * 返回模板描述符（id/version）。
      *
      * @return 模板描述符 JSON
      */
     public static JSONObject template() {
-        return descriptor(TEMPLATE, PREFIX + "canonical-json(request)");
+        return descriptor(TEMPLATE);
     }
 
     /**
-     * 组装描述符：固定 version=1，digest 取定义字符串的 SHA256。
+     * 组装描述符，固定 version=1。
      *
      * @param id         标识
-     * @param definition 定义字符串
      * @return 描述符 JSON
      */
-    private static JSONObject descriptor(String id, String definition) {
+    private static JSONObject descriptor(String id) {
         return new JSONObject()
                 .put("id", id)
-                .put("version", "1")
-                .put("digest", RuntimeSupport.sha(definition.getBytes(StandardCharsets.UTF_8)));
+                .put("version", "1");
+    }
+
+    /** Match supported semantics; legacy digest fields do not affect compatibility. */
+    private static boolean matches(JSONObject actual, JSONObject expected) {
+        return expected.getString("id").equals(actual.optString("id"))
+                && expected.getString("version").equals(actual.optString("version"));
     }
 
     /**
      * 模型认证：backend 决定 tokenizer/template/adapter 的精确匹配要求。
      *
      * <p>java-inference 后端要求 adapter 与 nativeTools 匹配
-     * （openai-tools-v2 / openai-json-v2）、adapterDigest 与 ModelProfiles 一致、
-     * tokenizer 与 ModelProfiles.tokenizer() 一致；scripted 后端要求 certification
+     * （openai-tools-v2 / openai-json-v2）、tokenizer 的 id/version 与 ModelProfiles 一致；
+     * scripted 后端要求 certification
      * 为 offline-scripted、tokenizer 与本类 tokenizer() 一致。两者都还要求 template
-     * 与本类 template() 精确匹配。
+     * 的 id/version 与本类 template() 匹配。旧摘要字段不参与校验。
      *
      * @param model 固定的 model profile
      * @throws cube.service.harness.store.StoreException tokenizer/template/adapter 不匹配
@@ -112,28 +116,22 @@ public final class ContextEngine {
     private static void certify(JSONObject model) {
         if (model.getString("backend").equals("java-inference")) {
             String adapter = model.getBoolean("nativeTools") ? "openai-tools-v2" : "openai-json-v2";
-            if (!model.getString("backend").equals("java-inference")
-                    || !adapter.equals(model.getString("adapter"))
-                    || !cube.service.harness.execution.ModelProfiles.adapterDigest(adapter)
-                    .equals(model.getString("adapterDigest"))
-                    || !JdbcRunStore.canonical(cube.service.harness.execution.ModelProfiles.tokenizer())
-                    .equals(JdbcRunStore.canonical(model.getJSONObject("tokenizer")))) {
+            if (!adapter.equals(model.getString("adapter"))
+                    || !matches(model.getJSONObject("tokenizer"),
+                    cube.service.harness.execution.ModelProfiles.tokenizer())) {
                 throw RuntimeSupport.error("TOKENIZER_MISMATCH");
             }
-            if (!JdbcRunStore.canonical(template())
-                    .equals(JdbcRunStore.canonical(model.getJSONObject("template")))) {
+            if (!matches(model.getJSONObject("template"), template())) {
                 throw RuntimeSupport.error("TEMPLATE_MISMATCH");
             }
             return;
         }
         if (!model.getString("backend").equals("scripted")
                 || !model.getString("certification").equals("offline-scripted")
-                || !JdbcRunStore.canonical(tokenizer())
-                .equals(JdbcRunStore.canonical(model.getJSONObject("tokenizer")))) {
+                || !matches(model.getJSONObject("tokenizer"), tokenizer())) {
             throw RuntimeSupport.error("TOKENIZER_MISMATCH");
         }
-        if (!JdbcRunStore.canonical(template())
-                .equals(JdbcRunStore.canonical(model.getJSONObject("template")))) {
+        if (!matches(model.getJSONObject("template"), template())) {
             throw RuntimeSupport.error("TEMPLATE_MISMATCH");
         }
     }

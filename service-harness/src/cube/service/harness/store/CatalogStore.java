@@ -55,6 +55,37 @@ public final class CatalogStore {
         return mysql ? " FOR UPDATE" : "";
     }
 
+    /** Atomically adopt a legacy tenant or initialize a new tenant from a validated startup snapshot. */
+    public void ensureTenant(String tenant, cube.service.harness.runtime.TenantTemplates templates) {
+        id(tenant);
+        store.tx(c -> {
+            JSONObject existing = first(rows(c, "SELECT initialized_at FROM harness_tenant WHERE tenant=?" + lock(), tenant));
+            if (existing != null && existing.getLong("initialized_at") > 0) return null;
+            update(c, mysql
+                    ? "INSERT INTO harness_tenant (tenant,initialized_at,template_digest) VALUES (?,0,NULL) ON DUPLICATE KEY UPDATE tenant=VALUES(tenant)"
+                    : "INSERT OR IGNORE INTO harness_tenant (tenant,initialized_at,template_digest) VALUES (?,0,NULL)", tenant);
+            // The unique tenant row serializes first access across requests and JVMs.
+            existing = first(rows(c, "SELECT initialized_at FROM harness_tenant WHERE tenant=?" + lock(), tenant));
+            if (existing.getLong("initialized_at") > 0) return null;
+            boolean legacy = first(rows(c, "SELECT tenant FROM harness_profile WHERE tenant=? LIMIT 1", tenant)) != null
+                    || first(rows(c, "SELECT tenant FROM harness_binding WHERE tenant=? LIMIT 1", tenant)) != null;
+            if (!legacy) {
+                for (JSONObject definition : templates.profiles()) {
+                    String kind = definition.getString("kind"), name = definition.getString("id"), version = definition.getString("version");
+                    update(c, "INSERT INTO harness_profile (tenant,profile_kind,profile_id,profile_version,digest,definition_json) VALUES (?,?,?,?,?,?)",
+                            tenant, kind, name, version, hash(definition), canonical(definition));
+                    if (kind.equals("task")) {
+                        update(c, "INSERT INTO harness_binding (tenant,binding_kind,binding_name,target_ref,version) VALUES (?,'task',?,?,1)",
+                                tenant, name, name + "@" + version);
+                    }
+                }
+            }
+            update(c, "UPDATE harness_tenant SET initialized_at=?,template_digest=? WHERE tenant=?",
+                    store.now(c), legacy ? null : templates.digest, tenant);
+            return null;
+        });
+    }
+
     /**
      * run 创建时的权威输入解析回调。
      */

@@ -56,6 +56,7 @@ public final class MultiUserExecutionTest {
             p.load(in);
         }
         p.setProperty("execution.repository", root.resolve("repository").toString());
+        p.setProperty("execution.tenant.templates", RuntimeTest.templateDirectory().toString());
         p.setProperty("execution.repository.namespace", "runtime-test-repo");
         p.setProperty("execution.permissions", String.join(",", TEST_PERMISSIONS));
         p.setProperty("files.enabled", "true");

@@ -1,7 +1,7 @@
 /**
  * @apiDefine Harness Harness 任务服务
  * 业务基地址使用 dispatcher HTTP 地址（例如 http://127.0.0.1:7010），统一前缀为 /harness/v1。<br/>
- * dispatcher 需开启 harness.rest.enabled；任务执行需启用 store.enabled、execution.enabled 并发布 active TaskProfile。<br/>
+ * dispatcher 需开启 harness.rest.enabled；任务执行需启用 store.enabled、execution.enabled 并配置统一租户模板；启动自动建表，合法租户首次访问自动初始化并启用任务。<br/>
  * 文件、反馈和 trace 分别受 files.enabled、feedback.enabled、trace.enabled 控制，默认关闭。
  *
  * <p>全部业务接口使用已有 Cube 用户 token：Authorization: Bearer &lt;Cube Token&gt;。<br/>
@@ -117,6 +117,8 @@
  * @apiDescription 返回调用者域内 active TaskProfile 的摘要。<br/>
  * TaskProfile 在服务端固定模型、运行时、技能、权限、上下文预算和执行限额。<br/>
  * 执行未启用或尚无 active 配置时列表为空。
+ * 合法租户首次访问时，服务按 execution.tenant.templates 指定的统一部署模板原子初始化 model/runtime/task 并启用任务，无需逐租户执行 Java。<br/>
+ * 默认模板目录为 ./config/harness-tenant，初始任务不引用技能包；已有租户配置保留，模板调整并重启后只影响新租户。列表不按 worker 在线状态过滤。
  * @apiUse HarnessAuth
  * @apiSuccess {Object[]} profiles 任务配置摘要列表。
  * @apiSuccess {String} profiles.profileId 任务配置 ID，创建任务时使用。
@@ -126,9 +128,9 @@
  * @apiSuccess {String[]} profiles.skillReleases 技能 release 摘要列表。
  * @apiSuccess {String} profiles.toolSetVersion 工具集版本。
  * @apiSuccess {String[]} profiles.requiredCapabilities 所需能力。
- * @apiSuccessExample {json} 尚无可用任务配置
+ * @apiSuccessExample {json} 默认模板初始化后的任务配置
  *     HTTP/1.1 200 OK
- *     {"profiles":[]}
+ *     {"profiles":[{"profileId":"resources-Baize2","version":"2","modelProfile":"Baize2@2","runtimeProfile":"resources@1","skillReleases":[],"toolSetVersion":"resource-tools-v1","requiredCapabilities":["resources","resource_decisions"]}]}
  */
 
 /**

@@ -18,11 +18,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p>默认在本进程临时目录创建一次性 SQLite 库；{@code store.test.config} 可指向显式
  * disposable MySQL 测试库，此时强制要求 {@code store.test.disposable=true}，否则抛
- * DISPOSABLE_TEST_DATABASE_REQUIRED，防止误写既有部署。场景覆盖迁移与身份校验、
+ * DISPOSABLE_TEST_DATABASE_REQUIRED，防止误写既有部署。场景覆盖启动自检与身份校验、
  * 服务安装、并发幂等、原子失败、真实 JVM 崩溃、跨进程 CAS 与租约抢占、fence 与恢复、
  * 控制回执与事件分页、终态/用量结算以及 Outbox/Inbox 故障。跨进程场景由内部类
- * ProcessWorker 以子 JVM 执行；跨版本账本兼容性由同目录 LedgerCompatibilityProbe
- * 在同一 disposable 库上配合 release_compatibility 脚本覆盖。
+ * ProcessWorker 以子 JVM 执行；启动建表使用全新 disposable 数据库验证。
  */
 public final class RunStoreTest {
     /** 各场景 PASS 名称的收集器，最终汇总进结果 JSON。 */
@@ -31,7 +30,7 @@ public final class RunStoreTest {
     /** 当前测试库配置（SQLite 或 disposable MySQL），驱动方言相关分支。 */
     private static StoreConfig config;
 
-    /** 原始配置属性；migrations()/serviceIntegration() 在此基础上派生错误身份与开关夹具。 */
+    /** 原始配置属性；bootstrap()/serviceIntegration() 在此基础上派生错误身份与开关夹具。 */
     private static Properties properties;
 
     /** 私有配置文件路径；子进程探针复用同一配置与同一一次性库。 */
@@ -193,14 +192,14 @@ public final class RunStoreTest {
     }
 
     /**
-     * 迁移与配置校验场景：重复迁移安全、错误 store 身份与遗留目标拒绝、外来 schema 拒绝。
+     * 启动自检与配置校验场景：重复建表安全、错误 store 身份与遗留目标拒绝、外来 schema 拒绝。
      *
      * @throws Exception 存储或断言失败
      */
-    private static void migrations() throws Exception {
-        StoreMigrations.migrate(config, true);
+    private static void bootstrap() throws Exception {
+        StoreBootstrap.selfCheck(config);
         try (Connection c = config.connect()) {
-            StoreMigrations.verify(c, config);
+            StoreBootstrap.verify(c, config);
         }
         // 错误身份必须拒绝打开库，防止误连其它部署库。
         Properties wrong = new Properties();
@@ -221,7 +220,7 @@ public final class RunStoreTest {
             check(e.code.equals("STORE_TARGET_REFUSED"), e.code);
         }
         if (!config.mysql()) {
-            // 仅 SQLite：含外来表的库不得被初始化/迁移。
+            // 仅 SQLite：含外来表的库不得被初始化。
             Properties foreign = new Properties();
             foreign.putAll(properties);
             foreign.setProperty("store.database", "harness_foreign");
@@ -231,13 +230,13 @@ public final class RunStoreTest {
                 statement.execute("CREATE TABLE legacy_table(id INT)");
             }
             try {
-                StoreMigrations.migrate(target, true);
+                StoreBootstrap.selfCheck(target);
                 throw new AssertionError("Foreign schema initialized");
             } catch (StoreException e) {
                 check(e.code.equals("STORE_SCHEMA_MISMATCH"), e.code);
             }
         }
-        pass("migration repeat, identity mismatch and legacy target refusal");
+        pass("bootstrap repeat, identity mismatch and foreign target refusal");
     }
 
     /**
@@ -688,10 +687,10 @@ public final class RunStoreTest {
             }
         }
         config = new StoreConfig(properties);
-        StoreMigrations.migrate(config, true);
+        StoreBootstrap.selfCheck(config);
         a = new JdbcRunStore(config);
         b = new JdbcRunStore(config);
-        migrations();
+        bootstrap();
         serviceIntegration();
         idempotency();
         atomicFailures();
@@ -702,7 +701,7 @@ public final class RunStoreTest {
         finalAndUsage();
         outbox();
         JSONObject summary = new JSONObject().put("dialect", config.dialect).put("checks", checks).put("result", "PASS")
-                .put("databaseProduct", databaseProduct()).put("migrationHash", StoreMigrations.digest(config));
+                .put("databaseProduct", databaseProduct()).put("schemaHash", StoreBootstrap.digest(config));
         String output = System.getProperty("store.test.output", "");
         if (!output.isEmpty() && !output.startsWith("${")) {
             Files.write(Paths.get(output), summary.toString(2).getBytes(StandardCharsets.UTF_8));
