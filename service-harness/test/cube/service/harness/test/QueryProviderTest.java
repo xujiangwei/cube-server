@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.json.*;
 
 /**
- * N08/N09 通用查询提供方集成测试：以 weather SKILL 证明工具注册表不含 Console
+ * 通用查询提供方集成测试：以 weather SKILL 证明工具注册表不含 Console
  * 专属派发或权限，自定义 QueryProvider 经私有配置注册、schema 绑定与授权范围
  * 校验后参与通用调用；底层为一次性 sqlite 存储库。
  *

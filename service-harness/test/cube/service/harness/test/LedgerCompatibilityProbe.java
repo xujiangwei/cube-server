@@ -7,7 +7,7 @@ import java.util.Properties;
 import org.json.*;
 
 /**
- * 账本兼容性探针：针对公开账本 API 编译，并先用归档的 v6/v7 jar 执行。
+ * 账本兼容性探针：针对公开账本 API 编译，并先用归档的交互与文件账本 JAR 和兼容当前账本的 JAR 执行。
  *
  * <p>用于验证跨版本账本兼容：旧 jar 以 seed 模式播种一个 run 并把回执
  * 写入文件，当前版本再以 finish/校验模式继续处理同一 run，确保旧数据
@@ -30,12 +30,12 @@ public final class LedgerCompatibilityProbe {
         }
         JdbcRunStore store = new JdbcRunStore(new StoreConfig(p));
         if (args[0].equals("seed")) {
-            // 播种：幂等键带归档版本标识，回执以 CREATE_NEW 落盘，防止覆盖旧证据。
+            // 播种：幂等键按回执文件名区分，回执以 CREATE_NEW 落盘，防止覆盖旧证据。
             JSONObject receipt =
                     store.create(
-                            "n16-tenant",
-                            "n16-subject",
-                            "n16-upgrade-" + Paths.get(args[2]).getFileName(),
+                            "resilience-tenant",
+                            "resilience-subject",
+                            "resilience-upgrade-" + Paths.get(args[2]).getFileName(),
                             "upgrade-probe",
                             new JSONObject().put("instruction", "preserve me"));
             Files.write(
@@ -47,26 +47,26 @@ public final class LedgerCompatibilityProbe {
             String run =
                     new JSONObject(new String(Files.readAllBytes(Paths.get(args[2])), "UTF-8"))
                             .getString("runId");
-            JSONObject row = store.read("n16-tenant", "n16-subject", run);
+            JSONObject row = store.read("resilience-tenant", "resilience-subject", run);
             if (args[0].equals("finish")) {
                 // 完成：按快照 version 取租约，随后逐步迁移并终态回执；
                 // 每步前重读 version，保证 CAS 基准最新。
                 long version = row.getJSONObject("snapshot").getLong("version");
                 JdbcRunStore.Lease lease =
                         store.acquire(
-                                "n16-tenant",
-                                "n16-subject",
+                                "resilience-tenant",
+                                "resilience-subject",
                                 run,
                                 "compatible-recovery-node",
                                 version,
                                 60000);
                 version =
-                        store.read("n16-tenant", "n16-subject", run)
+                        store.read("resilience-tenant", "resilience-subject", run)
                                 .getJSONObject("snapshot")
                                 .getLong("version");
                 store.transition(lease, version, "running", new JSONObject());
                 version =
-                        store.read("n16-tenant", "n16-subject", run)
+                        store.read("resilience-tenant", "resilience-subject", run)
                                 .getJSONObject("snapshot")
                                 .getLong("version");
                 store.finish(
@@ -80,6 +80,6 @@ public final class LedgerCompatibilityProbe {
                 throw new AssertionError("final missing");
             }
         }
-        System.out.println("PASS: " + args[0] + " schema=" + StoreMigrations.VERSION);
+        System.out.println("PASS: " + args[0] + " ledger migration=" + StoreMigrations.VERSION);
     }
 }

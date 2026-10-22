@@ -242,7 +242,7 @@ public final class RunStoreTest {
 
     /**
      * 服务集成场景：HarnessService 安装校验通过的 store、错误身份 fail-closed、
-     * 关闭 store 不改变 G0 启动行为。
+     * 关闭 store 不改变 未启用任务执行时的启动行为。
      *
      * @throws Exception 服务启动/停止或断言失败
      */
@@ -269,16 +269,16 @@ public final class RunStoreTest {
         } finally {
             refused.stop();
         }
-        // 显式关闭存储时服务仍按原 G0 行为启动，不安装账本。
+        // 显式关闭存储时服务仍按未启用任务执行时的行为启动，不安装账本。
         values.setProperty("store.enabled", "false");
         HarnessService disabled = new HarnessService(new HarnessConfig(values));
         try {
             disabled.start();
-            check(disabled.isStarted() && disabled.runStore() == null, "Disabled ledger changed G0 startup");
+            check(disabled.isStarted() && disabled.runStore() == null, "Disabled ledger changed startup without task execution");
         } finally {
             disabled.stop();
         }
-        pass("service installs verified store, refuses wrong identity, disabled store preserves G0 startup");
+        pass("service installs verified store, refuses wrong identity, disabled store preserves startup without task execution");
     }
 
     /**

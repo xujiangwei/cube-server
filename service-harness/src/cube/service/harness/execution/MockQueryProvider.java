@@ -22,7 +22,7 @@ import java.net.URL;
 import java.util.*;
 
 /**
- * 显式启用的 loopback-only N08 离线夹具 provider（mockconsole.query_status），仅用于协议回归。
+ * 显式启用的 loopback-only 离线夹具 provider（mockconsole.query_status），仅用于协议回归。
  *
  * <p>它不是业务集成：核心不包含 Console 业务实现，真实业务由各 SKILL/provider 独立提供。
  * 地址仅允许 http + loopback（禁 userInfo/query/ref），token 至少 24 字符；目标与字段必须

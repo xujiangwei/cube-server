@@ -1,12 +1,12 @@
 # 可信 CPU Runner 与通用工具 Broker
 
-本实现面向经管理员审核的 Python 标准库工具包，使用实际 JDK 8、Python 3.11、独立数据库 schema7 和 tool Runner 契约。一个 Java Harness JVM 可连接多个同角色 Runner；每个单元独占 workerId、runtimeDir、journal、实例身份和租约。原 v1 注册、v2 scripted 模型及 v3 Java 推理网关保持各自协议。
+本实现面向经管理员审核的 Python 标准库工具包，使用实际 JDK 8、Python 3.11、独立任务账本和 tool Runner 契约。一个 Java Harness JVM 可连接多个同角色 Runner；每个单元独占 workerId、runtimeDir、journal、实例身份和租约。原 v1 注册、v2 scripted 模型及 v3 Java 推理网关保持各自协议。
 
 核心仅保留显式启用的 loopback Mock 测试 provider（`mockconsole.query_status`），用于离线协议回归。实际业务由各个 SKILL/provider 独立提供，核心不包含 Console 业务实现。此实现不能执行模型生成代码，也不是动态代码沙箱。
 
 ## 显式启用
 
-保留 [EXECUTION.md](EXECUTION.md) 的独立身份、模型、仓库和存储配置，增加下列私有配置。先用专用迁移账户运行现有 `StoreMigrations` CLI，显式升级到当前 schema7；运行账户不执行 DDL。Runner/Broker 四张表由 005 迁移引入，全部迁移保持固定摘要。
+保留 [EXECUTION.md](EXECUTION.md) 的独立身份、模型、仓库和存储配置，增加下列私有配置。先用专用迁移账户运行现有 `StoreMigrations` CLI，显式升级到当前任务账本结构；运行账户不执行 DDL。Runner/Broker 四张表由 005 迁移引入，全部迁移保持固定摘要。
 
 ```properties
 execution.tools.enabled=true
@@ -48,7 +48,7 @@ Runner 用固定解释器 `-I -S -B` 运行已校验包，子环境仅含必要�
 
 执行结束而 Broker 效果仍未知时，物理槽可以依据实际结束释放，但 run 的 executionSettlement 保持 unknown，禁止下一模型轮或自动补执行。当前 owner 可以接收原 intent/fence 的历史结果；旧 fence 无权发起新的 Broker 操作。不承诺通用 exactly-once。HTTP 已开放 cancel/resume/approval，见 [CONTROL-FILES.md](CONTROL-FILES.md)。
 
-保留 journal、结果未 ACK 的工作区和 Java 未决账本。支持 ACK/结算后的过程文件自动清理，见 [CONTROL-FILES.md](CONTROL-FILES.md)；为独立运行根配置磁盘预算，不能删除 unknown 记录以恢复容量。撤回先禁用 executable profile/新派发，定向停止各 Runner 并保存 journal；不要直接用 `execution.tools.enabled=false` 切断仍需报告的未决 Runner。结算后再关闭入口。当前库为 schema7，旧二进制会拒绝新版库；撤回保留兼容恢复节点和账本，不删除新表伪造降级。
+保留 journal、结果未 ACK 的工作区和 Java 未决账本。支持 ACK/结算后的过程文件自动清理，见 [CONTROL-FILES.md](CONTROL-FILES.md)；为独立运行根配置磁盘预算，不能删除 unknown 记录以恢复容量。撤回先禁用 executable profile/新派发，定向停止各 Runner 并保存 journal；不要直接用 `execution.tools.enabled=false` 切断仍需报告的未决 Runner。结算后再关闭入口。任务账本结构由迁移链校验，不兼容的旧二进制会拒绝启动；撤回保留兼容恢复节点和账本，不删除新表伪造降级。
 
 验证使用 `ant test-tools`、既有 test-store/runtime/execution/inference、Python unittest 及 `scripts/runner_smoke.py`。Windows 本机专项不能替代原生 Linux、真实模型和具体业务技能的质量认证。
 
@@ -73,7 +73,7 @@ broker.provider.your-skill.config=C:/private/your-skill.properties
 
 Runner 按用途命名：`tool` 执行经审核的普通工具入口，`sandbox` 执行隔离的动态代码。Python 配置使用 `runner.type`，Cell 请求/响应/作业和包内工具声明使用 `runnerType`；provider 接口为 `runnerType()`。契约目录为 `contracts/runner-tool/` 和 `contracts/runner-sandbox/`，TaskProfile 的 toolSetVersion 分别为 `broker-tools` 和 `sandbox-tools`。省略 runner.type 时默认 tool；历史数字协议配置不再接受。
 
-`schemaVersion` 仍表示数据格式版本，与 Runner 类型无关。更改类型名称后须同步更新 Java/Python、重建发布包与 TaskProfile，并重新认证；升级前 drain 旧单元、完成在途作业及 journal 对账，保留原运行目录。现有数据库 schema7 的整数编码仅供存储兼容，不作为公开 Runner 类型。
+`schemaVersion` 仍表示数据格式版本，与 Runner 类型无关。更改类型名称后须同步更新 Java/Python、重建发布包与 TaskProfile，并重新认证；升级前 drain 旧单元、完成在途作业及 journal 对账，保留原运行目录。现有任务账本的整数编码仅供存储兼容，不作为公开 Runner 类型。
 
 普通 Runner 统一使用 tool 类型的 `broker_invoke`，Python 默认 `runner.type="tool"`。可信调用身份和受控 input/artifact 由 Broker 提供，不从模型参数读取。技能清单统一 `schemaVersion=6`、普通工具 `runnerType: "tool"`。`query` 保留为 SDK 便利接口并转换为通用调用。部署前 drain 旧 worker，按匹配摘要升级两端，重新发布当前格式的 release/profile；保留 journal 和在途证据直至对账完成。通用扩展使用 `broker-tools`。扩展安装和认证见工作区 `skill/harness-extensions/README.md`。
 

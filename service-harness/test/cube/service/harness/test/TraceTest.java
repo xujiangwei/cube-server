@@ -8,7 +8,7 @@ import java.util.*;
 import org.json.*;
 
 /**
- * N13 诊断导出集成测试：验证 trace 导出的内容脱敏、身份隔离、回放投影完整性与追加反馈语义。
+ * 诊断导出集成测试：验证 trace 导出的内容脱敏、身份隔离、回放投影完整性与追加反馈语义。
  *
  * <p>默认在本进程临时目录创建独立 SQLite 库；{@code trace.test.config} 可指向显式
  * disposable 测试库，与其余存储测试使用同一凭据守护约定。run、intent、result 与

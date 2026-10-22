@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Harness controls and files",
-    "version": "N10-N12"
+    "version": "1.0.0"
   },
   "paths": {
     "/harness/v1/runs/{runId}": {

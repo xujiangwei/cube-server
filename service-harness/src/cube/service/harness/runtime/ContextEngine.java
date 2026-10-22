@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
- * N05 确定性离线输入构建器。真实后端 adapter 与认证属于 N06。
+ * 确定性离线输入构建器。真实后端 adapter 与认证见执行模块。
  *
  * <p>{@link #assemble} 从持久 basis（run.created 任务 + 同事务读取的 round/call 账本）
  * 按 intent 事件顺序重建模型输入：system 消息只含固定平台规则、固定权限与账本事实摘要；

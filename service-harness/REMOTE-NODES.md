@@ -24,7 +24,7 @@ Python Harness 是注册到 Java Harness 的独立服务节点。一个 Java JVM
 
 在现有 dispatcher.properties 中设置 `harness.rest.enabled=true`，并在 `cellets`、`director.1.cellets` 的原列表末尾追加 `Harness`。Java Cell 绑定 `0.0.0.0` 时，同机 dispatcher 可指向 `director.1.address=127.0.0.1`、`director.1.port=6000`；若 Cell 仅绑定 `192.168.1.35`，Director 地址也使用该 IP。REST 监听 `http.host=0.0.0.0`、`http.port=7010`；外部地址使用 `external.http.host=192.168.1.35`。dispatcher 不配置 worker/API credential。
 
-按 [STORE.md](STORE.md) 初始化独立数据库到当前 schema7，并按 [EXECUTION.md](EXECUTION.md) 发布 model/runtime/task profile 和 active task 绑定。`execution.enabled=true`、`store.enabled=true` 才启用任务执行。以下是补入同一私有 Harness 配置的节点相关设置，所有占位密钥须替换为不同的实际私有值：
+按 [STORE.md](STORE.md) 初始化独立数据库到当前任务账本结构，并按 [EXECUTION.md](EXECUTION.md) 发布 model/runtime/task profile 和 active task 绑定。`execution.enabled=true`、`store.enabled=true` 才启用任务执行。以下是补入同一私有 Harness 配置的节点相关设置，所有占位密钥须替换为不同的实际私有值：
 
 ```properties
 http.host=127.0.0.1

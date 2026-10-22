@@ -15,7 +15,7 @@ MODULE = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser(__doc__)
-    for name in ("java", "ant", "runtime", "evidence", "old-v6-jar", "prior-v7-jar"):
+    for name in ("java", "ant", "runtime", "evidence", "pre-trace-jar", "compatible-jar"):
         parser.add_argument("--"+name, type=Path, required=True)
     a = parser.parse_args()
     root, evidence = a.runtime.resolve(), a.evidence.resolve()
@@ -45,7 +45,7 @@ def main():
     for name in ("build", "deploy/libs", "deploy/cellets", "deploy/bin", "service/config", "service/assets", "service-harness/src", "service-harness/resources", "service-harness/contracts", "service-harness/config", "service-harness/scripts"):
         (mirror/name).mkdir(parents=True)
     for name in ("cube-common-fixture.jar", "cube-dispatcher-fixture.jar", "cube-service-fixture.jar", "cube-service-harness-fixture.jar"):
-        (mirror/"build"/name).write_bytes(("N16 publication fixture "+name).encode())
+        (mirror/"build"/name).write_bytes(("Harness publication fixture "+name).encode())
     (mirror/"deploy/libs/cube-service-harness-keep.jar").write_bytes(b"explicit independent Harness asset")
     (mirror/"deploy/bin/old-runtime.keep").write_bytes(b"unrelated old process sentinel")
     (mirror/"service/config/aigc-modules.properties").write_bytes((MODULE.parent/"service/config/aigc-modules.properties").read_bytes())
@@ -76,38 +76,38 @@ def main():
 
     dbroot = root/"upgrade"; dbroot.mkdir()
     config = dbroot/"store.local.properties"
-    config.write_text(f"store.dialect=sqlite\nstore.database=harness_n16\nstore.identity=n16-upgrade-identity-123456\nstore.sqlite.root={dbroot.as_posix()}\nstore.sqlite.file={dbroot.as_posix()}/harness_n16.db\n", encoding="utf-8")
+    config.write_text(f"store.dialect=sqlite\nstore.database=harness_compatibility\nstore.identity=compatibility-upgrade-identity-123456\nstore.sqlite.root={dbroot.as_posix()}\nstore.sqlite.file={dbroot.as_posix()}/harness_compatibility.db\n", encoding="utf-8")
     migrate = "cube.service.harness.store.StoreMigrations"
     probe = "cube.service.harness.test.LedgerCompatibilityProbe"
-    run(java(a.old_v6_jar, migrate, "initialize-empty", config), "v6-initialize")
-    with sqlite3.connect(dbroot/"harness_n16.db") as c:
+    run(java(a.pre_trace_jar, migrate, "initialize-empty", config), "pre-trace-initialize")
+    with sqlite3.connect(dbroot/"harness_compatibility.db") as c:
         assert c.execute("SELECT schema_version FROM harness_store_identity").fetchone() == (6,)
     receipt = dbroot/"receipt.json"
-    run(java(a.old_v6_jar, probe, "seed", config, receipt), "v6-writer")
-    shutil.copy2(dbroot/"harness_n16.db", evidence/"before-upgrade-schema6.db")
-    run(java(current, migrate, "upgrade", config), "v7-explicit-upgrade")
-    with sqlite3.connect(dbroot/"harness_n16.db") as c:
+    run(java(a.pre_trace_jar, probe, "seed", config, receipt), "pre-trace-writer")
+    shutil.copy2(dbroot/"harness_compatibility.db", evidence/"before-ledger-upgrade.db")
+    run(java(current, migrate, "upgrade", config), "ledger-explicit-upgrade")
+    with sqlite3.connect(dbroot/"harness_compatibility.db") as c:
         assert c.execute("SELECT schema_version FROM harness_store_identity").fetchone() == (7,)
     before_downgrade = inventory(dbroot)
-    run(java(a.old_v6_jar, migrate, "verify", config), "v6-downgrade-refused", fail=True)
+    run(java(a.pre_trace_jar, migrate, "verify", config), "incompatible-downgrade-refused", fail=True)
     assert inventory(dbroot) == before_downgrade, "refused downgrade mutated ledger"
-    # Compatible recovery version finishes the pending record. Prior schema7 binary reads it.
-    run(java(current, probe, "finish", config, receipt), "v7-compatible-recovery")
-    run(java(a.prior_v7_jar, probe, "read", config, receipt), "prior-v7-read-current-write")
+    # The current binary finishes the pending record; an archived compatible binary reads it.
+    run(java(current, probe, "finish", config, receipt), "ledger-compatible-recovery")
+    run(java(a.compatible_jar, probe, "read", config, receipt), "compatible-read-current-write")
     receipt2 = dbroot/"receipt2.json"
-    run(java(a.prior_v7_jar, probe, "seed", config, receipt2), "prior-v7-new-write")
-    run(java(a.prior_v7_jar, probe, "finish", config, receipt2), "prior-v7-finish")
-    run(java(current, probe, "read", config, receipt2), "current-read-prior-v7-write")
-    with zipfile.ZipFile(a.old_v6_jar) as old, zipfile.ZipFile(current) as new:
+    run(java(a.compatible_jar, probe, "seed", config, receipt2), "compatible-new-write")
+    run(java(a.compatible_jar, probe, "finish", config, receipt2), "compatible-finish")
+    run(java(current, probe, "read", config, receipt2), "current-read-compatible-write")
+    with zipfile.ZipFile(a.pre_trace_jar) as old, zipfile.ZipFile(current) as new:
         protected = [name for name in old.namelist() if name.startswith("store/migrations/") and name.endswith(".sql")]
         assert all(old.read(name) == new.read(name) for name in protected)
-    shutil.copy2(dbroot/"harness_n16.db", evidence/"after-recovery-schema7.db")
-    save("upgrade.json", dict(result="PASS", schema6To7="explicit additive upgrade", schema6Rollback="refused without mutation",
-        compatibleRecovery="current schema7 node finishes preserved run", sameSchemaRollback="prior v7 reads current result; prior writer new run and final read by current",
-        schemaDowngrade=False, oldV6JarSha256=hashlib.sha256(a.old_v6_jar.read_bytes()).hexdigest(),
-        priorV7JarSha256=hashlib.sha256(a.prior_v7_jar.read_bytes()).hexdigest(), currentJarSha256=hashlib.sha256(current.read_bytes()).hexdigest(),
+    shutil.copy2(dbroot/"harness_compatibility.db", evidence/"after-ledger-recovery.db")
+    save("upgrade.json", dict(result="PASS", ledgerUpgrade="explicit additive upgrade", incompatibleRollback="refused without mutation",
+        compatibleRecovery="current node finishes preserved run", compatibleRollback="archived compatible binary reads current result; archived writer new run and final read by current",
+        schemaDowngrade=False, preTraceJarSha256=hashlib.sha256(a.pre_trace_jar.read_bytes()).hexdigest(),
+        compatibleJarSha256=hashlib.sha256(a.compatible_jar.read_bytes()).hexdigest(), currentJarSha256=hashlib.sha256(current.read_bytes()).hexdigest(),
         unchangedMigrationFiles=protected, mysql="NOT_RUN", rollingMultiHost="NOT_RUN"))
-    print("PASS: isolated original Ant targets, real v6/v7 upgrade/refusal/recovery and compatible binary rollback")
+    print("PASS: isolated original Ant targets, ledger upgrade/refusal/recovery and compatible binary rollback")
 
 
 if __name__ == "__main__":

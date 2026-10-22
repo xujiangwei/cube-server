@@ -29,7 +29,7 @@ ant -f service-harness/build.xml test-tools test-control-files test-inference te
 python service-harness/scripts/resilience_check.py freeze --output <new-frozen-slo.json>
 ant -f service-harness/build.xml -Dresilience.test.output=<new-storage-evidence> test-resilience
 python service-harness/scripts/resilience_check.py run --java <jdk8-java> --python-root <apexnova-wisdom> --runtime <new-private-runtime> --evidence <new-evidence> --libs deploy/libs --common-jar build/cube-common-3.0.jar --cell-jar deploy/bin/cell.jar --slo <frozen-slo.json>
-python service-harness/scripts/release_compatibility.py --java <jdk8-java> --ant <ant> --runtime <new-private-runtime> --evidence <new-evidence> --old-v6-jar <verified-schema6-jar> --prior-v7-jar <verified-prior-schema7-jar>
+python service-harness/scripts/release_compatibility.py --java <jdk8-java> --ant <ant> --runtime <new-private-runtime> --evidence <new-evidence> --pre-trace-jar <verified-interaction-files-jar> --compatible-jar <verified-compatible-ledger-jar>
 ```
 
 `scripts/tests/fixtures/local-slo.json` 是本机专项阈值，先冻结到不可覆盖的新文件并记录硬件/时间/摘要，再执行。每项报告包含 threshold、loadProfile、sampleCount、window、hardware、measured、verdict。调整阈值必须另建冻结文件和执行目录，保留失败轮，不允许执行后覆盖阈值。真实部署应另冻结正式生产负载/SLO，不能直接复用开发阈值。
@@ -38,7 +38,7 @@ Cell 脚本执行 service-harness JVM、dispatcher JVM 与三个不同速度、�
 
 `test-resilience` 执行 96 次上传和多轮扫描，记录回收前后实际字节、7 条 batch 的积压消化、下载 pin、unknown Artifact、quota、关闭重启、两个真实 JVM 竞争同一文件根，以及另一 Runner 根的哨兵保护。时间通过专用测试库的 expires_at 加速，不缩短产品 TTL 下限；不是 30 天 retention 浸泡，也不填满宿主磁盘。控制/文件回归补充 fence、claim 退避、关闭清理和权限竞态；Runner 回归覆盖提交前/后故障、丢 ACK、未知执行和拒绝重放。
 
-release 脚本在一次性目录运行原始 Ant deploy/clean，模拟 Harness CI 失败后旧发布仍执行，确认新 clean 不动旧产物。发布样本为明确标记的 fixture 字节，不是生产二进制构建证明。账本部分实际加载历史 schema6 JAR 建库/写任务、新 JAR 显式升级到 schema7，历史版本拒绝降级且账本字节不变，兼容节点完成原任务；前一 schema7 JAR 和新版本分别读写新记录。迁移 SQL 不改字节、不做 down migration。
+release 脚本在一次性目录运行原始 Ant deploy/clean，模拟 Harness CI 失败后旧发布仍执行，确认新 clean 不动旧产物。发布样本为明确标记的 fixture 字节，不是生产二进制构建证明。账本演练通过 `--pre-trace-jar` 加载尚未引入轨迹与反馈的归档 JAR 建库、写任务，再由当前 JAR 显式升级；不兼容的旧程序拒绝打开升级后的库，账本字节保持不变，由兼容节点完成原任务。`--compatible-jar` 指定兼容当前任务账本的归档 JAR，用于交叉读写验证。迁移 SQL 不改字节、不做 down migration。
 
 ## 升级与撤回顺序
 

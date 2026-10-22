@@ -176,7 +176,7 @@ public final class TraceStore {
      * 导出一个 run 的脱敏状态 trace 包。
      *
      * <p>保留期内有效；事件上限 1024、rounds/calls 各 256，超限明确拒绝；
-     * 事件缺投影时 replayComplete=false（schema7 前事件无投影，回放拒绝）。
+     * 事件缺投影时 replayComplete=false（历史事件缺少状态投影时拒绝回放）。
      * 包尾附 metrics（计数与各阶段耗时，空值不填造）与整包 digest，
      * 序列化后超过 maxBytes 同样拒绝。
      *

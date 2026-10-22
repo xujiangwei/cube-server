@@ -9,7 +9,7 @@ import java.util.*;
 import static cube.service.harness.test.RuntimeTest.*;
 
 /**
- * N06/N07 执行编排集成测试：真实 JDBC 协调器/调度器行为校验，并为真实
+ * 执行编排集成测试：真实 JDBC 协调器/调度器行为校验，并为真实
  * Cell/Python smoke 准备夹具；默认使用一次性 sqlite 存储库。
  *
  * <p>覆盖共享物理容量记账、不可变派发重放、断连与未知完成隔离、迟到
@@ -187,7 +187,7 @@ public final class ExecutionTest {
     }
 
     /**
-     * N06/N07 主校验：共享容量、不可变派发、断连/未知隔离、迟到与冲突证据、
+     * 主校验：共享容量、不可变派发、断连/未知隔离、迟到与冲突证据、
      * 唯一终态/owner、need_input 持久化与逻辑超时对账。
      *
      * @throws Exception 存储、派发或断言失败
@@ -280,7 +280,7 @@ public final class ExecutionTest {
                 "Late terminal reconciliation lost");
         pass("need_input releases capacity without busy-loop events; logical timeout retains slot; late physical completion and usage reconcile under a new fence without changing final state");
         coordinator.close();
-        pass("N06/N07 JDBC: shared capacity, immutable dispatch, disconnect/unknown quarantine, late actual_finished, duplicate/conflicting evidence, unique final/owner, Baize/Baize2 v2 profiles");
+        pass("JDBC: shared capacity, immutable dispatch, disconnect/unknown quarantine, late actual_finished, duplicate/conflicting evidence, unique final/owner, Baize/Baize2 v2 profiles");
     }
 
     /**
@@ -317,6 +317,6 @@ public final class ExecutionTest {
         }
         prepare(Files.createTempDirectory("harness-execution-"), System.getProperty("execution.test.config", ""));
         checks();
-        System.out.println("PASS: N06/N07 execution on " + config.dialect + " at " + root);
+        System.out.println("PASS: execution on " + config.dialect + " at " + root);
     }
 }

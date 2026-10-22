@@ -14,7 +14,7 @@ Harness 默认读取服务进程工作目录下的 `config/harness.properties`�
 
 可选的独立 JDBC RunStore 支持 SQLite/MySQL，服务启动只校验，不自动迁移，默认关闭存储，详见 [STORE.md](STORE.md)。
 
-资源包、固定 profile、工作区、上下文预算及可恢复快照由 [RUNTIME.md](RUNTIME.md) 说明。固定 schema 随正式 jar 分发；当前独立库为 schema7，旧库需显式 upgrade。Baize/Baize2 adapter、模型 journal、共享物理后端计容、多单元调度和资源循环见 [EXECUTION.md](EXECUTION.md)。离线与本机跨进程测试不能替代真实模型在线认证。
+资源包、固定 profile、工作区、上下文预算及可恢复快照由 [RUNTIME.md](RUNTIME.md) 说明。固定 schema 随正式 jar 分发；任务账本已有库需显式 upgrade。Baize/Baize2 adapter、模型 journal、共享物理后端计容、多单元调度和资源循环见 [EXECUTION.md](EXECUTION.md)。离线与本机跨进程测试不能替代真实模型在线认证。
 
 ## 构建与目录
 
@@ -92,6 +92,6 @@ python -B scripts/lifecycle_smoke.py --java C:/jdk8/bin/java.exe --common-jar C:
 
 ## 推理与认证边界
 
-Python Harness 经 Cell v3 发送 OpenAI 请求，默认调用同 JVM AIGCService 注册的 Unit。合部署使用现有 ServiceCarpet；独立 XML 没有 AIGCService，默认 Unit 后端未就绪。外部 HTTP 后端必须在 Java 显式配置。当前权威库为 schema7；model/task profile 与 `contracts/inference/` 配套发布；详见 [EXECUTION.md](EXECUTION.md)。
+Python Harness 经 Cell v3 发送 OpenAI 请求，默认调用同 JVM AIGCService 注册的 Unit。合部署使用现有 ServiceCarpet；独立 XML 没有 AIGCService，默认 Unit 后端未就绪。外部 HTTP 后端必须在 Java 显式配置。任务账本是执行状态的权威存储；model/task profile 与 `contracts/inference/` 配套发布；详见 [EXECUTION.md](EXECUTION.md)。
 
 服务级接单/严格 drain、冻结 SLO 的 Cell 多单元负载、文件回收与历史 JAR 升级回退验证见 [RESILIENCE.md](RESILIENCE.md)。本机专项通过不等于生产认证；真实模型、原生 Linux/KVM 及生产合部署性能需要在目标环境另行验证。

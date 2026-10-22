@@ -14,7 +14,7 @@ import java.util.Arrays;
 import static cube.service.harness.store.JdbcRunStore.*;
 
 /**
- * N11 控制面存取：等待（wait）、resume、审批（approval）与取消（cancel）。
+ * 控制面存取：等待（wait）、resume、审批（approval）与取消（cancel）。
  *
  * <p>全部为短权威事务：事务内只做数据库读写与事件发射，不调用 worker、
  * 不发起网络请求。控制请求按幂等键（receipt）先查回放再校验版本与终态；

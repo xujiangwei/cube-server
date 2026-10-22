@@ -14,7 +14,7 @@ import java.util.*;
 import org.json.*;
 
 /**
- * N16 韧性演练：一次性专用存储上的接单 drain、文件回收/积压与发布兼容性 drill，绝不使用既有部署库。
+ * 韧性演练：一次性专用存储上的接单 drain、文件回收/积压与发布兼容性 drill，绝不使用既有部署库。
  *
  * <p>覆盖：关闭接单后的 HARNESS_DRAINING、重放/冲突与严格 drained 判定、独立管理凭据校验；
  * 96 次上传与多轮扫描的字节回收、下载 pin、unknown artifact、配额拒绝、关闭重启、两个真实
@@ -159,10 +159,10 @@ public final class ResilienceTest {
      */
     static JSONObject churn(Path output) throws Exception {
         Properties p = settings();
-        Path disk = Files.createDirectory(root.resolve("n16-files"));
+        Path disk = Files.createDirectory(root.resolve("resilience-files"));
         p.setProperty("files.root", disk.toString());
-        p.setProperty("files.root.id", "n16-files");
-        p.setProperty("files.download.key", "n16-test-private-download-key-123456789");
+        p.setProperty("files.root.id", "resilience-files");
+        p.setProperty("files.download.key", "resilience-test-private-download-key-123456789");
         p.setProperty("files.max.bytes", "262144");
         p.setProperty("files.max.file.bytes", "8192");
         p.setProperty("cleanup.scan.batch.size", "7");
@@ -189,13 +189,13 @@ public final class ResilienceTest {
                     if (held == null) {
                         held = row.getString("inputId");
                         heldSize = row.getLong("size");
-                        f.ledger.pin(T, S, held, "n16-long-download", null, "download");
+                        f.ledger.pin(T, S, held, "resilience-long-download", null, "download");
                     }
                 }
                 long before = bytesOnDisk(disk);
                 // 加速老化夹具：只改 expires_at，产品 TTL 策略不变；不是原生 30 天 retention 浸泡。
                 ControlFileTest.sql(
-                        "UPDATE harness_file SET expires_at=0 WHERE root_id='n16-files'");
+                        "UPDATE harness_file SET expires_at=0 WHERE root_id='resilience-files'");
                 long started = System.nanoTime();
                 if (cycle == 2) {
                     // 第三轮改用两个真实 JVM 清扫进程竞争同一文件根。
@@ -260,7 +260,7 @@ public final class ResilienceTest {
                                 .put("reclaimedBytes", before - after)
                                 .put("sweepMillis", elapsed));
             }
-            f.ledger.unpin("n16-long-download");
+            f.ledger.unpin("resilience-long-download");
             f.scan();
             // unknown artifact：执行未结算且到期也不得删除，结算确认后才回收。
             String r = ExecutionTest.create("unknown artifact retention");
@@ -268,7 +268,7 @@ public final class ResilienceTest {
             JSONObject artifact =
                     f.writeText(
                             l,
-                            "n16-output",
+                            "resilience-output",
                             new JSONObject()
                                     .put("fileName", "held.txt")
                                     .put("text", "unknown output"));
@@ -308,7 +308,7 @@ public final class ResilienceTest {
                 rejected = true;
             }
             check(rejected, "quota pressure accepted unbounded bytes");
-            ControlFileTest.sql("UPDATE harness_file SET expires_at=0 WHERE root_id='n16-files'");
+            ControlFileTest.sql("UPDATE harness_file SET expires_at=0 WHERE root_id='resilience-files'");
             for (int i = 0; i < 12; i++) {
                 f.scan();
             }
@@ -337,14 +337,14 @@ public final class ResilienceTest {
         // 真实 catalog/profile/run pin 操作，不改动既有不可变发布。
         String old = release;
         String oldRun = run("1", "pinned before release switch");
-        Map<String, byte[]> nextFiles = entries("N16 independent release candidate");
+        Map<String, byte[]> nextFiles = entries("Resilience independent release candidate");
         String next = upload(zip(manifest(nextFiles), nextFiles)).getString("digest");
         catalog.lifecycle(T, next, 1, "ready");
         JSONObject task = catalog.profile(T, "task", "task", "1");
-        task.put("version", "n16").put("skillReleases", new JSONArray().put(next));
+        task.put("version", "resilience").put("skillReleases", new JSONArray().put(next));
         profiles.publish(T, task);
         // run() 执行任务绑定 CAS；新旧 run 各自保留独立的不可变配置。
-        String newRun = run("n16", "candidate");
+        String newRun = run("resilience", "candidate");
         check(
                 profiles.pinned(identity, oldRun)
                         .getJSONArray("releases")
@@ -373,7 +373,7 @@ public final class ResilienceTest {
     }
 
     /**
-     * 测试入口：识别子进程模式（oom/sweep），否则驱动全部 N16 演练并落盘证据。
+     * 测试入口：识别子进程模式（oom/sweep），否则驱动全部韧性演练并落盘证据。
      *
      * @param args 为 "oom" 执行受限堆 OOM 子模式；为 "sweep" 时 args[1] 为配置文件路径
      * @throws Exception 环境准备、演练执行或证据落盘失败
@@ -386,7 +386,7 @@ public final class ResilienceTest {
                     heap.add(new byte[1048576]);
                 }
             } catch (OutOfMemoryError expected) {
-                System.out.println("N16_CONTROLLED_CHILD_HEAP_OOM");
+                System.out.println("Resilience_CONTROLLED_CHILD_HEAP_OOM");
                 System.exit(73);
             }
         }
@@ -400,12 +400,12 @@ public final class ResilienceTest {
         }
         Path output = Paths.get(System.getProperty("resilience.test.output"));
         Files.createDirectories(output);
-        ExecutionTest.prepare(Files.createTempDirectory("harness-n16-"), "");
+        ExecutionTest.prepare(Files.createTempDirectory("harness-resilience-"), "");
         drain();
         JSONObject files = churn(output);
         release();
         Files.write(output.resolve("storage.json"), bytes(files.toString(2) + "\n"));
         Files.copy(root.resolve("harness_execution.db"), output.resolve("storage.db"));
-        System.out.println("PASS: N16 deterministic drills at " + root);
+        System.out.println("PASS: Resilience deterministic drills at " + root);
     }
 }

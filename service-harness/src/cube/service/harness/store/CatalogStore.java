@@ -17,7 +17,7 @@ import java.util.Arrays;
 import static cube.service.harness.store.JdbcRunStore.*;
 
 /**
- * N04/N05 元数据存取：release、binding、profile、run 配置固定、workspace 与 context。
+ * 元数据存取：release、binding、profile、run 配置固定、workspace 与 context。
  *
  * <p>全部操作与 RunStore 共享同一事务与租户/属主（tenant/subject）边界，
  * 复用 {@code store.tx} 的隐式事务；MySQL 下读关键行加 {@code FOR UPDATE}

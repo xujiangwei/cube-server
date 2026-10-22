@@ -652,7 +652,7 @@ public final class JdbcRunStore {
             String digest,
             JSONObject response)
             throws SQLException {
-        // N03 不做剪枝：回执存活至整个 run 生命周期且至少 24h。
+        // 账本不做剪枝：回执存活至整个 run 生命周期且至少 24h。
         update(
                 c,
                 "INSERT INTO harness_request VALUES (?,?,?,?,?,?,?,?)",
@@ -1056,7 +1056,7 @@ public final class JdbcRunStore {
     }
 
     /**
-     * 仅持久化命令回执；N11 提供策略/等待/审批语义与执行。
+     * 仅持久化命令回执；控制面提供策略/等待/审批语义与执行。
      *
      * @param tenant          租户 ID
      * @param subject         主体 ID

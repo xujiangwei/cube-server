@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Cube Harness enabled N06/N07 execution",
+    "title": "Cube Harness task execution",
     "version": "2"
   },
   "paths": {
@@ -328,7 +328,7 @@
     },
     "/harness/v1/task-profiles": {
       "get": {
-        "summary": "Active development tenant profiles",
+        "summary": "Active task profiles in the authenticated tenant",
         "responses": {
           "200": {
             "description": "Durable success",

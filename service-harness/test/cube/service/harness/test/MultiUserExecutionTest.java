@@ -11,7 +11,7 @@ import java.util.*;
 import org.json.*;
 
 /**
- * N06/N07 多用户执行编排集成测试：三个域/联系人身份共享一个 ExecutionRuntime，
+ * 多用户执行编排集成测试：三个域/联系人身份共享一个 ExecutionRuntime，
  * 验证跨租户隔离、作用域幂等、文件归属、后台扫描与重启后的租约恢复；
  * 底层为一次性 sqlite 存储库。
  *

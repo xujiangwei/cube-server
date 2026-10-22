@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.json.*;
 
 /**
- * N11/N12 控制与文件集成测试：真实 JDBC、文件系统与协调器控制，不接入真实写入 provider。
+ * 控制与文件集成测试：真实 JDBC、文件系统与协调器控制，不接入真实写入 provider。
  *
  * <p>controls() 覆盖控制面（wait/resume/approval/cancel）：持久化等待跨存储重启保留、
  * expectedVersion 前置校验与同键重放顺序、独立审批人与参数绑定、并发 resume/cancel
@@ -119,7 +119,7 @@ public final class ControlFileTest {
   }
 
   /**
-   * N11 控制面场景：持久化 wait 跨存储重启保留、版本前置校验与重放顺序、独立审批人与
+   * 控制面场景：持久化 wait 跨存储重启保留、版本前置校验与重放顺序、独立审批人与
    * 参数绑定、并发 resume/cancel 单次推进、过期等待拒绝。
    *
    * @throws Exception 存储或断言失败
@@ -272,7 +272,7 @@ public final class ControlFileTest {
   }
 
   /**
-   * N12 文件场景：持锁扫描返回 FILE_BUSY 且不阻塞控制事务、root 身份拒绝另一物理目录、
+   * 文件场景：持锁扫描返回 FILE_BUSY 且不阻塞控制事务、root 身份拒绝另一物理目录、
    * 上传/读取/产物 TTL、pin 与墓碑对账、删除提交边界恢复、Windows junction 别名、
    * 策略冲突与重启保持。
    *
@@ -568,6 +568,6 @@ public final class ControlFileTest {
     } finally {
       files.close();
     }
-    System.out.println("PASS: N11/N12 on " + config.dialect + " at " + root);
+    System.out.println("PASS: on " + config.dialect + " at " + root);
   }
 }

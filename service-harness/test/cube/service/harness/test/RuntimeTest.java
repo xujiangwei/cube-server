@@ -14,11 +14,11 @@ import java.util.concurrent.*;
 import java.util.zip.*;
 
 /**
- * N04/N05 资料包/工作区/上下文集成测试：真实 JDBC 与文件系统集成，夹具由 SQLite
+ * 资料包/工作区/上下文集成测试：真实 JDBC 与文件系统集成，夹具由 SQLite
  * 与一次性 MySQL 共享；本类同时是其余执行/工具/推理测试的公共夹具基类。
  *
- * <p>N04 覆盖包发布/校验/签名、双节点分发、CAS 绑定、profile 固定、资源授权与
- * 工作区配额/逃逸/接管；N05 覆盖持久输入重建、注入隔离、完整预算、可审计压缩、
+ * <p>覆盖包发布/校验/签名、双节点分发、CAS 绑定、profile 固定、资源授权与
+ * 工作区配额/逃逸/接管；上下文覆盖持久输入重建、注入隔离、完整预算、可审计压缩、
  * checkpoint/restore 与陈旧 basis 拒绝。默认方言为 sqlite。
  */
 public final class RuntimeTest {
@@ -422,7 +422,7 @@ public final class RuntimeTest {
     }
 
     /**
-     * N04 包与 profile 主校验：双节点同摘要、内容变更、穿越/符号链接/ZIP 上限/
+     * 包与 profile 主校验：双节点同摘要、内容变更、穿越/符号链接/ZIP 上限/
      * 未声明文件/旧 schema 拒绝、签名与磁盘配额、CAS 竞态、固定 pin、生命周期与
      * 资源授权。
      *
@@ -573,7 +573,7 @@ public final class RuntimeTest {
     }
 
     /**
-     * N04 工作区校验：配额/穿越/真实符号链接拒绝、未结算释放拒绝、过期接管与
+     * 工作区校验：配额/穿越/真实符号链接拒绝、未结算释放拒绝、过期接管与
      * fencing。
      *
      * @throws Exception 工作区操作或断言失败
@@ -625,7 +625,7 @@ public final class RuntimeTest {
     }
 
     /**
-     * N05 上下文主校验：持久输入与有序调用/结果重建、注入保持数据、完整预算、
+     * 上下文主校验：持久输入与有序调用/结果重建、注入保持数据、完整预算、
      * 可审计压缩、pending 恢复、确定性精确输入复现、不可变回执与陈旧 basis 拒绝；
      * 另覆盖孤立/重复调用、tokenizer 不匹配与不可压缩超限。
      *
@@ -686,7 +686,7 @@ public final class RuntimeTest {
         JSONObject stale = contexts.assemble(identity, r, new JSONArray());
         store.transition(l, version(r), "waiting_input", new JSONObject());
         fail("CONTEXT_STALE_BASIS", () -> contexts.checkpoint(l, version(r), stale));
-        pass("N05 durable input and ordered call/result reconstruction; injection stays data; complete budget; audited compaction; pending recovery; deterministic exact input restore; immutable checkpoint receipts; stale basis refusal");
+        pass("durable input and ordered call/result reconstruction; injection stays data; complete budget; audited compaction; pending recovery; deterministic exact input restore; immutable checkpoint receipts; stale basis refusal");
         // 孤立结果、重复调用、tokenizer 不匹配与不可压缩超限分别拒绝。
         String orphan = run("1", "orphan");
         JdbcRunStore.Lease ol = running(orphan, 60000);
@@ -761,7 +761,7 @@ public final class RuntimeTest {
         if (!output.isEmpty() && !output.startsWith("${")) {
             Files.write(Paths.get(output), bytes(result.toString(2)), StandardOpenOption.CREATE_NEW);
         }
-        System.out.println("PASS: " + checks.length() + " N04/N05 integration groups on " + config.dialect);
+        System.out.println("PASS: " + checks.length() + " integration groups on " + config.dialect);
     }
 
     /**

@@ -20,23 +20,23 @@ import java.util.Properties;
 import java.util.Set;
 
 /**
- * schema 迁移器：显式、只增不改（additive）的迁移执行与启动校验。
+ * 任务账本结构迁移器：显式、只增不改（additive）的迁移执行与启动校验。
  *
  * <p>运行时启动绝不初始化或自动迁移数据库，只做校验：表集合与
  * harness_store_identity 行（store_id、schema_version、migration_hash）
- * 必须与代码期望逐字节一致。当前 VERSION=7，每步迁移对应类路径下
+ * 必须与代码期望逐字节一致。迁移序号仅用于结构兼容校验，每步对应类路径下
  * {@code /store/migrations/{dialect}/00N.sql} 脚本，digest 为 1..N 全部
  * 脚本串联后的 SHA-256。已有库只能通过 upgrade 显式前进；失败一律
  * fail closed，不做破坏性重试或降级（down）。
  */
 public final class StoreMigrations {
     /**
-     * 当前 schema 版本号；verify 的期望表集合与 identity 行均按此版本计算。
+     * 当前数据库迁移序号；verify 的期望表集合与 identity 行均按此序号计算。
      */
     public static final int VERSION = 7;
 
     /**
-     * v1 基线表集合（12 张 harness_ 表），verify 时与实测表集合整体比对，缺一即不一致。
+     * 任务执行基线表集合（12 张 harness_ 表），verify 时与实测表集合整体比对，缺一即不一致。
      */
     static final Set<String> TABLES =
             new HashSet<>(
@@ -150,8 +150,8 @@ public final class StoreMigrations {
     /**
      * 按目标版本校验库 schema 与身份。
      *
-     * <p>期望表集合 = v1 基线表 + 各版本增量表（v2 八表、v3 两表、v4 两表、
-     * v5 四表、v6 八表、v7 反馈表）；随后校验 identity 行的 store_id、
+     * <p>期望表集合由任务执行基线，以及资源、模型作业、推理、工具、
+     * 交互与文件、反馈等已执行迁移的增量表组成；随后校验 identity 行的 store_id、
      * schema_version 与 migration_hash。
      *
      * @param c       连接
@@ -225,7 +225,7 @@ public final class StoreMigrations {
      *
      * <p>MySQL 以 GET_LOCK 全局串行化迁移；已有库按 old→VERSION 逐版本执行
      * 脚本并以 CAS 方式推进 identity 行；空库仅在 initializeEmpty 为 true 时
-     * 从 v1 连续建到 v7，否则拒绝。MySQL DDL 可能已提交，部分失败一律
+     * 按完整迁移链连续建库，否则拒绝。MySQL DDL 可能已提交，部分失败一律
      * fail closed，不做破坏性重试或降级。
      *
      * @param config          存储配置

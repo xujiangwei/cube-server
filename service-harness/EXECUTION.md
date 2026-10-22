@@ -1,6 +1,6 @@
 # Harness 资源循环与 Java 推理网关
 
-启用 `store.enabled=true`、`execution.enabled=true` 后提供独立资源任务入口。Java 必须使用 JDK 8；独立数据库显式迁移到 schema7。用户身份从 Cube Auth 验证后的 token 取得，任务按 token 的域与联系人 ID 隔离，业务工具通过独立 SKILL/provider 发布与配置；可信 CPU MockConsole 工具需显式启用，见 [TOOLS.md](TOOLS.md)。
+启用 `store.enabled=true`、`execution.enabled=true` 后提供独立资源任务入口。Java 必须使用 JDK 8；独立数据库显式迁移到当前任务账本结构。用户身份从 Cube Auth 验证后的 token 取得，任务按 token 的域与联系人 ID 隔离，业务工具通过独立 SKILL/provider 发布与配置；可信 CPU MockConsole 工具需显式启用，见 [TOOLS.md](TOOLS.md)。
 
 ## 推理链路与边界
 
@@ -39,7 +39,7 @@ Python 重启可以回放同一原 attempt 读取 Java 证据；没有既存推�
 
 ## 部署和迁移
 
-1. 按 [STORE.md](STORE.md) 显式执行 `StoreMigrations upgrade` 到 schema7。004 迁移引入推理/事件表与 job.execution_protocol，后续迁移随包分发并保留旧行；MySQL 迁移账户另需专用库 ALTER 权限，运行账户仍只需 DML。
+1. 按 [STORE.md](STORE.md) 显式执行 `StoreMigrations upgrade` 到当前任务账本结构。004 迁移引入推理/事件表与 job.execution_protocol，后续迁移随包分发并保留旧行；MySQL 迁移账户另需专用库 ALTER 权限，运行账户仍只需 DML。
 2. 将唯一的 `config/harness.properties.template` 复制为工作目录下的 `config/harness.properties`，在其中统一填写基础、执行与模型后端配置；Java 默认加载该文件，启动无需 `-Dharness.config`。Python 使用 `harness/config/model-baize*.template.json`。workerCredential 与 Java 后端模型 token 分别配置；业务调用携带已有 Cube 用户 token，无需 API 共享凭据。
 3. 默认 Unit 后端要求 Harness 和 AIGCService 位于同一 Kernel/JVM。沿用宿主 ServiceCarpet 和 `config/cohost-cellet.xml`；独立 standalone.xml 只有 Harness，没有 AIGCService，默认推理保持未就绪。外部模型必须显式 type=openai，并设置 baseUrl、model、token、capacity、timeoutSeconds。
 4. `ExecutionAdmin <new-directory>` 导出 ModelProfile schemaVersion=3/version=2 与 TaskProfile version=2。填写已 ready 的资源 release、权限与限额，显式 publish 后再切 active 绑定。清单和各类 profile 只接受当前格式；已发布旧格式需重新构建、审核并发布新版本，切换前先 drain 和完成在途对账。
@@ -79,4 +79,4 @@ JDK 8 下运行 `ant -f service-harness/build.xml test-inference test-execution 
 
 `inference_smoke.py` 启动真实 Cell、三个独立 Python v3 worker，经过同 JVM AIGCService 真实 Unit 队列，只有硬件回复由测试替身提供。参数见 `--help`，service-classes 指向编译后的 service 测试类；测试类不进入正式 jar。`execution_smoke.py` 继续验证 v2 scripted 资源循环。外部 HTTP JSON/SSE 使用本机测试服务。所有离线结果与真实 Baize/Baize2 GPU、权重、模板和工具质量验收分别记录。
 
-上述测试使用模拟后端，真实模型、原生 Linux/远端 CI 与生产共同部署性能需单独验收。MySQL 迁移后使用仅 DML 运行账户。撤回先关新准入并 drain，保留兼容当前 schema7 的恢复程序、账本、journal 和 unknown 证据；不执行 destructive down 或旧系统 stop/clean。
+上述测试使用模拟后端，真实模型、原生 Linux/远端 CI 与生产共同部署性能需单独验收。MySQL 迁移后使用仅 DML 运行账户。撤回先关新准入并 drain，保留兼容当前任务账本结构的恢复程序、账本、journal 和 unknown 证据；不执行 destructive down 或旧系统 stop/clean。

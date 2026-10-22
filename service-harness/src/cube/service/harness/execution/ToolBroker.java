@@ -233,7 +233,7 @@ public final class ToolBroker implements AutoCloseable {
         }
     }
 
-    // 仅用于离线 N08 夹具的兼容入口。
+    // 仅用于离线夹具的兼容入口。
 
     /**
      * 返回 MockConsole 测试提供方的参数 schema，仅供离线夹具兼容使用。

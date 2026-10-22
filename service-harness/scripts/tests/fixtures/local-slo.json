@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "scope": "Windows loopback development Cell, SQLite, scripted model; not production G4",
+  "scope": "Windows loopback development Cell, SQLite, scripted model; not production certification",
   "loadProfile": {"baselineRuns": 8, "scaledRuns": 16, "maxActive": 8, "sharedBackendCapacity": 2, "workerDelayMillis": {"slow": 900, "fast": 150, "extra": 150}},
   "thresholds": {"apiP95Millis": 1500, "runP95Millis": 30000, "queueP95Millis": 25000, "cancelLogicalMillis": 5000, "modelFinishMillis": 15000, "recoveryMillis": 20000, "ackBacklogMillis": 15000, "scaleThroughputRatioMin": 1.2, "sharedOccupancyMax": 2, "workerOccupancyMax": 1, "activeRunsMax": 8, "fileSweepMillis": 10000, "fileResidualBytesMax": 8192, "peakAggregateRssBytes": 1073741824, "sampledCpuSeconds": 120},
   "externalGates": {"realModelActualFinished": "NOT_RUN", "productionSLO": "NOT_RUN", "oldAPIStreamAndLatencyBaseline": "NOT_RUN", "linuxFirecrackerKVM": "NOT_RUN", "mysqlMultiReplica": "NOT_RUN", "crossTenantServiceFairness": "NOT_RUN", "sustainedNativeDiskAndOSOOM": "NOT_RUN"}

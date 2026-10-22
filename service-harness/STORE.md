@@ -1,6 +1,10 @@
-# Harness RunStore
+# Harness 任务账本
 
-`cube.service.harness.store` 是独立 JDBC 账本，兼容实际 JDK 8。SQLite 用于单实例开发；MySQL 使用专用数据库及隔离迁移/运行账户。当前 schema 为 7，原生 Linux、多副本与生产负载需在目标环境单独认证。
+`cube.service.harness.store` 是独立 JDBC 账本，兼容实际 JDK 8。SQLite 用于单实例开发；MySQL 使用专用数据库及隔离迁移/运行账户。任务账本涵盖任务执行、工具调度、交互与文件、轨迹与反馈。原生 Linux、多副本与生产负载需在目标环境单独认证。
+
+同一 Harness 部署下，各租户共用一套数据库结构和同一组表；租户数据按 `tenant` 隔离，任务关联记录通过 `run_id` 归属任务。新租户只需初始化其配置与绑定，不需要创建数据库或执行结构迁移。
+
+文档统一使用“任务账本”描述这套存储。`schema_version` 和 SQL 文件序号仅用于内部迁移顺序、结构校验与已有数据库兼容，不作为业务能力名称。
 
 ## 配置和迁移
 
@@ -42,7 +46,7 @@ java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrat
 java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrations verify C:/private/runtime.local.properties
 ```
 
-001～007 迁移全部随 JAR 分发：002 增加包、profile、工作区和上下文表，003 增加物理模型后端与任务/占用证据表，004 增加异步推理和增量事件账本，旧 job 保留 execution_protocol=2。后续迁移见下文。`initialize-empty` 接受新空库，写身份、版本和迁移 SHA256；对于完整受信的已知旧版本，它与显式 `upgrade` 都只执行缺少的前向迁移；相同版本重复执行只校验。已有旧库应明确执行 `StoreMigrations upgrade <private.properties>`，启动不升级。任何外来表、错误身份、版本、摘要或不完整 schema 都会拒绝。MySQL 使用 GET_LOCK 协调迁移，但其 DDL 不是可回滚事务；中途失败保留现场，由管理员在专用测试库重建或通过审核的前向修复恢复。不提供 DROP、自动 down migration 或旧表 DDL。旧二进制不能打开新版库，撤回保留兼容当前 schema7 的恢复程序和账本。详见 [RUNTIME.md](RUNTIME.md)、[EXECUTION.md](EXECUTION.md)。
+001～007 迁移全部随 JAR 分发：002 增加包、profile、工作区和上下文表，003 增加物理模型后端与任务/占用证据表，004 增加异步推理和增量事件账本，旧 job 保留 execution_protocol=2。后续迁移见下文。`initialize-empty` 接受新空库，写身份、版本和迁移 SHA256；对于完整受信的已知旧版本，它与显式 `upgrade` 都只执行缺少的前向迁移；相同版本重复执行只校验。已有旧库应明确执行 `StoreMigrations upgrade <private.properties>`，启动不升级。任何外来表、错误身份、版本、摘要或不完整 schema 都会拒绝。MySQL 使用 GET_LOCK 协调迁移，但其 DDL 不是可回滚事务；中途失败保留现场，由管理员在专用测试库重建或通过审核的前向修复恢复。不提供 DROP、自动 down migration 或旧表 DDL。旧二进制不能打开新版库，撤回保留兼容当前任务账本结构的恢复程序和账本。详见 [RUNTIME.md](RUNTIME.md)、[EXECUTION.md](EXECUTION.md)。
 
 ## 权威数据和提交语义
 
@@ -72,15 +76,15 @@ ant -f service-harness/build.xml '-Dstore.test.config=C:/private/mysql-runtime.l
 撤回时停止专用 Harness 写入者、关闭新入口，保留数据库/账本及备份。仅可删除确认可丢弃的测试库。SQL 资源随正式 jar 分发，旧构建和旧发布不依赖 Harness 数据库或新测试通过。业务 run API 需显式启用存储、执行与 profile。
 
 
-## schema5：Runner 与 Broker
+## 工具调度与执行证据
 
-005 增加 runner identity、tool job、durable revocation、Broker exchange 四张表；001～004 保持原摘要。当前显式迁移目标为 schema7，服务启动不执行 DDL。工具回归覆盖提交前失败、提交后响应丢失和结果提交对账；unknown 不删除、不重执行。旧二进制拒绝新版库，不能删表回退。部署和保留策略见 [TOOLS.md](TOOLS.md)。
+005 增加 runner identity、tool job、durable revocation、Broker exchange 四张表；001～004 保持原摘要。显式迁移目标由随 JAR 分发的迁移链确定，服务启动不执行 DDL。工具回归覆盖提交前失败、提交后响应丢失和结果提交对账；unknown 不删除、不重执行。旧二进制拒绝新版库，不能删表回退。部署和保留策略见 [TOOLS.md](TOOLS.md)。
 
-## schema6：控制与文件
+## 交互控制与文件生命周期
 
 新增 wait/control receipt、file/request/pin/binding/policy/root 八表，tool job 增加 cleanup_after/cleanup_done；001～005 保持不变。文件到期、owner/fence、pin 与删除墓碑保存在专用库，启动不执行 DDL。显式升级、控制/文件接口、默认 TTL 与撤回规则见 [CONTROL-FILES.md](CONTROL-FILES.md)。原生 Linux 与生产部署需在目标环境认证。
 
 
-## schema7：轨迹与扩展执行证据
+## 轨迹、反馈与扩展执行证据
 
-007 增加追加式 feedback、可回放事件状态投影、模型/工具/推理阶段时间、工具 broker_protocol 和独立执行器 runner_finished 证据；001～006 保持原字节。当前显式 upgrade 目标为 7，旧历史事件投影为空，回放明确拒绝不完整历史。关闭 Trace 不删恢复账本。参见 [TRACE.md](TRACE.md) 及工作区 `skill/harness-extensions/README.md`。Python Firecracker 执行器与 Runner 分别记录物理完成，重启只对账或清理本单元 unknown 实例，不重发代码；物理证据齐全才释放容量。旧二进制拒绝 schema7，撤回关闭入口并保留兼容节点，不删表降级。
+007 增加追加式 feedback、可回放事件状态投影、模型/工具/推理阶段时间、工具 broker_protocol 和独立执行器 runner_finished 证据；001～006 保持原字节。迁移前写入的历史事件投影为空，回放明确拒绝不完整历史。关闭 Trace 不删恢复账本。参见 [TRACE.md](TRACE.md) 及工作区 `skill/harness-extensions/README.md`。Python Firecracker 执行器与 Runner 分别记录物理完成，重启只对账或清理本单元 unknown 实例，不重发代码；物理证据齐全才释放容量。旧二进制拒绝不兼容的任务账本结构，撤回关闭入口并保留兼容节点，不删表降级。

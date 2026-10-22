@@ -1,4 +1,4 @@
-"""Additive N10-N12 schemas. Frozen schemas remain byte-for-byte unchanged."""
+"""Generate Harness interaction-control and file-lifecycle contracts."""
 import argparse
 import copy
 import hashlib
@@ -80,7 +80,7 @@ def generate(python_root):
         else:
             operation['parameters'].append(dict(name='handle', **{'in': 'query'}, schema=dict(type='string')))
         paths['/harness/v1' + path] = {verb: operation}
-    files['openapi.json'] = raw(dict(openapi='3.0.3', info=dict(title='Harness controls and files', version='N10-N12'), paths=paths,
+    files['openapi.json'] = raw(dict(openapi='3.0.3', info=dict(title='Harness controls and files', version='1.0.0'), paths=paths,
         components=dict(securitySchemes={k: dict(type='http', scheme='bearer') for k in ('HarnessBearer', 'ApproverBearer')})))
     files['manifest.json'] = raw({k: hashlib.sha256(v).hexdigest() for k, v in files.items()})
     for root in (source / 'control-files', python_root / 'harness/contracts/control-files'):

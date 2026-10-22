@@ -226,7 +226,7 @@ backend.shared.capacity={self.slo['loadProfile']['sharedBackendCapacity']}
             save(path, dict(host="127.0.0.1", port=self.cell_port, workerId=name, role="model",
                 workerCredential=self.token, runtimeDir=str(self.root / ("worker-"+name)), requestTimeout=2,
                 startupTimeout=20, model=dict(model="scripted", backendId="shared", backendCapacity=2,
-                    scriptDelayMillis=delay, script=[dict(kind="final", text="N16 scripted fixture output")])))
+                    scriptDelayMillis=delay, script=[dict(kind="final", text="Resilience scripted fixture output")])))
             self.paths[name] = path
         self.launch()
         self.sampler = threading.Thread(target=self.sample, daemon=True)
@@ -274,7 +274,7 @@ backend.shared.capacity={self.slo['loadProfile']['sharedBackendCapacity']}
         self.pids[result['pid']] = 'python-' + name
         return result
 
-    def create(self, text="N16", key=None):
+    def create(self, text="Resilience", key=None):
         started = time.monotonic()
         status, value = self.http("/harness/v1/runs", dict(taskProfileId="task", input=dict(instruction=text, attachmentIds=[])), key)
         if status == 202:
@@ -399,7 +399,7 @@ backend.shared.capacity={self.slo['loadProfile']['sharedBackendCapacity']}
         self.metrics["ackBacklogMillis"] = (time.monotonic()-start)*1000
         # Controlled heap exhaustion in a separate bounded JVM, never on the host or service JVM.
         self.command([self.a.java, "-Xmx16m", "-cp", self.cp, "cube.service.harness.test.ResilienceTest", "oom"], "child-heap-oom", 73)
-        assert "N16_CONTROLLED_CHILD_HEAP_OOM" in (self.e/"child-heap-oom.log").read_text()
+        assert "Resilience_CONTROLLED_CHILD_HEAP_OOM" in (self.e/"child-heap-oom.log").read_text()
         self.faults.append(dict(fault="bounded 16 MiB child Java heap OOM", result="PASS", nativeOSOOM="NOT_RUN"))
         assert self.http("/healthz")[0] == 200
 
@@ -447,7 +447,7 @@ backend.shared.capacity={self.slo['loadProfile']['sharedBackendCapacity']}
                 maxOccupied=max(s['occupied'].get(w, 0) for s in self.samples)))
         save(self.e / "slo.json", dict(scope=self.slo["scope"], frozenSha256=self.slo_hash, metrics=rows,
             statistics=self.metrics, workers=worker_metrics,
-            externalGates=self.slo["externalGates"], verdict="PASS" if all(r["verdict"] == "PASS" for r in rows) else "FAIL", G4="NOT_CERTIFIED"))
+            externalGates=self.slo["externalGates"], verdict="PASS" if all(r["verdict"] == "PASS" for r in rows) else "FAIL", productionCertification="NOT_CERTIFIED"))
         save(self.e / "samples.json", dict(samples=self.samples, samplingErrors=self.sampling_errors, http=self.http_samples))
         save(self.e / "fault-matrix.json", self.faults)
         assert all(r["verdict"] == "PASS" for r in rows), [(r["name"], r["measured"]) for r in rows if r["verdict"] != "PASS"]
@@ -487,7 +487,7 @@ backend.shared.capacity={self.slo['loadProfile']['sharedBackendCapacity']}
                 self.cleanup()
             finally:
                 save(self.e / "results.json", dict(result=result, checks=self.checks, externalGates=self.slo["externalGates"],
-                    G4="NOT_CERTIFIED", scope=self.slo["scope"], startedAt=self.started, finishedAt=utc()))
+                    productionCertification="NOT_CERTIFIED", scope=self.slo["scope"], startedAt=self.started, finishedAt=utc()))
 
 
 def main():

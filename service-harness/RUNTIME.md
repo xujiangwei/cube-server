@@ -4,14 +4,14 @@
 
 ## 存储与独立目录
 
-先按 [STORE.md](STORE.md) 配置专用数据库。正式 jar 包含不可变的 `001.sql`～`007.sql`，当前显式迁移目标为 schema7；资源运行时八表由 002 迁移引入。新空库用 `initialize-empty`，完整旧库显式用 `upgrade`；服务启动只校验，不执行 DDL。
+先按 [STORE.md](STORE.md) 配置专用数据库。正式 jar 包含不可变的 `001.sql`～`007.sql`，迁移目标由随 JAR 分发的迁移链确定；资源运行时八表由 002 迁移引入。新空库用 `initialize-empty`，完整旧库显式用 `upgrade`；服务启动只校验，不执行 DDL。
 
 ```powershell
 java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrations upgrade C:/private/migrator.local.properties
 java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.store.StoreMigrations verify C:/private/runtime.local.properties
 ```
 
-002 迁移增加 release、binding、profile、run_config、release_ref、run_skill、workspace、context 八表，沿用专用库身份和事务边界。升级保留旧 run/event/usage。SQLite 事务回滚；MySQL DDL 中断可能留下部分 schema，必须保留现场并做审核过的前向恢复，自动重试会拒绝不完整 schema。撤回时停止新写入者、保留兼容当前 schema7 的恢复程序和账本，不能直接换回只支持旧 schema 的 jar。
+002 迁移增加 release、binding、profile、run_config、release_ref、run_skill、workspace、context 八表，沿用专用库身份和事务边界。升级保留旧 run/event/usage。SQLite 事务回滚；MySQL DDL 中断可能留下部分 schema，必须保留现场并做审核过的前向恢复，自动重试会拒绝不完整 schema。撤回时停止新写入者、保留兼容当前任务账本结构的恢复程序和账本，不能直接换回只支持旧 schema 的 jar。
 
 资源仓库和工作区使用两个事先建立的绝对目录，每个目录有独立 identity/总字节配额。拒绝无标记的非空目录、符号链接和越界真实路径。每个根采用 JVM 锁及 OS 文件锁；写入采用临时文件、force 和原子移动。失败遗留的 blob/临时文件仍计入配额；目前保守保留引用和内容，不提供自动 GC。目录必须由可信服务账户独占，不能与客户可直接写入的 OS 目录共享。
 

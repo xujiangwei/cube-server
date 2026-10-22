@@ -7,7 +7,7 @@
   "paths": {
     "/harness/v1/capabilities": {
       "get": {
-        "summary": "Infrastructure capability readiness; no task execution at G0",
+        "summary": "Query Harness capability readiness",
         "security": [
           {
             "HarnessBearer": []
@@ -45,7 +45,7 @@
             }
           },
           "200": {
-            "description": "G0 readiness response",
+            "description": "Harness capability response",
             "content": {
               "application/json": {
                 "schema": {
@@ -119,7 +119,7 @@
     },
     "/harness/v1/task-profiles": {
       "get": {
-        "summary": "G0 returns an empty executable profile list",
+        "summary": "Query active task profiles in the authenticated tenant; empty when execution is disabled or no task is active",
         "security": [
           {
             "HarnessBearer": []
@@ -157,7 +157,7 @@
             }
           },
           "200": {
-            "description": "G0 readiness response",
+            "description": "Harness capability response",
             "content": {
               "application/json": {
                 "schema": {
@@ -231,7 +231,7 @@
     },
     "/harness/v1/task-profiles/{profileId}": {
       "get": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -346,7 +346,7 @@
     },
     "/harness/v1/runs": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -471,7 +471,7 @@
     },
     "/harness/v1/runs/{runId}": {
       "get": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -586,7 +586,7 @@
     },
     "/harness/v1/runs/{runId}/events": {
       "get": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -701,7 +701,7 @@
     },
     "/harness/v1/runs/{runId}/cancel": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -837,7 +837,7 @@
     },
     "/harness/v1/runs/{runId}/resume": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -973,7 +973,7 @@
     },
     "/harness/v1/runs/{runId}/feedback": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -1109,7 +1109,7 @@
     },
     "/harness/v1/runs/{runId}/approvals/{approvalId}/decision": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -1256,7 +1256,7 @@
     },
     "/harness/v1/inputs": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -1381,7 +1381,7 @@
     },
     "/harness/v1/inputs/{inputId}": {
       "get": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -1496,7 +1496,7 @@
     },
     "/harness/v1/inputs/{inputId}/content": {
       "put": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -1622,7 +1622,7 @@
     },
     "/harness/v1/inputs/{inputId}/complete": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -1758,7 +1758,7 @@
     },
     "/harness/v1/runs/{runId}/artifacts": {
       "get": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -1873,7 +1873,7 @@
     },
     "/harness/v1/artifacts/{artifactId}": {
       "get": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -1988,7 +1988,7 @@
     },
     "/harness/v1/artifacts/{artifactId}/content": {
       "get": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -2103,7 +2103,7 @@
     },
     "/harness-admin/v1/packages": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -2228,7 +2228,7 @@
     },
     "/harness-admin/v1/releases": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -2353,7 +2353,7 @@
     },
     "/harness-admin/v1/task-profiles": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -2478,7 +2478,7 @@
     },
     "/harness-admin/v1/releases/{releaseId}/activate": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -2614,7 +2614,7 @@
     },
     "/harness-admin/v1/releases/{releaseId}/drain": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -2750,7 +2750,7 @@
     },
     "/harness-admin/v1/releases/{releaseId}/retire": {
       "post": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []
@@ -2886,7 +2886,7 @@
     },
     "/harness-admin/v1/certifications": {
       "get": {
-        "summary": "Reserved; G0 returns HARNESS_NOT_READY",
+        "summary": "Requires the corresponding Harness capability",
         "security": [
           {
             "HarnessBearer": []

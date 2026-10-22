@@ -13,7 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 import static cube.service.harness.test.RuntimeTest.*;
 
 /**
- * N08/N09 可信 CPU Runner 与工具 broker 集成测试：真实 JDBC 账本、HTTP 边界、
+ * 可信 CPU Runner 与工具 broker 集成测试：真实 JDBC 账本、HTTP 边界、
  * MockConsole 上游与 RunnerDispatcher；默认使用一次性 sqlite 存储库。
  *
  * <p>覆盖持久派发/接受/结果重放与 ACK 摘要、证据与参数冲突、grant 绑定与吊销、
@@ -190,7 +190,7 @@ public final class ToolTest {
     }
 
     /**
-     * N08/N09 工具 broker 主校验：持久派发/接受/结果重放、ACK 摘要、证据冲突、
+     * 工具 broker 主校验：持久派发/接受/结果重放、ACK 摘要、证据冲突、
      * 租约/grant/目标/字段绑定、脚本前过滤、unknown/取消占位、撤销与过期、
      * 提交不确定性与 Broker 重启隔离、DB 重试不重发 HTTP 及 Runner 租约。
      *
@@ -470,6 +470,6 @@ public final class ToolTest {
         }
         prepare(Files.createTempDirectory("harness-tools-"), System.getProperty("tools.test.config", ""));
         checks();
-        System.out.println("PASS: N08/N09 real JDBC/MockConsole on " + config.dialect);
+        System.out.println("PASS: real JDBC/MockConsole on " + config.dialect);
     }
 }

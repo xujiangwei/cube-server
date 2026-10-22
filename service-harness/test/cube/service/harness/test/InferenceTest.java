@@ -17,7 +17,7 @@ import static cube.service.harness.test.RuntimeTest.*;
 
 /**
  * 推理网关离线集成测试：真实 JDBC 推理账本与 Java HTTP 解码，推理硬件以夹具
- * 模拟；属 N06/N07 执行编排的推理链路（Cell v3 inference_submit/poll/cancel），
+ * 模拟；属 执行编排的推理链路（Cell v3 inference_submit/poll/cancel），
  * 底层为一次性 sqlite 存储库。
  *
  * <p>覆盖 v3→v4 显式迁移保留在途作业、跨语言 canonical 摘要向量、共享物理容量
@@ -85,7 +85,7 @@ public final class InferenceTest {
         jobs.backend("old-backend", oldDescriptor, 1);
         check(jobs.capacity().getJSONArray("backends").getJSONObject(0).getInt("occupied") == 1,
                 "Migration released old unknown physical execution");
-        pass("explicit v3-to-v4 migration retains raw job, old identity and unknown capacity alongside the new routing identity");
+        pass("explicit inference-ledger migration retains raw job, old identity and unknown capacity alongside the new routing identity");
     }
 
     /**

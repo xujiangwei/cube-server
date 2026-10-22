@@ -1,6 +1,6 @@
 {
   "fixtures.json": "164f825936a29fbe823c4337d8b5f5e8a1c7945915674daa477ef229b093eb84",
-  "openapi.json": "a832a615d09646eb8e99de92820f11d278727e37bb615fd93fa6392aa2843de1",
+  "openapi.json": "b54a7284b35a631a21f25b545ce2a49371aed4fd0513a56f79cc22ee0674f8b4",
   "schemas/approval.json": "6592acef2337cc3ead99d34c071dfaaaf76e96d5d2bc78b6d190211ac0ea7969",
   "schemas/artifact.json": "623baa1278bcd544d6b3786ec7c43377b061c1ced909b5980814a8183aedbbd2",
   "schemas/cancel-run.json": "0b8ce2bc8c918b23f7e9558aeed2b01c883786a6a5bbf5d718e551d98b9c8738",

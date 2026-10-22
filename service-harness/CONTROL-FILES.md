@@ -2,7 +2,7 @@
 
 以下业务接口统一使用 dispatcher 地址，经 Performer/SHM 访问 service。文件控制使用同步消息，字节使用同节点、同会话的 Cell 原生流；上传成功必须等待 service 校验及入库完成。service HTTP 不提供业务接口；传输与部署见 [TRANSPORT.md](TRANSPORT.md)。
 
-使用实际 JDK 8；这是独立 `service-harness` 的可选开发入口。数据库显式升级至当前 **schema7**，服务启动只校验。升级前停止新写入并备份专用库，升级后由兼容 schema7 的节点恢复；旧二进制不能直接读新库。控制与文件由 `006.sql` 引入（等待/回执与文件/root 身份等八表，加 tool job 清理列），全部迁移按固定摘要分发。
+使用实际 JDK 8；这是独立 `service-harness` 的可选开发入口。数据库显式升级至当前任务账本结构，服务启动只校验。升级前停止新写入并备份专用库，升级后由兼容当前任务账本结构的节点恢复；旧二进制不能直接读新库。控制与文件由 `006.sql` 引入（等待/回执与文件/root 身份等八表，加 tool job 清理列），全部迁移按固定摘要分发。
 
 ## 控制接口
 
@@ -45,6 +45,6 @@ Console 状态查询由工作区 [server-status SKILL](../../skill/harness-packa
 
 `ant -f service-harness/build.xml test-control-files test-tools test-execution test-inference`；MySQL 专项使用全新专用库及 `-Dcontrol.test.config=<私有 migrator 配置>`。Python 用 `python -B -m unittest discover -s harness/tests -v`；选择状态 SKILL 的 Cell 集成回归见工作区 `skill/harness-packages/server-status/tests/integration_smoke.py --help`。
 
-Runner 兼容性由协议版本、消息 schema 和能力声明判断；变更契约时同步两工程，升级前 drain 旧实例并保留运行目录与 journal。源码或构建摘要不用于通信检查或部署版本记录。撤回仅停止新交互接单/上传/状态 profile，保留兼容当前 schema7 的恢复节点至在途执行、文件保留和清理收敛。原生 Linux、多主机存储及生产身份需在目标环境认证，Windows 测试不能代替。
+Runner 兼容性由协议版本、消息 schema 和能力声明判断；变更契约时同步两工程，升级前 drain 旧实例并保留运行目录与 journal。源码或构建摘要不用于通信检查或部署版本记录。撤回仅停止新交互接单/上传/状态 profile，保留兼容当前任务账本结构的恢复节点至在途执行、文件保留和清理收敛。原生 Linux、多主机存储及生产身份需在目标环境认证，Windows 测试不能代替。
 
 业务技能的真实数据源与质量认证由相应 SKILL 维护，不纳入控制/文件模块的固定依赖。

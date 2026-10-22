@@ -63,8 +63,8 @@ worker_view=obj(dict(workerId=identity,instanceId=identity,role=dict(type='strin
 schemas['capabilities-response']=obj(dict(service=dict(type='string',enum=['Harness']),protocolVersion=dict(type='integer',enum=[1]),registeredWorkers=array(worker_view),infrastructureReady=dict(type='boolean'),runsReady=dict(type='boolean',enum=[False]),execution=dict(type='string',enum=['scripted'])))
 schemas['profiles-response']=obj(dict(profiles=array(schemas['profile'])))
 schemas['health-response']=obj(dict(service=dict(type='string',enum=['Harness']),ready=dict(type='boolean'),runsReady=dict(type='boolean',enum=[False])))
-def endpoint(path, method, schema=None, status='503', summary='Reserved; G0 returns HARNESS_NOT_READY'):
-    operation={'summary':summary,'security':[{'HarnessBearer':[]}], 'responses':{'401':{'description':'Unauthorized'},'403':{'description':'Forbidden'},'400':{'description':'Invalid request'},status:{'description':'G0 readiness response' if status=='200' else 'Capability not ready'}}}
+def endpoint(path, method, schema=None, status='503', summary='Requires the corresponding Harness capability'):
+    operation={'summary':summary,'security':[{'HarnessBearer':[]}], 'responses':{'401':{'description':'Unauthorized'},'403':{'description':'Forbidden'},'400':{'description':'Invalid request'},status:{'description':'Harness capability response' if status=='200' else 'Capability not ready'}}}
     parameters=[]
     import re
     for name in re.findall(r'\{(\w+)\}',path): parameters.append(dict(name=name,**{'in':'path'},required=True,schema=identity))
@@ -75,8 +75,8 @@ def endpoint(path, method, schema=None, status='503', summary='Reserved; G0 retu
         operation['responses'].setdefault(code,{'description':'Harness error'})
         operation['responses'][code]['content']={'application/json':{'schema':{'$ref':'#/components/schemas/error'}}}
     paths.setdefault(path,{})[method]=operation
-endpoint('/harness/v1/capabilities','get',status='200',summary='Infrastructure capability readiness; no task execution at G0')
-endpoint('/harness/v1/task-profiles','get',status='200',summary='G0 returns an empty executable profile list')
+endpoint('/harness/v1/capabilities','get',status='200',summary='Query Harness capability readiness')
+endpoint('/harness/v1/task-profiles','get',status='200',summary='Query active task profiles in the authenticated tenant; empty when execution is disabled or no task is active')
 for path,name in [('/harness/v1/capabilities','capabilities-response'),('/harness/v1/task-profiles','profiles-response')]:
     paths[path]['get']['responses']['200']['content']={'application/json':{'schema':{'$ref':'#/components/schemas/'+name}}}
 endpoint('/harness/v1/task-profiles/{profileId}','get')

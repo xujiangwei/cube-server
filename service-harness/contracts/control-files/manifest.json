@@ -10,5 +10,5 @@
   "schemas/approval.json": "ffb7223b288c2137e27fa2f25082aa4620e8957f4c7894ca7beb4f6467081fd4",
   "schemas/input-create.json": "cc88fdad0999da723f0fc930666792dea93d7bfb27a9d178a8c51cecfe437686",
   "schemas/input-complete.json": "d1b2ca7cdbb82e8e23a214ee3039155455cfd311f1e69185664501ca4aa636bd",
-  "openapi.json": "9c995db7b597846c2cc4b011d707d0db7cd4fa948f7367b7bda3a07d40180e35"
+  "openapi.json": "94b4221d7d598807291e57d9a60c20d812f5f32a6679f04f92da942e219ec559"
 }

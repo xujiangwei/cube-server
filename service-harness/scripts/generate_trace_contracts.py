@@ -1,4 +1,4 @@
-"""Generate the additive N13 diagnostic contract; frozen base/control contracts are untouched."""
+"""Generate Harness redacted trace and append-only feedback contracts."""
 import argparse, hashlib, json
 from pathlib import Path
 
@@ -42,7 +42,7 @@ def generate(python_root):
             operation['parameters'].append(dict(name='Idempotency-Key',**{'in':'header'},required=True,schema=dict(type='string',maxLength=128)))
             operation['requestBody']=dict(required=True,content={'application/json':dict(schema={'$ref':'schemas/feedback.json'})})
         paths['/harness/v1/runs/{runId}/'+suffix]={method:operation}
-    files['openapi.json']=dict(openapi='3.0.3',info=dict(title='Harness independent redacted Trace and append-only feedback',version='N13.1'),paths=paths,components=dict(securitySchemes={name:dict(type='http',scheme='bearer') for name in ('TraceReader','HarnessBearer')}))
+    files['openapi.json']=dict(openapi='3.0.3',info=dict(title='Harness independent redacted Trace and append-only feedback',version='1.0.0'),paths=paths,components=dict(securitySchemes={name:dict(type='http',scheme='bearer') for name in ('TraceReader','HarnessBearer')}))
     raw={k:(json.dumps(v,ensure_ascii=False,indent=2)+'\n').encode() for k,v in files.items()}
     raw['manifest.json']=(json.dumps({k:hashlib.sha256(v).hexdigest() for k,v in raw.items()},indent=2)+'\n').encode()
     for root in (MODULE/'contracts/trace',python_root/'harness/contracts/trace'):

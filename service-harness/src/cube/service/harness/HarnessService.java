@@ -197,7 +197,7 @@ public final class HarnessService extends AbstractModule {
             if (config == null) {
                 config = HarnessConfig.load();
             }
-            // N03 为可选且 fail-closed；DDL 只在显式迁移 CLI 中提供。
+            // 任务账本为可选且 fail-closed；DDL 只在显式迁移 CLI 中提供。
             if (Boolean.parseBoolean(config.values.getProperty("store.enabled", "false"))) {
                 store = new JdbcRunStore(new StoreConfig(config.values));
             }

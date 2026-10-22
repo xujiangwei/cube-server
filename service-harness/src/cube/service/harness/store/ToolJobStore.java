@@ -19,7 +19,7 @@ import static cube.service.harness.store.JdbcRunStore.*;
  * durable accepted，传输重送不增加 attempt。撤销（revoke）与取消
  * （cancel_requested）只记录义务，不替代物理执行证据；queued 作业尚未到达
  * worker、无副作用，可直接终结。broker_protocol 的 5/6 整数编码仅用于
- * schema7 存储兼容，不是公开的 Runner 版本。
+ * 既有任务账本的存储兼容，不是公开的 Runner 版本。
  */
 public final class ToolJobStore {
     /**
@@ -59,10 +59,10 @@ public final class ToolJobStore {
         lock = mysql ? " FOR UPDATE" : "";
     }
 
-    // 保持 schema7 既有数据库上的整数编码稳定。它不是公开的 Runner 版本。
+    // 保持既有任务账本上的整数编码稳定。它不是公开的 Runner 版本。
 
     /**
-     * 把 Runner 类型映射为 schema7 的整数存储编码。
+     * 把 Runner 类型映射为任务账本的整数存储编码。
      *
      * @param runnerType Runner 类型（ToolProtocol.TOOL 或 ToolProtocol.SANDBOX）
      * @return tool 对应 5，sandbox 对应 6

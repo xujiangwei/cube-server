@@ -2,9 +2,9 @@
 
 trace 与反馈统一访问 dispatcher `/harness/v1`，经 SHM 长连接交给 service；reader Bearer 与角色在 service 验证。service HTTP 仅保留健康/运维入口，详见 [TRANSPORT.md](TRANSPORT.md)。
 
-当前实现为默认关闭的诊断导出、内容脱敏后的状态回放和追加反馈。schema7 显式迁移增加事件状态投影、反馈表、工具协议/物理完成证据和模型/工具/推理的派发、完成、取消时间；001～006 不变，启动不执行 DDL。升级前停止旧写入者并备份；旧二进制不能直接读 schema7。恢复继续使用权威账本，不访问导出文件或 Trace 后端。
+当前实现为默认关闭的诊断导出、内容脱敏后的状态回放和追加反馈。轨迹与反馈迁移增加事件状态投影、反馈表、工具协议/物理完成证据和模型/工具/推理的派发、完成、取消时间；001～006 不变，启动不执行 DDL。升级前停止旧写入者并备份；旧二进制不能直接读取当前任务账本结构。恢复继续使用权威账本，不访问导出文件或 Trace 后端。
 
-新增契约位于 `contracts/trace/`，包含版本化 OpenAPI、导出和反馈 schema/摘要，并镜像到 Python 工程同名目录；原 base/control-files 契约保持原字节。当前 `TRACE_EXPIRED` 映射 HTTP 400，独立权限错误为403，幂等冲突409。评测的 expectedTools 对照全部调用（含内建资源工具），物理完成断言包含模型、工具和网关推理三类执行账本。
+新增契约位于 `contracts/trace/`，包含版本化 OpenAPI、导出和反馈 schema/摘要，并镜像到 Python 工程同名目录；base、control-files 与 trace 按用途维护各自的契约与完整性清单。当前 `TRACE_EXPIRED` 映射 HTTP 400，独立权限错误为403，幂等冲突409。评测的 expectedTools 对照全部调用（含内建资源工具），物理完成断言包含模型、工具和网关推理三类执行账本。
 
 在同一私有 `harness.properties` 配置，重启生效：
 
@@ -30,7 +30,7 @@ feedback.enabled=false
 python -I -S scripts/replay_trace.py /private/evidence/trace.json
 ```
 
-程序只读显式文件，使用 Python 标准库；不导入 Harness 配置、网络库、provider、Runner、数据库或执行器，不执行记录里的代码。检查包摘要、连续事件/版本、终态、最终投影一致性，返回确定性的状态和脱敏 mock 输出。它重建权威状态，不重新生成原自然语言；内容摘要不是原文。schema7 以前的事件没有投影，导出 `replayComplete=false`，回放拒绝，不能伪造历史补齐。
+程序只读显式文件，使用 Python 标准库；不导入 Harness 配置、网络库、provider、Runner、数据库或执行器，不执行记录里的代码。检查包摘要、连续事件/版本、终态、最终投影一致性，返回确定性的状态和脱敏 mock 输出。它重建权威状态，不重新生成原自然语言；内容摘要不是原文。启用事件状态投影前写入的历史事件没有投影，导出 `replayComplete=false`，回放拒绝，不能伪造历史补齐。
 
 质量入口 `scripts/evaluate_traces.py <冻结fixture> <追加observations.jsonl> --traces-root <只读导出目录> --output <report.json>`。每个部署单独冻结 model/profile/configDigest 和至少50个不同场景；每场景包括 input、expectedTools/Scope、assertions、faults、budget、expectedState、quality。扩展夹具模板在工作区 `skill/harness-extensions/fixtures/`，仍须填入实际范围和承诺后冻结，不是已经执行的50场景。
 

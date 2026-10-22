@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Harness independent redacted Trace and append-only feedback",
-    "version": "N13.1"
+    "version": "1.0.0"
   },
   "paths": {
     "/harness/v1/runs/{runId}/trace": {
