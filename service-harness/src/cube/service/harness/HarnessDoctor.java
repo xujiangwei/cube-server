@@ -6,14 +6,13 @@
 
 package cube.service.harness;
 
-import cube.service.harness.protocol.Contract;
-import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.execution.ModelProtocol;
 import cube.service.harness.execution.ToolProtocol;
+import cube.service.harness.protocol.Contract;
+import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.runtime.RuntimeSupport;
 import cube.service.harness.store.JdbcRunStore;
 import cube.service.harness.store.StoreConfig;
-
 import org.json.JSONObject;
 
 /**

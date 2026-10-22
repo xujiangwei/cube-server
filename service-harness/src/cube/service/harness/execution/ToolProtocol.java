@@ -28,7 +28,9 @@ import org.json.JSONObject;
  * </ul>
  */
 public final class ToolProtocol {
-    /** tool/sandbox 请求与响应的当前协议版本。 */
+    /**
+     * tool/sandbox 请求与响应的当前协议版本。
+     */
     public static final int VERSION = 1;
 
     /**
