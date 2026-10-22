@@ -18,11 +18,7 @@ import org.json.JSONObject;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -99,7 +95,7 @@ public class MySQLStorage extends AbstractStorage {
             final int isolation = connection.getTransactionIsolation();
             final String catalog = connection.getCatalog();
             return (Connection) Proxy.newProxyInstance(MySQLStorage.class.getClassLoader(),
-                    new Class<?>[] { Connection.class }, new java.lang.reflect.InvocationHandler() {
+                    new Class<?>[]{Connection.class}, new java.lang.reflect.InvocationHandler() {
                         private boolean closed;
 
                         @Override
@@ -117,32 +113,47 @@ public class MySQLStorage extends AbstractStorage {
                                     boolean reusable = false;
                                     try {
                                         if (!connection.isClosed()) {
-                                            if (!connection.getAutoCommit()) connection.rollback();
-                                            if (connection.isReadOnly() != readOnly) connection.setReadOnly(readOnly);
+                                            if (!connection.getAutoCommit()) {
+                                                connection.rollback();
+                                            }
+                                            if (connection.isReadOnly() != readOnly) {
+                                                connection.setReadOnly(readOnly);
+                                            }
                                             if (connection.getTransactionIsolation() != isolation) {
                                                 connection.setTransactionIsolation(isolation);
                                             }
                                             if (!Objects.equals(connection.getCatalog(), catalog)) {
                                                 connection.setCatalog(catalog);
                                             }
-                                            if (!connection.getAutoCommit()) connection.setAutoCommit(true);
+                                            if (!connection.getAutoCommit()) {
+                                                connection.setAutoCommit(true);
+                                            }
                                             connection.clearWarnings();
                                             reusable = true;
                                         }
                                     } finally {
-                                        if (reusable) current.returnConn(connection);
-                                        else current.discard(connection);
+                                        if (reusable) {
+                                            current.returnConn(connection);
+                                        } else {
+                                            current.discard(connection);
+                                        }
                                     }
                                 }
                                 return null;
                             }
-                            if (name.equals("isClosed")) return closed || connection.isClosed();
-                            if (closed) throw new SQLException("Pooled connection is closed", "08003");
+                            if (name.equals("isClosed")) {
+                                return closed || connection.isClosed();
+                            }
+                            if (closed) {
+                                throw new SQLException("Pooled connection is closed", "08003");
+                            }
                             if (name.equals("unwrap")) {
                                 if (((Class<?>) args[0]).isInstance(proxy)) return proxy;
                                 throw new SQLException("Physical pooled connection cannot be unwrapped");
                             }
-                            if (name.equals("isWrapperFor")) return ((Class<?>) args[0]).isInstance(proxy);
+                            if (name.equals("isWrapperFor")) {
+                                return ((Class<?>) args[0]).isInstance(proxy);
+                            }
                             try {
                                 return method.invoke(connection, args);
                             } catch (InvocationTargetException e) {
@@ -508,8 +519,7 @@ public class MySQLStorage extends AbstractStorage {
                 if (null == fields) {
                     StorageField[] row = StorageFields.scanResultSet(rs);
                     result.add(row);
-                }
-                else {
+                } else {
                     StorageField[] row = new StorageField[fields.length];
 
                     for (int i = 0; i < fields.length; ++i) {
@@ -518,16 +528,13 @@ public class MySQLStorage extends AbstractStorage {
                         if (literal == LiteralBase.STRING) {
                             String value = rs.getString(sf.getName());
                             row[i] = new StorageField(sf.getName(), sf.getLiteralBase(), value);
-                        }
-                        else if (literal == LiteralBase.LONG) {
+                        } else if (literal == LiteralBase.LONG) {
                             long value = rs.getLong(sf.getName());
                             row[i] = new StorageField(sf.getName(), sf.getLiteralBase(), value);
-                        }
-                        else if (literal == LiteralBase.INT) {
+                        } else if (literal == LiteralBase.INT) {
                             int value = rs.getInt(sf.getName());
                             row[i] = new StorageField(sf.getName(), sf.getLiteralBase(), value);
-                        }
-                        else if (literal == LiteralBase.BOOL) {
+                        } else if (literal == LiteralBase.BOOL) {
                             boolean value = rs.getBoolean(sf.getName());
                             row[i] = new StorageField(sf.getName(), sf.getLiteralBase(), value);
                         }
@@ -579,8 +586,7 @@ public class MySQLStorage extends AbstractStorage {
                 if (null == fields) {
                     StorageField[] row = StorageFields.scanResultSet(rs);
                     result.add(row);
-                }
-                else {
+                } else {
                     StorageField[] row = new StorageField[fields.length];
 
                     for (int i = 0; i < fields.length; ++i) {
@@ -590,16 +596,13 @@ public class MySQLStorage extends AbstractStorage {
                         if (literal == LiteralBase.STRING) {
                             String value = rs.getString(sf.getName());
                             row[i] = new StorageField(sf.getName(), sf.getLiteralBase(), value);
-                        }
-                        else if (literal == LiteralBase.LONG) {
+                        } else if (literal == LiteralBase.LONG) {
                             long value = rs.getLong(sf.getName());
                             row[i] = new StorageField(sf.getName(), sf.getLiteralBase(), value);
-                        }
-                        else if (literal == LiteralBase.INT) {
+                        } else if (literal == LiteralBase.INT) {
                             int value = rs.getInt(sf.getName());
                             row[i] = new StorageField(sf.getName(), sf.getLiteralBase(), value);
-                        }
-                        else if (literal == LiteralBase.BOOL) {
+                        } else if (literal == LiteralBase.BOOL) {
                             boolean value = rs.getBoolean(sf.getName());
                             row[i] = new StorageField(sf.getName(), sf.getLiteralBase(), value);
                         }
@@ -766,8 +769,7 @@ public class MySQLStorage extends AbstractStorage {
                             synchronized (this) {
                                 conn = this.connections.poll();
                             }
-                        }
-                        else {
+                        } else {
                             Long timestamp = this.timestamps.get(conn);
                             if (null != timestamp) {
                                 if (System.currentTimeMillis() - timestamp > this.timeout) {
@@ -787,16 +789,13 @@ public class MySQLStorage extends AbstractStorage {
                                         synchronized (this) {
                                             conn = this.connections.poll();
                                         }
-                                    }
-                                    else {
+                                    } else {
                                         break;
                                     }
-                                }
-                                else {
+                                } else {
                                     break;
                                 }
-                            }
-                            else {
+                            } else {
                                 break;
                             }
                         }
@@ -868,8 +867,7 @@ public class MySQLStorage extends AbstractStorage {
                     synchronized (this) {
                         this.connections.offer(connection);
                     }
-                }
-                else {
+                } else {
                     this.timestamps.remove(connection);
                 }
             } catch (SQLException e) {
@@ -927,8 +925,7 @@ public class MySQLStorage extends AbstractStorage {
                 ResultSet rs = statement.executeQuery("select version()");
                 if (rs.next()) {
                     return true;
-                }
-                else {
+                } else {
                     try {
                         statement.close();
                         statement = null;
