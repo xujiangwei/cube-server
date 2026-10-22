@@ -6,6 +6,7 @@
 
 package cube.service.harness.execution;
 
+import cell.util.log.Logger;
 import cube.service.harness.protocol.Contract;
 import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.runtime.ContextEngine;
@@ -37,7 +38,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>每一步持有独立的不可变身份（{@link RunStep}），不在共享服务上切换当前用户；</li>
  *   <li>状态机：queued → running；waiting_input / waiting_approval 经控制面恢复；
  *       终态为 succeeded / failed / cancelled / timed_out；</li>
- *   <li>租约：按 run 缓存 {@link JdbcRunStore.Lease} 并以 10 秒续租；
+ *   <li>租约：按 run 缓存 {@link JdbcRunStore.Lease}，活动步骤由独立线程每两秒续租十秒；
  *       STALE_OWNER / LEASE_BUSY / VERSION_CONFLICT 时丢弃缓存租约重取；</li>
  *   <li>对账先行：任何新 intent 之前先对账全部历史 round；回调只写证据，从不写状态；</li>
  *   <li>限额来自 TaskProfile 的 executionLimits（maxRounds / maxTools / maxRepairs /
@@ -47,6 +48,9 @@ import java.util.concurrent.TimeUnit;
  * </ul>
  */
 public final class RunCoordinator implements AutoCloseable {
+
+    private static final long RUN_LEASE_MILLIS = 10000;
+    private static final long LEASE_RENEW_MILLIS = 2000;
 
     /**
      * run 持久存储：快照、intent、租约与结算的唯一事实来源。
@@ -102,6 +106,15 @@ public final class RunCoordinator implements AutoCloseable {
      * 单线程守护调度器，以 100ms 固定周期驱动 scan。
      */
     private final ScheduledExecutorService executor;
+
+    /** 慢查询或上下文组装期间仍须续租；不得与执行步骤共用单线程。 */
+    private final ScheduledExecutorService leaseExecutor;
+
+    /** 仅续租正在执行的步骤；所有业务写入仍由数据库校验 owner/fence。 */
+    private volatile JdbcRunStore.Lease activeLease;
+
+    private String lastDiagnosticKey;
+    private long lastDiagnosticNanos;
 
     /**
      * 最近一次诊断错误码，仅运维可见，不参与协议。
@@ -247,6 +260,38 @@ public final class RunCoordinator implements AutoCloseable {
                             t.setDaemon(true);
                             return t;
                         });
+        leaseExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "harness-coordinator-lease");
+            t.setDaemon(true);
+            return t;
+        });
+        leaseExecutor.scheduleWithFixedDelay(this::renewActiveLease,
+                LEASE_RENEW_MILLIS, LEASE_RENEW_MILLIS, TimeUnit.MILLISECONDS);
+    }
+
+    /** 续租不能复活过期租约，也不能覆盖其他 JVM 已取得的新 fence。 */
+    private void renewActiveLease() {
+        JdbcRunStore.Lease lease = activeLease;
+        if (lease == null) return;
+        try {
+            store.renew(lease, RUN_LEASE_MILLIS);
+        } catch (StoreException e) {
+            if (activeLease == lease) lastError = e.code;
+        } catch (Exception e) {
+            if (activeLease == lease) lastError = "COORDINATOR_LEASE_RENEW_FAILED";
+        }
+    }
+
+    /** 只记录状态诊断；相同错误限频，避免持续重试淹没日志。 */
+    private void recordFailure(String run, String code) {
+        lastError = code;
+        String key = run + ":" + code;
+        long now = System.nanoTime();
+        if (!key.equals(lastDiagnosticKey) || now - lastDiagnosticNanos >= TimeUnit.SECONDS.toNanos(30)) {
+            Logger.w(RunCoordinator.class, "#scan - runId=" + run + " errorCode=" + code);
+            lastDiagnosticKey = key;
+            lastDiagnosticNanos = now;
+        }
     }
 
     /**
@@ -286,16 +331,16 @@ public final class RunCoordinator implements AutoCloseable {
                     step(identity == null ? new ProfileRegistry.Identity(row.getString("tenant"),
                             row.getString("subject_id"), permissions) : identity, row.getString("run_id"));
                 } catch (StoreException e) {
-                    lastError = e.code;
+                    recordFailure(row.getString("run_id"), e.code);
                     if (Arrays.asList("STALE_OWNER", "LEASE_BUSY", "VERSION_CONFLICT").contains(e.code)) {
                         leases.remove(row.getString("run_id"));
                     }
                 } catch (Exception e) {
-                    lastError = "COORDINATOR_STEP_FAILED";
+                    recordFailure(row.getString("run_id"), "COORDINATOR_STEP_FAILED");
                 }
             }
         } catch (Exception e) {
-            lastError = "COORDINATOR_STORE_UNAVAILABLE";
+            recordFailure("scan", "COORDINATOR_STORE_UNAVAILABLE");
         }
     }
 
@@ -321,7 +366,12 @@ public final class RunCoordinator implements AutoCloseable {
      * @throws Exception 存储或步进失败时向上传播
      */
     public synchronized void step(ProfileRegistry.Identity identity, String run) throws Exception {
-        new RunStep(identity).step(run);
+        activeLease = leases.get(run);
+        try {
+            new RunStep(identity).step(run);
+        } finally {
+            activeLease = null;
+        }
     }
 
     // 每一步持有独立的不可变身份；不在共享服务上切换当前用户。
@@ -598,11 +648,12 @@ public final class RunCoordinator implements AutoCloseable {
             }
             JdbcRunStore.Lease l = leases.get(run);
             if (l == null) {
-                l = store.acquire(identity.tenant, identity.subject, run, owner, s.getLong("version"), 10000);
+                l = store.acquire(identity.tenant, identity.subject, run, owner, s.getLong("version"), RUN_LEASE_MILLIS);
                 leases.put(run, l);
             } else {
-                store.renew(l, 10000);
+                store.renew(l, RUN_LEASE_MILLIS);
             }
+            activeLease = l;
             if (state.equals("queued")) {
                 store.transition(l, version(run), "running", new JSONObject());
             }
@@ -846,13 +897,16 @@ public final class RunCoordinator implements AutoCloseable {
     }
 
     /**
-     * 关闭协调器：停止扫描线程并等待至多 3 秒退出。
+     * 关闭协调器：停止扫描与续租线程，分别等待至多 3 秒退出。
      */
     @Override
     public void close() {
         executor.shutdownNow();
+        activeLease = null;
+        leaseExecutor.shutdownNow();
         try {
             executor.awaitTermination(3, TimeUnit.SECONDS);
+            leaseExecutor.awaitTermination(3, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

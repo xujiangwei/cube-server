@@ -47,6 +47,8 @@ Python model worker 不直接连接模型 HTTP、不加载模型权重；模型�
 
 Coordinator 使用数据库租约、fence 和 checkpoint 推进 run：持久化 round intent → 获取模型结果 → 校验 final/tool_calls/need_input → 写入工具 intent 或等待状态 → 提交结果。资源工具由 Java `ResourceTools` 执行；工具 Runner、文件与 sandbox 按配置启用。等待、审批、取消见 [CONTROL-FILES.md](CONTROL-FILES.md)。
 
+run 租约为十秒；正在执行的步骤由独立线程每两秒续租，覆盖远程数据库访问、上下文组装和工具执行期间的等待。续租仍验证数据库时间、owner 和 fence，已过期或被其他 JVM 接管的租约不能复活。未执行步骤时不持续续租；扫描推进失败会记录限频的 runId/errorCode 诊断日志。此租约独立于 Python worker 的 `lease.millis`。
+
 Cell v3 的 `inference_submit/poll/cancel` 绑定 job、原 worker 实例、wireAttempt 和请求摘要。同 attempt 同摘要复用已有记录，异摘要冲突；增量事件按 cursor 分页，追平后读取最终结果。此通道不提供独立推理 HTTP 接口。
 
 超时、取消、断连或 Completion.fail/release 不能证明物理推理结束。无法确认时记录 unknown，保留物理容量并禁止自动发起替代推理。Java 重启时未确认的发送窗口同样隔离；`inference.node.id` 必须部署实例唯一且重启后稳定。未派发的 queued 推理可以安全取消。
