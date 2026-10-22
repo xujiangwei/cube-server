@@ -42,7 +42,7 @@ public final class StoreConfig {
     private final String url;
 
     /**
-     * JDBC 用户名；SQLite 下为空串，MySQL 下必须为 harness_ 前缀专用账户。
+     * JDBC 用户名；SQLite 下为空串，MySQL 下不允许为空，不限制账户名前缀或格式。
      */
     private final String user;
 
@@ -59,7 +59,7 @@ public final class StoreConfig {
      * @param p 配置属性，读取 store.dialect、store.database、store.identity 及方言专属键
      * @throws StoreException STORE_TARGET_REFUSED（库名/身份格式非法、SQLite 根目录或
      *                        数据文件不合规、MySQL host/port 非法）、STORE_ACCOUNT_REFUSED
-     *                        （MySQL 账户非 harness_ 前缀或密码为空）、STORE_DIALECT_REFUSED
+     *                        （MySQL 用户名或密码为空）、STORE_DIALECT_REFUSED
      *                        （dialect 既非 sqlite 也非 mysql）
      * @throws Exception      SQLite JDBC 驱动类加载失败
      */
@@ -94,7 +94,7 @@ public final class StoreConfig {
             }
             user = p.getProperty("store.mysql.user", "");
             password = p.getProperty("store.mysql.password", "");
-            if (!user.matches("harness_[a-z0-9_]{1,48}") || password.isEmpty()) {
+            if (user.isEmpty() || password.isEmpty()) {
                 throw new StoreException("STORE_ACCOUNT_REFUSED");
             }
             // 不接受任意 JDBC URL/选项、多语句、本地文件或旧凭据。

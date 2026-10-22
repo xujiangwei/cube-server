@@ -23,7 +23,7 @@ store.sqlite.file=C:/private/harness-store/harness_development.db
 
 文件名必须等于 `store.database + .db`，真实父目录必须位于指定 root 内，拒绝数据库文件符号链接。SQLite 使用独立连接、BEGIN IMMEDIATE、foreign_keys、busy_timeout 和 synchronous=FULL；部署范围为单实例开发。
 
-MySQL 由数据库管理员一次性创建专用数据库与账号。数据库名和账户名必须以 `harness_` 开头，只允许小写字母、数字和下划线；`store.identity` 是部署级数据库身份，首次初始化自动写入库，之后继续匹配校验。服务账号在本库获得 SELECT/INSERT/UPDATE/DELETE/CREATE/INDEX/REFERENCES/ALTER，不需要 DROP、全局权限、其他库权限、角色或 GRANT OPTION。账号配置在同一个 `harness.properties` 中，由服务完成建表和结构自检。
+MySQL 由数据库管理员一次性创建专用数据库与账号。数据库名必须以 `harness_` 开头，只允许小写字母、数字和下划线；账户名不限制前缀或格式，用户名与密码均不能为空。`store.identity` 是部署级数据库身份，首次初始化自动写入库，之后继续匹配校验。服务账号在本库获得 SELECT/INSERT/UPDATE/DELETE/CREATE/INDEX/REFERENCES/ALTER，不需要 DROP、全局权限、其他库权限、角色或 GRANT OPTION。账号配置在同一个 `harness.properties` 中，由服务完成建表和结构自检。
 
 ```properties
 store.enabled=true
