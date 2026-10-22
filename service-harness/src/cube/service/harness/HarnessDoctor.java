@@ -35,7 +35,9 @@ public final class HarnessDoctor {
         }
         HarnessConfig config = HarnessConfig.load();
         if (Boolean.parseBoolean(config.values.getProperty("store.enabled", "false"))) {
-            new JdbcRunStore(new StoreConfig(config.values));
+            try (StoreConfig storeConfig = new StoreConfig(config.values)) {
+                new JdbcRunStore(storeConfig);
+            }
         }
         JSONObject manifest = StrictJson.object(Contract.resource("manifest.json"));
         for (String path : manifest.keySet()) {

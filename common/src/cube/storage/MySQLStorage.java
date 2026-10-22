@@ -15,10 +15,13 @@ import cube.core.StorageField;
 import cube.util.SQLUtils;
 import org.json.JSONObject;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -42,14 +45,14 @@ public class MySQLStorage extends AbstractStorage {
     public final static String CONFIG_USER = "user";
     public final static String CONFIG_PASSWORD = "password";
 
-    private ConnectionPool pool;
+    private volatile ConnectionPool pool;
 
     public MySQLStorage(String name) {
         super(name, StorageType.MySQL);
     }
 
     @Override
-    public void open() {
+    public synchronized void open() {
         if (null != this.pool) {
             return;
         }
@@ -66,13 +69,91 @@ public class MySQLStorage extends AbstractStorage {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (null == this.pool) {
             return;
         }
 
         this.pool.close();
         this.pool = null;
+    }
+
+    /**
+     * 借用池内连接，供需要显式 JDBC 事务的调用方使用。
+     *
+     * <p>返回的逻辑连接必须关闭（建议 try-with-resources）：close 会回滚未结束的事务、
+     * 恢复连接状态并归还池，不关闭可复用的物理连接。池不可用或获取超时时抛出 SQLException。
+     * 已关闭的逻辑连接不能继续使用；清理失败的物理连接直接丢弃。
+     */
+    public Connection borrowConnection() throws SQLException {
+        final ConnectionPool current = this.pool;
+        if (current == null) {
+            throw new SQLException("MySQL connection pool is not open", "08003");
+        }
+        final Connection connection = current.get();
+        if (connection == null) {
+            throw new SQLException("MySQL connection pool could not provide a connection", "08001");
+        }
+        try {
+            final boolean readOnly = connection.isReadOnly();
+            final int isolation = connection.getTransactionIsolation();
+            final String catalog = connection.getCatalog();
+            return (Connection) Proxy.newProxyInstance(MySQLStorage.class.getClassLoader(),
+                    new Class<?>[] { Connection.class }, new java.lang.reflect.InvocationHandler() {
+                        private boolean closed;
+
+                        @Override
+                        public synchronized Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args)
+                                throws Throwable {
+                            String name = method.getName();
+                            if (method.getDeclaringClass() == Object.class) {
+                                if (name.equals("equals")) return proxy == args[0];
+                                if (name.equals("hashCode")) return System.identityHashCode(proxy);
+                                return "Pooled MySQL connection";
+                            }
+                            if (name.equals("close")) {
+                                if (!closed) {
+                                    closed = true;
+                                    boolean reusable = false;
+                                    try {
+                                        if (!connection.isClosed()) {
+                                            if (!connection.getAutoCommit()) connection.rollback();
+                                            if (connection.isReadOnly() != readOnly) connection.setReadOnly(readOnly);
+                                            if (connection.getTransactionIsolation() != isolation) {
+                                                connection.setTransactionIsolation(isolation);
+                                            }
+                                            if (!Objects.equals(connection.getCatalog(), catalog)) {
+                                                connection.setCatalog(catalog);
+                                            }
+                                            if (!connection.getAutoCommit()) connection.setAutoCommit(true);
+                                            connection.clearWarnings();
+                                            reusable = true;
+                                        }
+                                    } finally {
+                                        if (reusable) current.returnConn(connection);
+                                        else current.discard(connection);
+                                    }
+                                }
+                                return null;
+                            }
+                            if (name.equals("isClosed")) return closed || connection.isClosed();
+                            if (closed) throw new SQLException("Pooled connection is closed", "08003");
+                            if (name.equals("unwrap")) {
+                                if (((Class<?>) args[0]).isInstance(proxy)) return proxy;
+                                throw new SQLException("Physical pooled connection cannot be unwrapped");
+                            }
+                            if (name.equals("isWrapperFor")) return ((Class<?>) args[0]).isInstance(proxy);
+                            try {
+                                return method.invoke(connection, args);
+                            } catch (InvocationTargetException e) {
+                                throw e.getCause();
+                            }
+                        }
+                    });
+        } catch (SQLException | RuntimeException e) {
+            current.discard(connection);
+            throw e;
+        }
     }
 
     @Override
@@ -642,6 +723,8 @@ public class MySQLStorage extends AbstractStorage {
 
         private AtomicInteger count;
 
+        private volatile boolean closed;
+
         protected ConnectionPool(int maxConn, JSONObject config) {
             this.maxConn = maxConn;
             this.config = config;
@@ -652,25 +735,24 @@ public class MySQLStorage extends AbstractStorage {
         }
 
         protected Connection get() {
-            if (this.count.get() >= this.maxConn) {
-                synchronized (this) {
+            synchronized (this) {
+                long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+                while (!this.closed && this.count.get() >= this.maxConn) {
+                    long remaining = deadline - System.nanoTime();
+                    if (remaining <= 0) {
+                        Logger.w(this.getClass(), "#get - The connection pool is full, max connections: " + this.maxConn);
+                        return null;
+                    }
                     try {
-                        this.wait(30000);
+                        this.wait(Math.max(1, java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(remaining)));
                     } catch (InterruptedException e) {
-                        // 恢复中断标记，交由上层决策
                         Thread.currentThread().interrupt();
+                        return null;
                     }
                 }
-
-                // 等待结束后必须复检：池仍然已满则拒绝服务，而不是继续超限建连。
-                // 历史上这里会无条件继续创建连接，使 maxConn 形同虚设，最终打满数据库的 max_connections。
-                if (this.count.get() >= this.maxConn) {
-                    Logger.w(this.getClass(), "#get - The connection pool is full, max connections: " + this.maxConn);
-                    return null;
-                }
+                if (this.closed) return null;
+                this.count.incrementAndGet();
             }
-
-            this.count.incrementAndGet();
 
             try {
                 Connection conn = null;
@@ -755,6 +837,10 @@ public class MySQLStorage extends AbstractStorage {
                     return null;
                 }
 
+                if (this.closed) {
+                    this.discard(conn);
+                    return null;
+                }
                 return conn;
             } catch (Exception e) {
                 Logger.e(this.getClass(), "#get - Error", e);
@@ -763,11 +849,16 @@ public class MySQLStorage extends AbstractStorage {
             }
         }
 
-        protected void returnConn(Connection connection) {
+        protected synchronized void returnConn(Connection connection) {
             if (null == connection) {
                 synchronized (this) {
                     this.notifyAll();
                 }
+                return;
+            }
+
+            if (this.closed) {
+                this.discard(connection);
                 return;
             }
 
@@ -792,7 +883,22 @@ public class MySQLStorage extends AbstractStorage {
             }
         }
 
-        protected void close() {
+        protected void discard(Connection connection) {
+            this.timestamps.remove(connection);
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                Logger.d(MySQLStorage.class, "#discard - Failed to close connection");
+            } finally {
+                this.count.decrementAndGet();
+                synchronized (this) {
+                    this.notifyAll();
+                }
+            }
+        }
+
+        protected synchronized void close() {
+            this.closed = true;
             ArrayList<Connection> connList = new ArrayList<>(this.connections);
             this.connections.clear();
             this.timestamps.clear();
@@ -800,8 +906,6 @@ public class MySQLStorage extends AbstractStorage {
             synchronized (this) {
                 this.notifyAll();
             }
-
-            this.count.set(0);
 
             synchronized (this) {
                 this.notifyAll();

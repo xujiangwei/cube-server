@@ -108,7 +108,7 @@ GRANT ALL PRIVILEGES ON *.* TO 'harness_overprivileged'@'127.0.0.1';
         properties = dict({"store.dialect": "mysql", "store.database": state["database"], "store.identity": identity,
                            "store.test.disposable": "true",
                            "store.mysql.host": "127.0.0.1", "store.mysql.port": str(port), "store.mysql.user": account,
-                           "store.mysql.password": password, "store.mysql.loopbackDevelopment": "true"})
+                           "store.mysql.password": password})
         path = runtime/(name+".local.properties")
         path.write_text("\n".join(k+"="+v for k,v in properties.items())+"\n", encoding="ascii")
         if os.name != "nt":

@@ -91,6 +91,9 @@ public final class HarnessService extends AbstractModule {
      */
     private JdbcRunStore store;
 
+    /** 存储配置及其 MySQL 连接池；启动失败和停止时均释放。 */
+    private StoreConfig storeConfig;
+
     /**
      * 执行运行时；仅 execution.enabled=true 时创建，为 null 时只提供 scripted 能力。
      */
@@ -199,7 +202,7 @@ public final class HarnessService extends AbstractModule {
             }
             // 接受业务请求前自动补齐任务账本结构；失败仅停止 Harness。
             if (Boolean.parseBoolean(config.values.getProperty("store.enabled", "false"))) {
-                StoreConfig storeConfig = new StoreConfig(config.values);
+                storeConfig = new StoreConfig(config.values);
                 cube.service.harness.store.StoreBootstrap.selfCheck(storeConfig);
                 store = new JdbcRunStore(storeConfig);
             }
@@ -309,6 +312,10 @@ public final class HarnessService extends AbstractModule {
             registry.clear();
         }
         store = null;
+        if (storeConfig != null) {
+            storeConfig.close();
+            storeConfig = null;
+        }
     }
 
     /**

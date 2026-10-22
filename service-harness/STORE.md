@@ -8,7 +8,7 @@
 
 ## 配置与启动建表
 
-默认 `store.enabled=false`。不读取旧 Storage、旧数据库配置或环境凭据，不修改旧表。设置为 true 后，HarnessService 在接受请求前连接数据库，自动检查并补齐必要表、索引和可安全补建的列。数据库身份、当前结构摘要及已有结构须匹配；失败时仅停止 Harness 自身启动。doctor 和存储校验 API 只读检查，不执行 DDL。
+默认 `store.enabled=false`。不回退到其他模块的数据库配置或环境凭据，不修改旧表。设置为 true 后，HarnessService 在接受请求前连接数据库，自动检查并补齐必要表、索引和可安全补建的列。数据库身份、当前结构摘要及已有结构须匹配；失败时仅停止 Harness 自身启动。doctor 和存储校验 API 只读检查，不执行 DDL。
 
 SQLite 私有配置示例（路径可为相对服务工作目录的路径；缺失目录在加载配置时创建）：
 
@@ -23,7 +23,7 @@ store.sqlite.file=C:/private/harness-store/harness_development.db
 
 文件名必须等于 `store.database + .db`，真实父目录必须位于指定 root 内，拒绝数据库文件符号链接。SQLite 使用独立连接、BEGIN IMMEDIATE、foreign_keys、busy_timeout 和 synchronous=FULL；部署范围为单实例开发。
 
-MySQL 由数据库管理员一次性创建专用数据库与账号。数据库名必须以 `harness_` 开头，只允许小写字母、数字和下划线；账户名不限制前缀或格式，用户名与密码均不能为空。`store.identity` 是部署级数据库身份，首次初始化自动写入库，之后继续匹配校验。服务账号在本库获得 SELECT/INSERT/UPDATE/DELETE/CREATE/INDEX/REFERENCES/ALTER，不需要 DROP、全局权限、其他库权限、角色或 GRANT OPTION。账号配置在同一个 `harness.properties` 中，由服务完成建表和结构自检。
+MySQL 由数据库管理员一次性创建专用数据库并配置可访问它的账号。数据库名必须以 `harness_` 开头，只允许小写字母、数字和下划线；账户名不限制前缀或格式，用户名与密码均不能为空。`store.identity` 是部署级数据库身份，首次初始化自动写入库，之后继续匹配校验。服务需要在本库执行 SELECT/INSERT/UPDATE/DELETE/CREATE/INDEX/REFERENCES/ALTER。Harness 不查询 `SHOW GRANTS`，也不因账号具备全局、跨库或角色授权而拒绝连接；实际操作权限由 MySQL 校验。账号配置在同一个 `harness.properties` 中，由服务完成建表和结构自检。
 
 ```properties
 store.enabled=true
@@ -36,7 +36,7 @@ store.mysql.user=harness_runtime
 store.mysql.password=replace-in-private-properties-only
 ```
 
-默认 MySQL TLS `VERIFY_IDENTITY`，使用部署环境配置的可信证书。仅专用 loopback 开发实例可设置 `store.mysql.loopbackDevelopment=true`，此时允许无 TLS 的本机 SHA2 公钥握手。没有任意 JDBC URL、multiQueries 或 LOCAL INFILE 配置入口。凭据保存在实例私有配置中，不交给 Python worker。
+MySQL 统一使用 `common` 的 `MySQLStorage` 连接池，连接参数与其他服务模块一致（当前为 `useSSL=false`、`allowPublicKeyRetrieval=true`），Harness 不再单独拼装 JDBC URL 或强制 `VERIFY_IDENTITY`，无需配置 `store.mysql.loopbackDevelopment`。每次操作借用池内连接，在同一连接上执行账本事务，关闭逻辑连接时回滚未完成的事务、恢复连接状态并归还池；清理失败的连接直接丢弃。服务停止或启动失败时关闭当前实例的连接池。凭据仍保存在实例私有配置中，不交给 Python worker。
 
 数据库构建统一由服务启动触发。启动自检在 SQLite 写事务或 MySQL GET_LOCK 下串行执行，防止多个 JVM 重复建表；已存在对象检查列类型、默认值、主键、唯一约束、外键和索引。`harness_store_identity` 保存部署身份及当前结构摘要，`harness_tenant` 保存租户初始化时间及模板摘要。外来表、结构冲突或身份/摘要不匹配会拒绝启动，不会删除或重建业务数据。
 

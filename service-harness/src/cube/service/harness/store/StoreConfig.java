@@ -6,6 +6,9 @@
 
 package cube.service.harness.store;
 
+import cube.storage.MySQLStorage;
+import org.json.JSONObject;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,12 +18,12 @@ import java.util.Properties;
 /**
  * 专用 Harness 存储库的连接配置与准入校验。
  *
- * <p>只接受 dedicated Harness 数据库：库名必须为 {@code harness_} 前缀，MySQL
- * 还要求专用运行账户；不存在旧 Storage/config 回退。dialect 仅支持
+ * <p>只接受 dedicated Harness 数据库：库名必须为 {@code harness_} 前缀，
+ * 不存在旧业务库配置回退。dialect 仅支持
  * {@code sqlite} 与 {@code mysql}；SQLite 限定绝对根目录下的固定文件名，
- * MySQL 由 host/port/database 拼装 JDBC URL，不接受任意 JDBC 选项。
+ * MySQL 复用 common 的 MySQLStorage 连接池与连接参数。
  */
-public final class StoreConfig {
+public final class StoreConfig implements AutoCloseable {
     /**
      * 存储方言，取自 store.dialect，仅接受 "sqlite" 或 "mysql"。
      */
@@ -37,19 +40,14 @@ public final class StoreConfig {
     public final String identity;
 
     /**
-     * 拼装好的 JDBC URL，方言相关，构造时定稿，运行期不可变。
+     * SQLite JDBC URL；MySQL 使用连接池，此字段为 null。
      */
     private final String url;
 
     /**
-     * JDBC 用户名；SQLite 下为空串，MySQL 下不允许为空，不限制账户名前缀或格式。
+     * common 的 MySQL 连接池存储器；SQLite 下为 null，由当前配置独立持有。
      */
-    private final String user;
-
-    /**
-     * JDBC 密码；SQLite 下为空串，MySQL 下不允许为空。
-     */
-    private final String password;
+    private final MySQLStorage mysqlStorage;
 
     /**
      * 从私有属性构造存储配置并完成全部准入校验。
@@ -84,27 +82,27 @@ public final class StoreConfig {
                 throw new StoreException("STORE_TARGET_REFUSED");
             }
             url = "jdbc:sqlite:" + parent.resolve(file.getFileName());
-            user = password = "";
+            mysqlStorage = null;
         } else if (dialect.equals("mysql")) {
-            Class.forName("com.mysql.cj.jdbc.Driver");
             String host = p.getProperty("store.mysql.host", "");
             int port = Integer.parseInt(p.getProperty("store.mysql.port", "3306"));
             if (!host.matches("[A-Za-z0-9.-]+") || port < 1 || port > 65535) {
                 throw new StoreException("STORE_TARGET_REFUSED");
             }
-            user = p.getProperty("store.mysql.user", "");
-            password = p.getProperty("store.mysql.password", "");
+            String user = p.getProperty("store.mysql.user", "");
+            String password = p.getProperty("store.mysql.password", "");
             if (user.isEmpty() || password.isEmpty()) {
                 throw new StoreException("STORE_ACCOUNT_REFUSED");
             }
-            // 不接受任意 JDBC URL/选项、多语句、本地文件或旧凭据。
-            boolean localDevelopment = "true".equals(p.getProperty("store.mysql.loopbackDevelopment"))
-                    && (host.equals("127.0.0.1") || host.equals("localhost"));
-            url = "jdbc:mysql://" + host + ":" + port + "/" + database
-                    + "?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC"
-                    + "&connectTimeout=5000&socketTimeout=10000&allowMultiQueries=false"
-                    + "&allowLoadLocalInfile=false&allowUrlInLocalInfile=false&sslMode="
-                    + (localDevelopment ? "DISABLED&allowPublicKeyRetrieval=true" : "VERIFY_IDENTITY");
+            url = null;
+            mysqlStorage = new MySQLStorage("HarnessStore");
+            mysqlStorage.configure(new JSONObject()
+                    .put(MySQLStorage.CONFIG_HOST, host)
+                    .put(MySQLStorage.CONFIG_PORT, port)
+                    .put(MySQLStorage.CONFIG_SCHEMA, database)
+                    .put(MySQLStorage.CONFIG_USER, user)
+                    .put(MySQLStorage.CONFIG_PASSWORD, password));
+            mysqlStorage.open();
         } else {
             throw new StoreException("STORE_DIALECT_REFUSED");
         }
@@ -122,41 +120,21 @@ public final class StoreConfig {
     /**
      * 建立数据库连接并执行方言特定的安全校验。
      *
-     * <p>MySQL：设置 READ COMMITTED，核对当前库即为目标专用库，并逐条解析
-     * SHOW GRANTS，拒绝全局/跨库/角色授权与 WITH GRANT OPTION，只保留
-     * 本库授权（服务启动自检需要 DML 和 CREATE/INDEX/REFERENCES/ALTER）。SQLite：开启 busy_timeout、外键与 synchronous=FULL。
+     * <p>MySQL：从 common 连接池借用连接、设置 READ COMMITTED，并核对当前库即为目标库。
+     * 数据库操作权限由 MySQL 在执行 SQL 时校验。SQLite：开启 busy_timeout、外键与 synchronous=FULL。
      *
-     * @return 已完成校验的连接；调用方负责关闭
+     * @return 已完成校验的连接；调用方负责关闭，MySQL 下关闭表示归还连接池
      * @throws SQLException   连接失败或校验查询执行失败
-     * @throws StoreException STORE_TARGET_REFUSED（当前库不是目标专用库）、
-     *                        STORE_ACCOUNT_REFUSED（授权过宽或不存在本库授权）
+     * @throws StoreException STORE_TARGET_REFUSED（当前库不是目标专用库）
      */
     public Connection connect() throws SQLException {
-        Connection c = DriverManager.getConnection(url, user, password);
+        Connection c = mysql() ? mysqlStorage.borrowConnection() : DriverManager.getConnection(url);
         try {
             if (mysql()) {
                 c.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
                 try (Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT DATABASE()")) {
                     if (!r.next() || !database.equals(r.getString(1))) {
                         throw new StoreException("STORE_TARGET_REFUSED");
-                    }
-                }
-                // 拒绝全局、跨库与角色授权，包括继承而来的宽泛账户。
-                try (Statement s = c.createStatement(); ResultSet r = s.executeQuery("SHOW GRANTS")) {
-                    boolean own = false;
-                    while (r.next()) {
-                        String grant = r.getString(1).replace("\\_", "_");
-                        if (grant.startsWith("GRANT USAGE ON *.* TO ")) {
-                            continue;
-                        }
-                        if (!grant.startsWith("GRANT ") || !grant.contains(" ON `" + database + "`.* TO ")
-                                || grant.contains("WITH GRANT OPTION")) {
-                            throw new StoreException("STORE_ACCOUNT_REFUSED");
-                        }
-                        own = true;
-                    }
-                    if (!own) {
-                        throw new StoreException("STORE_ACCOUNT_REFUSED");
                     }
                 }
             } else {
@@ -168,9 +146,19 @@ public final class StoreConfig {
             }
             return c;
         } catch (RuntimeException | SQLException e) {
-            c.close();
+            try {
+                c.close();
+            } catch (SQLException closeFailure) {
+                e.addSuppressed(closeFailure);
+            }
             throw e;
         }
+    }
+
+    /** 关闭当前配置持有的 MySQL 连接池；SQLite 连接由各调用方独立关闭。 */
+    @Override
+    public void close() {
+        if (mysqlStorage != null) mysqlStorage.close();
     }
 
     /**

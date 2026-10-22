@@ -239,6 +239,62 @@ public final class RunStoreTest {
         pass("bootstrap repeat, identity mismatch and foreign target refusal");
     }
 
+    private static long connectionId(Connection c) throws SQLException {
+        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT CONNECTION_ID()")) {
+            r.next();
+            return r.getLong(1);
+        }
+    }
+
+    /** Verify pooled MySQL transaction cleanup, exclusive borrowing and shutdown on a disposable database. */
+    private static void pooledConnections() throws Exception {
+        if (!config.mysql()) return;
+        long firstId;
+        Connection first = config.connect();
+        try {
+            firstId = connectionId(first);
+            first.setAutoCommit(false);
+            try (PreparedStatement s = first.prepareStatement("UPDATE harness_store_identity SET store_id=? WHERE singleton=1")) {
+                s.setString(1, "uncommitted-pool-probe-identity");
+                s.executeUpdate();
+            }
+        } finally {
+            first.close();
+            first.close();
+        }
+        check(first.isClosed(), "Returned logical connection is still open");
+        try {
+            first.createStatement();
+            throw new AssertionError("Returned logical connection can still execute SQL");
+        } catch (SQLException expected) { }
+        try (Connection next = config.connect(); Connection concurrent = config.connect()) {
+            check(connectionId(next) == firstId, "Connection was not reused from common pool");
+            check(connectionId(concurrent) != firstId, "Double close returned the physical connection twice");
+            check(next.getAutoCommit(), "Transaction state leaked to the next borrower");
+            StoreBootstrap.verify(next, config);
+        }
+        // A broken physical connection must be discarded and replaced.
+        long brokenId;
+        try (Connection broken = config.connect()) {
+            brokenId = connectionId(broken);
+            broken.abort(Runnable::run);
+        }
+        try (Connection replacement = config.connect()) {
+            check(connectionId(replacement) != brokenId, "Broken connection was reused");
+        }
+        // Closing a pool also handles connections that are still checked out.
+        try (StoreConfig separate = new StoreConfig(properties)) {
+            Connection active = separate.connect();
+            separate.close();
+            active.close();
+            try {
+                separate.connect();
+                throw new AssertionError("Closed store reopened its pool");
+            } catch (SQLException expected) { }
+        }
+        pass("common MySQL pool reuse, rollback on return, exclusive leases, broken connection and pool shutdown");
+    }
+
     /**
      * 服务集成场景：HarnessService 安装校验通过的 store、错误身份 fail-closed、
      * 关闭 store 不改变 未启用任务执行时的启动行为。
@@ -391,6 +447,16 @@ public final class RunStoreTest {
         pass("real JVM halt immediately before and after commit, restart/retry recovers");
     }
 
+    private static void awaitReady(Process process) throws Exception {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+        String line;
+        while ((line = reader.readLine()) != null) {
+            // common 连接池也会输出启动日志，READY 才是探针的同步信号。
+            if (line.equals("READY")) return;
+        }
+        throw new AssertionError("Owner process exited before READY");
+    }
+
     /**
      * 并发 CAS 与跨进程租约场景：八路独立连接竞争同一版本只允许一次推进；两个真实 JVM
      * owner 竞争同一 run 只允许一个获取租约。
@@ -434,8 +500,8 @@ public final class RunStoreTest {
         Process one = child("acquire", fresh, Long.toString(initial), "owner-process-a");
         Process two = child("acquire", fresh, Long.toString(initial), "owner-process-b");
         try {
-            check(new BufferedReader(new InputStreamReader(one.getInputStream())).readLine().equals("READY"), "Owner one not ready");
-            check(new BufferedReader(new InputStreamReader(two.getInputStream())).readLine().equals("READY"), "Owner two not ready");
+            awaitReady(one);
+            awaitReady(two);
             one.getOutputStream().write(10);
             one.getOutputStream().flush();
             two.getOutputStream().write(10);
@@ -691,6 +757,7 @@ public final class RunStoreTest {
         a = new JdbcRunStore(config);
         b = new JdbcRunStore(config);
         bootstrap();
+        pooledConnections();
         serviceIntegration();
         idempotency();
         atomicFailures();
