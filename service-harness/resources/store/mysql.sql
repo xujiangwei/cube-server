@@ -299,7 +299,7 @@ CREATE TABLE harness_inference (
     UNIQUE(job_id,wire_attempt),
     FOREIGN KEY(job_id) REFERENCES harness_model_job(job_id),
     FOREIGN KEY(backend_id) REFERENCES harness_model_backend(backend_id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE harness_inference_event (
     inference_id VARCHAR(64) NOT NULL,
@@ -307,7 +307,7 @@ CREATE TABLE harness_inference_event (
     event_json MEDIUMTEXT NOT NULL,
     PRIMARY KEY(inference_id,event_seq),
     FOREIGN KEY(inference_id) REFERENCES harness_inference(inference_id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE INDEX harness_inference_queue ON harness_inference(status,created_at);
 
@@ -317,7 +317,7 @@ CREATE TABLE harness_runner_identity (
     worker_id VARCHAR(128) NOT NULL PRIMARY KEY,
     runtime_id VARCHAR(128) NOT NULL,
     capacity INTEGER NOT NULL
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE harness_tool_job (
     job_id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -354,7 +354,7 @@ CREATE TABLE harness_tool_job (
     cancelled_at BIGINT,
     UNIQUE(run_id,call_id,attempt),
     FOREIGN KEY(run_id) REFERENCES harness_run(run_id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE INDEX harness_tool_queue ON harness_tool_job(status,created_at);
 
@@ -366,7 +366,7 @@ CREATE TABLE harness_tool_revocation (
     subject_id VARCHAR(128) NOT NULL,
     reason VARCHAR(128) NOT NULL,
     FOREIGN KEY(run_id) REFERENCES harness_run(run_id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE harness_broker_exchange (
     job_id VARCHAR(64) NOT NULL PRIMARY KEY,
@@ -375,7 +375,7 @@ CREATE TABLE harness_broker_exchange (
     status VARCHAR(32) NOT NULL,
     response_json MEDIUMTEXT,
     FOREIGN KEY(job_id) REFERENCES harness_tool_job(job_id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE harness_wait (
     wait_id VARCHAR(128) PRIMARY KEY,
@@ -386,7 +386,7 @@ CREATE TABLE harness_wait (
     arguments_hash VARCHAR(64) NOT NULL,
     expires_at BIGINT NOT NULL,
     created_at BIGINT NOT NULL
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE INDEX harness_wait_run ON harness_wait(run_id, status);
 
@@ -395,7 +395,7 @@ CREATE TABLE harness_control_receipt (
     payload_hash VARCHAR(64) NOT NULL,
     response_json MEDIUMTEXT NOT NULL,
     created_at BIGINT NOT NULL
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE harness_file (
     file_id VARCHAR(128) PRIMARY KEY,
@@ -422,7 +422,7 @@ CREATE TABLE harness_file (
     attempts INTEGER NOT NULL DEFAULT 0,
     last_error VARCHAR(128),
     deleted_at BIGINT
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE INDEX harness_file_expiry ON harness_file(root_id, status, expires_at);
 
@@ -430,7 +430,7 @@ CREATE TABLE harness_file_request (
     request_id VARCHAR(64) PRIMARY KEY,
     payload_hash VARCHAR(64) NOT NULL,
     file_id VARCHAR(128) NOT NULL
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE harness_file_pin (
     pin_id VARCHAR(128) PRIMARY KEY,
@@ -439,7 +439,7 @@ CREATE TABLE harness_file_pin (
     owner_id VARCHAR(128) NOT NULL,
     kind VARCHAR(32) NOT NULL,
     expires_at BIGINT NOT NULL
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE INDEX harness_file_pin_file ON harness_file_pin(file_id);
 
@@ -447,19 +447,19 @@ CREATE TABLE harness_file_binding (
     run_id VARCHAR(128) NOT NULL,
     file_id VARCHAR(128) NOT NULL,
     PRIMARY KEY (run_id, file_id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE harness_file_policy (
     node_id VARCHAR(128) PRIMARY KEY,
     root_id VARCHAR(128) NOT NULL,
     policy_hash VARCHAR(64) NOT NULL,
     lease_until BIGINT NOT NULL DEFAULT 0
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE harness_file_root (
     root_id VARCHAR(128) PRIMARY KEY,
     instance_id VARCHAR(128) NOT NULL
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE harness_feedback (
     feedback_id VARCHAR(64) PRIMARY KEY,
@@ -471,7 +471,7 @@ CREATE TABLE harness_feedback (
     reason_json MEDIUMTEXT NOT NULL,
     created_at BIGINT NOT NULL,
     FOREIGN KEY(run_id) REFERENCES harness_run(run_id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE INDEX harness_feedback_run ON harness_feedback(run_id, created_at);
 

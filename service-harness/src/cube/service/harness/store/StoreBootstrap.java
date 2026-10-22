@@ -15,6 +15,10 @@ import java.util.*;
 
 /** Current store definition and startup-only construction; readers only verify. */
 public final class StoreBootstrap {
+    // Exact previous mysql.sql digest: only table engine/charset/collation defaults changed.
+    private static final String MYSQL_SCHEMA_BEFORE_EXPLICIT_COLLATIONS =
+            "e5693c212ea5adaf520264157f04485669498167c201827a616fa6e646d83317";
+
     private StoreBootstrap() { }
 
     private static String source(StoreConfig config) throws Exception {
@@ -67,12 +71,23 @@ public final class StoreBootstrap {
     }
 
     private static void verifyIdentity(Connection c, StoreConfig config) throws Exception {
+        verifyIdentity(c, config, false);
+    }
+
+    /** Only startup may resume construction from the known previous MySQL definition. */
+    private static boolean verifyIdentity(Connection c, StoreConfig config, boolean allowPreviousMysqlSchema) throws Exception {
         try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(
                 "SELECT singleton,store_id,schema_hash FROM harness_store_identity")) {
-            if (!r.next() || r.getInt(1) != 1 || !config.identity.equals(r.getString(2))
-                    || !digest(config).equals(r.getString(3)) || r.next()) {
+            if (!r.next() || r.getInt(1) != 1 || !config.identity.equals(r.getString(2))) {
                 throw new StoreException("STORE_IDENTITY_MISMATCH");
             }
+            String hash = r.getString(3);
+            boolean previous = allowPreviousMysqlSchema && config.mysql()
+                    && MYSQL_SCHEMA_BEFORE_EXPLICIT_COLLATIONS.equals(hash);
+            if ((!digest(config).equals(hash) && !previous) || r.next()) {
+                throw new StoreException("STORE_IDENTITY_MISMATCH");
+            }
+            return previous;
         }
     }
 
@@ -108,10 +123,21 @@ public final class StoreBootstrap {
                         s.setString(1, config.identity); s.setString(2, digest(config)); s.executeUpdate();
                     }
                 }
-                verifyIdentity(c, config);
+                boolean updateSchemaHash = verifyIdentity(c, config, true);
                 for (String sql : expected.missingColumns(c, config)) execute(c, sql);
                 for (String sql : statements) if (!expected.applied(c, config, sql)) execute(c, sql);
-                verify(c, config);
+                expected.verify(c, config, false);
+                if (updateSchemaHash) {
+                    // Advance the marker only after all DDL and structural checks succeed.
+                    try (PreparedStatement s = c.prepareStatement(
+                            "UPDATE harness_store_identity SET schema_hash=? WHERE singleton=1 AND store_id=? AND schema_hash=?")) {
+                        s.setString(1, digest(config));
+                        s.setString(2, config.identity);
+                        s.setString(3, MYSQL_SCHEMA_BEFORE_EXPLICIT_COLLATIONS);
+                        if (s.executeUpdate() != 1) throw new StoreException("STORE_IDENTITY_MISMATCH");
+                    }
+                }
+                verifyIdentity(c, config);
                 if (!config.mysql()) StoreConfig.end(c, false, true);
             } catch (Exception e) {
                 if (!config.mysql()) StoreConfig.end(c, false, false);

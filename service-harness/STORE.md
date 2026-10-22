@@ -42,6 +42,8 @@ MySQL 统一使用 `common` 的 `MySQLStorage` 连接池，连接参数与其他
 
 MySQL DDL 独立提交，启动先写入数据库身份，再逐项检查和创建缺失对象；中断后重启继续完成。SQLite 失败回滚整个结构事务。
 
+MySQL 建表统一显式指定 `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin`，保证字符串外键两端的字符集和排序规则一致。旧版部分表继承数据库默认排序规则，可能在创建 `harness_inference` 等表时失败；升级后，启动仅兼容该已知旧版结构摘要，在核对部署身份和已有结构后继续补建，完整结构校验通过才更新摘要。已有表和数据保留，doctor 和存储校验 API 仍只接受当前结构摘要。
+
 ## 租户首次访问
 
 在同一个 `harness.properties` 中配置：
