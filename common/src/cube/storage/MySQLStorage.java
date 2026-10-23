@@ -40,8 +40,12 @@ public class MySQLStorage extends AbstractStorage {
     public final static String CONFIG_SCHEMA = "schema";
     public final static String CONFIG_USER = "user";
     public final static String CONFIG_PASSWORD = "password";
-    /** Optional JDBC defaults for a dedicated transaction pool; mutate session state through JDBC. */
+
+    /**
+     * Optional JDBC defaults for a dedicated transaction pool; mutate session state through JDBC.
+     */
     public final static String CONFIG_TRANSACTION_ISOLATION = "transactionIsolation";
+
     public final static String CONFIG_AUTO_COMMIT = "autoCommit";
 
     private volatile ConnectionPool pool;
@@ -843,7 +847,11 @@ public class MySQLStorage extends AbstractStorage {
                         }
                     } catch (SQLException e) {
                         if (conn != null) {
-                            try { conn.close(); } catch (SQLException closeFailure) { e.addSuppressed(closeFailure); }
+                            try {
+                                conn.close();
+                            } catch (SQLException closeFailure) {
+                                e.addSuppressed(closeFailure);
+                            }
                             conn = null;
                         }
                         Logger.e(this.getClass(), "#get - " + url.toString(), e);

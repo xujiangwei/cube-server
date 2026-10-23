@@ -877,7 +877,9 @@ public final class JdbcRunStore {
                 });
     }
 
-    /** Internal state/version read; mutations still validate owner, fence and version in their transaction. */
+    /**
+     * Internal state/version read; mutations still validate owner, fence and version in their transaction.
+     */
     public JSONObject readSnapshot(String tenant, String subject, String runId) {
         return tx(c -> snapshot(run(c, tenant, subject, runId, false)));
     }

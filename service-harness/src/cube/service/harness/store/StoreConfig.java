@@ -133,7 +133,9 @@ public final class StoreConfig implements AutoCloseable {
         return connect(false);
     }
 
-    /** Borrow a manual-commit connection for a ledger transaction, retaining the pool defaults. */
+    /**
+     * Borrow a manual-commit connection for a ledger transaction, retaining the pool defaults.
+     */
     public Connection connectTransaction() throws SQLException {
         return connect(true);
     }
@@ -169,7 +171,9 @@ public final class StoreConfig implements AutoCloseable {
         }
     }
 
-    /** 关闭当前配置持有的 MySQL 连接池；SQLite 连接由各调用方独立关闭。 */
+    /**
+     * 关闭当前配置持有的 MySQL 连接池；SQLite 连接由各调用方独立关闭。
+     */
     @Override
     public void close() {
         if (mysqlStorage != null) mysqlStorage.close();
