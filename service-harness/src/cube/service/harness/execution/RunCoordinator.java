@@ -107,10 +107,14 @@ public final class RunCoordinator implements AutoCloseable {
      */
     private final ScheduledExecutorService executor;
 
-    /** 慢查询或上下文组装期间仍须续租；不得与执行步骤共用单线程。 */
+    /**
+     * 慢查询或上下文组装期间仍须续租；不得与执行步骤共用单线程。
+     */
     private final ScheduledExecutorService leaseExecutor;
 
-    /** 仅续租正在执行的步骤；所有业务写入仍由数据库校验 owner/fence。 */
+    /**
+     * 仅续租正在执行的步骤；所有业务写入仍由数据库校验 owner/fence。
+     */
     private volatile JdbcRunStore.Lease activeLease;
 
     private String lastDiagnosticKey;
@@ -269,7 +273,9 @@ public final class RunCoordinator implements AutoCloseable {
                 LEASE_RENEW_MILLIS, LEASE_RENEW_MILLIS, TimeUnit.MILLISECONDS);
     }
 
-    /** 续租不能复活过期租约，也不能覆盖其他 JVM 已取得的新 fence。 */
+    /**
+     * 续租不能复活过期租约，也不能覆盖其他 JVM 已取得的新 fence。
+     */
     private void renewActiveLease() {
         JdbcRunStore.Lease lease = activeLease;
         if (lease == null) return;
@@ -282,7 +288,9 @@ public final class RunCoordinator implements AutoCloseable {
         }
     }
 
-    /** 只记录状态诊断；相同错误限频，避免持续重试淹没日志。 */
+    /**
+     * 只记录状态诊断；相同错误限频，避免持续重试淹没日志。
+     */
     private void recordFailure(String run, String code) {
         lastError = code;
         String key = run + ":" + code;
