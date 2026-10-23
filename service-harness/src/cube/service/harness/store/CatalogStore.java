@@ -55,7 +55,7 @@ public final class CatalogStore {
         return mysql ? " FOR UPDATE" : "";
     }
 
-    /** Atomically adopt a legacy tenant or initialize a new tenant from a validated startup snapshot. */
+    /** Atomically initialize tenant business policy from a validated startup snapshot. */
     public void ensureTenant(String tenant, cube.service.harness.runtime.TenantTemplates templates) {
         id(tenant);
         store.tx(c -> {
@@ -67,21 +67,20 @@ public final class CatalogStore {
             // The unique tenant row serializes first access across requests and JVMs.
             existing = first(rows(c, "SELECT initialized_at FROM harness_tenant WHERE tenant=?" + lock(), tenant));
             if (existing.getLong("initialized_at") > 0) return null;
-            boolean legacy = first(rows(c, "SELECT tenant FROM harness_profile WHERE tenant=? LIMIT 1", tenant)) != null
-                    || first(rows(c, "SELECT tenant FROM harness_binding WHERE tenant=? LIMIT 1", tenant)) != null;
-            if (!legacy) {
+            boolean configured = first(rows(c, "SELECT tenant FROM harness_binding WHERE tenant=? AND binding_kind='policy' AND binding_name='default'", tenant)) != null;
+            if (!configured) {
                 for (JSONObject definition : templates.profiles()) {
                     String kind = definition.getString("kind"), name = definition.getString("id"), version = definition.getString("version");
                     update(c, "INSERT INTO harness_profile (tenant,profile_kind,profile_id,profile_version,digest,definition_json) VALUES (?,?,?,?,?,?)",
                             tenant, kind, name, version, hash(definition), canonical(definition));
-                    if (kind.equals("task")) {
-                        update(c, "INSERT INTO harness_binding (tenant,binding_kind,binding_name,target_ref,version) VALUES (?,'task',?,?,1)",
+                    if (kind.equals("policy")) {
+                        update(c, "INSERT INTO harness_binding (tenant,binding_kind,binding_name,target_ref,version) VALUES (?,'policy',?,?,1)",
                                 tenant, name, name + "@" + version);
                     }
                 }
             }
             update(c, "UPDATE harness_tenant SET initialized_at=?,template_digest=? WHERE tenant=?",
-                    store.now(c), legacy ? null : templates.digest, tenant);
+                    store.now(c), templates.digest, tenant);
             return null;
         });
     }
@@ -94,7 +93,7 @@ public final class CatalogStore {
          * 在事务连接上解析权威配置。
          *
          * @param connection 事务内的数据库连接
-         * @return 解析出的权威配置 JSON（如固定的 task/model/runtime profile）
+         * @return 解析出的权威配置 JSON（服务器 execution/model/runtime 与租户 policy）
          * @throws Exception 解析失败即导致整个创建事务回滚
          */
         JSONObject resolve(Connection connection) throws Exception;
@@ -241,17 +240,17 @@ public final class CatalogStore {
      * 写入带乐观版本：expected 为 0 表示新建。
      *
      * @param tenant   租户标识
-     * @param kind     绑定类型，仅接受 "skill" 或 "task"
+     * @param kind     绑定类型，仅接受 "skill" 或 "policy"
      * @param name     绑定名称
      * @param target   绑定目标（skill 为 release digest，task 为 profile 引用）
      * @param expected 期望的当前 version，0 表示期望不存在（新建）
      * @return 包含 target 与新 version 的 JSON
      * @throws StoreException INVALID_BINDING_KIND（非法绑定类型）、
-     *                        RELEASE_NOT_READY（skill 目标未就绪）、INVALID_PROFILE_REF（task 引用格式非法）、
-     *                        PROFILE_NOT_FOUND（task 目标 profile 不存在）、VERSION_CONFLICT（版本不匹配）
+     *                        RELEASE_NOT_READY（skill 目标未就绪）、INVALID_PROFILE_REF（policy 引用格式非法）、
+     *                        PROFILE_NOT_FOUND（policy 目标不存在）、VERSION_CONFLICT（版本不匹配）
      */
     public JSONObject bind(String tenant, String kind, String name, String target, long expected) {
-        if (!Arrays.asList("skill", "task").contains(kind)) {
+        if (!Arrays.asList("skill", "policy").contains(kind)) {
             throw new StoreException("INVALID_BINDING_KIND");
         }
         return store.tx(c -> {
@@ -265,7 +264,8 @@ public final class CatalogStore {
                 if (ref.length != 2 || !ref[0].equals(name)) {
                     throw new StoreException("INVALID_PROFILE_REF");
                 }
-                profile(c, tenant, "task", ref[0], ref[1]);
+                if (kind.equals("policy") && !name.equals("default")) throw new StoreException("INVALID_PROFILE_REF");
+                profile(c, tenant, kind, ref[0], ref[1]);
             }
             JSONObject old = first(rows(c, "SELECT * FROM harness_binding WHERE tenant=? AND binding_kind=? AND binding_name=?" + lock(), id(tenant), kind, name));
             long v = old == null ? 0 : old.getLong("version");
@@ -286,7 +286,7 @@ public final class CatalogStore {
      *
      * @param c      连接
      * @param tenant 租户标识
-     * @param kind   绑定类型（skill/task）
+     * @param kind   绑定类型（skill/policy）
      * @param name   绑定名称
      * @return 包含 target_ref 与 version 的行
      * @throws SQLException   查询失败
@@ -309,6 +309,7 @@ public final class CatalogStore {
      * @throws StoreException IMMUTABLE_PROFILE_CONFLICT（同键但摘要不同，违反不可变性）
      */
     public JSONObject putProfile(String tenant, JSONObject definition) {
+        RuntimeSupport.validate("tenant-policy", definition);
         String kind = definition.getString("kind"), name = id(definition.getString("id")), version = id(definition.getString("version")), digest = hash(definition);
         return store.tx(c -> {
             JSONObject old = first(rows(c, "SELECT digest FROM harness_profile WHERE tenant=? AND profile_kind=? AND profile_id=? AND profile_version=?" + lock(), id(tenant), kind, name, version));
@@ -363,7 +364,7 @@ public final class CatalogStore {
      * @param tenant   租户标识
      * @param subject  主体标识
      * @param key      幂等键
-     * @param taskId   任务 profile 引用
+     * @param taskId   服务端幂等命名空间
      * @param request  请求 JSON
      * @param resolver 权威输入解析回调
      * @return 创建（或幂等重放）得到的 run 行
@@ -469,6 +470,7 @@ public final class CatalogStore {
             }
             JSONObject pin = pinned(c, tenant, subject, runId);
             requireRelease(pin, digest);
+            cube.service.harness.runtime.RunSelection.requireTool(pin, "skill.activate");
             if (!RuntimeSupport.strings(pin.getJSONArray("permissions")).contains("skill.activate")) {
                 throw new StoreException("RESOURCE_FORBIDDEN");
             }
@@ -683,18 +685,25 @@ public final class CatalogStore {
         });
     }
 
-    /**
-     * 列出租户下处于 active 状态的 task profile 定义（经 binding 关联）。
-     *
-     * <p>由已授权的服务身份选定租户，调用方不能自行指定；最多返回 64 条，
-     * 按绑定名称排序。MySQL 用 CONCAT 拼装 profile 引用，SQLite 用 || 运算符。
-     *
-     * @param tenant 租户标识
-     * @return task profile 定义 JSON 数组
-     */
-    public JSONArray taskProfiles(String tenant) {
-        return store.tx(c -> rows(c, "SELECT p.definition_json FROM harness_binding b JOIN harness_profile p ON p.tenant=b.tenant AND p.profile_kind=b.binding_kind AND p.profile_id=b.binding_name AND b.target_ref="
-                + (mysql ? "CONCAT(p.profile_id,'@',p.profile_version)" : "p.profile_id || '@' || p.profile_version")
-                + " WHERE b.tenant=? AND b.binding_kind='task' ORDER BY b.binding_name LIMIT 64", tenant));
+    /** Read the current skill or business-policy binding. */
+    public JSONObject active(String tenant, String kind, String name) {
+        return store.tx(c -> active(c, tenant, kind, name));
     }
+
+    public JSONObject tenantPolicy(String tenant) {
+        return store.tx(c -> tenantPolicy(c, tenant));
+    }
+
+    public JSONObject tenantPolicy(Connection c, String tenant) throws SQLException {
+        String[] ref = active(c, tenant, "policy", "default").getString("target_ref").split("@", -1);
+        return profile(c, tenant, "policy", ref[0], ref[1]);
+    }
+
+    /** Called inside the serialized run-creation transaction, after idempotent replay. */
+    public void checkAdmission(Connection c, String tenant, int maximum) throws SQLException {
+        if (first(rows(c, "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')", tenant)).getLong("n") >= maximum) {
+            throw new StoreException("HARNESS_BUSY");
+        }
+    }
+
 }

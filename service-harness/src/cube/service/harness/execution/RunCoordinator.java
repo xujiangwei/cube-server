@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>租约：按 run 缓存 {@link JdbcRunStore.Lease}，活动步骤由独立线程每两秒续租十秒；
  *       STALE_OWNER / LEASE_BUSY / VERSION_CONFLICT 时丢弃缓存租约重取；</li>
  *   <li>对账先行：任何新 intent 之前先对账全部历史 round；回调只写证据，从不写状态；</li>
- *   <li>限额来自 TaskProfile 的 executionLimits（maxRounds / maxTools / maxRepairs /
+ *   <li>限额来自服务器 executionLimits 与租户业务配额的交集（maxRounds / maxTools / maxRepairs /
  *       maxLifetimeMillis），缺省时使用内置默认值；</li>
  *   <li>取消有宽限期（cancelGrace）：超时且物理结果仍未知时以 unknown 收尾，保留隔离，
  *       禁止自动补执行。</li>
@@ -632,7 +632,7 @@ public final class RunCoordinator implements AutoCloseable {
                 return;
             }
             JSONObject pin = catalog.pinned(identity.tenant, identity.subject, run),
-                    task = pin.getJSONObject("task"),
+                    task = cube.service.harness.runtime.ExecutionProfiles.execution(pin),
                     model = pin.getJSONObject("model");
             JSONObject limits = task.optJSONObject("executionLimits");
             if (limits == null) {

@@ -71,6 +71,14 @@ public final class HarnessIdentityTest {
         denied(503, null, "valid-format");
         // Auth 查询过程抛异常：按 503 拒绝。
         denied(503, code -> { throw new IllegalStateException(); }, "valid-format");
+        for (String code : Arrays.asList("MODEL_NOT_READY", "RUNTIME_NOT_READY", "TOOL_NAME_COLLISION", "IDEMPOTENCY_CONFLICT", "MODEL_NOT_FOUND", "RESOURCE_FORBIDDEN")) {
+            org.json.JSONObject response = HarnessBusiness.failure(new cube.service.harness.store.StoreException(code));
+            int status = code.endsWith("NOT_READY") ? 503 : code.equals("TOOL_NAME_COLLISION") ? 400
+                    : code.equals("IDEMPOTENCY_CONFLICT") ? 409 : code.endsWith("NOT_FOUND") ? 404 : 403;
+            if (response.getInt("status") != status || response.getJSONObject("body").getBoolean("retryable") != (status == 503)) {
+                throw new AssertionError("Wrong selection error mapping: " + code);
+            }
+        }
         System.out.println("PASS: Cube token identity, expiry, missing user, mismatched code, domain-scoped roles and unavailable Auth");
     }
 }

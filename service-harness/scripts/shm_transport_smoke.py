@@ -10,6 +10,7 @@ import shutil
 import socket
 import sqlite3
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -22,10 +23,13 @@ def main():
     for name in ("java", "runtime", "libs", "cell-jar", "common-jar"):
         parser.add_argument("--" + name, required=True, type=Path)
     parser.add_argument("--max-file-bytes", type=int, default=1048576)
+    parser.add_argument("--python-root", type=Path, default=Path(__file__).resolve().parents[4] / "apexnova-wisdom")
     args = parser.parse_args()
     root = args.runtime.resolve()
     root.mkdir(parents=True, exist_ok=False)
     module = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(args.python_root.resolve()))
+    from readiness_fixture import RegisteredModel
     (root / "data").mkdir()
     cp = os.pathsep.join(map(str, (args.cell_jar.resolve(), args.common_jar.resolve(), args.libs.resolve() / "*",
                                    module / "build/cube-service-harness-3.0.jar", module / "build/test-classes")))
@@ -71,10 +75,15 @@ execution.max.active=100
 fixture.user.domain={fixture['tenant']}
 fixture.user.contact={fixture['subject']}
 execution.repository.namespace=runtime-test-repo
+worker.transport-model.role=model
+worker.transport-model.model=scripted
+worker.transport-model.backend=transport-readiness
+backend.transport-readiness.capacity=1
 """, encoding="utf-8")
     gateway = None
     process = None
     log = None
+    model = None
     checks = []
     def record(name):
         checks.append(name)
@@ -153,21 +162,25 @@ execution.repository.namespace=runtime-test-repo
         request("/harness/v1/capabilities", token=admin, expected=401)
         request("/harness/v1/capabilities", headers={"Authorization": ""}, expected=401)
         request("/harness/v1/capabilities", token=expired, expected=401)
-        assert request("/harness/v1/task-profiles", token=foreign)["profiles"] == []
-        profiles = request("/harness/v1/task-profiles")["profiles"]
-        assert profiles
-        request("/harness/v1/task-profiles/" + profiles[0]["profileId"])
-        request("/harness/v1/task-profiles/missing", expected=404)
+        request("/harness/v1/capabilities", token=foreign)
+        directory = request("/harness/v1/task-profiles")
+        assert directory["models"] and not any(item["ready"] for item in directory["models"])
+        request("/harness/v1/runs", dict(input=dict(instruction="offline", attachmentIds=[])), expected=503)
+        model = RegisteredModel(dict(host="127.0.0.1", port=cell_port, workerId="transport-model", role="model",
+                                     workerCredential=worker, runtimeDir=str(root / "model-registration"), requestTimeout=3,
+                                     model=dict(model="scripted", backendId="transport-readiness", backendCapacity=1,
+                                                script=[dict(kind="final", text="unused")])))
+        wait(lambda: any(item["ready"] for item in request("/harness/v1/task-profiles")["models"]))
         request("/harness/v1/capabilities", {}, expected=405)
         request("/harness/v1/unknown", expected=404)
         record("business-http-closed-health-admin-retained-and-full-rest-routing")
 
-        create = dict(taskProfileId="task", input=dict(instruction="SHM transport", attachmentIds=[]))
+        create = dict(input=dict(instruction="SHM transport", attachmentIds=[]))
         key = secrets.token_hex(16)
         first = request("/harness/v1/runs", create, expected=202, headers={"Idempotency-Key": key})
         assert request("/harness/v1/runs", create, expected=202, headers={"Idempotency-Key": key}) == first
-        request("/harness/v1/runs", dict(create, taskProfileId="one-round"), expected=409, headers={"Idempotency-Key": key})
-        for raw in (b'{"taskProfileId":"task","taskProfileId":"other"}', b'{"x":"\xff"}'):
+        request("/harness/v1/runs", dict(input=dict(instruction="different", attachmentIds=[])), expected=409, headers={"Idempotency-Key": key})
+        for raw in (b'{"input":{},"input":{}}', b'{"x":"\xff"}'):
             request("/harness/v1/runs", raw, headers={"Content-Type": "application/json"}, expected=400)
         request("/harness/v1/runs", b"x" * 262145, headers={"Content-Type": "application/json"}, expected=413)
         ids = [fixture["slowRun"], fixture["artifactRun"], first["runId"]] * 8
@@ -223,7 +236,7 @@ execution.repository.namespace=runtime-test-repo
         request(path, decision, expected=403)
         request(path, decision, token=foreign, expected=404)
         request(path, decision, token=approver, expected=202)
-        request("/harness/v1/task-profiles", token=approver)
+        request("/harness/v1/capabilities", token=approver)
         run = fixture["artifactRun"]
         request("/harness/v1/runs/" + run + "/feedback", dict(rating="positive", reason="transport fixture"), expected=202)
         request("/harness/v1/runs/" + run + "/trace", expected=403)
@@ -287,6 +300,8 @@ execution.repository.namespace=runtime-test-repo
         wait(no_pins)
         record("real-cell-cross-session-controls-and-stream-isolation-with-disconnect-cleanup")
     finally:
+        if model is not None:
+            model.close()
         if gateway is not None:
             gateway.close()
         if process is not None:

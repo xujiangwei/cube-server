@@ -25,15 +25,15 @@ Python model worker 不直接连接模型 HTTP、不加载模型权重；模型�
 | Baize | `openai-json-v2` | 工具/schema 放入提示，模型输出严格 JSON |
 | Baize2 | `openai-tools-v2` | 使用原生工具，校验函数别名、参数及配对历史 |
 
-其他模型按 ModelProfile 的 adapter/nativeTools 和后端实际能力匹配。格式修复同时受模型单轮上限与 task 累计修复预算限制。`transport-bytes-v1` 是传输字节预算，实际模型 token 用量另行记录；`offline-adapter` 表示离线适配验证。
+其他模型按 ModelProfile 的 adapter/nativeTools 和后端实际能力匹配。格式修复同时受模型单轮上限与 服务器累计修复预算限制。`transport-bytes-v1` 是传输字节预算，实际模型 token 用量另行记录；`offline-adapter` 表示离线适配验证。
 
 ## 部署配置
 
 1. 按 [STORE.md](STORE.md) 配置专用数据库并启用存储、执行。服务启动自动检查并建立当前结构。
-2. 完整部署 `config/harness-tenant/`，设置 `execution.tenant.templates=./config/harness-tenant`。启动校验并固定模板，新租户首次合法访问时原子初始化 profiles 和 active task。字段、引用及变更生效规则见[租户配置文档](config/harness-tenant/README.md)。
+2. 部署 `config/harness-execution/`，设置 `execution.profiles`，以 `execution.model=Baize@1` 和 `execution.runtime=resources@1` 设置默认模型和运行时，请求可分别覆盖。另部署只包含 `default.json` 的 `config/harness-tenant/`。新租户仅初始化技能、权限和业务配额，服务器配置不写入租户。见[执行配置](config/harness-execution/README.md)和[租户策略](config/harness-tenant/README.md)。
 3. 逐个配置 Java `worker.<id>.role/model/backend` 及 `backend.<id>.*`，Python 使用配套 `harness/config/model-baize*.template.json`；workerCredential 与 Java worker 密钥一致。
 4. 默认 `type=unit` 要求 Harness 与 AIGCService 同 Kernel/JVM，并有对应模型 Unit。独立 Cell 不具备默认 Unit 推理能力。外部模型须显式配置 `type=openai`、`baseUrl`、`model`、`token`、`capacity`、`timeoutSeconds`；字段示例见[主配置模板](config/harness.properties.template)。
-5. 已有租户使用 `RuntimeAdmin` 发布新版本并切换 active。`ExecutionAdmin <新目录>` 可导出 Baize/Baize2 默认定义，供模板维护或人工发布；不写数据库。
+5. 修改模型或执行器时更新服务端配置并重启，新任务按请求选择或采用新的默认值；在途任务保留原快照。`RuntimeAdmin` 只管理租户技能和业务策略。`ExecutionAdmin <新目录>` 导出分离的 `harness-execution/` 与 `harness-tenant/`，不写数据库。
 
 新租户模板的 `skillReleases` 必须为空。技能包、业务 provider 和可执行工具需要单独安装、发布及授权，见 [RUNTIME.md](RUNTIME.md)、[TOOLS.md](TOOLS.md)。开发环境经同 JVM AIGCService 的 [Relay](../service/RELAY.md) 联调远端 Cube 时，仍按远端实际能力和共享容量判断就绪。
 
@@ -64,7 +64,6 @@ Python 先写 journal 再报告，ACK 丢失可重送同一结果；重启后只
 | 方法与路径 | 行为 |
 | --- | --- |
 | `GET /capabilities` | worker 健康、处理/推理容量及 runsReady |
-| `GET /task-profiles`、`/task-profiles/{id}` | 已发布的 active task 摘要 |
 | `POST /runs` | 带 `Idempotency-Key`，事务提交后返回 202 |
 | `GET /runs/{id}` | 状态、执行与用量结算、结果 |
 | `GET /runs/{id}/events?after=0&limit=100` | 可回放事件，limit 为 1～100 |
@@ -73,7 +72,7 @@ Python 先写 journal 再报告，ACK 丢失可重送同一结果；重启后只
 创建示例：
 
 ```json
-{"taskProfileId":"resources-Baize2","input":{"instruction":"请简短介绍自己","attachmentIds":[]}}
+{"input":{"instruction":"请简短介绍自己","attachmentIds":[]}}
 ```
 
 同键异请求为 409，活跃/等待任务满额为 429，未来事件游标为 400，事件缺号为 409 `EVENT_GAP`。业务传输与认证见 [TRANSPORT.md](TRANSPORT.md)；完整 schema 位于 `contracts/` 和 [REST 文档](../docs/rest-api/src/harness/README.md)。

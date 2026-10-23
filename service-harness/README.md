@@ -8,7 +8,8 @@
 | --- | --- |
 | 本文 | 服务组成、数据流、构建和部署步骤 |
 | [REMOTE-NODES.md](REMOTE-NODES.md) | 一个 Java 服务接入多个跨机器 Python 单元的配置示例 |
-| [租户配置字段](config/harness-tenant/README.md) | model/runtime/task 三份 JSON 的全部字段、约束及生效规则 |
+| [服务器执行配置](config/harness-execution/README.md) | 全局模型、运行时、工具集、执行预算与生效规则 |
+| [租户业务策略](config/harness-tenant/README.md) | 技能、权限和业务配额的初始化与管理 |
 | [TRANSPORT.md](TRANSPORT.md) | dispatcher REST、SHM 消息与文件传输 |
 | [EXECUTION.md](EXECUTION.md) | 模型推理、资源循环、多单元容量和结果对账 |
 | [RUNTIME.md](RUNTIME.md) | 技能包发布、固定配置、权限、工作区和上下文 |
@@ -40,7 +41,7 @@ flowchart LR
 ```
 
 1. dispatcher 将原始 Bearer 和请求正文经 SHM 交给 Harness；服务用 Cube Auth 校验 token，以 domain/contactId 隔离租户与用户。
-2. 首次访问的新租户从 `config/harness-tenant/` 初始化任务配置。创建 run 时在事务内固定 active task、模型、运行时、技能 release 和权限，提交后返回 202。
+2. 服务器从 `config/harness-execution/` 加载全部模型和执行器；新租户从 `config/harness-tenant/default.json` 初始化业务策略。客户端通过 `GET /harness/v1/task-profiles` 查询能力，在 `POST /harness/v1/runs` 中独立选择模型、执行器和技能；工具由服务端根据技能、权限和执行器计算，请求不支持 `tools`。创建时固定实际配置和授权，提交后返回 202 与 `selection`。
 3. Coordinator 根据账本组装上下文、保存执行意图，再选择健康且有可用容量的 Python model 单元。Python 负责模型协议适配，通过 Cell 请求 Java 推理网关；模型地址和密钥由 Java 管理。
 4. 模型决策经 Java 校验后执行资源操作、派发受控工具、等待用户/审批，或提交最终结果。普通模型文本中的代码不会自动执行；动态代码须使用专门配置的 sandbox 链路。
 5. Java 提交事件、结果及实际用量，客户端通过 dispatcher 查询或续读有限 SSE 页。文件控制使用 SHM 消息，文件字节使用同一节点、同一会话的原生流。
@@ -67,7 +68,7 @@ ant "-Dcommon.jar=C:/build/cube-common-3.0.jar" build
 ant "-Dcommon.jar=C:/build/cube-common-3.0.jar" "-Dstage.dir=C:/releases/harness-only" stage
 ```
 
-本模块 `stage` 提供 Harness JAR、配置模板与租户 JSON、Cell XML、运行及诊断脚本；独立发布还须补齐配套 `bin/cell.jar`、`libs/cube-common-3.0.jar` 和依赖。`stage` 只复制文件，目标不要指向运行目录。
+本模块 `stage` 提供 Harness JAR、配置模板、服务器执行 JSON 与租户策略 JSON、Cell XML、运行及诊断脚本；独立发布还须补齐配套 `bin/cell.jar`、`libs/cube-common-3.0.jar` 和依赖。`stage` 只复制文件，目标不要指向运行目录。
 
 ## 主配置与运行方式
 
@@ -79,7 +80,8 @@ ant "-Dcommon.jar=C:/build/cube-common-3.0.jar" "-Dstage.dir=C:/releases/harness
 | Cell 地址 | 实际加载的 Cell XML；独立模板默认 `127.0.0.1:7600`，合部署示例为 6000 |
 | 健康/运维 | `http.host=127.0.0.1`、`http.port=7088`；只允许 loopback |
 | 任务执行 | `store.enabled=true`、`execution.enabled=true`，按 [STORE.md](STORE.md) 补齐专用数据库配置 |
-| 租户初始任务 | `execution.tenant.templates=./config/harness-tenant`；完整复制本目录，逐字段说明见[配置文档](config/harness-tenant/README.md) |
+| 服务器模型/执行器 | `execution.profiles=./config/harness-execution`、`execution.model=Baize@1`、`execution.runtime=resources@1`，修改后重启，作为请求省略选择时的默认值 |
+| 租户默认业务策略 | `execution.tenant.templates=./config/harness-tenant`；完整复制本目录，逐字段说明见[配置文档](config/harness-tenant/README.md) |
 | 模型推理 | Java 配置 `worker.<id>.model/backend`、`backend.<id>.*` 和稳定唯一的 `inference.node.id` |
 | 可选功能 | 文件、工具、审批、trace 及反馈按对应文档显式启用 |
 | 接单 | 新部署先设 `execution.accepting=false`，完成就绪检查后用独立管理凭据开启 |
@@ -107,7 +109,7 @@ Python 单元主动连接 Java Cell。每个 workerId 在 Java 中单独授权�
 
 1. 检查 service `/healthz`，确认健康 HTTP 可用；它不证明 worker、Auth 或模型已就绪。
 2. 启动各 Python 单元，确认独立的 registered/ready 状态。Java 记录 register/describe、drain、unregister 的身份和结果；正常心跳不重复打印，日志不含凭据和 sessionId。
-3. 用有效 Cube token 查询 dispatcher `/harness/v1/task-profiles` 与 `/capabilities`，确认 active task、worker、后端容量及接单状态。模板改变只影响重启后尚未初始化的新租户。
-4. 开启接单，以唯一 `Idempotency-Key` 创建任务，查询 run/events 至终态；使用文件或业务工具时分别检查完整上传、结果与下载链路。
+3. 用有效 Cube token 查询 dispatcher `/harness/v1/capabilities`，确认所选模型的 runsReady、worker、后端容量及接单状态。模型/执行器变更作为请求省略选择时的默认值。
+4. 开启接单，以唯一 `Idempotency-Key` 和 `{"input":{"instruction":"请简短介绍自己","attachmentIds":[]}}` 创建任务，查询 run/events 至终态；使用文件或业务工具时分别检查完整上传、结果与下载链路。
 
 停机和升级按 [RESILIENCE.md](RESILIENCE.md) 执行，保留任务账本及 Python journal，直到在途执行全部对账完成。

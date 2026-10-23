@@ -64,7 +64,7 @@ def main_impl():
     def db(sql,*values):
         with sqlite3.connect(root/"data/harness_execution.db",timeout=5) as c:return c.execute(sql,values).fetchall()
     def create(text="Query node-a cpu"):
-        return http_call("/harness/v1/runs",dict(taskProfileId="tools",input=dict(instruction=text,attachmentIds=[])))["runId"]
+        return http_call("/harness/v1/runs",dict(input=dict(instruction=text,attachmentIds=[])))["runId"]
     stage=root/"cell";(stage/"cellets").mkdir(parents=True)
     shutil.copy2(module/"build/cube-service-harness-3.0.jar",stage/"cellets")
     xml=ET.parse(module/"config/standalone.xml");xml.find(".//listeners/class").text="cube.service.harness.test.FixtureAuthCarpet";xml.find(".//server/port").text=str(cell_port);xml.find(".//cellet").set("port",str(cell_port));xml.write(stage/"cell.xml",encoding="utf-8",xml_declaration=True)

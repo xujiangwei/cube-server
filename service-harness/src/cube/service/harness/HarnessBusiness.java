@@ -44,7 +44,7 @@ final class HarnessBusiness implements AutoCloseable {
     private final HarnessConfig config;
 
     /**
-     * 执行运行时；未启用执行时为 null，仅 capabilities 与 task-profiles 可用。
+     * 执行运行时；未启用执行时为 null，仅 capabilities 可用。
      */
     private final ExecutionRuntime execution;
 
@@ -70,7 +70,7 @@ final class HarnessBusiness implements AutoCloseable {
     /**
      * 业务分发入口：鉴权、校验与路由一次完成。
      * <p>流程：动作解析 → Bearer 认证 → 白名单校验 → 会话/租约有效性 →
-     * 资源 ID 与幂等键格式 → 原始 JSON body 解析 → capabilities/task-profiles 直回 →
+     * 资源 ID 与幂等键格式 → 原始 JSON body 解析 → capabilities 直回 →
      * 执行态动作 → 文件态动作。文件动作按 transport 与 credential 绑定传输会话。
      *
      * @param dialect   dispatcher 经 SHM 送达的请求，携带动作名与 JSON data
@@ -133,22 +133,12 @@ final class HarnessBusiness implements AutoCloseable {
             if (action == HarnessAction.Capabilities) {
                 return reply(200, service.capabilities());
             }
-            if (action == HarnessAction.TaskProfiles) {
-                return reply(200, execution == null
-                        ? new JSONObject().put("profiles", new JSONArray()) : execution.taskProfiles(identity));
-            }
             if (execution == null) {
                 throw new Failure(503, "HARNESS_NOT_READY");
             }
             switch (action) {
-                case TaskProfile:
-                    JSONArray profiles = execution.taskProfiles(identity).getJSONArray("profiles");
-                    for (int i = 0; i < profiles.length(); i++) {
-                        if (profiles.getJSONObject(i).getString("profileId").equals(id)) {
-                            return reply(200, profiles.getJSONObject(i));
-                        }
-                    }
-                    throw new Failure(404, "PROFILE_NOT_FOUND");
+                case TaskProfiles:
+                    return reply(200, execution.taskProfiles(identity));
                 case CreateRun:
                     return reply(202, execution.create(identity, idem, body));
                 case ReadRun:
@@ -301,7 +291,7 @@ final class HarnessBusiness implements AutoCloseable {
                     : code.equals("FILE_EXPIRED") || code.equals("WAIT_EXPIRED") ? 410
                     : code.equals("HARNESS_BUSY") || code.equals("FILE_BUSY") || code.equals("FILE_QUOTA_EXCEEDED") ? 429
                     : code.contains("CONFLICT") || code.equals("EVENT_GAP") || code.equals("RUN_TERMINAL") || code.equals("APPROVAL_ARGUMENTS_CHANGED") ? 409
-                    : code.startsWith("STORE_") || code.equals("HARNESS_DRAINING") ? 503 : 400;
+                    : code.startsWith("STORE_") || code.equals("HARNESS_DRAINING") || code.equals("MODEL_NOT_READY") || code.equals("RUNTIME_NOT_READY") ? 503 : 400;
             return error(status, code);
         }
         if (e instanceof IllegalArgumentException) {

@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "resources",
+    "tool.execute"
+  ],
+  "certification": "offline-trusted-runner",
+  "id": "trusted-python",
+  "kind": "runtime",
+  "maxWorkspaceBytes": 1048576,
+  "maxWorkspaceFiles": 128,
+  "mode": "trusted-python-v1",
+  "schemaVersion": 2,
+  "version": "1",
+  "toolSetVersion": "broker-tools"
+}

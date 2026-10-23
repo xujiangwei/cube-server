@@ -58,6 +58,7 @@ public final class HarnessCelletTest {
         p.setProperty("store.sqlite.root", root.toString());
         p.setProperty("store.sqlite.file", root.resolve("harness_cellet.db").toString());
         p.setProperty("execution.enabled", "true");
+        p.setProperty("execution.profiles", RuntimeTest.deploymentDirectory().toString());
         p.setProperty("execution.repository", root.resolve("repository").toString());
         p.setProperty("execution.tenant.templates", StoreBootstrapTest.writeTemplates(root.resolve("templates"), "resources-Baize2").toString());
         try (OutputStream out = Files.newOutputStream(config)) {
@@ -89,26 +90,27 @@ public final class HarnessCelletTest {
             kernel.startup();
             try (HarnessSessionTest.Client client = new HarnessSessionTest.Client(port, "user-private-cellet-fixture-123456")) {
                 // A rejected token must never create tenant data.
-                ActionDialect invalid = new Packet(HarnessAction.TaskProfiles.name, new JSONObject().put("credential", "invalid-user-token")).toDialect();
+                ActionDialect invalid = new Packet(HarnessAction.Capabilities.name, new JSONObject().put("credential", "invalid-user-token")).toDialect();
                 ActionDialect denied = client.performer.syncTransmit(client.director, "Harness", invalid, 5000);
                 HarnessSessionTest.check(denied != null && new Packet(denied).data.getInt("status") == 401, "Invalid token was accepted");
                 StoreConfig database = new StoreConfig(p);
                 try (Connection c = database.connect(); Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT COUNT(*) FROM harness_tenant")) {
                     HarnessSessionTest.check(r.next() && r.getInt(1) == 0, "Invalid token initialized a tenant");
                 }
-                JSONObject listed = client.call(HarnessAction.TaskProfiles, new JSONObject(), null, 200);
-                HarnessSessionTest.check(listed.getJSONArray("profiles").length() == 1
-                        && listed.getJSONArray("profiles").getJSONObject(0).getString("profileId").equals("resources-Baize2"), "First access did not initialize task profiles");
-                // A different tenant can create a run without first fetching task-profiles.
-                JSONObject body = new JSONObject().put("taskProfileId", "resources-Baize2")
-                        .put("input", new JSONObject().put("instruction", "hello").put("attachmentIds", new org.json.JSONArray()));
+                JSONObject listed = client.call(HarnessAction.Capabilities, new JSONObject(), null, 200);
+                HarnessSessionTest.check(!listed.getBoolean("runsReady"), "Missing model worker reported ready");
+                try (Connection c = database.connect(); Statement q = c.createStatement(); ResultSet r = q.executeQuery("SELECT profile_kind FROM harness_profile")) {
+                    HarnessSessionTest.check(r.next() && r.getString(1).equals("policy") && !r.next(), "Tenant received execution profiles");
+                }
+                JSONObject body = new JSONObject().put("input", new JSONObject().put("instruction", "hello").put("attachmentIds", new org.json.JSONArray()));
                 ActionDialect direct = new Packet(HarnessAction.CreateRun.name, new JSONObject()
                         .put("credential", "second-private-cellet-fixture-123456").put("key", "direct-first-access")
                         .put("contentType", "application/json")).toDialect();
                 direct.addParam("body", body.toString().getBytes("UTF-8"));
                 ActionDialect created = client.performer.syncTransmit(client.director, "Harness", direct, 5000);
-                HarnessSessionTest.check(created != null && new Packet(created).data.getInt("status") == 202, "Direct run did not initialize tenant");
-                System.out.println("PASS: real Cell invalid-token isolation, first task-profiles and direct-run tenant initialization");
+                HarnessSessionTest.check(created != null && new Packet(created).data.getInt("status") == 503 && new Packet(created).data.getJSONObject("body").getString("errorCode").equals("MODEL_NOT_READY"), "Offline model was not rejected at creation");
+                System.out.println("PASS: real Cell invalid-token isolation, tenant policy, capability directory and offline model admission");
+                client.call(HarnessAction.TaskProfiles, new JSONObject(), null, 200);
                 ThreadPoolExecutor executor = (ThreadPoolExecutor) cellet.getService().businessExecutor();
                 // 先以 4 个任务占满业务执行器线程并阻塞在 gate 上
                 for (int i = 0; i < 4; i++) {

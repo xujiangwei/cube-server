@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "default",
+  "version": "1",
+  "kind": "policy",
+  "permissions": [
+    "artifact.write_text",
+    "input.read_text",
+    "resource.list",
+    "resource.read",
+    "resource.search",
+    "skill.activate",
+    "skill.list"
+  ],
+  "skillReleases": [],
+  "businessLimits": {
+    "maxActiveRuns": 128,
+    "maxLifetimeMillis": 300000
+  }
+}

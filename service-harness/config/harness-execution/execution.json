@@ -13,21 +13,12 @@
     "maxRounds": 8,
     "maxTools": 32
   },
-  "id": "resources-Baize2",
-  "kind": "task",
+  "id": "server-default",
+  "kind": "execution",
   "model": {
-    "id": "Baize2",
-    "version": "2"
+    "id": "Baize",
+    "version": "1"
   },
-  "permissions": [
-    "artifact.write_text",
-    "input.read_text",
-    "resource.list",
-    "resource.read",
-    "resource.search",
-    "skill.activate",
-    "skill.list"
-  ],
   "requiredCapabilities": [
     "resources",
     "resource_decisions"
@@ -36,8 +27,6 @@
     "id": "resources",
     "version": "1"
   },
-  "schemaVersion": 2,
-  "skillReleases": [],
-  "toolSetVersion": "resource-tools-v1",
-  "version": "2"
+  "schemaVersion": 1,
+  "version": "1"
 }

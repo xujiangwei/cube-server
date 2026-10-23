@@ -95,7 +95,7 @@ public final class ExecutionTest {
                         .put("maxRepairs", 1).put("maxLifetimeMillis", 60000));
         t.getJSONObject("contextPolicy").put("maxInputBytes", 48000);
         profiles.publish(T, t);
-        catalog.bind(T, "task", "task", "task@1", 0);
+        profiles.bind(T, "task", "task", "task@1", 0);
         // 严格决策、轮次/工具预算与 waiting_input 变体共享同一固定的资源/模型 profile。
         for (String variant : Arrays.asList("one-round", "no-tools", "lifetime")) {
             JSONObject v = RuntimeSupport.copy(t).put("id", variant);
@@ -103,8 +103,10 @@ public final class ExecutionTest {
                     variant.equals("one-round") ? "maxRounds" : variant.equals("no-tools") ? "maxTools" : "maxLifetimeMillis",
                     variant.equals("lifetime") ? 1000 : variant.equals("no-tools") ? 0 : 1);
             profiles.publish(T, v);
-            catalog.bind(T, "task", variant, variant + "@1", 0);
+            profiles.bind(T, "task", variant, variant + "@1", 0);
+            profiles.configure(new Properties(), T, v, root.resolve("server-" + variant));
         }
+        configureServer(p, t);
         Files.write(root.resolve("store.local.properties"), bytes(properties(p)), StandardOpenOption.CREATE_NEW);
         String slow = store.create(T, S, key(), "events-only", new JSONObject().put("fixture", "slow-consumer")).getString("runId");
         JdbcRunStore.Lease sl = store.acquire(T, S, slow, "events-fixture", version(slow), 60000);
@@ -117,6 +119,11 @@ public final class ExecutionTest {
                 bytes(new JSONObject().put("release", release).put("tenant", T).put("subject", S)
                         .put("slowRun", slow).toString(2)),
                 StandardOpenOption.CREATE_NEW);
+    }
+
+    /** Build server-owned configuration for the offline fixture, separately from its tenant policy. */
+    static void configureServer(Properties properties, JSONObject task) throws Exception {
+        profiles.configure(properties, T, task, root.resolve("server-execution"));
     }
 
     /**
@@ -259,7 +266,7 @@ public final class ExecutionTest {
         coordinator.step(waiting);
         check(waitSeq == store.read(T, S, waiting).getJSONObject("snapshot").getLong("eventSeq"), "Waiting emitted busy checkpoints");
         // 逻辑超时：lifetime 变体 1 秒到期转 timed_out，但物理槽保留至迟到完成对账。
-        JSONObject req = request("late").put("taskProfileId", "lifetime");
+        JSONObject req = request("late");
         String late = profiles.createRun(identity, key(), "lifetime", req).getString("runId");
         JSONObject running = dispatch(late, "b", "ib", sb);
         Thread.sleep(1100);

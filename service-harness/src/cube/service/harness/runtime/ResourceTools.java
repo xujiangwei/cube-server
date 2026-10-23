@@ -135,6 +135,7 @@ public final class ResourceTools {
      */
     public JSONArray skills(ProfileRegistry.Identity identity, String run) {
         JSONObject pin = pin(identity, run);
+        RunSelection.requireTool(pin, "skill.list");
         permission(pin, identity, "skill.list", null);
         JSONArray out = new JSONArray(), list = pin.getJSONArray("releases");
         for (int i = 0; i < list.length(); i++) {
@@ -155,6 +156,7 @@ public final class ResourceTools {
      * @throws cube.service.harness.store.StoreException 权限不足（RESOURCE_FORBIDDEN）
      */
     public void activate(ProfileRegistry.Identity identity, String run, String digest) {
+        RunSelection.requireTool(pin(identity, run), "skill.activate");
         manifest(identity, run, digest, "skill.activate", false);
         catalog.activate(identity.tenant, identity.subject, run, digest);
     }
@@ -169,6 +171,7 @@ public final class ResourceTools {
      * @throws cube.service.harness.store.StoreException 权限不足或未激活
      */
     public JSONArray resources(ProfileRegistry.Identity identity, String run, String digest) {
+        RunSelection.requireTool(pin(identity, run), "resource.list");
         JSONObject manifest = manifest(identity, run, digest, "resource.list", true);
         JSONArray out = new JSONArray(), list = manifest.getJSONArray("files");
         for (int i = 0; i < list.length(); i++) {
@@ -197,6 +200,11 @@ public final class ResourceTools {
      *                   （RESOURCE_FORBIDDEN）、内容读取/校验失败
      */
     public JSONObject read(ProfileRegistry.Identity identity, String run, String digest, String path, int offset, int limit) throws Exception {
+        RunSelection.requireTool(pin(identity, run), "resource.read");
+        return readInternal(identity, run, digest, path, offset, limit);
+    }
+
+    private JSONObject readInternal(ProfileRegistry.Identity identity, String run, String digest, String path, int offset, int limit) throws Exception {
         if (offset < 0 || limit < 1 || limit > 8192) {
             throw RuntimeSupport.error("INVALID_RESOURCE_PAGE");
         }
@@ -232,6 +240,7 @@ public final class ResourceTools {
      * @throws Exception 参数非法（INVALID_RESOURCE_SEARCH）、权限不足或未激活
      */
     public JSONArray search(ProfileRegistry.Identity identity, String run, String digest, String needle, int limit) throws Exception {
+        RunSelection.requireTool(pin(identity, run), "resource.search");
         if (needle == null || needle.isEmpty() || needle.length() > 256 || limit < 1 || limit > 100) {
             throw RuntimeSupport.error("INVALID_RESOURCE_SEARCH");
         }
@@ -330,7 +339,15 @@ public final class ResourceTools {
                         .put("parameters", cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("inputSchema")))));
             }
         }
-        return out;
+        JSONArray selected = new JSONArray();
+        Set<String> names = new HashSet<>();
+        for (int i = 0; i < out.length(); i++) {
+            JSONObject tool = out.getJSONObject(i);
+            if (!RunSelection.allowed(pin, tool.getString("name"))) continue;
+            if (!names.add(tool.getString("name"))) throw RuntimeSupport.error("TOOL_NAME_COLLISION");
+            selected.put(tool);
+        }
+        return selected;
     }
 
     /**
@@ -413,7 +430,7 @@ public final class ResourceTools {
                     if (!tool.getString("kind").equals("resource")) {
                         throw RuntimeSupport.error("EXECUTABLE_REQUIRES_RUNNER");
                     }
-                    JSONObject result = read(identity, run, release.getString("digest"),
+                    JSONObject result = readInternal(identity, run, release.getString("digest"),
                             tool.getString("resourcePath"), arguments.optInt("offset", 0), arguments.optInt("limit", 1024));
                     cube.service.harness.protocol.Contract.validate(result, definition.getJSONObject("resultSchema"));
                     return result;
@@ -438,6 +455,7 @@ public final class ResourceTools {
      */
     public JSONObject executable(ProfileRegistry.Identity identity, String run, String name) throws Exception {
         JSONObject pin = pin(identity, run);
+        RunSelection.requireTool(pin, name);
         Set<String> active = new HashSet<>();
         JSONArray activeRows = catalog.activeSkills(identity.tenant, identity.subject, run);
         for (int i = 0; i < activeRows.length(); i++) {

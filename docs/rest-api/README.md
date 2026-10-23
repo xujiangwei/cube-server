@@ -2,7 +2,7 @@
 
 ## Harness 资源任务
 
-Harness 的 19 个业务接口已纳入 apiDoc，接口源码见 [Harness.js](src/Harness.js)，生成页面见 [Harness 接口文档](output/index.html#api-Harness)。部署、认证与接入流程见 [Harness 任务 API](src/Harness.md)，涵盖任务、控制/审批、文件/产物、反馈、trace 与 SSE。
+Harness 的 18 个业务接口已纳入 apiDoc，接口源码见 [Harness.js](src/Harness.js)，生成页面见 [Harness 接口文档](output/index.html#api-Harness)。部署、认证与接入流程见 [Harness 任务 API](src/Harness.md)，涵盖任务、控制/审批、文件/产物、反馈、trace 与 SSE。
 
 业务统一使用 dispatcher 地址，经 SHM 长连接访问 service；健康与运维单独配置 service HTTP 地址。兼容模型 API 与 Harness 任务 API 复用已有 Cube 用户 token；各服务地址分别配置，Console 登录凭据独立。
 

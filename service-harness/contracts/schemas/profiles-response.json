@@ -1,12 +1,66 @@
 {
   "type": "object",
   "properties": {
-    "profiles": {
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          "required": [
+            "id",
+            "version"
+          ],
+          "additionalProperties": false
+        },
+        "runtime": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          "required": [
+            "id",
+            "version"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "model",
+        "runtime"
+      ],
+      "additionalProperties": false
+    },
+    "models": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "profileId": {
+          "id": {
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
@@ -18,13 +72,7 @@
             "maxLength": 128,
             "pattern": "^[A-Za-z0-9_.:-]+$"
           },
-          "modelProfile": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "pattern": "^[A-Za-z0-9_.:-]+$"
-          },
-          "skillReleases": {
+          "capabilities": {
             "type": "array",
             "items": {
               "type": "string",
@@ -34,45 +82,288 @@
             },
             "maxItems": 64
           },
-          "toolSetVersion": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "pattern": "^[A-Za-z0-9_.:-]+$"
+          "nativeTools": {
+            "type": "boolean"
           },
-          "runtimeProfile": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "pattern": "^[A-Za-z0-9_.:-]+$"
+          "current": {
+            "type": "boolean"
           },
-          "requiredCapabilities": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9_.:-]+$"
-            },
-            "maxItems": 64
+          "ready": {
+            "type": "boolean"
+          },
+          "capacity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "available": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 128
           }
         },
         "required": [
-          "profileId",
+          "id",
           "version",
-          "modelProfile",
-          "skillReleases",
-          "toolSetVersion",
-          "runtimeProfile",
-          "requiredCapabilities"
+          "capabilities",
+          "nativeTools",
+          "current",
+          "ready",
+          "capacity",
+          "available",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 256
+    },
+    "runtimes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "mode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "maxItems": 64
+          },
+          "current": {
+            "type": "boolean"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "capacity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "available": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "mode",
+          "capabilities",
+          "current",
+          "ready",
+          "capacity",
+          "available",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 256
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9_.-]*/[a-z][a-z0-9_.-]*$"
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "maxItems": 64
+          },
+          "compatibleRuntimes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                }
+              },
+              "required": [
+                "id",
+                "version"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 256
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "digest",
+          "dependencies",
+          "compatibleRuntimes"
         ],
         "additionalProperties": false
       },
       "maxItems": 64
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "permission": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "resource",
+              "executable"
+            ]
+          },
+          "compatibleRuntimes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                }
+              },
+              "required": [
+                "id",
+                "version"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 256
+          },
+          "skill": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-z][a-z0-9_.-]*/[a-z][a-z0-9_.-]*$"
+          },
+          "release": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "runnerType": {
+            "type": "string",
+            "enum": [
+              "tool",
+              "sandbox"
+            ]
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "capacity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "available": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "name",
+          "permission",
+          "kind",
+          "compatibleRuntimes",
+          "ready",
+          "capacity",
+          "available",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 4096
     }
   },
   "required": [
-    "profiles"
+    "defaults",
+    "models",
+    "runtimes",
+    "skills",
+    "tools"
   ],
   "additionalProperties": false,
   "$schema": "http://json-schema.org/draft-07/schema#"

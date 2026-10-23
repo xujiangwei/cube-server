@@ -293,7 +293,10 @@
 		</copy>
 		<echo>Synced aigc-modules.properties to ${deploy.dir}/config/.</echo>
 
-        <!-- Shared templates for authenticated tenants on first Harness access. -->
+        <!-- Server execution settings and tenant business defaults have separate ownership. -->
+        <copy todir="${deploy.dir}/config/harness-execution">
+            <fileset dir="service-harness/config/harness-execution" />
+        </copy>
         <copy todir="${deploy.dir}/config/harness-tenant">
             <fileset dir="service-harness/config/harness-tenant" />
         </copy>

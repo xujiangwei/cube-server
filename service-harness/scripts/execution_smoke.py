@@ -78,16 +78,22 @@ def main():
         value=dict(host='127.0.0.1',port=cell_port,workerId=w,role='model',workerCredential=token,runtimeDir=str(root),requestTimeout=4,startupTimeout=20,
                    model=dict(model='scripted',backendId='shared',backendCapacity=1,script=script,scriptDelayMillis=400))
         path.write_text(json.dumps(value),encoding='utf-8');configs.append(path);return path
-    def create(profile='task',instruction='Read resources',key=None):return http('/harness/v1/runs',dict(taskProfileId=profile,input=dict(instruction=instruction,attachmentIds=[])),key)
+    def create(instruction='Read resources',key=None,**selection):return http('/harness/v1/runs',dict(input=dict(instruction=instruction,attachmentIds=[]),**selection),key)
     try:
-        launch();a,b=worker('a'),worker('b');lifecycle.start(a);lifecycle.start(b)
+        launch();a,b=worker('a'),worker('b');lifecycle.start(a)
+        directory=http('/harness/v1/task-profiles')[1]
+        assert directory['models'][0]['ready'] and directory['defaults']['model']['id']=='scripted'
+        key=secrets.token_hex(16);status,first=create(key=key,model='scripted@1',runtime='resources');assert status==202,first
+        assert first['selection']['model']==dict(id='scripted',version='1') and first['selection']['runtime']==dict(id='resources',version='1')
+        wait(lambda:db("SELECT job_id FROM harness_model_job WHERE worker_id='a'"))
+        lifecycle.start(b)
         caps=http('/harness/v1/capabilities')[1];assert len(caps['registeredWorkers'])==2 and caps['capacity']['backends'][0]['capacity']==1
         record('two-real-python-model-units-one-cell-shared-backend-capacity')
-        key=secrets.token_hex(16);status,first=create(key=key);assert status==202,first
         runs=[first['runId']]
         for i in range(5):
             status,value=create(instruction='Read '+str(i));assert status==202,value;runs.append(value['runId'])
-        assert create()[0]==429;assert create(key=key)[1]==first;assert create(instruction='conflict',key=key)[0]==409
+        assert create()[0]==429;assert create(key=key,model='scripted@1',runtime='resources')[1]==first;assert create(key=key,skills=[])[0]==409
+        assert create(tools=[])[0]==400
         record('durable-create-idempotency-conflict-and-bounded-admission')
         wait(lambda:db("SELECT job_id FROM harness_model_job WHERE worker_id='a'"))
         lifecycle.stop(a)
@@ -134,12 +140,24 @@ def main():
             record('slow-consumer-streams-expire-with-api-and-model-control-responsive')
         finally:
             for sock in slow:sock.close()
+        status,denied=create(skills=[]);assert status==202,denied
+        denied_run=denied['runId']
+        wait(lambda:http('/harness/v1/runs/'+denied_run)[1]['snapshot']['state']=='succeeded',30)
+        results=[json.loads(result) for (result,) in db('SELECT result_json FROM harness_tool_call WHERE run_id=?',denied_run)]
+        assert sum(result.get('errorCode')=='RESOURCE_FORBIDDEN' for result in results)==2,results
+        assert not db('SELECT digest FROM harness_run_skill WHERE run_id=?',denied_run)
+        assert not db('SELECT job_id FROM harness_tool_job WHERE run_id=?',denied_run)
+        record('client-tools-rejected-and-real-model-cannot-activate-or-read-excluded-skill')
         # Fault-only disposable fixture: remove one event and verify an explicit gap response.
         with sqlite3.connect(data/'harness_execution.db') as c:c.execute('DELETE FROM harness_event WHERE run_id=? AND event_seq=2',(run,))
         assert http(f'/harness/v1/runs/{run}/events?after=1')[0]==409
         record('missing-event-refuses-silent-replay-gap')
         for profile,expected in [('one-round','ROUND_LIMIT_EXCEEDED'),('no-tools','TOOL_LIMIT_EXCEEDED')]:
-            status,value=create(profile=profile);assert status==202
+            stop_host()
+            config.write_text(config.read_text()+f'\nexecution.profiles={data.as_posix()}/server-{profile}\n')
+            launch()
+            wait(lambda:any(model['ready'] for model in http('/harness/v1/task-profiles')[1]['models']))
+            status,value=create();assert status==202
             r=value['runId'];wait(lambda:http('/harness/v1/runs/'+r)[1]['snapshot']['state']=='failed',30)
             assert http('/harness/v1/runs/'+r)[1]['result']['result']['errorCode']==expected
         record('round-and-tool-limits-durable-failure')

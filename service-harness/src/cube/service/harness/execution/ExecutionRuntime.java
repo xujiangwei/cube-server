@@ -59,7 +59,7 @@ public final class ExecutionRuntime implements AutoCloseable {
     public final RunnerDispatcher runners;
 
     /**
-     * profile 目录与 run 创建（model/runtime/task profile 与 active 绑定）。
+     * 服务器执行配置与租户业务策略解析及 run 创建。
      */
     public final ProfileRegistry profiles;
 
@@ -89,6 +89,8 @@ public final class ExecutionRuntime implements AutoCloseable {
     private final CatalogStore catalog;
 
     private final TenantTemplates tenantTemplates;
+
+    public final ExecutionProfiles deployment;
 
     /**
      * run 权威账本（私有）：findCreate/read/events/subject/admissionLimit。
@@ -149,6 +151,7 @@ public final class ExecutionRuntime implements AutoCloseable {
         traces = new TraceStore(store, p);
         StoreConfig sc = new StoreConfig(p);
         catalog = new CatalogStore(store, sc.mysql());
+        deployment = ExecutionProfiles.load(p);
         tenantTemplates = TenantTemplates.load(Paths.get(p.getProperty("execution.tenant.templates", "./config/harness-tenant")));
         Set<String> configured = new TreeSet<>();
         for (String value : p.getProperty("execution.permissions",
@@ -162,7 +165,7 @@ public final class ExecutionRuntime implements AutoCloseable {
                 Boolean.parseBoolean(p.getProperty("files.enabled", "false"))
                         ? new cube.service.harness.files.FileService(store, p, null)
                         : null;
-        profiles = new ProfileRegistry(catalog, files == null ? null : files.ledger);
+        profiles = new ProfileRegistry(catalog, files == null ? null : files.ledger, deployment);
         controls = new ControlStore(store, sc.mysql()).files(files == null ? null : files.ledger);
         maxActive = Integer.parseInt(p.getProperty("execution.max.active", "128"));
         if (maxActive < 1 || maxActive > 256) {
@@ -231,18 +234,22 @@ public final class ExecutionRuntime implements AutoCloseable {
      *
      * @param identity 调用者身份（tenant/subject 来自可信 token）
      * @param key      幂等创建键（Idempotency-Key）
-     * @param request  创建请求（含 taskProfileId 与 input）
+     * @param request  创建请求（input 与可选模型、执行器和能力选择）
      * @return 既有或新建的 run 创建结果
      * @throws StoreException HARNESS_DRAINING（关闭接单且非重放）或 HARNESS_BUSY（满额且非重放）
      */
     public synchronized JSONObject create(ProfileRegistry.Identity identity, String key, JSONObject request) {
+        cube.service.harness.protocol.Contract.parse("create-run", RuntimeSupport.bytes(request));
+        ensureTenant(identity);
+        JSONObject priorCreation = store.findCreate(identity.tenant, identity.subject, key, "server-default", request);
+        if (priorCreation != null) return priorCreation;
         if (!accepting) {
             JSONObject prior =
                     store.findCreate(
                             identity.tenant,
                             identity.subject,
                             key,
-                            request.getString("taskProfileId"),
+                            "server-default",
                             request);
             if (prior != null) {
                 return prior;
@@ -256,14 +263,19 @@ public final class ExecutionRuntime implements AutoCloseable {
                             identity.tenant,
                             identity.subject,
                             key,
-                            request.getString("taskProfileId"),
+                            "server-default",
                             request);
             if (prior != null) {
                 return prior;
             }
             throw new StoreException("HARNESS_BUSY");
         }
-        return profiles.createRun(identity, key, request.getString("taskProfileId"), request);
+        // Readiness is a point-in-time admission observation, not a reservation. Read its
+        // database-backed worker state before the creation write transaction (SQLite).
+        Set<String> readyModels = new HashSet<>();
+        for (JSONObject model : deployment.list("model")) if (workers.ready(model)) readyModels.add(model.getString("id") + "@" + model.getString("version"));
+        JSONArray readyRunners = runners == null ? new JSONArray() : runners.snapshot();
+        return profiles.createRun(identity, key, request, pin -> requireReady(pin, readyModels, readyRunners));
     }
 
     /**
@@ -271,6 +283,95 @@ public final class ExecutionRuntime implements AutoCloseable {
      *
      * @return 接受新 run 为 true
      */
+    public boolean modelReady() {
+        for (JSONObject model : deployment.list("model")) if (workers.ready(model)) {
+            for (JSONObject runtime : deployment.list("runtime")) {
+                try {
+                    deployment.select(new JSONObject().put("model", model.getString("id") + "@" + model.getString("version"))
+                            .put("runtime", runtime.getString("id") + "@" + runtime.getString("version")));
+                    if (runtimeAvailability(runtime, Collections.emptySet()).getBoolean("ready")) return true;
+                } catch (cube.service.harness.store.StoreException incompatible) { }
+            }
+        }
+        return false;
+    }
+
+    private JSONObject runtimeAvailability(JSONObject runtime, Set<String> requiredTypes) {
+        return runtimeAvailability(runtime, requiredTypes, runners == null ? new JSONArray() : runners.snapshot());
+    }
+
+    private JSONObject runtimeAvailability(JSONObject runtime, Set<String> requiredTypes, JSONArray nodes) {
+        if (runtime.getString("mode").equals("resources-only")) return new JSONObject().put("ready", requiredTypes.isEmpty())
+                .put("capacity", maxActive).put("available", maxActive).put("reason", requiredTypes.isEmpty() ? "" : "RUNTIME_NOT_READY");
+        if (runners == null) return new JSONObject().put("ready", false).put("capacity", 0).put("available", 0).put("reason", "TOOLS_DISABLED");
+        Set<String> readyTypes = new TreeSet<>();
+        int capacity = 0, available = 0;
+        for (int i = 0; i < nodes.length(); i++) {
+            JSONObject node = nodes.getJSONObject(i);
+            if (!node.getBoolean("ready") || (!requiredTypes.isEmpty() && !requiredTypes.contains(node.getString("runnerType")))) continue;
+            readyTypes.add(node.getString("runnerType"));
+            capacity += node.getInt("capacity"); available += node.getInt("available");
+        }
+        boolean ready = !readyTypes.isEmpty() && readyTypes.containsAll(requiredTypes);
+        return new JSONObject().put("ready", ready).put("capacity", capacity).put("available", available).put("reason", ready ? "" : "RUNTIME_NOT_READY");
+    }
+
+    private void requireReady(JSONObject pin, Set<String> readyModels, JSONArray readyRunners) {
+        JSONObject model = pin.getJSONObject("model");
+        if (!readyModels.contains(model.getString("id") + "@" + model.getString("version"))) throw new StoreException("MODEL_NOT_READY");
+        Set<String> requiredTypes = RuntimeSupport.strings(pin.getJSONArray("requiredRunnerTypes"));
+        if (!runtimeAvailability(pin.getJSONObject("runtime"), requiredTypes, readyRunners).getBoolean("ready")) throw new StoreException("RUNTIME_NOT_READY");
+        Set<String> tools = RuntimeSupport.strings(pin.getJSONObject("selection").getJSONArray("tools"));
+        JSONArray releases = pin.getJSONArray("releases");
+        for (int i = 0; i < releases.length(); i++) {
+            JSONArray declared = releases.getJSONObject(i).getJSONObject("manifest").getJSONArray("tools");
+            for (int j = 0; j < declared.length(); j++) {
+                JSONObject tool = declared.getJSONObject(j);
+                if (tools.contains(tool.getString("name")) && tool.getString("kind").equals("executable")
+                        && (broker == null || !broker.supports(tool))) throw new StoreException("RUNTIME_NOT_READY");
+            }
+        }
+    }
+
+    /** Authenticated public capability catalog with live readiness and bounded capacity. */
+    public JSONObject taskProfiles(ProfileRegistry.Identity identity) {
+        ensureTenant(identity);
+        JSONObject out = profiles.describe(identity);
+        JSONArray models = out.getJSONArray("models"), runtimes = out.getJSONArray("runtimes"), tools = out.getJSONArray("tools");
+        for (int i = 0; i < models.length(); i++) {
+            JSONObject model = models.getJSONObject(i);
+            JSONObject status = workers.availability(deployment.resolve("model", model.getString("id") + "@" + model.getString("version")));
+            for (String key : status.keySet()) model.put(key, status.get(key));
+        }
+        for (int i = 0; i < runtimes.length(); i++) {
+            JSONObject runtime = runtimes.getJSONObject(i);
+            JSONObject status = runtimeAvailability(runtime, Collections.emptySet());
+            for (String key : status.keySet()) runtime.put(key, status.get(key));
+        }
+        for (int i = 0; i < tools.length(); i++) {
+            JSONObject tool = tools.getJSONObject(i);
+            int capacity = 0, available = 0; boolean ready = false;
+            for (int j = 0; j < runtimes.length(); j++) {
+                JSONObject runtime = runtimes.getJSONObject(j);
+                boolean compatible = false;
+                JSONArray refs = tool.getJSONArray("compatibleRuntimes");
+                for (int k = 0; k < refs.length(); k++) if (refs.getJSONObject(k).getString("id").equals(runtime.getString("id"))
+                        && refs.getJSONObject(k).getString("version").equals(runtime.getString("version"))) compatible = true;
+                if (!compatible) continue;
+                JSONObject status = runtimeAvailability(runtime, tool.has("runnerType") ? Collections.singleton(tool.getString("runnerType")) : Collections.emptySet());
+                ready |= status.getBoolean("ready"); capacity = Math.max(capacity, status.getInt("capacity")); available = Math.max(available, status.getInt("available"));
+            }
+            if (tool.getString("kind").equals("executable")) {
+                JSONObject release = catalog.release(identity.tenant, tool.getString("release"));
+                JSONArray declared = new JSONObject(release.getString("manifest_json")).getJSONArray("tools");
+                for (int j = 0; j < declared.length(); j++) if (declared.getJSONObject(j).getString("name").equals(tool.getString("name"))
+                        && (broker == null || !broker.supports(declared.getJSONObject(j)))) ready = false;
+            }
+            tool.put("ready", ready).put("capacity", ready ? capacity : 0).put("available", ready ? available : 0).put("reason", ready ? "" : "RUNTIME_NOT_READY");
+        }
+        return out;
+    }
+
     public boolean accepting() {
         return accepting;
     }
@@ -357,38 +458,6 @@ public final class ExecutionRuntime implements AutoCloseable {
                 wait,
                 payload,
                 approver);
-    }
-
-    /**
-     * 列出调用者域内 active task profile 摘要（模型/运行时引用、skill、能力）。
-     *
-     * @param identity 调用者身份
-     * @return 含 profiles 数组的对象，每项含 profileId/version 与模型、运行时引用
-     */
-    public JSONObject taskProfiles(ProfileRegistry.Identity identity) {
-        JSONArray list = catalog.taskProfiles(identity.tenant);
-        JSONArray out = new JSONArray();
-        for (int i = 0; i < list.length(); i++) {
-            JSONObject p = new JSONObject(list.getJSONObject(i).getString("definition_json"));
-            out.put(
-                    new JSONObject()
-                            .put("profileId", p.getString("id"))
-                            .put("version", p.getString("version"))
-                            .put(
-                                    "modelProfile",
-                                    p.getJSONObject("model").getString("id")
-                                            + "@"
-                                            + p.getJSONObject("model").getString("version"))
-                            .put(
-                                    "runtimeProfile",
-                                    p.getJSONObject("runtime").getString("id")
-                                            + "@"
-                                            + p.getJSONObject("runtime").getString("version"))
-                            .put("skillReleases", p.getJSONArray("skillReleases"))
-                            .put("toolSetVersion", p.getString("toolSetVersion"))
-                            .put("requiredCapabilities", p.getJSONArray("requiredCapabilities")));
-        }
-        return new JSONObject().put("profiles", out);
     }
 
     /**

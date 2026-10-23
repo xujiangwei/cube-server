@@ -222,6 +222,59 @@ public final class ModelDispatcher {
      *
      * @return 存在就绪 worker 时为 true
      */
+    public synchronized boolean ready(JSONObject model) {
+        JSONArray list = snapshot();
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject worker = list.getJSONObject(i), descriptor = worker.getJSONObject("descriptor");
+            if (worker.getBoolean("ready") && descriptor.getString("model").equals(model.getString("id"))
+                    && descriptor.getString("adapter").equals(model.optString("adapter", "scripted-v1"))) return true;
+        }
+        return false;
+    }
+
+    /** Per-model capacity; busy healthy nodes remain ready and can accept queued work. */
+    public synchronized JSONObject availability(JSONObject model) {
+        JSONObject ledger = jobs.capacity();
+        Set<String> busy = new HashSet<>();
+        JSONArray occupied = ledger.getJSONArray("workers");
+        for (int i = 0; i < occupied.length(); i++) busy.add(occupied.getJSONObject(i).getString("worker_id"));
+        Map<String, int[]> counts = new TreeMap<>();
+        Map<String, JSONObject> limits = new TreeMap<>();
+        JSONArray workers = snapshot();
+        boolean ready = false;
+        CapacityBudget freeBudget = new CapacityBudget(), totalBudget = new CapacityBudget();
+        for (int i = 0; i < workers.length(); i++) {
+            JSONObject worker = workers.getJSONObject(i), d = worker.getJSONObject("descriptor");
+            if (!worker.getBoolean("ready") || !d.getString("model").equals(model.getString("id"))
+                    || !d.getString("adapter").equals(model.optString("adapter", "scripted-v1"))) continue;
+            ready = true;
+            String backend = d.getString("backendId");
+            int[] count = counts.computeIfAbsent(backend, k -> new int[2]);
+            count[0]++; if (!busy.contains(worker.getString("workerId"))) count[1]++;
+            if (!limits.containsKey(backend)) {
+                JSONObject limit = d.optInt("protocolVersion", 2) == 3 ? inference.capacity(d)
+                        : new JSONObject().put("registered", d.getInt("capacity")).put("available", d.getInt("capacity"));
+                limits.put(backend, limit);
+                JSONArray groups = CapacityBudget.entries(limit);
+                if (groups != null) { freeBudget.observe(groups); totalBudget.observe(groups); }
+            }
+        }
+        int capacity = 0, available = 0;
+        JSONArray backends = ledger.getJSONArray("backends");
+        for (int i = 0; i < backends.length(); i++) {
+            JSONObject backend = backends.getJSONObject(i);
+            int[] count = counts.get(backend.getString("backend_id"));
+            if (count == null) continue;
+            JSONObject limit = limits.get(backend.getString("backend_id"));
+            int total = Math.min(count[0], backend.getInt("capacity"));
+            int free = Math.min(count[1], Math.max(0, backend.getInt("capacity") - backend.getInt("occupied")));
+            JSONArray groups = CapacityBudget.entries(limit);
+            capacity += groups == null ? Math.min(total, limit.getInt("registered")) : totalBudget.claim(groups, false, total);
+            available += groups == null ? Math.min(free, limit.getInt("available")) : freeBudget.claim(groups, true, free);
+        }
+        return new JSONObject().put("ready", ready).put("capacity", capacity).put("available", available).put("reason", ready ? "" : "MODEL_NOT_READY");
+    }
+
     public synchronized boolean ready() {
         JSONArray list = snapshot();
         for (int i = 0; i < list.length(); i++) {

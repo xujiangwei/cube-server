@@ -405,7 +405,7 @@ public final class PackageRepository {
      *
      * <p>提供 keyId 时用受信公钥以 SHA256withRSA 校验对 64 字节 ASCII release digest
      * 的 Base64 签名；未签名仅在 unsignedLocalDevelopment 且 source 为 local-author
-     * 时放行。发布前确认 manifest 声明的 runtime profile 已注册、依赖锁中每个依赖
+     * 时放行。发布前确认依赖锁中每个依赖
      * 都是同 tenant 下 name 匹配且 ready 的 release。DB 提交失败只留下已验证、
      * 已计额的孤儿 blob。provenance 记录 actor/source/签名/算法与依赖摘要，
      * 同 digest 重复发布由存储层保留首次记录。
@@ -445,8 +445,8 @@ public final class PackageRepository {
         if (source.length() > 1024) {
             throw RuntimeSupport.error("PACKAGE_SOURCE_INVALID");
         }
-        JSONObject runtime = checked.manifest.getJSONObject("runtime");
-        catalog.profile(tenant, "runtime", runtime.getString("id"), runtime.getString("version"));
+        // Runtime compatibility is checked against server deployment when a run is created.
+        // Publishing a tenant skill never creates or requires tenant-owned execution configuration.
         JSONObject lock =
                 RuntimeSupport.parse(
                         "dependencies",

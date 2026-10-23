@@ -68,18 +68,14 @@ public final class MultiUserExecutionTest {
             identity, new ProfileRegistry.Identity(T, "10002", TEST_PERMISSIONS),
             new ProfileRegistry.Identity("other.example.com", S, TEST_PERMISSIONS)
         };
-        // 异域身份需要自己域内的模型/runtime/task profile 与 active 绑定。
-        profiles.publish(users[2].tenant, model);
-        profiles.publish(users[2].tenant, runtime);
-        JSONObject foreignTask = catalog.profile(T, "task", "task", "1").put("skillReleases", new JSONArray());
-        profiles.publish(users[2].tenant, foreignTask);
-        catalog.bind(users[2].tenant, "task", "task", "task@1", 0);
+        // All tenants use the same server execution configuration; only business policy is initialized per tenant.
         String[] runs = new String[3];
         String[] inputs = new String[3];
         String[] artifacts = new String[3];
         long[] fences = new long[3];
         byte[] content = bytes("private user input");
         try (ExecutionRuntime rt = new ExecutionRuntime(store, p, 3000)) {
+            SelectionWorkers.online(rt, p);
             // 每个身份：上传同一内容的私有输入、创建 run、重放同一 key 必须得到同一 run。
             for (int i = 0; i < users.length; i++) {
                 ProfileRegistry.Identity u = users[i];

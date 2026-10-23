@@ -109,10 +109,21 @@ inference.node.id=offline-smoke
             for path in configs:
                 lifecycle.start(path)
             runs = []
-            for model in ("Baize", "Baize2", "Baize2", "Baize", "Baize2", "Baize2"):
-                runs.append(http("/harness/v1/runs", dict(taskProfileId="inference-" + model,
-                    input=dict(instruction="Return a final answer", attachmentIds=[])))["runId"])
-            wait(lambda: all(http("/harness/v1/runs/" + run)["snapshot"]["state"] == "succeeded" for run in runs))
+            for model in ("Baize", "Baize2"):
+                # Model selection belongs to the server. Restart between deployment configurations.
+                (stage / "stop").touch()
+                assert host.wait(timeout=20) == 0
+                (stage / "stop").unlink()
+                config.write_text(config.read_text() + f"\nexecution.profiles={root.as_posix()}/data/server-{model}\n")
+                host = subprocess.Popen([str(args.java), "-Dfixture.cell.listener=cube.service.test.HarnessInferenceCarpet", "-Dharness.config=" + str(config), "-cp", cp,
+                    "cube.service.harness.HarnessCell", str(stage / "cell.xml"), str(stage / "stop")],
+                    cwd=stage, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, **hidden)
+                wait(lambda: http("/healthz"))
+                gateway.ready()
+                wait(lambda: http("/harness/v1/capabilities")["runsReady"])
+                for _ in range(3):
+                    runs.append(http("/harness/v1/runs", dict(input=dict(instruction="Return a final answer", attachmentIds=[])))["runId"])
+                wait(lambda: all(http("/harness/v1/runs/" + run)["snapshot"]["state"] == "succeeded" for run in runs))
             caps = http("/harness/v1/capabilities")
             assert len(caps["registeredWorkers"]) == 3 and all(w["ready"] for w in caps["registeredWorkers"]), caps
             with sqlite3.connect(root / "data/harness_execution.db") as db:

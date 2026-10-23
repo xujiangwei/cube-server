@@ -55,11 +55,11 @@ execution.enabled=true
 execution.tenant.templates=./config/harness-tenant
 ```
 
-默认目录随部署包提供 Baize2 资源任务的 model/runtime/task JSON，全部字段及引用约束见[租户配置说明](config/harness-tenant/README.md)。启动时整体校验并固定快照：model/runtime 引用和能力必须完整，每个 task ID 只能有一个版本，所有 task 自动建立 active 绑定，`skillReleases` 必须为空。模板不自动导入技能包；技能发布及已有租户配置管理仍使用现有管理能力。需要 Baize 或自定义模型时集中调整模板，模型定义必须与部署能力匹配；模板不按 worker 数量或在线状态过滤。
+`harness-tenant/default.json` 只包含默认技能、权限和业务配额。模型、运行时、工具集和执行预算位于独立的 `harness-execution/`，不会写入租户配置表。两个目录在启动时分别校验并固定快照，混入模型或执行器配置的租户模板会拒绝启动。
 
-执行启用时，业务请求通过 Cube token、权限和基本参数校验后，用 token.domain 检查租户。新租户在同一事务内创建 profiles、active 绑定和初始化记录；数据库唯一键与锁处理多请求、多 JVM 并发，失败全部回滚并可重试。task-profiles 和直接创建 run 均覆盖此流程，无效 token 不初始化。
+通过 Cube token 和基本参数校验后，服务按 token.domain 检查租户，在同一事务内创建一份 policy、`policy/default` 绑定和初始化记录。唯一键和事务锁处理多请求、多 JVM 并发；失败全部回滚，可直接重试。无效 token 不初始化租户。
 
-已有 profile 或 binding 的租户只登记初始化状态，保留原配置。初始化完成后，模板修改仅影响新租户，重启后生效；既有租户不会自动增加或重新启用任务。task-profiles 列表与模型 worker 是否就绪分别表达配置和运行状态。
+修改租户默认策略只影响尚未初始化的租户；已有租户的技能、权限和业务配额通过新 policy 版本及 CAS 绑定管理。修改服务器模型或执行器后重启，新任务按请求选择或采用新的默认值，已有 run 保留创建时的完整快照。`POST /runs` 可指定 model、runtime、skills，不支持 tools；skills 省略为全部获授权且兼容的技能，空数组表示禁用技能。有效工具由服务端计算并固定到 selection.tools。GET `/task-profiles` 查询当前用户可用目录，不再使用 taskProfileId。
 
 ## 权威数据和提交语义
 

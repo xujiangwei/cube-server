@@ -55,26 +55,29 @@ public final class RuntimeAdmin {
         CatalogStore catalog = new CatalogStore(new JdbcRunStore(config), config.mysql());
         String tenant = p.getProperty("runtime.tenant"), actor = p.getProperty("runtime.actor");
         RuntimeSupport.id(tenant);
-        RuntimeSupport.id(actor);
-        // runtime.signer.<keyId> 为 Base64 编码的 X.509 DER RSA 公钥。
-        Map<String, PublicKey> keys = new HashMap<>();
-        for (String key : p.stringPropertyNames()) {
-            if (key.startsWith("runtime.signer.")) {
-                keys.put(
-                        key.substring("runtime.signer.".length()),
-                        KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(p.getProperty(key)))));
+        if (args[1].equals("upload")) RuntimeSupport.id(actor);
+        PackageRepository repo = null;
+        if (java.util.Arrays.asList("validate", "upload", "export").contains(args[1])) {
+            // runtime.signer.<keyId> 为 Base64 编码的 X.509 DER RSA 公钥。
+            Map<String, PublicKey> keys = new HashMap<>();
+            for (String key : p.stringPropertyNames()) {
+                if (key.startsWith("runtime.signer.")) {
+                    keys.put(
+                            key.substring("runtime.signer.".length()),
+                            KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(p.getProperty(key)))));
+                }
             }
+            repo =
+                    new PackageRepository(
+                            catalog,
+                            new AssetFiles(
+                                    Paths.get(p.getProperty("runtime.repository.root")),
+                                    Long.parseLong(p.getProperty("runtime.repository.maxBytes")),
+                                    p.getProperty("runtime.repository.identity")),
+                            keys,
+                            Boolean.parseBoolean(p.getProperty("runtime.allowUnsignedLocal", "false")),
+                            Boolean.parseBoolean(p.getProperty("runtime.allowTrustedExecutables", "false")));
         }
-        PackageRepository repo =
-                new PackageRepository(
-                        catalog,
-                        new AssetFiles(
-                                Paths.get(p.getProperty("runtime.repository.root")),
-                                Long.parseLong(p.getProperty("runtime.repository.maxBytes")),
-                                p.getProperty("runtime.repository.identity")),
-                        keys,
-                        Boolean.parseBoolean(p.getProperty("runtime.allowUnsignedLocal", "false")),
-                        Boolean.parseBoolean(p.getProperty("runtime.allowTrustedExecutables", "false")));
         Object result;
         switch (args[1]) {
             // 只做静态校验，不落库。
@@ -105,15 +108,18 @@ public final class RuntimeAdmin {
                 Files.write(Paths.get(args[3]), repo.export(tenant, args[2]), StandardOpenOption.CREATE_NEW);
                 result = new JSONObject().put("exported", args[2]);
                 break;
-            // 发布 Model/Runtime/TaskProfile。
+            // 发布租户技能、权限和业务配额策略。
             case "profile":
-                result = new ProfileRegistry(catalog).publish(tenant, StrictJson.object(Files.readAllBytes(Paths.get(args[2]))));
+                JSONObject policy = StrictJson.object(Files.readAllBytes(Paths.get(args[2])));
+                if (!policy.getString("kind").equals("policy")) throw new IllegalArgumentException("Only tenant business policies can be published; configure models and runtimes on the server");
+                result = new ProfileRegistry(catalog).publish(tenant, policy);
                 break;
-            // 原子 CAS 绑定 skill/task 指针；expectedVersion 为首版 0。
+            // 原子 CAS 绑定 skill/policy 指针；expectedVersion 为首版 0。
             case "bind":
                 if (args.length != 6) {
-                    throw new IllegalArgumentException("bind <skill|task> <name> <target> <expectedVersion>");
+                    throw new IllegalArgumentException("bind <skill|policy> <name> <target> <expectedVersion>");
                 }
+                if (!java.util.Arrays.asList("skill", "policy").contains(args[2])) throw new IllegalArgumentException("Only skill and policy bindings belong to tenants");
                 result = catalog.bind(tenant, args[2], args[3], args[4], Long.parseLong(args[5]));
                 break;
             // 生命周期流转：ready/draining/retired，带期望版本 CAS。

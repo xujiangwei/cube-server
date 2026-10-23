@@ -75,9 +75,9 @@ public interface QueryProvider extends AutoCloseable {
     String operation();
 
     /**
-     * 返回本提供方执行所需的权限标识，须与 TaskProfile 声明的工具权限一致。
+     * 返回本提供方执行所需的权限标识，须与 租户业务策略 声明的工具权限一致。
      *
-     * @return 权限标识，派发前与受信身份/TaskProfile 的权限集合取交集校验
+     * @return 权限标识，派发前与受信身份/租户业务策略 的权限集合取交集校验
      */
     String permission();
 

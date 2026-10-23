@@ -1,7 +1,7 @@
 /**
  * @apiDefine Harness Harness 任务服务
  * 业务基地址使用 dispatcher HTTP 地址（例如 http://127.0.0.1:7010），统一前缀为 /harness/v1。<br/>
- * dispatcher 需开启 harness.rest.enabled；任务执行需启用 store.enabled、execution.enabled 并配置统一租户模板；启动自动建表，合法租户首次访问自动初始化并启用任务。<br/>
+ * dispatcher 需开启 harness.rest.enabled；任务执行需启用 store.enabled、execution.enabled 并配置独立的服务端执行配置与租户业务策略；启动自动建表，合法租户首次访问只初始化技能、权限和业务配额。<br/>
  * 文件、反馈和 trace 分别受 files.enabled、feedback.enabled、trace.enabled 控制，默认关闭。
  *
  * <p>全部业务接口使用已有 Cube 用户 token：Authorization: Bearer &lt;Cube Token&gt;。<br/>
@@ -52,18 +52,7 @@
  * @apiSuccess (202) {Number} eventSeq 最新事件序号。
  * @apiSuccess (202) {String} state queued、running、waiting_input、waiting_approval、cancelling、reconciling、succeeded、failed、cancelled 或 timed_out。
  * @apiSuccess (202) {String} executionSettlement 物理执行结算：pending、confirmed 或 unknown。
- * @apiSuccess (202) {String} taskProfileVersion 本次任务冻结的 TaskProfile 版本。
- */
-
-/**
- * @apiDefine HarnessProfileSummary
- * @apiSuccess {String} profileId 任务配置 ID；创建任务时填入 taskProfileId。
- * @apiSuccess {String} version 任务配置版本。
- * @apiSuccess {String} modelProfile 模型配置引用，格式为 id@version。
- * @apiSuccess {String} runtimeProfile 运行时配置引用，格式为 id@version。
- * @apiSuccess {String[]} skillReleases 固定的技能 release 摘要列表。
- * @apiSuccess {String} toolSetVersion 工具集版本。
- * @apiSuccess {String[]} requiredCapabilities 执行所需能力。
+ * @apiSuccess (202) {String} executionProfileVersion 本次任务冻结的服务端执行配置版本。
  */
 
 /**
@@ -95,7 +84,7 @@
  * @apiSuccess {String} execution scripted、resource-loop 或 trusted-tool-loop。
  * @apiSuccess {Object[]} registeredWorkers 已注册单元；按角色返回身份、ready 状态、能力和容量信息。
  * @apiSuccess {Boolean} infrastructureReady 基础设施是否就绪；启用执行时为 true，不代表能够接单。
- * @apiSuccess {Boolean} runsReady 接单开启且存在就绪模型单元时为 true。
+ * @apiSuccess {Boolean} runsReady 接单开启且存在与服务器所选模型和 adapter 匹配的就绪单元时为 true。
  * @apiSuccess {Boolean} [accepting] 启用执行后返回的接单开关。
  * @apiSuccess {String[]} [runnerTypes] 启用执行后返回的 Runner 类型列表。
  * @apiSuccess {Object} [capacity] 启用执行后返回的实际容量。
@@ -110,40 +99,17 @@
  */
 
 /**
- * @api {get} /harness/v1/task-profiles 查询任务配置列表
+ * @api {get} /harness/v1/task-profiles 查询模型、执行器及授权能力
  * @apiName HarnessTaskProfiles
  * @apiGroup Harness
  * @apiVersion 1.0.0
- * @apiDescription 返回调用者域内 active TaskProfile 的摘要。<br/>
- * TaskProfile 在服务端固定模型、运行时、技能、权限、上下文预算和执行限额。<br/>
- * 执行未启用或尚无 active 配置时列表为空。
- * 合法租户首次访问时，服务按 execution.tenant.templates 指定的统一部署模板原子初始化 model/runtime/task 并启用任务，无需逐租户执行 Java。<br/>
- * 默认模板目录为 ./config/harness-tenant，初始任务不引用技能包；已有租户配置保留，模板调整并重启后只影响新租户。列表不按 worker 在线状态过滤。
+ * @apiDescription 返回服务器发布的模型和执行器，以及当前用户获授权的技能、工具。未激活技能的工具也可查询。离线配置仍返回状态和原因，容量为即时观察；创建任务时重新校验。配置和请求选择均不写入租户模型或工具白名单。
  * @apiUse HarnessAuth
- * @apiSuccess {Object[]} profiles 任务配置摘要列表。
- * @apiSuccess {String} profiles.profileId 任务配置 ID，创建任务时使用。
- * @apiSuccess {String} profiles.version 任务配置版本。
- * @apiSuccess {String} profiles.modelProfile 模型配置引用，id@version。
- * @apiSuccess {String} profiles.runtimeProfile 运行时配置引用，id@version。
- * @apiSuccess {String[]} profiles.skillReleases 技能 release 摘要列表。
- * @apiSuccess {String} profiles.toolSetVersion 工具集版本。
- * @apiSuccess {String[]} profiles.requiredCapabilities 所需能力。
- * @apiSuccessExample {json} 默认模板初始化后的任务配置
- *     HTTP/1.1 200 OK
- *     {"profiles":[{"profileId":"resources-Baize2","version":"2","modelProfile":"Baize2@2","runtimeProfile":"resources@1","skillReleases":[],"toolSetVersion":"resource-tools-v1","requiredCapabilities":["resources","resource_decisions"]}]}
- */
-
-/**
- * @api {get} /harness/v1/task-profiles/:taskProfileId 查询任务配置
- * @apiName HarnessTaskProfile
- * @apiGroup Harness
- * @apiVersion 1.0.0
- * @apiDescription 查询当前域内一个 active TaskProfile 的摘要；<br/>
- * 不返回可由客户端自由改写的模型或工具配置。
- * @apiUse HarnessAuth
- * @apiParam {String} taskProfileId 任务配置 ID，来自任务配置列表。
- * @apiUse HarnessProfileSummary
- * @apiError (接口错误) PROFILE_NOT_FOUND HTTP 404，配置不存在或不是当前域的 active 配置。
+ * @apiSuccess {Object} defaults 默认模型、执行器的 id/version。
+ * @apiSuccess {Object[]} models 模型 id/version、current、capabilities、nativeTools、ready、capacity、available、reason。
+ * @apiSuccess {Object[]} runtimes 执行器 id/version、current、mode、capabilities、ready、capacity、available、reason。
+ * @apiSuccess {Object[]} skills 技能 name/version/digest、dependencies 与 compatibleRuntimes。
+ * @apiSuccess {Object[]} tools 工具 name/permission/kind、所属 skill/release、runnerType、compatibleRuntimes 及就绪状态和容量。
  */
 
 /**
@@ -151,30 +117,36 @@
  * @apiName HarnessCreateRun
  * @apiGroup Harness
  * @apiVersion 1.0.0
- * @apiDescription 使用服务端已发布的 TaskProfile 创建异步任务。<br/>
+ * @apiDescription 按请求选择服务器发布的模型和执行器创建异步任务；租户策略仅决定技能、权限和业务配额。<br/>
  * 202 仅表示已受理；之后查询任务或事件获取结果。<br/>
- * 客户端只能提交任务配置 ID 和输入，不能指定任意模型、工具、身份或 channelCode。<br/>
+ * model/runtime 可按名称或名称@版本选择；省略时使用服务器默认值。skills 省略为全部获授权且兼容的技能，空数组表示禁用技能；显式选择的技能立即激活。工具由服务端按权限、所选技能及执行器计算，请求不支持 tools。拒绝 taskProfileId、身份或 channelCode 字段。<br/>
  * 技能加载器只读取 SKILL.md 正文，文本生成不会自动执行模型输出的代码。<br/>
  * 同一幂等请求重放原受理快照，不代表当前最新状态。
  * @apiUse HarnessAuth
  * @apiUse HarnessIdempotency
  * @apiUse HarnessJson
- * @apiBody {String{1..128}} taskProfileId active TaskProfile ID；先查询任务配置列表。
+ * @apiBody {String} [model] 模型名称或名称@版本，例如 Baize、Baize@1。
+ * @apiBody {String} [runtime] 执行器名称或名称@版本，例如 resources、trusted-python。
+ * @apiBody {String[]} [skills] 本次可用技能名称；省略为全部获授权且兼容的技能，[] 为禁用。
  * @apiBody {Object} input 用户输入。
  * @apiBody {String{1..32768}} input.instruction 任务指令。
  * @apiBody {String[]} input.attachmentIds 最多 16 个输入文件 ID；无附件也必须传 []。<br/>
  * 只能使用本用户 ready 且未到期的 Input。
  * @apiParamExample {json} 请求体
- *     {"taskProfileId":"resources-Baize2","input":{"instruction":"列出并阅读已授权的技能资源","attachmentIds":[]}}
- * @apiExample {curl} 创建任务（taskProfileId 以列表返回值为准）
- *     curl -X POST "http://127.0.0.1:7010/harness/v1/runs" -H "Authorization: Bearer <Cube Token>" -H "Content-Type: application/json" -H "Idempotency-Key: create-run-001" --data-raw '{"taskProfileId":"resources-Baize2","input":{"instruction":"列出并阅读已授权的技能资源","attachmentIds":[]}}'
+ *     {"input":{"instruction":"列出并阅读已授权的技能资源","attachmentIds":[]}}
+ * @apiExample {curl} 创建任务（省略选择时使用服务器默认值）
+ *     curl -X POST "http://127.0.0.1:7010/harness/v1/runs" -H "Authorization: Bearer <Cube Token>" -H "Content-Type: application/json" -H "Idempotency-Key: create-run-001" --data-raw '{"input":{"instruction":"列出并阅读已授权的技能资源","attachmentIds":[]}}'
  * @apiUse HarnessSnapshot
  * @apiSuccessExample {json} 受理快照
  *     HTTP/1.1 202 Accepted
- *     {"runId":"run-001","version":1,"eventSeq":1,"state":"queued","executionSettlement":"pending","taskProfileVersion":"v1"}
+ *     {"runId":"run-001","version":1,"eventSeq":1,"state":"queued","executionSettlement":"pending","executionProfileVersion":"v1"}
  * @apiError (接口错误) IDEMPOTENCY_CONFLICT HTTP 409，同键请求内容不同。
  * @apiError (接口错误) HARNESS_BUSY HTTP 429，活跃任务容量已满。
  * @apiError (接口错误) HARNESS_NOT_READY HTTP 503，执行未启用。
+ * @apiError (接口错误) MODEL_NOT_READY HTTP 503，所选模型没有健康在线节点。
+ * @apiError (接口错误) RUNTIME_NOT_READY HTTP 503，必需执行器或工具提供方未就绪。
+ * @apiError (接口错误) SCHEMA_INVALID HTTP 400，请求包含 tools 等不支持的字段。
+ * @apiError (接口错误) SKILL_RUNTIME_MISMATCH HTTP 400，技能与执行器不兼容。
  */
 
 /**
@@ -194,7 +166,8 @@
  * @apiSuccess {Number} snapshot.eventSeq 最新事件序号。
  * @apiSuccess {String} snapshot.state queued、running、waiting_input、waiting_approval、cancelling、reconciling、succeeded、failed、cancelled 或 timed_out。
  * @apiSuccess {String} snapshot.executionSettlement pending、confirmed 或 unknown。
- * @apiSuccess {String} snapshot.taskProfileVersion 冻结的任务配置版本。
+ * @apiSuccess {String} snapshot.executionProfileVersion 冻结的执行策略版本。
+ * @apiSuccess {Object} snapshot.selection 实际模型/执行器 id 与 version、技能 name/version/digest 及工具名单。
  * @apiSuccess {String} usageSettlement settled 或 provisional。
  * @apiSuccess {Object} usage 用量汇总。
  * @apiSuccess {Number} usage.estimatedInput 估算输入 Token 数。
@@ -216,7 +189,7 @@
  * @apiSuccessExample {json} 排队中的任务
  *     HTTP/1.1 200 OK
  *     {
- *       "snapshot":{"runId":"run-001","version":1,"eventSeq":1,"state":"queued","executionSettlement":"pending","taskProfileVersion":"v1"},
+ *       "snapshot":{"runId":"run-001","version":1,"eventSeq":1,"state":"queued","executionSettlement":"pending","executionProfileVersion":"v1"},
  *       "usageSettlement":"settled",
  *       "usage":{"estimatedInput":0,"estimatedOutput":0,"actualInput":0,"actualOutput":0,"pending":0},
  *       "result":null
@@ -261,7 +234,7 @@
  *
  *     id: 1
  *     event: run.created
- *     data: {"runId":"run-001","eventSeq":1,"runVersion":1,"type":"run.created","occurredAt":1792627200000,"schemaVersion":1,"dataJson":"{\"taskProfileId\":\"resources-Baize2\",\"input\":{\"instruction\":\"列出并阅读已授权的技能资源\",\"attachmentIds\":[]}}"}
+ *     data: {"runId":"run-001","eventSeq":1,"runVersion":1,"type":"run.created","occurredAt":1792627200000,"schemaVersion":1,"dataJson":"{\"input\":{\"instruction\":\"列出并阅读已授权的技能资源\",\"attachmentIds\":[]}}"}
  *
  *     : replay-page-complete
  *
@@ -292,7 +265,7 @@
  * @apiUse HarnessSnapshot
  * @apiSuccessExample {json} 取消已受理
  *     HTTP/1.1 202 Accepted
- *     {"runId":"run-001","version":4,"eventSeq":4,"state":"cancelling","executionSettlement":"pending","taskProfileVersion":"v1"}
+ *     {"runId":"run-001","version":4,"eventSeq":4,"state":"cancelling","executionSettlement":"pending","executionProfileVersion":"v1"}
  * @apiError (接口错误) VERSION_CONFLICT HTTP 409，任务版本已变化。
  * @apiError (接口错误) RUN_TERMINAL HTTP 409，任务已处于终态。
  */

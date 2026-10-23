@@ -936,6 +936,16 @@ public final class FileService implements AutoCloseable {
      */
     public JSONObject writeText(JdbcRunStore.Lease lease, String call, JSONObject args)
             throws Exception {
+        ledger.requireTool(lease, "artifact.write_text");
+        return writeTextArtifact(lease, call, args);
+    }
+
+    /** Result artifacts are authorized by the provider's durable job, without granting a standalone file tool. */
+    public JSONObject writeProviderText(JdbcRunStore.Lease lease, String jobId, JSONObject args) throws Exception {
+        return writeTextArtifact(lease, ledger.requireProvider(lease, jobId), args);
+    }
+
+    private JSONObject writeTextArtifact(JdbcRunStore.Lease lease, String call, JSONObject args) throws Exception {
         ProfileRegistry.Identity identity = owner(lease);
         byte[] content = args.getString("text").getBytes(StandardCharsets.UTF_8);
         JSONObject req =
@@ -967,6 +977,7 @@ public final class FileService implements AutoCloseable {
      * @throws Exception "TEXT_INPUT_REQUIRED"（类型/大小不符）、"FILE_DIGEST_MISMATCH" 等
      */
     public JSONObject readText(JdbcRunStore.Lease lease, String call, String id) throws Exception {
+        ledger.requireTool(lease, "input.read_text");
         ProfileRegistry.Identity identity = owner(lease);
         return disk.tryLocked(
                 () -> {

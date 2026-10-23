@@ -24,11 +24,14 @@ Python Harness 是注册到 Java Harness 的独立服务节点。一个 Java JVM
 
 在现有 dispatcher.properties 中设置 `harness.rest.enabled=true`，并在 `cellets`、`director.1.cellets` 的原列表末尾追加 `Harness`。Java Cell 绑定 `0.0.0.0` 时，同机 dispatcher 可指向 `director.1.address=127.0.0.1`、`director.1.port=6000`；若 Cell 仅绑定 `192.168.1.35`，Director 地址也使用该 IP。REST 监听 `http.host=0.0.0.0`、`http.port=7010`；外部地址使用 `external.http.host=192.168.1.35`。dispatcher 不配置 worker/API credential。
 
-按 [STORE.md](STORE.md) 配置专用数据库，服务启动自动建表；按[租户配置说明](config/harness-tenant/README.md) 部署初始 model/runtime/task 模板，已有租户通过 [RUNTIME.md](RUNTIME.md) 发布和切换配置。`execution.enabled=true`、`store.enabled=true` 才启用任务执行。以下是补入同一私有 Harness 配置的节点相关设置，所有占位密钥须替换为不同的实际私有值：
+按 [STORE.md](STORE.md) 配置专用数据库，服务启动自动建表；按[租户配置说明](config/harness-tenant/README.md) 部署默认技能、权限和业务配额策略。服务器按 [执行配置](config/harness-execution/README.md) 发布全部模型和执行器，客户端通过能力目录发现配置，在每次 `POST /runs` 中独立选择 `model`、`runtime`；省略时使用服务器默认值，无需改动租户。`execution.enabled=true`、`store.enabled=true` 才启用任务执行。以下是补入同一私有 Harness 配置的节点相关设置，所有占位密钥须替换为不同的实际私有值：
 
 ```properties
 http.host=127.0.0.1
 http.port=7088
+execution.profiles=./config/harness-execution
+execution.model=Baize2@2
+execution.runtime=resources@1
 worker.credential=<至少24字符的worker密钥>
 lease.millis=6000
 execution.accepting=true
@@ -52,7 +55,7 @@ runner.grant.key=<至少32字符的独立密钥>
 broker.node.id=harness-35-broker
 ```
 
-两个模型 worker 共用同一个 backendId，物理 capacity 仍为 1。默认 type=unit 要求同 JVM 的 AIGCService 和对应 Baize2 Unit 已就绪；外部 OpenAI 后端只在 Java 显式配置，见 EXECUTION.md。CPU runner 的可信工具包、runtime/task profile 与业务 provider 需独立安装、发布，见 [TOOLS.md](TOOLS.md)。仅注册节点不会自动安装技能。
+两个模型 worker 共用同一个 backendId，物理 capacity 仍为 1。默认 type=unit 要求同 JVM 的 AIGCService 和对应 Baize2 Unit 已就绪；外部 OpenAI 后端只在 Java 显式配置，见 EXECUTION.md。CPU runner 的可信工具包、运行时和工具集在服务器配置，业务 provider 与租户技能需分别安装、发布，见 [TOOLS.md](TOOLS.md)。仅注册节点不会自动安装技能。
 
 API 使用已有 Cube 用户 token；审批/trace 配置“域/联系人ID”白名单，身份由 Cube Auth 校验。接单管理保留独立运维凭据。用户身份不从 Python 或 REST 载荷自报取得，业务 REST 需与 Cube Auth 合部署。
 
@@ -98,6 +101,6 @@ python -B service-harness/scripts/init_dev.py --output C:/private/new-harness-co
 
 1. Linux 启动 service、dispatcher；本机请求 `http://127.0.0.1:7088/healthz`。Windows 用 `Test-NetConnection 192.168.1.35 -Port 6000` 确认连接目标可达。
 2. 启动上述三个 Python 节点，分别使用 status 脚本确认 connected、registered、ready。用有效 Cube 用户 Bearer token 请求 dispatcher 的 `/harness/v1/capabilities`，应看到 baize2-1、baize2-2、runner-a 和三个独立 instanceId。注册成功不代替模型后端就绪检查。
-3. 请求 `/harness/v1/task-profiles`，确认存在已发布 active task。使用有效 Cube 用户 Bearer token、Content-Type 和唯一 Idempotency-Key 向 `/harness/v1/runs` 提交 `{"taskProfileId":"resources-Baize2","input":{"instruction":"请简短介绍自己","attachmentIds":[]}}`。查询 run/events 直到终态；并发请求核对共享 backend 的 occupied 不超过配置容量。
+3. 确认服务器 `execution.model=Baize2@2`，并检查 capabilities.runsReady。使用有效 Cube 用户 Bearer token、Content-Type 和唯一 Idempotency-Key 向 `/harness/v1/runs` 提交 `{"input":{"instruction":"请简短介绍自己","attachmentIds":[]}}`。查询 run/events 直到终态；并发请求核对共享 backend 的 occupied 不超过配置容量。
 4. 使用 `stop.ps1 -Config C:/private/harness/baize2-1.json` 只停止该节点。capabilities 中应保留 baize2-2、runner-a，原有两个进程与实例保持在线；新任务可由剩余健康模型节点处理。
 5. 保留原 runtimeDir 重启 baize2-1。它应重新注册并获得新会话，其他节点不受影响；已有 unknown 执行仍按原账本对账，不通过换目录清空容量。

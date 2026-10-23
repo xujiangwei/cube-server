@@ -21,10 +21,8 @@ import java.util.regex.Pattern;
 public enum HarnessAction {
     /** 查询服务能力。 */
     Capabilities("GET", "capabilities", null),
-    /** 查询任务配置模板列表。 */
+    /** 查询服务器模型、执行器和当前用户获授权的技能/工具。 */
     TaskProfiles("GET", "task-profiles", null),
-    /** 查询指定的任务配置模板。 */
-    TaskProfile("GET", "task-profiles/ID", null),
     /** 创建运行任务。 */
     CreateRun("POST", "runs", "create-run"),
     /** 查询运行任务详情。 */

@@ -571,7 +571,7 @@ public final class HarnessService extends AbstractModule {
                             : new JSONArray().put("tool").put("sandbox"))
                     .put("registeredWorkers", all)
                     .put("infrastructureReady", true)
-                    .put("runsReady", execution.accepting() && execution.workers.ready())
+                    .put("runsReady", execution.accepting() && execution.modelReady())
                     .put("accepting", execution.accepting())
                     .put(
                             "execution",
@@ -684,9 +684,9 @@ public final class HarnessService extends AbstractModule {
                     throw new HarnessBusiness.Failure(405, "METHOD_NOT_ALLOWED");
                 }
                 boolean ready = started.get() && (path.equals("/healthz") || (execution != null
-                        ? execution.accepting() && execution.workers.ready() : registry.ready()));
+                        ? execution.accepting() && execution.modelReady() : registry.ready()));
                 response = HarnessBusiness.reply(ready ? 200 : 503, new JSONObject().put("service", NAME)
-                        .put("ready", ready).put("runsReady", execution != null && execution.accepting() && execution.workers.ready()));
+                        .put("ready", ready).put("runsReady", execution != null && execution.accepting() && execution.modelReady()));
             } else if (path.startsWith("/harness-admin/v1/")) {
                 String credential = config.values.getProperty("admission.admin.credential", "");
                 if (credential.length() < 24 || !equal("Bearer " + credential,

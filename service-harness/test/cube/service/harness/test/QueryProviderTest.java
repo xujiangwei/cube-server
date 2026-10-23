@@ -124,7 +124,7 @@ public final class QueryProviderTest {
     }
 
     /**
-     * 测试入口：发布 weather SKILL 与 TaskProfile，经 ToolBroker 完成 provider
+     * 测试入口：发布 weather SKILL、服务器执行配置和租户策略，经 ToolBroker 完成 provider
      * 注册、授权、schema 绑定与持久查询重放校验。
      *
      * @param ignored 未使用的命令行参数
@@ -201,7 +201,7 @@ public final class QueryProviderTest {
                                         .put("maxRepairs", 1)
                                         .put("maxLifetimeMillis", 60000));
         profiles.publish(T, task);
-        catalog.bind(T, "task", "weather", "weather@1", 0);
+        profiles.bind(T, "task", "weather", "weather@1", 0);
         ProfileRegistry.Identity actor = new ProfileRegistry.Identity(T, S, scopes);
         String run =
                 profiles
@@ -209,7 +209,7 @@ public final class QueryProviderTest {
                                 actor,
                                 key(),
                                 "weather",
-                                request("Beijing tomorrow").put("taskProfileId", "weather"))
+                                request("Beijing tomorrow"))
                         .getString("runId");
         // 固定权限交集：weather.read 保留，未使用的 unused.read 被丢弃。
         Set<String> pinned =

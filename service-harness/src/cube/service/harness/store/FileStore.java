@@ -6,6 +6,8 @@
 
 package cube.service.harness.store;
 
+import cube.service.harness.runtime.RuntimeSupport;
+
 import cube.service.harness.files.FileConfig;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -881,6 +883,35 @@ public final class FileStore {
                     store.owner(c, store.run(c, l.tenant, l.subject, l.runId, true), l);
                     return null;
                 });
+    }
+
+    /** Direct file-tool calls and recovery obey the run's immutable tool subset. */
+    public void requireTool(Lease lease, String name) {
+        store.tx(c -> {
+            store.owner(c, store.run(c, lease.tenant, lease.subject, lease.runId, true), lease);
+            JSONObject config = first(rows(c, "SELECT config_json FROM harness_run_config WHERE run_id=? AND tenant=? AND subject_id=?", lease.runId, lease.tenant, lease.subject));
+            if (config != null) {
+                JSONObject pin = new CatalogStore(store, false).pinned(c, lease.tenant, lease.subject, lease.runId);
+                cube.service.harness.runtime.RunSelection.requireTool(pin, name);
+                if (!RuntimeSupport.strings(pin.getJSONArray("permissions")).contains(name)) throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+            }
+            return null;
+        });
+    }
+
+    /** A provider's result artifact belongs to its authorized durable tool call. */
+    public String requireProvider(Lease lease, String jobId) {
+        return store.tx(c -> {
+            store.owner(c, store.run(c, lease.tenant, lease.subject, lease.runId, true), lease);
+            JSONObject job = first(rows(c, "SELECT * FROM harness_tool_job WHERE job_id=? AND run_id=? AND tenant=? AND subject_id=?", jobId, lease.runId, lease.tenant, lease.subject));
+            if (job == null || job.getInt("cancel_requested") != 0 || job.getLong("origin_fence") != lease.fence
+                    || first(rows(c, "SELECT run_id FROM harness_tool_revocation WHERE run_id=?", lease.runId)) != null) throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+            JSONObject pin = new CatalogStore(store, false).pinned(c, lease.tenant, lease.subject, lease.runId);
+            cube.service.harness.runtime.RunSelection.requireTool(pin, job.getString("tool_name"));
+            String permission = new JSONObject(job.getString("definition_json")).getJSONObject("tool").getString("permission");
+            if (!RuntimeSupport.strings(pin.getJSONArray("permissions")).contains(permission)) throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+            return job.getString("call_id");
+        });
     }
 
     /**

@@ -276,7 +276,7 @@ backend.shared.capacity={self.slo['loadProfile']['sharedBackendCapacity']}
 
     def create(self, text="Resilience", key=None):
         started = time.monotonic()
-        status, value = self.http("/harness/v1/runs", dict(taskProfileId="task", input=dict(instruction=text, attachmentIds=[])), key)
+        status, value = self.http("/harness/v1/runs", dict(input=dict(instruction=text, attachmentIds=[])), key)
         if status == 202:
             self.runs.setdefault(value["runId"], dict(started=started, label=text))
         return status, value

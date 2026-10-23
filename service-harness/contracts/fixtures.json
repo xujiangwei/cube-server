@@ -74,19 +74,55 @@
   {
     "name": "new-run",
     "schema": "create-run",
-    "raw": "{\"taskProfileId\":\"cube-server-status.readonly.v1\",\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]}}",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]}}",
+    "expected": "OK"
+  },
+  {
+    "name": "client-profile-selector",
+    "schema": "create-run",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"taskProfileId\":\"resources-Baize2\"}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "client-model-selector",
+    "schema": "create-run",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"model\":\"Baize\"}",
+    "expected": "OK"
+  },
+  {
+    "name": "explicit-selection",
+    "schema": "create-run",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"model\":\"Baize@1\",\"runtime\":\"resources\",\"skills\":[]}",
+    "expected": "OK"
+  },
+  {
+    "name": "client-tools-forbidden",
+    "schema": "create-run",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"tools\":[]}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "bad-selector",
+    "schema": "create-run",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"model\":\"Baize@1@2\"}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
+    "name": "client-runtime-selector",
+    "schema": "create-run",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"runtime\":\"resources\"}",
     "expected": "OK"
   },
   {
     "name": "legacy-chat",
     "schema": "create-run",
-    "raw": "{\"taskProfileId\":\"cube-server-status.readonly.v1\",\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"channelCode\":\"legacy\"}",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"channelCode\":\"legacy\"}",
     "expected": "SCHEMA_INVALID"
   },
   {
     "name": "wrong-attachment",
     "schema": "create-run",
-    "raw": "{\"taskProfileId\":\"cube-server-status.readonly.v1\",\"input\":{\"instruction\":\"x\",\"attachmentIds\":[\"../secret\"]}}",
+    "raw": "{\"input\":{\"instruction\":\"x\",\"attachmentIds\":[\"../secret\"]}}",
     "expected": "SCHEMA_INVALID"
   },
   {

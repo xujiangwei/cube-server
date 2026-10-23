@@ -30,12 +30,11 @@ public final class StoreBootstrapTest {
             try (ResultSet r = s.executeQuery()) { r.next(); return r.getLong(1); }
         }
     }
-    public static Path writeTemplates(Path path, String taskId) throws Exception {
+    public static Path writeTemplates(Path path, String version) throws Exception {
         Files.createDirectories(path);
-        JSONObject task = DefaultProfiles.task("Baize2").put("id", taskId);
-        Files.write(path.resolve("runtime.json"), RuntimeSupport.bytes(DefaultProfiles.runtime()));
-        Files.write(path.resolve("model.json"), RuntimeSupport.bytes(ModelProfiles.model("Baize2")));
-        Files.write(path.resolve("task.json"), RuntimeSupport.bytes(task));
+        JSONObject policy = new JSONObject(new String(Files.readAllBytes(RuntimeTest.templateDirectory().resolve("default.json")), "UTF-8"));
+        policy.put("version", version);
+        Files.write(path.resolve("default.json"), RuntimeSupport.bytes(policy));
         return path;
     }
     private static void startup() throws Exception {
@@ -85,7 +84,7 @@ public final class StoreBootstrapTest {
         System.out.println("PASS: empty/repeated service startup, concurrent JVM construction, missing objects, conflicts and retained data");
     }
     private static void tenantInitialization() throws Exception {
-        Path directory = writeTemplates(root.resolve("templates"), "resources-Baize2");
+        Path directory = writeTemplates(root.resolve("templates"), "1");
         TenantTemplates templates = TenantTemplates.load(directory);
         JdbcRunStore store = new JdbcRunStore(config);
         CatalogStore catalog = new CatalogStore(store, config.mysql());
@@ -95,17 +94,13 @@ public final class StoreBootstrapTest {
             for (int i = 0; i < 6; i++) work.add(threads.submit(() -> catalog.ensureTenant("new.example.com", templates)));
             for (Future<?> future : work) future.get(30, TimeUnit.SECONDS);
         } finally { threads.shutdownNow(); }
-        check(count("harness_tenant", "new.example.com") == 1 && count("harness_profile", "new.example.com") == 3
+        check(count("harness_tenant", "new.example.com") == 1 && count("harness_profile", "new.example.com") == 1
                 && count("harness_binding", "new.example.com") == 1, "Concurrent first access duplicated tenant data");
         ProfileRegistry.Identity user = new ProfileRegistry.Identity("new.example.com", "10001", ProfileRegistry.PLATFORM_PERMISSIONS);
-        JSONObject request = new JSONObject().put("taskProfileId", "resources-Baize2")
-                .put("input", new JSONObject().put("instruction", "hello").put("attachmentIds", new JSONArray()));
-        new ProfileRegistry(catalog).createRun(user, "first", "resources-Baize2", request);
-        // Existing configuration is adopted even when no task is enabled.
-        new ProfileRegistry(catalog).publish("legacy.example.com", DefaultProfiles.runtime());
-        catalog.ensureTenant("legacy.example.com", templates);
-        check(count("harness_profile", "legacy.example.com") == 1 && catalog.taskProfiles("legacy.example.com").length() == 0,
-                "Legacy tenant configuration changed");
+        JSONObject request = new JSONObject().put("input", new JSONObject().put("instruction", "hello").put("attachmentIds", new JSONArray()));
+        Properties deployment = new Properties(); deployment.setProperty("execution.profiles", RuntimeTest.deploymentDirectory().toString());
+        new ProfileRegistry(catalog, null, ExecutionProfiles.load(deployment)).createRun(user, "first", request);
+        check(count("harness_profile", "new.example.com") == 1, "Creating a run copied server models into the tenant");
         AtomicBoolean fail = new AtomicBoolean(true);
         CatalogStore faulty = new CatalogStore(new JdbcRunStore(config, boundary -> {
             if (boundary.equals("beforeCommit") && fail.getAndSet(false)) throw new StoreException("STORE_UNAVAILABLE");
@@ -115,13 +110,13 @@ public final class StoreBootstrapTest {
         check(count("harness_tenant", "retry.example.com") == 0 && count("harness_profile", "retry.example.com") == 0
                 && count("harness_binding", "retry.example.com") == 0, "Partial tenant committed");
         faulty.ensureTenant("retry.example.com", templates);
-        TenantTemplates updated = TenantTemplates.load(writeTemplates(directory, "new-task"));
+        TenantTemplates updated = TenantTemplates.load(writeTemplates(directory, "2"));
         catalog.ensureTenant("new.example.com", updated);
         catalog.ensureTenant("other.example.com", updated);
-        check(catalog.taskProfiles("new.example.com").getJSONObject(0).getString("definition_json").contains("resources-Baize2"), "Existing tenant followed template change");
-        check(catalog.taskProfiles("other.example.com").getJSONObject(0).getString("definition_json").contains("new-task"), "New tenant did not use new template");
+        check(catalog.tenantPolicy("new.example.com").getString("version").equals("1"), "Existing tenant followed template change");
+        check(catalog.tenantPolicy("other.example.com").getString("version").equals("2"), "New tenant did not use new template");
         catalog.ensureTenant("snapshot.example.com", templates);
-        check(catalog.taskProfiles("snapshot.example.com").getJSONObject(0).getString("definition_json").contains("resources-Baize2"), "Startup snapshot was mutable");
+        check(catalog.tenantPolicy("snapshot.example.com").getString("version").equals("1"), "Startup snapshot was mutable");
         // Cross-JVM first access uses the database's unique row and transaction lock.
         Path privateConfig = root.resolve("bootstrap.properties");
         try (OutputStream out = Files.newOutputStream(privateConfig)) { properties.store(out, "Disposable bootstrap fixture"); }
@@ -130,32 +125,33 @@ public final class StoreBootstrapTest {
                 "-cp", System.getProperty("java.class.path"), Child.class.getName(), privateConfig.toString(), directory.toString())
                 .redirectErrorStream(true).redirectOutput(root.resolve("tenant-child-" + i + ".log").toFile()).start());
         for (Process child : children) check(child.waitFor(30, TimeUnit.SECONDS) && child.exitValue() == 0, "Cross-JVM initialization failed");
-        check(count("harness_profile", "process.example.com") == 3 && count("harness_tenant", "process.example.com") == 1,
+        check(count("harness_profile", "process.example.com") == 1 && count("harness_tenant", "process.example.com") == 1,
                 "Cross-JVM initialization duplicated data");
-        System.out.println("PASS: atomic tenant defaults, direct run, concurrency across JVMs, rollback/retry, legacy adoption, isolation and template snapshots");
+        System.out.println("PASS: atomic tenant defaults, direct run, concurrency across JVMs, rollback/retry, tenant-only policy, isolation and template snapshots");
     }
     private static void invalidTemplates() throws Exception {
-        Path path = writeTemplates(root.resolve("invalid-templates"), "resources-Baize2");
-        Files.write(path.resolve("task.json"), RuntimeSupport.bytes(DefaultProfiles.task("Baize2")
-                .put("model", new JSONObject().put("id", "missing").put("version", "2"))));
-        try { TenantTemplates.load(path); throw new AssertionError("Missing reference accepted"); } catch (IOException expected) { }
-        writeTemplates(path, "resources-Baize2");
-        Files.copy(path.resolve("model.json"), path.resolve("duplicate.json"));
-        try { TenantTemplates.load(path); throw new AssertionError("Duplicate definition accepted"); } catch (IOException expected) { }
+        Path path = writeTemplates(root.resolve("invalid-templates"), "1");
+        JSONObject policy = new JSONObject(new String(Files.readAllBytes(path.resolve("default.json")), "UTF-8"));
+        Files.write(path.resolve("default.json"), RuntimeSupport.bytes(RuntimeSupport.copy(policy).put("model", "Baize")));
+        try { TenantTemplates.load(path); throw new AssertionError("Tenant model selector accepted"); } catch (IOException expected) { }
+        writeTemplates(path, "1");
+        Files.copy(path.resolve("default.json"), path.resolve("duplicate.json"));
+        try { TenantTemplates.load(path); throw new AssertionError("Duplicate policy accepted"); } catch (IOException expected) { }
         Files.delete(path.resolve("duplicate.json"));
-        Files.write(path.resolve("other-task.json"), RuntimeSupport.bytes(DefaultProfiles.task("Baize2").put("version", "3")));
-        try { TenantTemplates.load(path); throw new AssertionError("Ambiguous task accepted"); } catch (IOException expected) { }
-        Files.delete(path.resolve("other-task.json"));
-        Files.write(path.resolve("task.json"), RuntimeSupport.bytes(DefaultProfiles.task("Baize2").put("skillReleases", new JSONArray().put(String.join("", Collections.nCopies(64, "a"))))));
-        try { TenantTemplates.load(path); throw new AssertionError("Skill reference accepted"); } catch (IOException expected) { }
+        Files.write(path.resolve("model.json"), RuntimeSupport.bytes(ModelProfiles.model("Baize")));
+        try { TenantTemplates.load(path); throw new AssertionError("Execution profile in tenant directory accepted"); } catch (IOException expected) { }
+        Files.delete(path.resolve("model.json"));
+        Files.write(path.resolve("default.json"), RuntimeSupport.bytes(RuntimeSupport.copy(policy).put("skillReleases", new JSONArray().put(String.join("", Collections.nCopies(64, "a"))))));
+        try { TenantTemplates.load(path); throw new AssertionError("Unpublished skill reference accepted"); } catch (IOException expected) { }
         Properties invalid = new Properties(); invalid.putAll(properties);
         invalid.setProperty("execution.enabled", "true");
+        invalid.setProperty("execution.profiles", RuntimeTest.deploymentDirectory().toString());
         invalid.setProperty("execution.repository", Files.createDirectory(root.resolve("invalid-repository")).toString());
         invalid.setProperty("execution.tenant.templates", path.toString());
         HarnessService service = new HarnessService(new HarnessConfig(invalid));
         try { service.start(); check(!service.isStarted() && service.runStore() == null, "Invalid templates did not fail startup"); }
         finally { service.stop(); }
-        System.out.println("PASS: invalid template references, duplicates, task versions and skill references rejected before readiness");
+        System.out.println("PASS: tenant execution fields, duplicates and uninitialized skill references rejected before readiness");
     }
     public static final class Child {
         public static void main(String[] args) throws Exception {

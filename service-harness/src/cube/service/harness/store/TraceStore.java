@@ -220,7 +220,7 @@ public final class TraceStore {
             if (pinned != null) {
                 JSONObject fixed = new JSONObject(pinned.getString("config_json"));
                 pinned.remove("config_json");
-                for (String kind : new String[]{"task", "model", "runtime"}) {
+                for (String kind : new String[]{"execution", "model", "runtime", "tenantPolicy"}) {
                     JSONObject definition = fixed.getJSONObject(kind);
                     pinned.put(kind, new JSONObject().put("id", definition.getString("id")).put("version", definition.getString("version")).put("digest", hash(definition)));
                 }

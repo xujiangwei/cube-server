@@ -115,6 +115,7 @@ public final class ToolJobStore {
                 c -> {
                     JSONObject run = store.run(c, lease.tenant, lease.subject, lease.runId, true);
                     store.owner(c, run, lease);
+                    JSONObject pinned = new CatalogStore(store, !lock.isEmpty()).pinned(c, lease.tenant, lease.subject, lease.runId);
                     JSONObject authoritative =
                             first(
                                     rows(
@@ -125,6 +126,26 @@ public final class ToolJobStore {
                                             intent.getInt("attempt")));
                     if (authoritative == null || !canonical(authoritative).equals(canonical(intent))) {
                         throw new StoreException("INTENT_EVIDENCE_MISMATCH");
+                    }
+                    JSONObject call = new JSONObject(authoritative.getString("payload_json"));
+                    String toolName = call.getString("tool");
+                    cube.service.harness.runtime.RunSelection.requireTool(pinned, toolName);
+                    JSONObject release = CatalogStore.requireRelease(pinned, definition.getString("release"));
+                    JSONObject manifest = release.getJSONObject("manifest"), tool = definition.getJSONObject("tool");
+                    boolean matched = false;
+                    JSONArray declared = manifest.getJSONArray("tools");
+                    for (int i = 0; i < declared.length(); i++) {
+                        JSONObject candidate = declared.getJSONObject(i);
+                        if (candidate.getString("name").equals(toolName) && candidate.getString("kind").equals("executable")
+                                && canonical(candidate).equals(canonical(tool))) matched = true;
+                    }
+                    if (!matched || !canonical(pinned.getJSONObject("runtime")).equals(canonical(definition.getJSONObject("runtime")))) {
+                        throw new StoreException("TOOL_DEFINITION_MISMATCH");
+                    }
+                    if (!cube.service.harness.runtime.RuntimeSupport.strings(pinned.getJSONArray("permissions")).contains(tool.getString("permission"))
+                            || !cube.service.harness.runtime.RuntimeSupport.strings(manifest.getJSONArray("permissions")).contains(tool.getString("permission"))
+                            || first(rows(c, "SELECT run_id FROM harness_run_skill WHERE run_id=? AND digest=?", lease.runId, release.getString("digest"))) == null) {
+                        throw new StoreException("RESOURCE_FORBIDDEN");
                     }
                     String job =
                             hash(
@@ -145,7 +166,6 @@ public final class ToolJobStore {
                             >= 256) {
                         throw new StoreException("TOOL_QUEUE_FULL");
                     }
-                    JSONObject call = new JSONObject(intent.getString("payload_json"));
                     JSONObject arguments =
                             cube.service.harness.protocol.StrictJson.object(
                                     call.getString("argumentsJson")
@@ -265,6 +285,7 @@ public final class ToolJobStore {
                                             runtime,
                                             runnerCode));
                     if (existing != null) {
+                        requireSelected(c, existing);
                         return new JSONObject(existing.getString("wire_json"));
                     }
                     if (!healthy
@@ -288,6 +309,7 @@ public final class ToolJobStore {
                     if (job == null) {
                         return null;
                     }
+                    requireSelected(c, job);
                     JSONObject wire = factory.create(job, worker, runtime, instance);
                     if (update(
                             c,
@@ -557,6 +579,8 @@ public final class ToolJobStore {
      * @return 存在对应撤销记录时返回 true
      */
     private boolean revoked(java.sql.Connection c, JSONObject j) throws Exception {
+        JSONObject pin = new CatalogStore(store, !lock.isEmpty()).pinned(c, j.getString("tenant"), j.getString("subject_id"), j.getString("run_id"));
+        if (!cube.service.harness.runtime.RunSelection.allowed(pin, j.getString("tool_name"))) return true;
         return first(
                 rows(
                         c,
@@ -565,6 +589,11 @@ public final class ToolJobStore {
                         j.getString("tenant"),
                         j.getString("subject_id")))
                 != null;
+    }
+
+    private void requireSelected(java.sql.Connection c, JSONObject job) throws Exception {
+        JSONObject pin = new CatalogStore(store, !lock.isEmpty()).pinned(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"));
+        cube.service.harness.runtime.RunSelection.requireTool(pin, job.getString("tool_name"));
     }
 
     /**

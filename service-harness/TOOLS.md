@@ -24,7 +24,7 @@ runner.grant.key=<至少32字符的私有随机密钥>
 broker.node.id=<当前Java实例唯一且重启后稳定的标识>
 ```
 
-`execution.permissions`、TaskProfile 和技能 release 均须包含实际业务权限。grant key、上游 token 和地址留在 Java 私有配置中，不进入脚本或模型上下文。服务启动自动建立工具调度与 Broker 所需账本结构。
+`execution.permissions`、租户业务策略和技能 release 均须包含实际业务权限。grant key、上游 token 和地址留在 Java 私有配置中，不进入脚本或模型上下文。服务启动自动建立工具调度与 Broker 所需账本结构。
 
 Python 使用 `harness/config/runner-cpu.template.json`，`runner.type=tool`、runtime=`trusted-python-v1`，每进程容量为 1～8，须与 Java 授权一致；requestTimeout 不超过 3 秒。以非管理员/非 root 身份运行。依赖使用 Python 工程的 `harness/requirements.txt`。未配置执行 Runner 的基础单元仅保留 scripted.echo。
 
@@ -32,7 +32,7 @@ Python 使用 `harness/config/runner-cpu.template.json`，`runner.type=tool`、r
 
 manifest 使用 `schemaVersion=6`，工具名处于技能命名空间，普通工具声明 `runnerType: "tool"`、固定 brokerOperation/权限、输入输出 schema 及审核后的 `.py` entrypoint。包固定文件摘要、空 dependencies lock，总大小不超过 64 KiB。模型输出代码不能通过普通工具入口运行。
 
-发布端设置 `runtime.allowTrustedExecutables=true`，使用 [RUNTIME.md](RUNTIME.md) 的签名发布流程。先发布 `trusted-python-v1` RuntimeProfile，再发布引用其 runtime/release 的 TaskProfile，toolSetVersion=`broker-tools`，requiredCapabilities 包含 `tool.execute`。模型须先激活该固定技能，再调用包内工具。
+发布端设置 `runtime.allowTrustedExecutables=true`，使用 [RUNTIME.md](RUNTIME.md) 的签名发布流程。在服务器 `harness-execution/` 配置 `mode=trusted-python-v1`、`toolSetVersion=broker-tools`、`capabilities` 包含 `tool.execute` 的执行器；`execution.json.requiredCapabilities` 定义通用能力要求。租户 policy 仅发布技能 release 与业务权限。客户端可在每次请求中选择该执行器，兼容技能无需重新发布。显式选择的技能立即激活；其余技能由模型按需激活。POST `/runs` 不支持指定工具，服务端计算并固定有效工具名单，调用及恢复执行均校验此范围。
 
 实际业务由独立 QueryProvider 扩展提供。安装审核后的扩展 JAR 到发布目录 `libs/`，配置：
 

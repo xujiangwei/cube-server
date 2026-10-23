@@ -455,6 +455,12 @@ public final class JdbcRunStore {
         if (run == null) {
             throw new StoreException("RUN_NOT_FOUND");
         }
+        JSONObject configRow = first(rows(c, "SELECT config_json,digest FROM harness_run_config WHERE tenant=? AND subject_id=? AND run_id=?", tenant, subject, runId));
+        if (configRow != null) {
+            JSONObject pin = new JSONObject(configRow.getString("config_json"));
+            if (!hash(pin).equals(configRow.getString("digest"))) throw new StoreException("RUN_CONFIG_CORRUPT");
+            if (pin.has("selection")) run.put("selection", pin.getJSONObject("selection"));
+        }
         return run;
     }
 
@@ -501,7 +507,7 @@ public final class JdbcRunStore {
      * 把 run 行投影为对外快照。
      *
      * @param row harness_run 行
-     * @return 含 runId/version/eventSeq/state/executionSettlement/taskProfileVersion 的对象
+     * @return 含 runId/version/eventSeq/state/executionSettlement/executionProfileVersion 的对象
      */
     public static JSONObject snapshot(JSONObject row) {
         return new JSONObject()
@@ -510,7 +516,8 @@ public final class JdbcRunStore {
                 .put("eventSeq", row.getLong("event_seq"))
                 .put("state", row.getString("state"))
                 .put("executionSettlement", row.getString("execution_settlement"))
-                .put("taskProfileVersion", row.getString("profile_version"));
+                .put("executionProfileVersion", row.getString("profile_version"))
+                .put("selection", row.optJSONObject("selection"));
     }
 
     /**
@@ -771,7 +778,7 @@ public final class JdbcRunStore {
                             runId,
                             tenant,
                             subject,
-                            pinned == null ? profileVersion : pinned.getJSONObject("task").getString("version"),
+                            pinned == null ? profileVersion : cube.service.harness.runtime.ExecutionProfiles.execution(pinned).getString("version"),
                             "queued",
                             "pending",
                             "settled",
@@ -806,6 +813,15 @@ public final class JdbcRunStore {
                     }
                     JSONObject response =
                             emit(c, run(c, tenant, subject, runId, true), "run.created", request, "coordinator");
+                    if (pinned != null && pinned.has("initialSkills")) {
+                        JSONArray initial = pinned.getJSONArray("initialSkills");
+                        for (int i = 0; i < initial.length(); i++) {
+                            String release = initial.getString(i);
+                            cube.service.harness.store.CatalogStore.requireRelease(pinned, release);
+                            update(c, "INSERT INTO harness_run_skill VALUES (?,?)", runId, release);
+                            response = emit(c, run(c, tenant, subject, runId, true), "skill.activated", new JSONObject().put("digest", release), "coordinator");
+                        }
+                    }
                     receipt(c, k, tenant, subject, "create", "runs", digest, response);
                     return response;
                 });

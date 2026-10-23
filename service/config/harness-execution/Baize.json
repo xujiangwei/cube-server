@@ -1,0 +1,28 @@
+{
+  "adapter": "openai-json-v2",
+  "backend": "java-inference",
+  "capabilities": [
+    "resource_decisions"
+  ],
+  "certification": "offline-adapter",
+  "generation": {
+    "maxRepairs": 1,
+    "stream": true,
+    "temperature": 0,
+    "topP": 1
+  },
+  "id": "Baize",
+  "kind": "model",
+  "maxContextTokens": 65536,
+  "nativeTools": false,
+  "template": {
+    "id": "harness-json-template-v1",
+    "version": "1"
+  },
+  "templateOverhead": 4096,
+  "tokenizer": {
+    "id": "transport-bytes-v1",
+    "version": "1"
+  },
+  "version": "1"
+}

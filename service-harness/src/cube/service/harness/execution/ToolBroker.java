@@ -327,6 +327,14 @@ public final class ToolBroker implements AutoCloseable {
         return jobs.enqueue(l, intent, definition);
     }
 
+    /** Capability discovery and admission use the same registered provider identity. */
+    public boolean supports(JSONObject tool) {
+        try {
+            QueryProvider provider = providers.get(tool.getString("brokerOperation"));
+            return provider.runnerType().equals(tool.getString("runnerType")) && provider.permission().equals(tool.getString("permission"));
+        } catch (StoreException unavailable) { return false; }
+    }
+
     /**
      * 组装下发 runner 的作业线报，并附带 HMAC 签名的执行授权（grant）。
      *

@@ -1,12 +1,6 @@
 {
   "type": "object",
   "properties": {
-    "taskProfileId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 128,
-      "pattern": "^[A-Za-z0-9_.:-]+$"
-    },
     "input": {
       "type": "object",
       "properties": {
@@ -31,10 +25,31 @@
         "attachmentIds"
       ],
       "additionalProperties": false
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 257,
+      "pattern": "^[A-Za-z0-9_.:-]+(@[A-Za-z0-9_.:-]+)?$"
+    },
+    "runtime": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 257,
+      "pattern": "^[A-Za-z0-9_.:-]+(@[A-Za-z0-9_.:-]+)?$"
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[a-z][a-z0-9_.-]*/[a-z][a-z0-9_.-]*$"
+      },
+      "maxItems": 64
     }
   },
   "required": [
-    "taskProfileId",
     "input"
   ],
   "additionalProperties": false,

@@ -1,6 +1,6 @@
 # Harness 技能包、配置与上下文
 
-运行时把租户的技能 release、Model/Runtime/TaskProfile、权限和资源固定到每个 run。资源包、配置及任务账本共用专用数据库；模型执行见 [EXECUTION.md](EXECUTION.md)，租户默认 JSON 的全部字段见[配置文档](config/harness-tenant/README.md)。
+运行时把租户的技能、权限、业务配额与请求选择的服务器模型、执行器分别解析，然后固定到每个 run。请求省略模型或执行器时使用服务器默认值，模型、执行器和工具白名单不属于租户配置。资源包、配置及任务账本共用专用数据库；模型执行见 [EXECUTION.md](EXECUTION.md)，租户默认 JSON 的全部字段见[配置文档](config/harness-tenant/README.md)。
 
 ## 仓库与工作区
 
@@ -10,7 +10,7 @@
 
 ## 技能包与发布
 
-作者示例位于工作区 `skill/harness-packages/`。包包含 `manifest.json`、`SKILL.md`、`dependencies.lock.json` 及完整文件白名单；manifest 使用 `schemaVersion=6`，固定文件 SHA256、长度、role 和媒体类型。release digest 为规范化 manifest 的 SHA256。只接受声明的本地 schema、锁定的 ready 依赖及已注册 runtime，不下载远程依赖或读取未声明文件。
+作者示例位于工作区 `skill/harness-packages/`。包包含 `manifest.json`、`SKILL.md`、`dependencies.lock.json` 及完整文件白名单；manifest 使用 `schemaVersion=6`，固定文件 SHA256、长度、role 和媒体类型。release digest 为规范化 manifest 的 SHA256。只接受声明的本地 schema、锁定的 ready 依赖；可执行工具在创建任务时核对服务器的协议能力，不下载远程依赖或读取未声明文件。
 
 资源包默认 `resources-only`，不执行脚本。ZIP 最多 65 项、每项 256 KiB、总解压 2 MiB、压缩包 8 MiB，超过 1 KiB 的项压缩比不超过 100。拒绝路径穿越、绝对路径、反斜线、重复/大小写冲突、设备名、symlink/special attrs、目录项、加密及不支持的格式。可信可执行工具另受 64 KiB 包上限与显式授权约束，见 [TOOLS.md](TOOLS.md)。
 
@@ -34,23 +34,23 @@ runtime.signer.author-key=REPLACE_WITH_PUBLIC_KEY_BASE64
 `runtime.tenant` 必须对应业务用户 token.domain；仓库路径、identity 应与服务运行时使用的仓库一致。signer 值为 X.509 DER 公钥的 Base64，来源由管理员提供。
 
 ```powershell
-# Windows classpath 分隔符为 ;，Linux 改用 :。先发布 model/runtime，再发布引用它们的 task。
-java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.runtime.RuntimeAdmin C:/private/admin.properties profile C:/author/model.json
+# Windows classpath 分隔符为 ;，Linux 改用 :。profile 命令只发布 kind=policy 的租户业务策略。模型/运行时直接配置在服务器 harness-execution 目录。
+java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.runtime.RuntimeAdmin C:/private/admin.properties profile C:/author/tenant-policy.json
 java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.runtime.RuntimeAdmin C:/private/admin.properties validate C:/author/package.zip
 java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.runtime.RuntimeAdmin C:/private/admin.properties upload C:/author/package.zip author-key C:/author/signature.txt
 java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.runtime.RuntimeAdmin C:/private/admin.properties bind skill example/resource-guide <digest> 0
-java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.runtime.RuntimeAdmin C:/private/admin.properties bind task resources-Baize2 resources-Baize2@2 0
+java -cp '<harness.jar>;<dependencies/*>' cube.service.harness.runtime.RuntimeAdmin C:/private/admin.properties bind policy default default@2 1
 ```
 
 签名算法为 `SHA256withRSA`，签署 64 字节 ASCII release digest；签名文件保存 Base64。首次 provenance 保存签名、公钥 ID、可信 actor/source 和依赖摘要，同 digest 再发布不覆盖。仅本地作者开发可设置 `runtime.allowUnsignedLocal=true` 且 `runtime.source=local-author`，upload 才可省略签名参数。
 
-`bind <skill|task> <name> <target> <expectedVersion>` 原子 CAS：首次 expectedVersion=0，已有绑定填写当前版本。`export <digest> <新ZIP路径>` 导出固定内容。`lifecycle <digest> <expectedVersion> <ready|draining|retired>` 管理生命周期；draining 阻止新 run，已有 run 可继续读取固定内容。run 引用、active skill 或未 retired 依赖会阻止 retirement；retired 不可恢复，内容不自动删除。回退可 bind 到仍 ready 的旧版本。
+`bind <skill|policy> <name> <target> <expectedVersion>` 原子 CAS：首次 expectedVersion=0，已有绑定填写当前版本。`export <digest> <新ZIP路径>` 导出固定内容。`lifecycle <digest> <expectedVersion> <ready|draining|retired>` 管理生命周期；draining 阻止新 run，已有 run 可继续读取固定内容。run 引用、active skill 或未 retired 依赖会阻止 retirement；retired 不可恢复，内容不自动删除。回退可 bind 到仍 ready 的旧版本。
 
 ## 固定配置与权限
 
-Model/Runtime/TaskProfile 由封闭 schema 校验，同 kind/id/version 的异内容拒绝。新 run 在创建事务内解析 active task、固定 model/runtime/releases、验证依赖及能力，生成不可变配置快照。幂等重试即使 active 已切换也返回原 run。
+租户 policy 由封闭 schema 校验，同 kind/id/version 的异内容拒绝。新 run 在事务内解析 policy/default，固定获准技能、权限和业务限额；模型、运行时、工具集、上下文和执行参数从服务器 ExecutionProfiles 读取。服务器切换模型/执行器不修改任何租户记录。幂等重试即使服务器配置或租户策略已切换也返回原 run。
 
-run 的权限是 task 声明、可信身份授权和平台/固定 release 声明的交集；业务工具还须匹配部署端 provider 的权限、schema 和范围。`skill.activate` 仅激活已固定技能，不扩张权限；同名技能的多个 release 不可同时固定。包内工具名须处于技能命名空间。
+run 的权限是租户策略声明、可信身份授权和平台/固定 release 声明的交集；业务工具还须匹配部署端 provider 的权限、schema 和范围。`skill.activate` 仅激活已固定技能，不扩张权限；同名技能的多个 release 不可同时固定。包内工具名须处于技能命名空间。
 
 资源能力为 `skill.list/activate`、`resource.list/read/search`。每次调用复查租户、用户、权限、激活状态和固定 release；自定义资源工具只读 manifest 固定路径，验证输出 schema，不运行代码。read 按 Unicode codepoint 分页，limit 最多 8192，返回 release/path/sha256/handle/nextOffset；search 为有界字面量检索。
 

@@ -147,7 +147,7 @@ public final class ProviderInvocation {
         if (files == null) {
             throw new StoreException("FILES_DISABLED");
         }
-        return files.writeText(
-                lease(), callId, new JSONObject().put("fileName", fileName).put("text", text));
+        return files.writeProviderText(
+                lease(), jobId, new JSONObject().put("fileName", fileName).put("text", text));
     }
 }

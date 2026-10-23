@@ -1,0 +1,78 @@
+{
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "id": {
+      "type": "string",
+      "enum": [
+        "default"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "policy"
+      ]
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9_.:-]+$"
+      },
+      "maxItems": 64
+    },
+    "skillReleases": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "maxItems": 64
+    },
+    "businessLimits": {
+      "type": "object",
+      "properties": {
+        "maxActiveRuns": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "maxLifetimeMillis": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 86400000
+        }
+      },
+      "required": [
+        "maxActiveRuns",
+        "maxLifetimeMillis"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "version",
+    "kind",
+    "permissions",
+    "skillReleases",
+    "businessLimits"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

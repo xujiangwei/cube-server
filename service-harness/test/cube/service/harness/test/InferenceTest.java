@@ -178,7 +178,7 @@ public final class InferenceTest {
         task.getJSONObject("model").put("version", "2");
         task.getJSONObject("contextPolicy").put("budgetVersion", "transport-bytes-v1").put("maxInputBytes", 48000);
         profiles.publish(T, task);
-        catalog.bind(T, "task", "task", "task@2", 1);
+        profiles.bind(T, "task", "task", "task@2", 1);
         ModelJobStore jobs = new ModelJobStore(store, config.mysql());
         InferenceStore ledger = new InferenceStore(store, config.mysql());
         jobs.backend("legacy", ExecutionTest.descriptor("legacy"), 1);
@@ -446,7 +446,8 @@ public final class InferenceTest {
                 t.getJSONObject("model").put("version", "2");
                 t.getJSONObject("contextPolicy").put("budgetVersion", "transport-bytes-v1").put("maxInputBytes", 48000);
                 profiles.publish(T, t);
-                catalog.bind(T, "task", "inference-" + name, "inference-" + name + "@2", 0);
+                profiles.bind(T, "task", "inference-" + name, "inference-" + name + "@2", 0);
+                profiles.configure(new Properties(), T, t, root.resolve("server-" + name));
             }
             return;
         }

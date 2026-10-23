@@ -50,6 +50,7 @@ public final class ResilienceTest {
     static void drain() throws Exception {
         Properties p = settings();
         try (ExecutionRuntime runtime = new ExecutionRuntime(store, p, 3000)) {
+            SelectionWorkers.online(runtime, p);
             fail("HARNESS_DRAINING", () -> runtime.create(identity, key(), request("closed")));
             runtime.admission(true);
             String k = key();
@@ -57,7 +58,7 @@ public final class ResilienceTest {
             // 关闭后同键同参仍可幂等重放，异参按冲突拒绝。
             runtime.admission(false);
             check(
-                    runtime.create(identity, k, request("in flight")).toString().equals(receipt.toString()),
+                    JdbcRunStore.canonical(runtime.create(identity, k, request("in flight"))).equals(JdbcRunStore.canonical(receipt)),
                     "closed replay lost");
             fail("IDEMPOTENCY_CONFLICT", () -> runtime.create(identity, k, request("different")));
             // 队列中（queued）run 未物理结束，不得报告 drained。
@@ -179,6 +180,7 @@ public final class ResilienceTest {
         String held = null;
         long heldSize = 0;
         try (FileService f = new FileService(store, p, identity)) {
+            profiles.files(f.ledger);
             ControlFileTest.files = f;
             for (int cycle = 0; cycle < 4; cycle++) {
                 for (int i = 0; i < 24; i++) {
@@ -341,7 +343,7 @@ public final class ResilienceTest {
         Map<String, byte[]> nextFiles = entries("Resilience independent release candidate");
         String next = upload(zip(manifest(nextFiles), nextFiles)).getString("digest");
         catalog.lifecycle(T, next, 1, "ready");
-        JSONObject task = catalog.profile(T, "task", "task", "1");
+        JSONObject task = profiles.profile(T, "task", "task", "1");
         task.put("version", "resilience").put("skillReleases", new JSONArray().put(next));
         profiles.publish(T, task);
         // run() 执行任务绑定 CAS；新旧 run 各自保留独立的不可变配置。

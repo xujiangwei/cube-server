@@ -54,7 +54,7 @@ public final class RuntimeTest {
     static CatalogStore catalog;
 
     /** profile 发布与 run 创建注册表。 */
-    static ProfileRegistry profiles;
+    static FixtureProfiles profiles;
 
     /** 包仓库；上传/导出/校验 ZIP 与签名。 */
     static PackageRepository repo;
@@ -95,6 +95,10 @@ public final class RuntimeTest {
         Path path = Paths.get("config/harness-tenant");
         if (!Files.isDirectory(path)) path = Paths.get("service-harness/config/harness-tenant");
         return path.toAbsolutePath().normalize();
+    }
+
+    public static Path deploymentDirectory() {
+        return templateDirectory().resolveSibling("harness-execution");
     }
 
     /**
@@ -185,7 +189,7 @@ public final class RuntimeTest {
      * @return 默认 task profile 的创建请求
      */
     static JSONObject request(String text) {
-        return new JSONObject().put("taskProfileId", "task").put("input", new JSONObject().put("instruction", text).put("attachmentIds", new JSONArray()));
+        return new JSONObject().put("input", new JSONObject().put("instruction", text).put("attachmentIds", new JSONArray()));
     }
 
     /**
@@ -215,15 +219,8 @@ public final class RuntimeTest {
      * @return 新 run 的 runId
      */
     static String run(String taskVersion, String text) {
-        long binding;
-        try (Connection c = config.connect(); Statement s = c.createStatement();
-             ResultSet r = s.executeQuery(
-                     "SELECT version FROM harness_binding WHERE tenant='runtime-tenant' AND binding_kind='task' AND binding_name='task'")) {
-            binding = r.next() ? r.getLong(1) : 0;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        catalog.bind(T, "task", "task", "task@" + taskVersion, binding);
+        long binding = profiles.bindingVersion(T, "task");
+        profiles.bind(T, "task", "task", "task@" + taskVersion, binding);
         return profiles.createRun(identity, key(), "task", request(text)).getString("runId");
     }
 
@@ -367,7 +364,7 @@ public final class RuntimeTest {
     static void setup() throws Exception {
         store = new JdbcRunStore(config);
         catalog = new CatalogStore(store, config.mysql());
-        profiles = new ProfileRegistry(catalog);
+        profiles = new FixtureProfiles(catalog);
         runtime = new JSONObject().put("schemaVersion", 2).put("id", "resources").put("version", "1").put("kind", "runtime").put("mode", "resources-only")
                 .put("capabilities", new JSONArray().put("resources"))
                 .put("maxWorkspaceBytes", 256).put("maxWorkspaceFiles", 2).put("certification", "offline-resources");

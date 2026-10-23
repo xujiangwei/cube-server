@@ -44,11 +44,15 @@ execution.accepting=true
 
 # 是否启用任务执行、资源循环与 Java 推理网关；默认关闭。
 execution.enabled=false
-# 合法租户首次访问时复制并启用此目录中的 model/runtime/task JSON；已有租户不随模板修改。
-# 相对路径按进程工作目录解析。模板不能为空，初始 task 的 skillReleases 必须为空。
+# 服务端发布全部模型和执行器；下面仅为请求省略选择时的默认值。
+# model/runtime 为 id@version；运行中的任务保留创建时的配置快照。
+# harness-tenant 只包含 default.json：技能、权限、业务配额。首次合法访问初始化租户策略。
+execution.profiles=./config/harness-execution
+execution.model=Baize@1
+execution.runtime=resources@1
 execution.tenant.templates=./config/harness-tenant
 # 用户租户与主体由已验证的 Cube token 决定，不从请求或固定配置读取。
-# 服务端工具权限上限，使用英文逗号分隔；实际权限取与任务及资源发布权限的交集。
+# 服务端工具权限上限，使用英文逗号分隔；实际权限取与租户策略及技能发布权限的交集。
 execution.permissions=skill.list,skill.activate,resource.list,resource.read,resource.search
 # 同一租户的活跃任务接单上限，范围 1～256；达到上限后拒绝新任务。
 execution.max.active=128

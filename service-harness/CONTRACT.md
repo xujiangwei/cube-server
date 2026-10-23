@@ -13,7 +13,7 @@
 | `contracts/runner-sandbox/` | 专用 sandbox Runner |
 | `contracts/control-files/` | 用户输入、审批、取消、文件与下载句柄 |
 | `contracts/trace/` | Trace 导出和反馈 |
-| `resources/runtime/schemas/` | 包清单、model/runtime/task profile、依赖锁 |
+| `resources/runtime/schemas/` | 包清单、服务器 model/runtime/execution、tenant-policy、依赖锁 |
 
 Java/Python 部署使用匹配契约。schemaVersion 表示数据格式版本，protocolVersion 表示通信版本，runnerType 表示 Runner 类型，三者独立。模型配置无需填写 schemaVersion，始终按当前格式校验；兼容旧配置中的整数 3，不接受旧格式 1、2。模型功能由 backend、adapter 和能力声明决定。
 
@@ -57,4 +57,4 @@ Runner describe 声明 runtime、容量及持久 runtimeId。普通工具使用 
 
 jobHash 对不含 jobHash/grant 的完整 job 使用跨语言规范摘要，参数单独摘要。grant 的规范 bodyJson 使用 HMAC-SHA256，只有 Java 持有 key。resultHash 对原始完整 report 求摘要，即使 Java 将坏输出规范为 `TOOL_OUTPUT_INVALID`，仍 ACK 原 report 的摘要。ACK 表示证据已持久保存；actualFinished 和 effectStatus 分别表示物理执行结束与业务效果，两者不可互相替代。
 
-当前运行时 schema 为 package-manifest=6、model-profile=3、runtime-profile=2、task-profile=2、dependencies=1。包内资源工具、普通 provider 工具与 sandbox 工具采用互斥封闭分支，分别要求对应 runtime、runnerType 和 task 工具集。字段说明见[租户配置](config/harness-tenant/README.md)，执行证据及授权流程见 [TOOLS.md](TOOLS.md)。
+当前运行时 schema 为 package-manifest=6、model-profile=3、runtime-profile=2、execution-profile=1、tenant-policy=1、dependencies=1。包内资源工具、普通 provider 工具与 sandbox 工具采用互斥封闭分支，分别要求对应 runtime、runnerType 和 服务器工具集。服务器字段见[执行配置](config/harness-execution/README.md)，业务字段见[租户策略](config/harness-tenant/README.md)，执行证据及授权流程见 [TOOLS.md](TOOLS.md)。

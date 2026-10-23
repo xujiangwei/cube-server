@@ -68,8 +68,6 @@ def generate(target):
         '/harness/v1/runs':{'post':dict(summary='Create after durable commit; bounded admission',parameters=[dict(name='Idempotency-Key',**{'in':'header'},required=True,schema=ID)],requestBody=dict(required=True,content={'application/json':dict(schema={'$ref':'../schemas/create-run.json'})}),responses=success('../schemas/run-snapshot.json','202'))},
         '/harness/v1/runs/{runId}':{'get':dict(summary='Read snapshot, immutable final and separate actual usage',responses=success('schemas/run-read.json'))},
         '/harness/v1/runs/{runId}/events':{'get':dict(summary='Finite ordered page; SSE reconnect with Last-Event-ID; 2 second deadline',parameters=[dict(name='after',**{'in':'query'},schema=integer(0,9007199254740991)),dict(name='limit',**{'in':'query'},schema=integer(1,100)),dict(name='Last-Event-ID',**{'in':'header'},schema=dict(type='string',pattern='^[0-9]{1,15}$'))],responses=success('schemas/events-page.json'))},
-        '/harness/v1/task-profiles':{'get':dict(summary='Active task profiles in the authenticated tenant',responses=success('../schemas/profiles-response.json'))},
-        '/harness/v1/task-profiles/{id}':{'get':dict(summary='Active task profile summary',responses=success('../schemas/profile.json'))},
         '/harness/v1/capabilities':{'get':dict(summary='Protocol 2, model units, health and physical/effective capacity',responses={'200':dict(description='Enabled execution diagnostics')})}}
     for route,methods in operations.items():
         for operation in methods.values():

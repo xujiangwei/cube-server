@@ -4,7 +4,7 @@
     "schemaVersion": {
       "type": "integer",
       "enum": [
-        2
+        1
       ]
     },
     "id": {
@@ -22,7 +22,7 @@
     "kind": {
       "type": "string",
       "enum": [
-        "task"
+        "execution"
       ]
     },
     "model": {
@@ -69,24 +69,6 @@
       ],
       "additionalProperties": false
     },
-    "skillReleases": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "pattern": "^[a-f0-9]{64}$"
-      },
-      "maxItems": 64
-    },
-    "permissions": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 128,
-        "pattern": "^[A-Za-z0-9_.:-]+$"
-      },
-      "maxItems": 64
-    },
     "requiredCapabilities": {
       "type": "array",
       "items": {
@@ -96,12 +78,6 @@
         "pattern": "^[A-Za-z0-9_.:-]+$"
       },
       "maxItems": 64
-    },
-    "toolSetVersion": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 128,
-      "pattern": "^[A-Za-z0-9_.:-]+$"
     },
     "contextPolicy": {
       "type": "object",
@@ -181,6 +157,30 @@
         "maxLifetimeMillis"
       ],
       "additionalProperties": false
+    },
+    "activeVersions": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          }
+        },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          }
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": [
@@ -190,10 +190,7 @@
     "kind",
     "model",
     "runtime",
-    "skillReleases",
-    "permissions",
     "requiredCapabilities",
-    "toolSetVersion",
     "contextPolicy",
     "executionLimits"
   ],

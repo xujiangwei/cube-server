@@ -58,6 +58,12 @@
           "enum": [
             "offline-resources"
           ]
+        },
+        "toolSetVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
         }
       },
       "required": [
@@ -69,7 +75,8 @@
         "capabilities",
         "maxWorkspaceBytes",
         "maxWorkspaceFiles",
-        "certification"
+        "certification",
+        "toolSetVersion"
       ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
@@ -132,6 +139,12 @@
           "enum": [
             "offline-trusted-runner"
           ]
+        },
+        "toolSetVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
         }
       },
       "required": [
@@ -143,7 +156,8 @@
         "capabilities",
         "maxWorkspaceBytes",
         "maxWorkspaceFiles",
-        "certification"
+        "certification",
+        "toolSetVersion"
       ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"

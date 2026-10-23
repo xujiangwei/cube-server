@@ -42,7 +42,7 @@ public final class ToolTest {
 
     /**
      * 准备工具测试夹具：在执行夹具基础上发布 trusted-python-v1 runtime、包仓库与
-     * MockConsole SKILL/TaskProfile，并落盘 tool-fixture.json。
+     * MockConsole SKILL、服务器执行配置和租户策略，并落盘 tool-fixture.json。
      *
      * @param dir 测试运行根目录
      * @param file 可选的外部一次性存储配置路径；为空时使用默认 sqlite 一次性库
@@ -79,7 +79,11 @@ public final class ToolTest {
                 .put("executionLimits", new JSONObject().put("maxRounds", 8).put("maxTools", 16).put("maxRepairs", 1).put("maxLifetimeMillis", 60000));
         t.getJSONObject("contextPolicy").put("maxInputBytes", 48000);
         profiles.publish(T, t);
-        catalog.bind(T, "task", "tools", "tools@1", 0);
+        profiles.bind(T, "task", "tools", "tools@1", 0);
+        Properties settings = new Properties();
+        try (java.io.InputStream input = Files.newInputStream(root.resolve("store.local.properties"))) { settings.load(input); }
+        ExecutionTest.configureServer(settings, t);
+        Files.write(root.resolve("store.local.properties"), bytes(ExecutionTest.properties(settings)));
         Files.write(root.resolve("tool-fixture.json"), RuntimeSupport.bytes(new JSONObject().put("release", release).put("tenant", T).put("subject", S)));
     }
 
@@ -117,7 +121,7 @@ public final class ToolTest {
      */
     static Case make() throws Exception {
         Case c = new Case();
-        c.run = profiles.createRun(identity, key(), "tools", request("status").put("taskProfileId", "tools"))
+        c.run = profiles.createRun(identity, key(), "tools", request("status"))
                 .getString("runId");
         c.lease = running(c.run, 60000);
         resources.activate(identity, c.run, release);

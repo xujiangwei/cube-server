@@ -562,7 +562,7 @@ public final class ControlFileTest {
     Files.createDirectory(root.resolve("files"));
     files = new FileService(store, settings, identity);
     controls = new ControlStore(store, config.mysql()).files(files.ledger);
-    profiles = new ProfileRegistry(catalog, files.ledger);
+    profiles.files(files.ledger);
     try {
       controls();
       filesystem();

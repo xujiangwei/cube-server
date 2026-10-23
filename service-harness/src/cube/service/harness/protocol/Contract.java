@@ -175,7 +175,9 @@ public final class Contract {
             }
             for (String key : object.keySet()) {
                 if (props == null || !props.has(key)) {
-                    if (!schema.optBoolean("additionalProperties", true)) {
+                    if (schema.opt("additionalProperties") instanceof JSONObject) {
+                        validate(object.get(key), schema.getJSONObject("additionalProperties"));
+                    } else if (!schema.optBoolean("additionalProperties", true)) {
                         bad();
                     }
                 } else {

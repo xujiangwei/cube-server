@@ -30,6 +30,9 @@
     </java>
   </target>
   <target name="test-execution" depends="test">
+    <java classname="cube.service.harness.test.StoreBootstrapTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
+    <java classname="cube.service.harness.test.DeploymentConfigurationTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
+    <java classname="cube.service.harness.test.RequestSelectionTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.ExecutionTest" fork="true" failonerror="true">
       <classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath>
     </java>
@@ -75,8 +78,10 @@
     <mkdir dir="${stage.dir}/cellets"/>
     <copy file="${build.dir}/cube-service-harness-3.0.jar" todir="${stage.dir}/cellets"/>
     <copy todir="${stage.dir}/config">
-      <fileset dir="config" includes="harness.properties.template,standalone.xml,cohost-cellet.xml,harness-tenant/**"/>
+      <fileset dir="config" includes="harness.properties.template,standalone.xml,cohost-cellet.xml"/>
     </copy>
+    <sync todir="${stage.dir}/config/harness-execution"><fileset dir="config/harness-execution"/></sync>
+    <sync todir="${stage.dir}/config/harness-tenant"><fileset dir="config/harness-tenant"/></sync>
     <copy file="config/standalone.xml" tofile="${stage.dir}/cell.xml"/>
     <copy todir="${stage.dir}/scripts">
       <fileset dir="scripts" includes="run.sh,run.ps1,init_dev.py,evaluate_traces.py,replay_trace.py"/>
