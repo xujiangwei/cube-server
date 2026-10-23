@@ -192,7 +192,7 @@ public final class JdbcRunStore {
     <T> T tx(Work<T> work) {
         for (int attempt = 0; ; attempt++) {
             boolean committed = false, commitAttempted = false;
-            try (Connection c = config.connect()) {
+            try (Connection c = config.connectTransaction()) {
                 StoreConfig.begin(c, config.mysql());
                 try {
                     T result = work.run(c);
@@ -875,6 +875,11 @@ public final class JdbcRunStore {
                                             ? JSONObject.NULL
                                             : new JSONObject(result.getString("result_json")));
                 });
+    }
+
+    /** Internal state/version read; mutations still validate owner, fence and version in their transaction. */
+    public JSONObject readSnapshot(String tenant, String subject, String runId) {
+        return tx(c -> snapshot(run(c, tenant, subject, runId, false)));
     }
 
     /**

@@ -224,10 +224,16 @@ public final class ExecutionTest {
         dispatcher.apply(envelope("a", "ia", "actual_finished").put("sessionId", sa2).put("report", complete), 1, () -> true);
         JSONObject second = poll("b", "ib", sb).getJSONObject("job");
         String completedRun = a.getString("runId");
-        for (int i = 0; i < 4; i++) {
-            coordinator.step(completedRun);
-        }
+        coordinator.step(completedRun);
         check(store.read(T, S, completedRun).getJSONObject("snapshot").getString("state").equals("succeeded"), "Coordinator final missing");
+        check(store.read(T, S, completedRun).getString("usageSettlement").equals("settled"),
+                "Final answer required another coordinator scan to settle usage");
+        int checkpoints = 0;
+        JSONArray completedEvents = store.events(T, S, completedRun, 0, 256);
+        for (int i = 0; i < completedEvents.length(); i++) {
+            if (completedEvents.getJSONObject(i).getString("type").equals("context.checkpoint")) checkpoints++;
+        }
+        check(checkpoints == 1, "Final answer rebuilt an unused model context");
         long seq = store.read(T, S, completedRun).getJSONObject("snapshot").getLong("eventSeq");
         coordinator.step(completedRun);
         check(seq == store.read(T, S, completedRun).getJSONObject("snapshot").getLong("eventSeq"), "Final repeated");
@@ -278,10 +284,11 @@ public final class ExecutionTest {
         pass("JDBC: shared capacity, immutable dispatch, disconnect/unknown quarantine, late actual_finished, duplicate/conflicting evidence, unique final/owner, Baize/Baize2 v2 profiles");
     }
 
-    /** A slow checkpoint must not let the active step lose its ten-second lease. */
+    /** Slow checkpoint/confirmation commits must not let the active step lose its ten-second lease. */
     static void slowCoordinatorStep() throws Exception {
         Thread caller = Thread.currentThread();
         AtomicReference<String> delayedRun = new AtomicReference<>();
+        AtomicReference<String> delayedEvent = new AtomicReference<>();
         AtomicBoolean delayed = new AtomicBoolean();
         JdbcRunStore slowStore = new JdbcRunStore(config, boundary -> {
             if (!boundary.equals("afterCommit") || Thread.currentThread() != caller
@@ -291,7 +298,7 @@ public final class ExecutionTest {
                     "SELECT event_type FROM harness_event WHERE run_id=? ORDER BY event_seq DESC LIMIT 1")) {
                 s.setString(1, delayedRun.get());
                 try (ResultSet r = s.executeQuery()) {
-                    checkpoint = r.next() && r.getString(1).equals("context.checkpoint");
+                    checkpoint = r.next() && r.getString(1).equals(delayedEvent.get());
                 }
             } catch (SQLException e) {
                 throw new RuntimeException(e);
@@ -323,17 +330,17 @@ public final class ExecutionTest {
                         .put(new JSONObject().put("proposalId", "slow-skill-list").put("tool", "skill.list")
                                 .put("argumentsJson", "{}")));
                 jobs.report("b", report(job, decision, true));
-                slow.step(run);
                 long fence = slowStore.read(T, S, run).getLong("fence");
+                delayedEvent.set(finalDecision ? "round.confirmed" : "context.checkpoint");
                 delayedRun.set(run);
                 slow.step(run);
-                check(delayed.get(), "Slow checkpoint was not exercised");
+                check(delayed.get(), "Slow checkpoint/confirmation was not exercised");
                 JSONObject current = slowStore.read(T, S, run);
                 check(current.getLong("fence") == fence, "Slow step lost its lease");
                 if (finalDecision) {
                     check(current.getJSONObject("snapshot").getString("state").equals("succeeded")
                                     && current.getJSONObject("result").getJSONObject("result").getString("text").equals("ok"),
-                            "Final result was not committed after the slow checkpoint");
+                            "Final result was not committed after the slow confirmation");
                 } else {
                     check(slowStore.intents(T, S, run, "call").length() == 1, "Slow step did not persist the tool intent");
                     slow.step(run);
@@ -341,7 +348,7 @@ public final class ExecutionTest {
                             "Tool execution did not advance after the slow checkpoint");
                 }
             }
-            pass("active coordinator lease survives checkpoints delayed beyond ten seconds; skill.list and final commits advance without reacquiring or duplicating intents");
+            pass("active coordinator lease survives checkpoint/confirmation delays beyond ten seconds; skill.list and final commits advance without reacquiring or duplicating intents");
         } finally {
             slow.close();
         }
@@ -358,9 +365,7 @@ public final class ExecutionTest {
      * @throws Exception 推进、轮询或断言失败
      */
     static JSONObject dispatch(String run, String worker, String instance, String session) throws Exception {
-        for (int i = 0; i < 3; i++) {
-            coordinator.step(run);
-        }
+        coordinator.step(run);
         JSONObject response = poll(worker, instance, session);
         check(response.has("job"), "No dispatch");
         JSONObject job = response.getJSONObject("job");

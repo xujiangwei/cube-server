@@ -101,7 +101,9 @@ public final class StoreConfig implements AutoCloseable {
                     .put(MySQLStorage.CONFIG_PORT, port)
                     .put(MySQLStorage.CONFIG_SCHEMA, database)
                     .put(MySQLStorage.CONFIG_USER, user)
-                    .put(MySQLStorage.CONFIG_PASSWORD, password));
+                    .put(MySQLStorage.CONFIG_PASSWORD, password)
+                    .put(MySQLStorage.CONFIG_TRANSACTION_ISOLATION, Connection.TRANSACTION_READ_COMMITTED)
+                    .put(MySQLStorage.CONFIG_AUTO_COMMIT, false));
             mysqlStorage.open();
         } else {
             throw new StoreException("STORE_DIALECT_REFUSED");
@@ -128,9 +130,21 @@ public final class StoreConfig implements AutoCloseable {
      * @throws StoreException STORE_TARGET_REFUSED（当前库不是目标专用库）
      */
     public Connection connect() throws SQLException {
+        return connect(false);
+    }
+
+    /** Borrow a manual-commit connection for a ledger transaction, retaining the pool defaults. */
+    public Connection connectTransaction() throws SQLException {
+        return connect(true);
+    }
+
+    private Connection connect(boolean transaction) throws SQLException {
         Connection c = mysql() ? mysqlStorage.borrowConnection() : DriverManager.getConnection(url);
         try {
             if (mysql()) {
+                // Maintenance/bootstrap callers keep the existing autocommit contract.
+                // Ledger transactions avoid switching it on and off for each operation.
+                if (!transaction) c.setAutoCommit(true);
                 c.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
                 try (Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT DATABASE()")) {
                     if (!r.next() || !database.equals(r.getString(1))) {

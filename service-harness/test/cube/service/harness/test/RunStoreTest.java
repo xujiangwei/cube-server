@@ -250,9 +250,12 @@ public final class RunStoreTest {
     private static void pooledConnections() throws Exception {
         if (!config.mysql()) return;
         long firstId;
-        Connection first = config.connect();
+        Connection first = config.connectTransaction();
         try {
             firstId = connectionId(first);
+            check(!first.getAutoCommit(), "Harness pool must retain manual-commit default");
+            first.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            first.setAutoCommit(true);
             first.setAutoCommit(false);
             try (PreparedStatement s = first.prepareStatement("UPDATE harness_store_identity SET store_id=? WHERE singleton=1")) {
                 s.setString(1, "uncommitted-pool-probe-identity");
@@ -267,11 +270,19 @@ public final class RunStoreTest {
             first.createStatement();
             throw new AssertionError("Returned logical connection can still execute SQL");
         } catch (SQLException expected) { }
-        try (Connection next = config.connect(); Connection concurrent = config.connect()) {
+        try (Connection next = config.connectTransaction(); Connection concurrent = config.connectTransaction()) {
             check(connectionId(next) == firstId, "Connection was not reused from common pool");
             check(connectionId(concurrent) != firstId, "Double close returned the physical connection twice");
-            check(next.getAutoCommit(), "Transaction state leaked to the next borrower");
+            check(!next.getAutoCommit(), "Manual-commit default was not restored");
+            check(next.getTransactionIsolation() == Connection.TRANSACTION_READ_COMMITTED,
+                    "Isolation change leaked to the next borrower");
+            try (Statement s = next.createStatement(); ResultSet r = s.executeQuery("SELECT @@autocommit")) {
+                check(r.next() && r.getInt(1) == 0, "Server autocommit disagrees with JDBC state");
+            }
             StoreBootstrap.verify(next, config);
+        }
+        try (Connection maintenance = config.connect()) {
+            check(maintenance.getAutoCommit(), "Maintenance connection lost its autocommit contract");
         }
         // A broken physical connection must be discarded and replaced.
         long brokenId;

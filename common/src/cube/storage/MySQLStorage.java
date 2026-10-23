@@ -40,6 +40,9 @@ public class MySQLStorage extends AbstractStorage {
     public final static String CONFIG_SCHEMA = "schema";
     public final static String CONFIG_USER = "user";
     public final static String CONFIG_PASSWORD = "password";
+    /** Optional JDBC defaults for a dedicated transaction pool; mutate session state through JDBC. */
+    public final static String CONFIG_TRANSACTION_ISOLATION = "transactionIsolation";
+    public final static String CONFIG_AUTO_COMMIT = "autoCommit";
 
     private volatile ConnectionPool pool;
 
@@ -94,6 +97,7 @@ public class MySQLStorage extends AbstractStorage {
             final boolean readOnly = connection.isReadOnly();
             final int isolation = connection.getTransactionIsolation();
             final String catalog = connection.getCatalog();
+            final boolean autoCommit = this.config.optBoolean(CONFIG_AUTO_COMMIT, true);
             return (Connection) Proxy.newProxyInstance(MySQLStorage.class.getClassLoader(),
                     new Class<?>[]{Connection.class}, new java.lang.reflect.InvocationHandler() {
                         private boolean closed;
@@ -125,8 +129,8 @@ public class MySQLStorage extends AbstractStorage {
                                             if (!Objects.equals(connection.getCatalog(), catalog)) {
                                                 connection.setCatalog(catalog);
                                             }
-                                            if (!connection.getAutoCommit()) {
-                                                connection.setAutoCommit(true);
+                                            if (connection.getAutoCommit() != autoCommit) {
+                                                connection.setAutoCommit(autoCommit);
                                             }
                                             connection.clearWarnings();
                                             reusable = true;
@@ -817,13 +821,31 @@ public class MySQLStorage extends AbstractStorage {
                     url.append("&socketTimeout=60000");
                     url.append("&useInformationSchema=true");
                     url.append("&nullCatalogMeansCurrent=true");
-                    url.append("&autoReconnect=true");
+                    // Dedicated transaction pools retain their JDBC defaults between borrows.
+                    // Local state avoids metadata queries and redundant SET/rollback round trips.
+                    // A broken transactional session must fail rather than silently reconnect.
+                    if (this.config.has(CONFIG_TRANSACTION_ISOLATION)) {
+                        url.append("&useLocalSessionState=true&useLocalTransactionState=true");
+                        url.append("&alwaysSendSetIsolation=false&autoReconnect=false");
+                    } else {
+                        url.append("&autoReconnect=true");
+                    }
                     url.append("&failOverReadOnly=false");
 
                     try {
                         conn = DriverManager.getConnection(url.toString(),
                                 this.config.getString(CONFIG_USER), this.config.getString(CONFIG_PASSWORD));
+                        if (this.config.has(CONFIG_TRANSACTION_ISOLATION)) {
+                            conn.setTransactionIsolation(this.config.getInt(CONFIG_TRANSACTION_ISOLATION));
+                        }
+                        if (this.config.has(CONFIG_AUTO_COMMIT)) {
+                            conn.setAutoCommit(this.config.getBoolean(CONFIG_AUTO_COMMIT));
+                        }
                     } catch (SQLException e) {
+                        if (conn != null) {
+                            try { conn.close(); } catch (SQLException closeFailure) { e.addSuppressed(closeFailure); }
+                            conn = null;
+                        }
                         Logger.e(this.getClass(), "#get - " + url.toString(), e);
                     }
                 }

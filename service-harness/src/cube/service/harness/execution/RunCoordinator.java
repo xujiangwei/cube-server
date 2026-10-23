@@ -402,8 +402,7 @@ public final class RunCoordinator implements AutoCloseable {
          */
         private long version(String run) {
             return store
-                    .read(identity.tenant, identity.subject, run)
-                    .getJSONObject("snapshot")
+                    .readSnapshot(identity.tenant, identity.subject, run)
                     .getLong("version");
         }
 
@@ -414,7 +413,7 @@ public final class RunCoordinator implements AutoCloseable {
          * @return 快照 JSON 对象
          */
         private JSONObject state(String run) {
-            return store.read(identity.tenant, identity.subject, run).getJSONObject("snapshot");
+            return store.readSnapshot(identity.tenant, identity.subject, run);
         }
 
         /**
@@ -717,7 +716,9 @@ public final class RunCoordinator implements AutoCloseable {
                         return;
                     }
                     confirm(l, "round", r, o.getJSONObject("decision"));
-                    return;
+                    // The confirmation committed. Continue reconciliation in this step instead
+                    // of scanning and re-reading the same run just to settle usage and finish.
+                    r.put("status", "confirmed").put("result_json", o.getJSONObject("decision").toString());
                 }
                 JSONObject o = new JSONObject(j.getString("outcome_json"));
                 if (o.has("usage")) {
@@ -757,6 +758,19 @@ public final class RunCoordinator implements AutoCloseable {
             if (repairs > limits.getInt("maxRepairs")) {
                 fail(l, "REPAIR_LIMIT_EXCEEDED");
                 return;
+            }
+            if (rounds.length() > 0) {
+                JSONObject last = new JSONObject(rounds.getJSONObject(rounds.length() - 1).getString("result_json"));
+                if (last.getString("kind").equals("final")) {
+                    // No further model input is needed. Keep the authorization check that
+                    // context assembly would perform, without rebuilding/checkpointing it.
+                    if (!identity.permissions.containsAll(RuntimeSupport.strings(pin.getJSONArray("permissions")))) {
+                        fail(l, "CONTEXT_AUTHORIZATION_CHANGED");
+                        return;
+                    }
+                    finish(l, "succeeded", "confirmed", last);
+                    return;
+                }
             }
             JSONObject snapshot;
             try {
@@ -824,10 +838,6 @@ public final class RunCoordinator implements AutoCloseable {
                 // round ID 为定宽格式，持久顺序与字典序一致。
                 JSONObject last =
                         new JSONObject(rounds.getJSONObject(rounds.length() - 1).getString("result_json"));
-                if (last.getString("kind").equals("final")) {
-                    finish(l, "succeeded", "confirmed", last);
-                    return;
-                }
                 if (last.getString("kind").equals("need_input")) {
                     String binding = rounds.getJSONObject(rounds.length() - 1).getString("intent_id");
                     if (controls != null && controls.handled(run, "input", binding)) {
@@ -870,6 +880,10 @@ public final class RunCoordinator implements AutoCloseable {
                     new JSONObject().put("contextDigest", JdbcRunStore.hash(snapshot)).put("request", request),
                     snapshot.getLong("inputTokens"),
                     snapshot.getLong("outputReserve"));
+            // Queue immediately after the intent commits; a crash between the two
+            // transactions is still recovered by the historical-round loop above.
+            JSONArray durableRounds = intents(run, "round");
+            jobs.enqueue(l, durableRounds.getJSONObject(durableRounds.length() - 1), model);
         }
 
         /**

@@ -38,6 +38,8 @@ store.mysql.password=replace-in-private-properties-only
 
 MySQL 统一使用 `common` 的 `MySQLStorage` 连接池，连接参数与其他服务模块一致（当前为 `useSSL=false`、`allowPublicKeyRetrieval=true`），Harness 不再单独拼装 JDBC URL 或强制 `VERIFY_IDENTITY`，无需配置 `store.mysql.loopbackDevelopment`。每次操作借用池内连接，在同一连接上执行账本事务，关闭逻辑连接时回滚未完成的事务、恢复连接状态并归还池；清理失败的连接直接丢弃。服务停止或启动失败时关闭当前实例的连接池。凭据仍保存在实例私有配置中，不交给 Python worker。
 
+Harness 专用池以 READ COMMITTED、手动提交为默认状态，借还连接时保留该默认值，避免每个短事务重复切换隔离级别和自动提交。JDBC 驱动使用本地会话/事务状态跳过重复状态查询和已提交事务的空回滚；会话状态变更须通过 JDBC 方法，禁止用原始 SET 语句绕过驱动状态。事务连接关闭自动重连，断线直接失败并由账本保留提交结果未知语义。其他服务未设置这些连接默认值时沿用原行为。
+
 数据库构建统一由服务启动触发。启动自检在 SQLite 写事务或 MySQL GET_LOCK 下串行执行，防止多个 JVM 重复建表；已存在对象检查列类型、默认值、主键、唯一约束、外键和索引。`harness_store_identity` 保存部署身份及当前结构摘要，`harness_tenant` 保存租户初始化时间及模板摘要。外来表、结构冲突或身份/摘要不匹配会拒绝启动，不会删除或重建业务数据。
 
 MySQL DDL 独立提交，启动先写入数据库身份，再逐项检查和创建缺失对象；中断后重启继续完成。SQLite 失败回滚整个结构事务。
