@@ -91,7 +91,9 @@ public final class HarnessService extends AbstractModule {
      */
     private JdbcRunStore store;
 
-    /** 存储配置及其 MySQL 连接池；启动失败和停止时均释放。 */
+    /**
+     * 存储配置及其 MySQL 连接池；启动失败和停止时均释放。
+     */
     private StoreConfig storeConfig;
 
     /**
