@@ -26,9 +26,9 @@ public class Channel extends ContextHandler {
         setHandler(new Handler());
     }
 
-    private class Handler extends AIGCHandler {
+    private static class Handler extends AIGCHandler {
 
-        private AccessController controller;
+        private final AccessController controller;
 
         public Handler() {
             super();

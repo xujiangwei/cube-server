@@ -17,12 +17,12 @@ import cell.util.log.Logger;
 import cube.auth.AuthToken;
 import cube.common.StateCode;
 import cube.common.UniqueKey;
-import cube.dispatcher.aigc.AIGCCellet;
-import cube.dispatcher.aigc.CapabilityRouter;
 import cube.common.action.ClientAction;
 import cube.common.entity.Contact;
 import cube.common.entity.Device;
 import cube.common.state.AuthStateCode;
+import cube.dispatcher.aigc.AIGCCellet;
+import cube.dispatcher.aigc.CapabilityRouter;
 import cube.dispatcher.stream.StreamServer;
 import cube.dispatcher.util.Tickable;
 import cube.util.FileUtils;
@@ -375,7 +375,9 @@ public class Performer implements TalkListener, Tickable {
         return list == null ? Collections.emptyList() : new ArrayList<>(list);
     }
 
-    public CapabilityRouter getCapabilityRouter() { return this.capabilityRouter; }
+    public CapabilityRouter getCapabilityRouter() {
+        return this.capabilityRouter;
+    }
 
     private boolean isReady(Director director, String celletName) {
         return director != null && director.supports(celletName) && director.speaker != null && director.speaker.isReady();
@@ -440,7 +442,7 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 选择节点。
      *
-     * @param talkContext 会话上下文。
+     * @param context 会话上下文。
      * @param celletName  Cellet 名称。
      * @return 返回被选中的导演机。
      */
@@ -459,7 +461,9 @@ public class Performer implements TalkListener, Tickable {
         return director;
     }
 
-    /** Control/session routing only. Capability requests use selectDirectorForRequest. */
+    /**
+     * Control/session routing only. Capability requests use selectDirectorForRequest.
+     */
     public synchronized Director selectDirector(String tokenCode, String celletName) {
         if (tokenCode == null || tokenCode.isEmpty()) return selectDirectorForCellet(celletName);
         Device device = tokenCode == null ? null : tokenDeviceMap.get(tokenCode);
@@ -657,7 +661,9 @@ public class Performer implements TalkListener, Tickable {
     public void stop() {
         this.capabilityRouter.stop();
         synchronized (this) {
-            this.controlDirectors.clear(); this.routingCursors.clear(); this.celletTalkDirectors.clear();
+            this.controlDirectors.clear();
+            this.routingCursors.clear();
+            this.celletTalkDirectors.clear();
             this.talkDirectorMap.clear();
         }
         for (Block block : this.blockMap.values()) {

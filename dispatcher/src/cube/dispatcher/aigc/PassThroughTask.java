@@ -9,9 +9,9 @@ package cube.dispatcher.aigc;
 import cell.core.talk.Primitive;
 import cell.core.talk.TalkContext;
 import cell.core.talk.dialect.ActionDialect;
+import cube.aigc.completion.CompletionError;
 import cube.common.Packet;
 import cube.common.action.AIGCAction;
-import cube.aigc.completion.CompletionError;
 import cube.dispatcher.DispatcherTask;
 import cube.dispatcher.Performer;
 import org.json.JSONObject;
@@ -45,14 +45,12 @@ public class PassThroughTask extends DispatcherTask {
                     // 发生错误
                     Packet packet = new Packet(request.sn, request.name, new JSONObject());
                     response = this.makeGatewayErrorResponse(packet);
-                }
-                else {
+                } else {
                     response = this.makeResponse(response);
                 }
 
                 this.cellet.speak(this.talkContext, response);
-            }
-            else {
+            } else {
                 this.performer.transmit(this.talkContext, this.cellet, this.getAction());
             }
 

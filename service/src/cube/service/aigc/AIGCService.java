@@ -983,7 +983,9 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         return this.unitScheduler.getAll();
     }
 
-    /** Routing metadata only; busy units remain registered capabilities. */
+    /**
+     * Routing metadata only; busy units remain registered capabilities.
+     */
     public JSONObject getCapabilitySnapshot() {
         JSONArray units = new JSONArray();
         JSONArray models = new JSONArray();

@@ -38,7 +38,9 @@ import java.util.concurrent.TimeUnit;
  * No request state is stored on this shared handler.
  */
 public final class CompletionHandler extends ContextHandler {
-    /** 当前唯一受支持的 Anthropic API 版本。 */
+    /**
+     * 当前唯一受支持的 Anthropic API 版本。
+     */
     private static final String ANTHROPIC_VERSION = "2023-06-01";
 
     private final CompletionBackend backend;
@@ -213,7 +215,9 @@ public final class CompletionHandler extends ContextHandler {
         return value != null && value.regionMatches(true, 0, "Bearer ", 0, 7) ? value.substring(7).trim() : null;
     }
 
-    /** 版本头存在且等于受支持版本时，才按 Claude 原生格式处理。 */
+    /**
+     * 版本头存在且等于受支持版本时，才按 Claude 原生格式处理。
+     */
     private static boolean claudeVersion(HttpServletRequest request) {
         return ANTHROPIC_VERSION.equals(request.getHeader("anthropic-version"));
     }

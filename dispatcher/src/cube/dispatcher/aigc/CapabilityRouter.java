@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.dispatcher.aigc;
 
 import cell.api.Speakable;
@@ -18,18 +24,30 @@ import org.json.JSONObject;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Cached service discovery. User requests never perform metadata I/O. */
+/**
+ * Cached service discovery. User requests never perform metadata I/O.
+ */
 public final class CapabilityRouter {
+
     private static final long REFRESH = 30000, RETRY = 10000, TTL = 90000, CHANNEL_TTL = 30 * 60 * 1000;
+
     private final Performer performer;
+
     private final Map<Director, State> states = new HashMap<>();
+
     private final Map<String, Long> cursors = new HashMap<>();
+
     private final Map<String, Owner> channels = new HashMap<>();
+
     private final Map<Long, PendingChannel> pendingChannels = new HashMap<>();
+
     private final Map<String, Owner> completions = new HashMap<>();
+
     private ExecutorService queries;
 
-    public CapabilityRouter(Performer performer) { this.performer = performer; }
+    public CapabilityRouter(Performer performer) {
+        this.performer = performer;
+    }
 
     public synchronized void start() {
         if (queries != null) return;
@@ -43,7 +61,11 @@ public final class CapabilityRouter {
     public synchronized void stop() {
         if (queries != null) queries.shutdownNow();
         queries = null;
-        states.clear(); cursors.clear(); channels.clear(); pendingChannels.clear(); completions.clear();
+        states.clear();
+        cursors.clear();
+        channels.clear();
+        pendingChannels.clear();
+        completions.clear();
     }
 
     public synchronized void connected(Director director, Speakable source) {
@@ -59,10 +81,11 @@ public final class CapabilityRouter {
     }
 
     public synchronized void disconnected(Speakable source) {
-        for (State state : states.values()) if (state.source == source) {
-            state.snapshot = null;
-            state.disconnected = true;
-        }
+        for (State state : states.values())
+            if (state.source == source) {
+                state.snapshot = null;
+                state.disconnected = true;
+            }
         channels.entrySet().removeIf(e -> e.getValue().source == source);
         completions.entrySet().removeIf(e -> e.getValue().source == source);
         pendingChannels.entrySet().removeIf(e -> e.getValue().owner.source == source);
@@ -91,7 +114,9 @@ public final class CapabilityRouter {
         state.nextQuery = now + RETRY;
         try {
             queries.execute(() -> refresh(director, state));
-        } catch (RejectedExecutionException e) { state.inflight = false; }
+        } catch (RejectedExecutionException e) {
+            state.inflight = false;
+        }
     }
 
     private void refresh(Director director, State state) {
@@ -143,7 +168,9 @@ public final class CapabilityRouter {
                 && state.snapshot != null && state.snapshot.ready && now - state.received < TTL;
     }
 
-    /** Returns null for ordinary control actions; capability failures are explicit exceptions. */
+    /**
+     * Returns null for ordinary control actions; capability failures are explicit exceptions.
+     */
     public synchronized Director select(ActionDialect dialect) {
         String action = dialect.getName();
         JSONObject data = new Packet(dialect).data;
@@ -165,8 +192,11 @@ public final class CapabilityRouter {
         JSONObject request = completion ? data.optJSONObject("request") : null;
         if (completion) {
             if (request == null) throw CompletionError.invalid("request must be an object", "request");
-            try { CompletionRequest.validate(request); }
-            catch (org.json.JSONException e) { throw CompletionError.invalid("Invalid structured request", null); }
+            try {
+                CompletionRequest.validate(request);
+            } catch (org.json.JSONException e) {
+                throw CompletionError.invalid("Invalid structured request", null);
+            }
         }
         boolean plainChat = chat && Consts.PATTERN_CHAT.equalsIgnoreCase(data.optString("pattern", Consts.PATTERN_CHAT));
         String key = asr ? "subtask:AutomaticSpeechRecognition" : completion ? completionKey(request)
@@ -174,7 +204,8 @@ public final class CapabilityRouter {
         Owner owner = channels.get(channel);
         if (chat || channelControl) {
             if (owner == null || !owner.live()) throw unavailable("Channel owner unavailable; request a new channel");
-            if (plainChat && !matches(owner.director, unit, null, false)) throw unavailable("Channel unit unavailable: " + unit);
+            if (plainChat && !matches(owner.director, unit, null, false))
+                throw unavailable("Channel unit unavailable: " + unit);
             owner.touched = System.currentTimeMillis();
             return owner.director;
         }
@@ -289,9 +320,13 @@ public final class CapabilityRouter {
         }
     }
 
-    public synchronized void finished(long sn) { pendingChannels.remove(sn); }
+    public synchronized void finished(long sn) {
+        pendingChannels.remove(sn);
+    }
 
-    public synchronized void forgetCompletion(String id) { completions.remove(id); }
+    public synchronized void forgetCompletion(String id) {
+        completions.remove(id);
+    }
 
     private CapabilityUnavailableException unavailable(String message) {
         Logger.w(getClass(), message);
@@ -305,11 +340,15 @@ public final class CapabilityRouter {
         final String instanceId;
         final long sn;
         long touched = System.currentTimeMillis();
+
         Owner(Director director, State state, long sn) {
-            this.director = director; this.state = state; this.source = state.source;
+            this.director = director;
+            this.state = state;
+            this.source = state.source;
             this.instanceId = state.snapshot.instanceId;
             this.sn = sn;
         }
+
         boolean live() {
             return states.get(director) == state && !state.disconnected && director.speaker == source
                     && source.isReady() && state.snapshot != null && instanceId.equals(state.snapshot.instanceId);
@@ -318,7 +357,10 @@ public final class CapabilityRouter {
 
     private static final class PendingChannel {
         final Owner owner;
-        PendingChannel(Owner owner) { this.owner = owner; }
+
+        PendingChannel(Owner owner) {
+            this.owner = owner;
+        }
     }
 
     private static final class State {
@@ -327,7 +369,10 @@ public final class CapabilityRouter {
         long received, nextQuery;
         boolean inflight, failed, disconnected;
         String description;
-        State(Speakable source) { this.source = source; }
+
+        State(Speakable source) {
+            this.source = source;
+        }
     }
 
     private static final class Snapshot {
@@ -335,16 +380,20 @@ public final class CapabilityRouter {
         final String instanceId;
         final boolean ready;
         final JSONArray units, models;
+
         Snapshot(JSONObject json) {
             this.json = new JSONObject(json.toString());
             if (json.getInt("version") != 1) throw new IllegalArgumentException("Unsupported snapshot version");
             instanceId = json.getString("instanceId");
             if (instanceId.isEmpty()) throw new IllegalArgumentException("Missing service instance");
             ready = json.getBoolean("ready");
-            units = this.json.getJSONArray("units"); models = this.json.getJSONArray("models");
-            for (int i = 0; i < units.length(); i++) new AICapability(units.getJSONObject(i).getJSONObject("capability"));
+            units = this.json.getJSONArray("units");
+            models = this.json.getJSONArray("models");
+            for (int i = 0; i < units.length(); i++)
+                new AICapability(units.getJSONObject(i).getJSONObject("capability"));
             for (int i = 0; i < models.length(); i++) {
-                models.getJSONObject(i).getString("id"); models.getJSONObject(i).getString("unit");
+                models.getJSONObject(i).getString("id");
+                models.getJSONObject(i).getString("unit");
             }
         }
     }

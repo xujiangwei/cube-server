@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
 package cube.service.aigc.task;
 
 import cell.core.talk.Primitive;
@@ -9,7 +15,9 @@ import cube.common.state.AIGCStateCode;
 import cube.service.ServiceTask;
 import cube.service.aigc.AIGCCellet;
 
-/** Internal metadata query. No user token or inference operation is needed. */
+/**
+ * Internal metadata query. No user token or inference operation is needed.
+ */
 public final class GetCapabilitySnapshotTask extends ServiceTask {
     public GetCapabilitySnapshotTask(AIGCCellet cellet, TalkContext context, Primitive primitive, ResponseTime time) {
         super(cellet, context, primitive, time);

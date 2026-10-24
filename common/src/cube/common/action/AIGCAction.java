@@ -24,7 +24,7 @@ public enum AIGCAction {
     /**
      * 事件。
      */
-     Event("event"),
+    Event("event"),
 
     /**
      * 单元向服务器提交知识分段内容。
@@ -36,7 +36,9 @@ public enum AIGCAction {
      */
     GetUnits("getUnits"),
 
-    /** Internal dispatcher discovery over the existing AIGC Cellet connection. */
+    /**
+     * 获取 AIGC 服务能力快照。
+     */
     GetCapabilitySnapshot("getCapabilitySnapshot"),
 
     /**
@@ -44,7 +46,9 @@ public enum AIGCAction {
      */
     GetConfig("getConfig"),
 
-    /** Stateless, structured chat generation and its persistent event channel. */
+    /**
+     * Stateless, structured chat generation and its persistent event channel.
+     */
     ChatCompletion("chatCompletion"),
     ChatCompletionEvent("chatCompletionEvent"),
     CancelChatCompletion("cancelChatCompletion"),
