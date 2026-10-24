@@ -52,9 +52,11 @@ public class Channel extends ContextHandler {
             }
 
             String participant = null;
+            String unit = cube.aigc.ModelConfig.BAIZE_UNIT;
             try {
                 JSONObject json = this.readBodyAsJSONObject(request);
                 participant = json.getString("participant");
+                unit = json.optString("unit", cube.aigc.ModelConfig.BAIZE_UNIT);
             } catch (Exception e) {
                 this.respond(response, HttpStatus.FORBIDDEN_403, this.makeError(HttpStatus.FORBIDDEN_403));
                 this.complete();
@@ -69,7 +71,7 @@ public class Channel extends ContextHandler {
             }
 
             // 请求频道
-            AIGCChannel channel = Manager.getInstance().requestChannel(token, participant);
+            AIGCChannel channel = Manager.getInstance().requestChannel(token, participant, unit);
             if (null == channel) {
                 // 不允许该参与者申请或者服务故障
                 this.respond(response, HttpStatus.BAD_REQUEST_400, this.makeError(HttpStatus.BAD_REQUEST_400));

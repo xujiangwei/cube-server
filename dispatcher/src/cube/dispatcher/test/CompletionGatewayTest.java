@@ -9,6 +9,7 @@ import cube.common.action.AIGCAction;
 import cube.dispatcher.Director;
 import cube.dispatcher.Performer;
 import cube.dispatcher.Scope;
+import cube.dispatcher.aigc.AIGCCellet;
 import cube.dispatcher.aigc.completion.CompletionBackend;
 import cube.dispatcher.aigc.completion.CompletionGateway;
 import org.json.JSONArray;
@@ -38,6 +39,9 @@ public final class CompletionGatewayTest {
         FakePerformer performer = new FakePerformer(nucleus);
         CompletionGateway gateway = new CompletionGateway();
         try {
+            long discoveryDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3);
+            while (performer.getCapabilityRouter().candidates().size() < 2 && System.nanoTime() < discoveryDeadline) Thread.sleep(5);
+            check(performer.getCapabilityRouter().candidates().size() == 2, "service snapshots discovered");
             gateway.start(performer);
             check(gateway.models("token", 1000).length() == 1, "models action");
             List<JSONObject> first = new CopyOnWriteArrayList<>(), second = new CopyOnWriteArrayList<>();
@@ -102,6 +106,7 @@ public final class CompletionGatewayTest {
             System.out.println("CompletionGatewayTest: " + assertions + " assertions passed");
         } finally {
             gateway.stop();
+            performer.getCapabilityRouter().stop();
         }
     }
 
@@ -111,18 +116,23 @@ public final class CompletionGatewayTest {
     }
 
     static class FakePerformer extends Performer {
-        final Director a = new Director(new Endpoint("127.0.0.1", 1), null, new Scope());
-        final Director b = new Director(new Endpoint("127.0.0.1", 2), null, new Scope());
-        Director selected = a, lastDirector;
+        final Director a, b;
+        Director selected, lastDirector;
         ActionDialect last;
         boolean sendSuccess = true;
 
         FakePerformer(Nucleus nucleus) {
             super(nucleus);
+            a = addDirector("127.0.0.1", 1, "127.0.0.1", 0, new TestScope());
+            b = addDirector("127.0.0.1", 2, "127.0.0.1", 0, new TestScope());
+            selected = a;
+            a.speaker = readySpeaker(); b.speaker = readySpeaker();
+            getCapabilityRouter().start();
+            getCapabilityRouter().connected(a, a.speaker); getCapabilityRouter().connected(b, b.speaker);
         }
 
         @Override
-        public Director selectDirector(String token, String cellet) {
+        public Director selectDirectorForRequest(String token, String cellet, ActionDialect request) {
             return selected;
         }
 
@@ -135,8 +145,22 @@ public final class CompletionGatewayTest {
 
         @Override
         public ActionDialect syncTransmit(Director director, String cellet, ActionDialect dialect, long timeout) {
+            if (dialect.getName().equals(AIGCAction.GetCapabilitySnapshot.name)) {
+                return new Packet(dialect.getParamAsLong("sn"), dialect.getName(), new JSONObject().put("code", 0)
+                        .put("data", new JSONObject().put("version", 1).put("instanceId", director.endpoint.toString())
+                                .put("ready", true).put("units", new JSONArray()).put("models", new JSONArray()))).toDialect();
+            }
             return new Packet(AIGCAction.ListChatModels.name, new JSONObject().put("code", 0)
                     .put("data", new JSONObject().put("models", new JSONArray().put(new JSONObject().put("id", "model"))))).toDialect();
         }
+    }
+
+    static class TestScope extends Scope { TestScope() { cellets.add(AIGCCellet.NAME); } }
+    static cell.api.Speakable readySpeaker() {
+        return (cell.api.Speakable) java.lang.reflect.Proxy.newProxyInstance(cell.api.Speakable.class.getClassLoader(),
+                new Class<?>[] { cell.api.Speakable.class }, (proxy, method, args) -> {
+                    if (method.getName().equals("isReady")) return true;
+                    throw new UnsupportedOperationException(method.getName());
+                });
     }
 }

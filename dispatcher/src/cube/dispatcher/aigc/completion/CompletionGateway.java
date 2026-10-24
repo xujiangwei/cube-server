@@ -18,6 +18,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -47,14 +48,31 @@ public final class CompletionGateway implements CompletionBackend {
     @Override
     public JSONArray models(String token, long timeoutMs) {
         Performer current = active();
-        Director director = current.selectDirector(token, AIGCCellet.NAME);
-        ActionDialect dialect = new Packet(AIGCAction.ListChatModels.name, new JSONObject()).toDialect();
-        dialect.addParam("token", token);
-        ActionDialect reply = current.syncTransmit(director, AIGCCellet.NAME, dialect, timeoutMs);
-        if (reply == null) throw new CompletionError(503, "service_unavailable", "Model service unavailable", null);
-        JSONObject data = Packet.extractDataPayload(new Packet(reply));
-        if (data.has("error")) throw new CompletionError(data.getJSONObject("error"));
-        return data.getJSONArray("models");
+        Map<String, JSONObject> models = new LinkedHashMap<>();
+        boolean received = false;
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        for (Director director : current.getCapabilityRouter().candidates()) {
+            long remaining = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
+            if (remaining <= 0) break;
+            ActionDialect dialect = new Packet(AIGCAction.ListChatModels.name, new JSONObject()).toDialect();
+            dialect.addParam("token", token);
+            ActionDialect reply = current.syncTransmit(director, AIGCCellet.NAME, dialect, remaining);
+            if (reply == null) continue;
+            JSONObject data = Packet.extractDataPayload(new Packet(reply));
+            if (data.has("error")) {
+                CompletionError error = new CompletionError(data.getJSONObject("error"));
+                if (error.status == 401 || error.status == 403) throw error;
+                continue;
+            }
+            received = true;
+            JSONArray list = data.getJSONArray("models");
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject model = list.getJSONObject(i);
+                models.putIfAbsent(model.getString("id"), model);
+            }
+        }
+        if (!received) throw new CompletionError(503, "service_unavailable", "Model service unavailable", null);
+        return new JSONArray(models.values());
     }
 
     @Override
@@ -63,15 +81,25 @@ public final class CompletionGateway implements CompletionBackend {
         Performer current = active();
         if (requests.size() >= 128)
             throw new CompletionError(429, "rate_limit_error", "Dispatcher generation queue is full", null);
-        Director director = current.selectDirector(token, AIGCCellet.NAME);
-        if (director == null) throw new CompletionError(503, "service_unavailable", "No AI service available", null);
-        Pending pending = new Pending(current, director, token, id, listener);
-        if (requests.putIfAbsent(id, pending) != null) throw new IllegalStateException("Duplicate request ID");
+        if (requests.containsKey(id)) throw new IllegalStateException("Duplicate request ID");
         ActionDialect dialect = new Packet(AIGCAction.ChatCompletion.name, new JSONObject()
                 .put("requestId", id).put("request", request).put("timeoutMs", timeoutMs)).toDialect();
         dialect.addParam("token", token);
-        if (!current.tryTransmit(director, AIGCCellet.NAME, dialect)) {
-            pending.failure(new CompletionError(503, "service_unavailable", "AI service transport unavailable", null));
+        Director director;
+        try {
+            director = current.selectDirectorForRequest(token, AIGCCellet.NAME, dialect);
+        } catch (cube.dispatcher.aigc.CapabilityUnavailableException e) {
+            throw new CompletionError(503, "service_unavailable", e.getMessage(), null);
+        }
+        if (director == null) throw new CompletionError(503, "service_unavailable", "No AI service available", null);
+        Pending pending = new Pending(current, director, token, id, listener);
+        if (requests.putIfAbsent(id, pending) != null) throw new IllegalStateException("Duplicate request ID");
+        try {
+            if (!current.tryTransmit(director, AIGCCellet.NAME, dialect)) {
+                pending.failure(new CompletionError(503, "service_unavailable", "AI service transport unavailable", null));
+            }
+        } catch (cube.dispatcher.aigc.CapabilityUnavailableException e) {
+            pending.failure(new CompletionError(503, "service_unavailable", e.getMessage(), null));
         }
         return pending;
     }
@@ -149,7 +177,10 @@ public final class CompletionGateway implements CompletionBackend {
                                 new JSONObject().put("requestId", id)).toDialect();
                         cancellation.addParam("token", token);
                     }
-                    if (terminal) requests.remove(id, this);
+                    if (terminal) {
+                        requests.remove(id, this);
+                        owner.getCapabilityRouter().forgetCompletion(id);
+                    }
                 }
             }
             if (null != cancellation) owner.tryTransmit(director, AIGCCellet.NAME, cancellation);
@@ -166,6 +197,7 @@ public final class CompletionGateway implements CompletionBackend {
                     if (terminal) return;
                     terminal = true;
                     requests.remove(id, this);
+                    owner.getCapabilityRouter().forgetCompletion(id);
                     dialect = new Packet(AIGCAction.CancelChatCompletion.name,
                             new JSONObject().put("requestId", id)).toDialect();
                     dialect.addParam("token", token);

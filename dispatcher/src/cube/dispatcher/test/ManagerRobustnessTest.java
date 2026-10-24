@@ -443,7 +443,7 @@ public class ManagerRobustnessTest {
         performer.onTick(0);
         check(ticks.get() == 1, "tick mutation safe and registration deduplicated");
 
-        Director director = performer.addDirector("127.0.0.1", 6000, "127.0.0.1", 6001, new Scope());
+        Director director = performer.addDirector("127.0.0.1", 6000, "127.0.0.1", 6001, new AIGCScope());
         check(!performer.tryTransmit(AIGCCellet.NAME, request), "missing speaker fails safely");
         director.speaker = speaker(action -> false);
         check(!performer.tryTransmit(AIGCCellet.NAME, request), "speaker rejection returned");
@@ -455,7 +455,7 @@ public class ManagerRobustnessTest {
         check(map(performer, "blockMap").isEmpty(), "throwing send releases block");
 
         director.speaker = speaker(action -> {
-            performer.onListened(null, AIGCCellet.NAME, response(action, AIGCStateCode.Ok, new JSONObject()));
+            performer.onListened(director.speaker, AIGCCellet.NAME, response(action, AIGCStateCode.Ok, new JSONObject()));
             return true;
         });
         ActionDialect completed = performer.syncTransmit(AIGCCellet.NAME, request, 500);
@@ -541,6 +541,7 @@ public class ManagerRobustnessTest {
     private static Speakable speaker(Function<ActionDialect, Boolean> send) {
         return (Speakable) Proxy.newProxyInstance(Speakable.class.getClassLoader(), new Class<?>[] { Speakable.class },
                 (proxy, method, args) -> {
+                    if ("isReady".equals(method.getName())) return true;
                     if ("speak".equals(method.getName())) {
                         return send.apply((ActionDialect) args[1]);
                     }
@@ -588,6 +589,8 @@ public class ManagerRobustnessTest {
         }
         ++assertions;
     }
+
+    private static class AIGCScope extends Scope { AIGCScope() { cellets.add(AIGCCellet.NAME); } }
 
     private static class FakePerformer extends Performer {
         final RecordingHttpServer server = new RecordingHttpServer();

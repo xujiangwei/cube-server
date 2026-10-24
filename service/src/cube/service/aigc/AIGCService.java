@@ -84,6 +84,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
     private final AIGCCellet cellet;
 
+    private final String capabilityInstanceId = UUID.randomUUID().toString();
+
     /**
      * 业务模块是否处于降级状态（未装载、装载失败或能力缺失）。
      *
@@ -979,6 +981,28 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     public List<AIGCUnit> getAllUnits() {
         return this.unitScheduler.getAll();
+    }
+
+    /** Routing metadata only; busy units remain registered capabilities. */
+    public JSONObject getCapabilitySnapshot() {
+        JSONArray units = new JSONArray();
+        JSONArray models = new JSONArray();
+        boolean ready = this.isStarted();
+        if (ready) {
+            for (AIGCUnit unit : this.getAllUnits()) {
+                TalkContext context = unit.getContext();
+                if (context != null && context.isValid()) {
+                    units.put(new JSONObject().put("capability", unit.getCapability().toJSON()));
+                }
+            }
+            List<ModelConfig> configs = this.getModelConfigs();
+            if (configs == null) ready = false;
+            else for (ModelConfig model : configs) {
+                models.put(new JSONObject().put("id", model.getModel()).put("unit", model.getUnitName()));
+            }
+        }
+        return new JSONObject().put("version", 1).put("instanceId", this.capabilityInstanceId)
+                .put("ready", ready).put("units", units).put("models", models);
     }
 
     @Override

@@ -54,7 +54,6 @@ interface PlainAccessPointDraft {
 interface DirectorDraft {
   address: string
   port: string
-  weight: string
   cellets: string[]
 }
 
@@ -186,7 +185,6 @@ function createDraft(server: DispatcherServer): ConfigDraft {
     directors: server.directors.map((item) => ({
       address: item.address,
       port: String(item.port),
-      weight: String(item.weight),
       cellets: [...item.cellets]
     }))
   }
@@ -248,7 +246,6 @@ function addDirector(): void {
   value.directors.push({
     address: `192.168.${randomInt(1, 254)}.${randomInt(1, 254)}`,
     port: '6000',
-    weight: String(base?.weight ?? 1),
     cellets: base ? [...base.cellets] : []
   })
   selectedDirectorIndex.value = value.directors.length - 1
@@ -343,9 +340,6 @@ function validate(value: ConfigDraft): Record<string, string> {
     if (!isPort(director.port.trim())) {
       result[`director.${index}.port`] = '服务单元端口不正确'
     }
-    if (!isUnsigned(director.weight.trim()) || Number(director.weight) > 10) {
-      result[`director.${index}.weight`] = '路由权重需为 1-10 之间的整数'
-    }
   })
 
   return result
@@ -357,7 +351,6 @@ const directorError = computed(() => {
   return (
     errors.value[`director.${index}.address`] ??
     errors.value[`director.${index}.port`] ??
-    errors.value[`director.${index}.weight`] ??
     ''
   )
 })
@@ -407,7 +400,6 @@ async function submitConfig(): Promise<void> {
     directors: value.directors.map((item) => ({
       address: item.address.trim(),
       port: Number(item.port),
-      weight: Number(item.weight),
       cellets: [...item.cellets]
     }))
   }
@@ -1050,7 +1042,7 @@ usePolling(loadPerformance, 60000, { immediate: false })
             </div>
 
             <div v-if="selectedDirector" class="space-y-3">
-              <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label class="label">地址</label>
                   <input
@@ -1073,18 +1065,6 @@ usePolling(loadPerformance, 60000, { immediate: false })
                   />
                   <p v-else class="tabular text-[13px] text-slate-800">
                     {{ selectedDirector.port }}
-                  </p>
-                </div>
-                <div>
-                  <label class="label">权重</label>
-                  <input
-                    v-if="editing"
-                    v-model="selectedDirector.weight"
-                    class="input input-mono"
-                    :class="directorError ? 'input-invalid' : ''"
-                  />
-                  <p v-else class="tabular text-[13px] text-slate-800">
-                    {{ selectedDirector.weight }}
                   </p>
                 </div>
               </div>

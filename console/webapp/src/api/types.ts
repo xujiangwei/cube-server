@@ -27,7 +27,6 @@ export interface SslConfig {
 export interface Director {
   address: string
   port: number
-  weight: number
   cellets: string[]
 }
 

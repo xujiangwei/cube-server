@@ -16,13 +16,7 @@ public class Scope {
 
     protected List<String> cellets;
 
-    /**
-     * 权重，取值范围 1 - 10
-     */
-    protected int weight;
-
     public Scope() {
         this.cellets = new ArrayList<>();
-        this.weight = 5;
     }
 }

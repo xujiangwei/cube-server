@@ -40,7 +40,6 @@ public class DispatcherProperties {
     public final static String KEY_DIRECTOR_ADDRESS = ".address";
     public final static String KEY_DIRECTOR_PORT = ".port";
     public final static String KEY_DIRECTOR_CELLETS = ".cellets";
-    public final static String KEY_DIRECTOR_WEIGHT = ".weight";
 
     private String fullPath;
 
@@ -179,7 +178,7 @@ public class DispatcherProperties {
         for (int i = 0; i < this.directorProperties.size(); ++i) {
             DirectorProperties dp = this.directorProperties.get(i);
             DirectorProperties newDP = directorProperties.get(i);
-            if (dp.address.equals(newDP.address) && dp.port == newDP.port && dp.weight == newDP.weight &&
+            if (dp.address.equals(newDP.address) && dp.port == newDP.port &&
                 dp.equalsCellets(newDP)) {
                 continue;
             }
@@ -210,7 +209,6 @@ public class DispatcherProperties {
 
             String address = this.properties.getProperty(key);
             int port = Integer.parseInt(this.properties.getProperty(KEY_DIRECTOR_PREFIX + i + KEY_DIRECTOR_PORT));
-            int weight = Integer.parseInt(this.properties.getProperty(KEY_DIRECTOR_PREFIX + i + KEY_DIRECTOR_WEIGHT));
 
             String celletsValue = this.properties.getProperty(KEY_DIRECTOR_PREFIX + i + KEY_DIRECTOR_CELLETS);
             String[] array = celletsValue.split(",");
@@ -219,14 +217,21 @@ public class DispatcherProperties {
                 cellets.add(cellet);
             }
 
-            DirectorProperties dp = new DirectorProperties(address, port, cellets, weight);
+            DirectorProperties dp = new DirectorProperties(address, port, cellets);
             this.directorProperties.add(dp);
         }
+    }
+
+    public boolean hasLegacyDirectorWeights() {
+        return this.properties.keySet().stream().anyMatch(key -> key.toString().matches("director\\.\\d+\\.weight"));
     }
 
     public void save() {
         // 备份原数据
         this.backup();
+
+        // Drop obsolete weights, including entries without a corresponding address.
+        this.properties.keySet().removeIf(key -> key.toString().matches("director\\.\\d+\\.weight"));
 
         // 更新 directorProperties
         for (int i = 1; i <= 50; ++i) {
@@ -235,7 +240,6 @@ public class DispatcherProperties {
                 this.properties.remove(key);
                 this.properties.remove(KEY_DIRECTOR_PREFIX + i + KEY_DIRECTOR_PORT);
                 this.properties.remove(KEY_DIRECTOR_PREFIX + i + KEY_DIRECTOR_CELLETS);
-                this.properties.remove(KEY_DIRECTOR_PREFIX + i + KEY_DIRECTOR_WEIGHT);
             }
         }
         for (int i = 0; i < 50 && i < this.directorProperties.size(); ++i) {
@@ -244,7 +248,6 @@ public class DispatcherProperties {
             this.properties.put(KEY_DIRECTOR_PREFIX + keyIndex + KEY_DIRECTOR_ADDRESS, dp.address);
             this.properties.put(KEY_DIRECTOR_PREFIX + keyIndex + KEY_DIRECTOR_PORT, Integer.toString(dp.port));
             this.properties.put(KEY_DIRECTOR_PREFIX + keyIndex + KEY_DIRECTOR_CELLETS, dp.getCelletsAsString());
-            this.properties.put(KEY_DIRECTOR_PREFIX + keyIndex + KEY_DIRECTOR_WEIGHT, Integer.toString(dp.weight));
         }
 
         // 写入文件

@@ -131,7 +131,6 @@ public class DispatcherListener implements CellListener {
             String keyFileAddress = prefix + (i) + ".fs.address";
             String keyFilePort = prefix + (i) + ".fs.port";
             String keyCellets = prefix + (i) + ".cellets";
-            String keyWeight = prefix + (i) + ".weight";
 
             String address = properties.getProperty(keyAddress);
             int port = Integer.parseInt(properties.getProperty(keyPort, "6000"));
@@ -141,18 +140,16 @@ public class DispatcherListener implements CellListener {
 
             String celletString = properties.getProperty(keyCellets);
             String[] cellets = celletString.split(",");
-            int weight = Integer.parseInt(properties.getProperty(keyWeight, "5"));
 
             // 设定范围
             Scope scope = new Scope();
             for (String cellet : cellets) {
                 scope.cellets.add(cellet.trim());
             }
-            scope.weight = weight;
             // 添加导演机节点
             performer.addDirector(address, port, fsAddress, fsPort, scope);
 
-            Logger.i(this.getClass(), "Add director point " + address + ":" + port + " #" + weight);
+            Logger.i(this.getClass(), "Add director point " + address + ":" + port);
         }
 
         // 加载 HTTP 配置

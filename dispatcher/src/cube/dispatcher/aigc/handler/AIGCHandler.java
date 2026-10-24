@@ -20,6 +20,24 @@ import java.nio.charset.StandardCharsets;
  */
 public abstract class AIGCHandler extends CrossDomainHandler {
 
+    @Override
+    public void handle(String target, org.eclipse.jetty.server.Request baseRequest,
+                       HttpServletRequest request, HttpServletResponse response)
+            throws java.io.IOException, javax.servlet.ServletException {
+        try {
+            super.handle(target, baseRequest, request, response);
+        } catch (cube.dispatcher.aigc.CapabilityUnavailableException e) {
+            respondCapabilityUnavailable(response, e);
+        }
+    }
+
+    protected void respondCapabilityUnavailable(HttpServletResponse response, RuntimeException e) {
+        this.respond(response, 503, new org.json.JSONObject().put("error", new org.json.JSONObject()
+                .put("state", 503).put("code", cube.common.state.AIGCStateCode.UnitNoReady.code)
+                .put("reason", "CAPABILITY_UNAVAILABLE").put("message", e.getMessage())));
+        this.complete();
+    }
+
     public AIGCHandler() {
         super();
     }

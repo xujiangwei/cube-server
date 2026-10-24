@@ -66,7 +66,7 @@ public class DispatcherServer implements JSONable {
      */
     public void updateCellConfig(JSONObject data) throws JSONException {
         boolean cellModified = false;
-        boolean propModified = false;
+        boolean propModified = this.propertiesFile.hasLegacyDirectorWeights();
 
         if (data.has("server")) {
             JSONObject serverJson = data.getJSONObject("server");

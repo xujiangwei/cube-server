@@ -23,7 +23,7 @@ import java.util.concurrent.*;
  * {@link Backend} 模拟 Performer 的失败、阻塞与流事件，覆盖：</p>
  *
  * <ul>
- *   <li>导演机选择：仅 Harness scope 且连接就绪的最高权重节点，全局高权重的无关服务不抢选，未就绪时不选；</li>
+ *   <li>导演机选择：仅选择 Harness scope 且连接就绪的节点，无关服务不抢选，未就绪时不选；</li>
  *   <li>端点无条件安装：无任何配置时仍挂载，上下文路径为 /harness ；</li>
  *   <li>凭据透传：Bearer 原样交给服务单元，dispatcher 不自报角色；</li>
  *   <li>有界准入：在途配额占满期间返回 503 ，放行后配额回收；</li>
@@ -52,7 +52,7 @@ public final class HarnessGatewayTest {
     /**
      * 测试用导演机 scope 。
      *
-     * <p>仅包含指定 cellet 并设置权重，用于验证按 cellet 的导演机选择。</p>
+     * <p>仅包含指定 cellet，用于验证按 cellet 的导演机选择。</p>
      */
     static class TestScope extends Scope {
 
@@ -60,11 +60,9 @@ public final class HarnessGatewayTest {
          * 构造函数。
          *
          * @param cellet 加入 scope 的 cellet 名称。
-         * @param value  该 scope 的权重。
          */
-        TestScope(String cellet, int value) {
+        TestScope(String cellet) {
             cellets.add(cellet);
-            weight = value;
         }
     }
 
@@ -184,9 +182,9 @@ public final class HarnessGatewayTest {
     /**
      * 确定性可控的后端 Performer 。
      *
-     * <p>注册两个导演机：scope 仅含 Harness 的 {@link #harness}（权重 2）与
-     * scope 为 AIGC 的 {@link #unrelated}（权重 10），验证按 cellet 的选择
-     * 不受全局权重影响。</p>
+     * <p>注册两个导演机：scope 仅含 Harness 的 {@link #harness}与
+     * scope 为 AIGC 的 {@link #unrelated}，验证按 cellet 的选择
+     * 不受无关服务影响。</p>
      *
      * <p>{@link #available} 模拟服务单元不可用（无应答）；{@link #gate} 作为
      * 闩锁阻塞后端应答，用于制造在途请求堆积。</p>
@@ -202,7 +200,7 @@ public final class HarnessGatewayTest {
         /** Harness scope 的导演机（权重 2），承载全部 Harness 请求。 */
         final Director harness;
 
-        /** AIGC scope 的导演机（权重 10），与 Harness 选择无关。 */
+        /** AIGC scope 的导演机，与 Harness 选择无关。 */
         final Director unrelated;
 
         /**
@@ -212,8 +210,8 @@ public final class HarnessGatewayTest {
          */
         Backend(Nucleus nucleus) {
             super(nucleus);
-            harness = addDirector("127.0.0.1", 1, "127.0.0.1", 0, new TestScope("Harness", 2));
-            unrelated = addDirector("127.0.0.1", 2, "127.0.0.1", 0, new TestScope("AIGC", 10));
+            harness = addDirector("127.0.0.1", 1, "127.0.0.1", 0, new TestScope("Harness"));
+            unrelated = addDirector("127.0.0.1", 2, "127.0.0.1", 0, new TestScope("AIGC"));
             harness.speaker = new Speaker();
             unrelated.speaker = new Speaker();
         }
@@ -317,8 +315,8 @@ public final class HarnessGatewayTest {
     public static void main(String[] args) throws Exception {
         Nucleus nucleus = new Nucleus();
         Backend performer = new Backend(nucleus);
-        // Harness scope 节点（低权重）应被选中，全局高权重的 AIGC 节点不抢选
-        check(performer.selectDirectorForCellet("Harness") == performer.harness, "Global weight leaked into Harness selection");
+        // 只选择 Harness scope 节点，AIGC 节点不参与候选
+        check(performer.selectDirectorForCellet("Harness") == performer.harness, "Unrelated Cellet leaked into Harness selection");
         // Harness 节点未就绪时不回落选择其他服务
         ((Speaker) performer.harness.speaker).ready = false;
         check(performer.selectDirectorForCellet("Harness") == null, "Unready/other service fallback");

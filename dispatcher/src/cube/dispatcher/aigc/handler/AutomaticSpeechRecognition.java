@@ -97,6 +97,8 @@ public class AutomaticSpeechRecognition extends ContextHandler {
 
                 this.respondOk(response, future.toJSON());
                 this.complete();
+            } catch (cube.dispatcher.aigc.CapabilityUnavailableException e) {
+                this.respondCapabilityUnavailable(response, e);
             } catch (Exception e) {
                 this.respond(response, HttpStatus.FORBIDDEN_403, this.makeError(HttpStatus.FORBIDDEN_403));
                 this.complete();

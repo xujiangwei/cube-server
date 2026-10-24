@@ -9,8 +9,6 @@ package cube.dispatcher;
 import cell.api.Speakable;
 import cell.core.net.Endpoint;
 
-import java.util.HashMap;
-
 /**
  * 导演机。
  */
@@ -22,23 +20,16 @@ public class Director {
 
     public final Scope scope;
 
-    public Speakable speaker;
-
-    protected HashMap<String, Section> sectionMap;
+    public volatile Speakable speaker;
 
     public Director(Endpoint endpoint, Endpoint fileEndpoint, Scope scope) {
         this.endpoint = endpoint;
         this.fileEndpoint = fileEndpoint;
         this.scope = scope;
-        this.sectionMap = new HashMap();
-
-        for (String celletName : scope.cellets) {
-            this.sectionMap.put(celletName, new Section());
-        }
     }
 
-    public Section getSection(String celletName) {
-        return this.sectionMap.get(celletName);
+    public boolean supports(String celletName) {
+        return this.scope.cellets.contains(celletName);
     }
 
     @Override
@@ -51,27 +42,8 @@ public class Director {
         return false;
     }
 
-    /**
-     * 选择区间。
-     */
-    public class Section {
-
-        public int begin = 0;
-
-        public int end = 0;
-
-        public int totalWeight = 0;
-
-        public Section() {
-        }
-
-        public boolean contains(int value) {
-            if (value >= this.begin && value <= this.end) {
-                return true;
-            }
-            else {
-                return false;
-            }
-        }
+    @Override
+    public int hashCode() {
+        return this.endpoint.hashCode();
     }
 }

@@ -240,6 +240,13 @@ public class Manager implements Tickable, PerformerListener {
         boolean sent;
         try {
             sent = current.tryTransmit(AIGCCellet.NAME, request);
+        } catch (CapabilityUnavailableException e) {
+            synchronized (this) {
+                pending.fail(AIGCStateCode.UnitNoReady);
+                this.removePending(pending);
+                cache.remove(key, future);
+            }
+            throw e;
         } catch (RuntimeException e) {
             Logger.w(Manager.class, "#submitFuture - " + packet.name, e);
             sent = false;
@@ -1661,9 +1668,14 @@ public class Manager implements Tickable, PerformerListener {
     }
 
     public AIGCChannel requestChannel(String token, String participant) {
+        return this.requestChannel(token, participant, ModelConfig.BAIZE_UNIT);
+    }
+
+    public AIGCChannel requestChannel(String token, String participant, String unit) {
         JSONObject data = new JSONObject();
         data.put("token", token);
         data.put("participant", participant);
+        data.put("unit", unit);
         Packet packet = new Packet(AIGCAction.RequestChannel.name, data);
 
         ActionDialect response = this.syncTransmit(AIGCCellet.NAME, packet.toDialect());

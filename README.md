@@ -64,7 +64,7 @@
 3. 服务单元 `AIGCCellet` 收到请求，`ActionRouter` 先查已装载的业务模块，未命中再回退宿主自身的 `task/` 分支；
 4. 业务处理（模型单元、知识库、模板策略）完成后，应答经 `sn` 映射回送网关，网关投递给原始客户端。
 
-**部署形态**：单体部署（全部组件同机）或集群部署（多 service 节点注册为 `director.N`，网关按权重切分区间做负载均衡，扩容无需重启客户端）。`Dockerfile` 提供基于 `cubestack/jdk1.8` 的容器化构建。
+**部署形态**：单体部署（全部组件同机）或集群部署（多 service 节点注册为 `director.N`，网关缓存 service 的能力快照，按请求能力筛选节点并轮询分配）。`Dockerfile` 提供基于 `cubestack/jdk1.8` 的容器化构建。
 
 ---
 
@@ -76,7 +76,7 @@ cube-server/
 │   └── src/cube/dispatcher/
 │       ├── DispatcherListener    # 容器监听器：装载配置、构建 Performer
 │       ├── Performer             # 接入层连接器：路由、转发、流
-│       ├── Director / Scope      # 路由节点与作用域（权重）
+│       ├── Director / Scope      # 路由节点与 Cellet 能力范围
 │       ├── Daemon                # 守护任务：心跳 / 超时 / 报告
 │       ├── stream/               # StreamServer 大流量通道
 │       ├── aigc/                 # AIGC 接口管理器 + 通用 REST 处理器（宿主 63 个端点）
@@ -143,16 +143,16 @@ cube-server/
 
 ## 四、调度机 dispatcher
 
-调度机是整个集群的**唯一对外入口**。它不承载业务逻辑，只做三件事：**接入、路由、转发**，并按 Cellet 粒度做加权负载均衡。
+调度机是整个集群的**唯一对外入口**。它不承载业务逻辑，只做三件事：**接入、路由、转发**，按 Cellet 与 AI 能力筛选节点，同能力节点轮询分配。
 
 ### 4.1 核心组件
 
 | 类 | 作用 |
 | --- | --- |
 | `DispatcherListener` | Cell 容器监听器。读取 `config/dispatcher.properties`，注册 Cellet 清单与 `director.N.*` 路由节点，配置 HTTP/WS/SSL 服务；容器初始化时启动 `Performer`，并以 10 秒周期调度 `Daemon` |
-| `Performer` | 接入层连接器。持有 Director 路由表、`Token→Device`、`TalkContext→Director`、`Token→Director`、在线联系人、转发记录、阻塞记录等运行时状态；实现 `TalkListener` 接收服务单元回送数据 |
+| `Performer` | 接入层连接器。持有 Director 路由表、`Token→Device`、按 Cellet 区分的会话归属、AI 能力快照与任务归属、在线联系人、转发记录、阻塞记录等运行时状态；实现 `TalkListener` 接收服务单元回送数据 |
 | `Director` | 一个服务节点（导演机）的抽象，含业务 Endpoint、文件 Endpoint、`Scope` 与可发言的 `Speakable` |
-| `Scope` | 节点作用域：该节点承载的 Cellet 名称列表 + 权重（1–10，默认 5） |
+| `Scope` | 节点作用域：该节点承载的 Cellet 名称列表 |
 | `DispatcherTask` | 调度任务抽象，封装 `Packet`/`ActionDialect` 解析与统一的响应打包（`state`/`data`/`code`） |
 | `Daemon` | 守护任务：驱动 `onTick`、清理失效会话上下文、清理超时转发记录、生成运维报告与延迟数据 |
 | `StreamServer` | 独立端口（默认 7171）的数据流服务器，承载大流量双向数据传输 |
@@ -160,19 +160,19 @@ cube-server/
 
 ### 4.2 路由与负载均衡
 
-路由表在 `Performer.start()` 中一次性构建为**按权重切分的连续区间**：
+dispatcher 在与 service 建立连接后，通过 AIGC Cellet 的 `getCapabilitySnapshot` Action 查询能力快照；正常每 30 秒刷新，失败或服务未就绪时每 10 秒重试，查询超时 3 秒，快照有效期 90 秒。查询使用两个独立后台线程，每节点最多一个在途查询；用户请求只读取内存缓存，不触发能力查询。
 
-```
-某 Cellet 的候选节点：  D1(weight=5)      D2(weight=3)      D3(weight=2)
-                        ├────────────┤├──────────┤├──────┤
-区间（anchor）          0            4 5         7 8      9
-                        └──── totalWeight = 10 ────┘
-```
+快照字段为 `version=1`、`instanceId`、`ready`、`units:[{capability:AICapability}]`、`models:[{id,unit}]`。仅公布通信上下文有效的 unit；忙碌不移除能力。空快照会清除旧能力，断线立即停用，重连重新获取，旧连接响应不能覆盖新快照。
 
-- 每个 `Director.Section` 记录 `begin` / `end` / `totalWeight`；
-- 选路时在 `[0, totalWeight-1]` 内取随机整数作为 anchor，落入哪个区间就选哪个节点，实现**加权随机**；
-- 连接一旦选中节点即写入 `talkDirectorMap` / `tokenDirectorMap`，后续同一会话/令牌保持**粘性路由**，避免跨节点状态漂移；
-- 无候选节点时回退到列表首节点；无会话上下文时按**最大权重节点**选取。
+- ASR 匹配 `AutomaticSpeechRecognition` subtask；普通 Chat 按 `unit` 匹配，缺省为 Baize；Completion 按 model 映射和协议特性匹配。所需特性必须由同一个 unit 满足。
+- 同能力 service 按配置顺序轮询，每类能力维护独立游标；没有候选时返回 `UnitNoReady`，相关 REST 返回 503，不回退到无关节点或其他模型。
+- 申请频道 `POST /aigc/channel/{token}` 的请求体可传 `unit`，缺省 Baize。频道创建后绑定 service 实例，聊天、查询、保活、停止回到原节点；Completion 事件和取消沿用原请求节点。
+- 同一 token 可以使用多个能力池。dispatcher 重启后需重新申请频道；已绑定频道缺失所需能力时明确失败，不隐式迁移。
+- 非 AIGC 按配置中的 Cellet 筛选就绪节点，首次轮询，后续保持会话归属。Auth 节点兼容声明其配套的内部 Client Cellet。
+- `/v1/models` 合并各节点经过用户鉴权的模型列表并去重，内部能力快照不直接作为用户模型列表。
+- 旧 `director.N.weight` 和 console 请求中的 weight 被忽略，console 保存配置时移除旧项。先升级 service，再升级 dispatcher 和 console。
+
+本阶段不做实时容量调度、插件动作能力推断、跨 service unit 调用或运行中任务迁移。各 service 需使用一致的认证域，并能访问所需的业务数据和文件。
 
 ### 4.3 转发模型
 
@@ -258,13 +258,12 @@ maxThreads=16
 minThreads=4
 stream.port=7171
 
-# 路由节点（编号 1–10，权重 1–10）
+# 路由节点（编号 1–10，按能力筛选后轮询）
 director.1.address=127.0.0.1
 director.1.port=6000
 director.1.fs.address=127.0.0.1
 director.1.fs.port=6080
 director.1.cellets=Auth,Contact,FileStorage,FileProcessor,Messaging,AIGC,CV,Ferry
-director.1.weight=5
 
 # 机器人回调
 robot.enabled=false
@@ -281,7 +280,7 @@ harness.rest.mode=development
 harness.rest.backend=http://127.0.0.1:7088
 ```
 
-扩展集群时，只需在 `director.N.*` 追加节点块并调整 `weight`，调度机会自动重算路由区间——**无需重启客户端**。
+扩展集群时，在 `director.N.*` 追加节点块并重新加载 dispatcher 连接配置；service 上 unit 的上下线由后台能力快照刷新发现。
 
 ---
 
@@ -585,7 +584,7 @@ ant "-Dharness.stage.dir=/isolated/release-with-harness" deploy-with-harness
 | `deploy/config/dispatcher.xml` | 调度机 Cell 容器配置：监听器、Nucleus（心跳/Talk/WS/WSS/SSL/日志） |
 | `deploy/config/service.xml` | 服务单元 Cell 容器配置：监听器、Nucleus、Cellet 清单（含 `jar="cellets/…"` 动态加载项）、Contacts 适配器 |
 | `service/config/service.properties` | 服务单元线程池（cached / fixed，max） |
-| `service/config/aigc.properties` | AIGC 线程池、节点权重、上下文长度（全局与各模型分档）、页面搜索器、代理接口；另含 SKILL 技能（`skills.*`）、提示词编排（`prompt.*`）与 Token 估算（`token.*`）配置，详见 7.3 |
+| `service/config/aigc.properties` | AIGC 线程池、模型 unit 权重、上下文长度（全局与各模型分档）、页面搜索器、代理接口；另含 SKILL 技能（`skills.*`）、提示词编排（`prompt.*`）与 Token 估算（`token.*`）配置，详见 7.3 |
 | `service/config/storage*.json` | 各模块的存储后端（默认 MySQL：host / port / schema / user / password） |
 | `service/config/aigc-modules.properties` | AIGC 业务模块清单（`module.<n>.class/enabled/optional`）；`ant deploy` 会自动同步到 `deploy/config/`，不要在部署目录另存副本 |
 | `service/config/psychology.json.template` | 心理学模块的存储与单元配置模板，**受版本控制**，只含占位符 |

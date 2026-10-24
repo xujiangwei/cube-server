@@ -10,6 +10,8 @@ import cell.core.talk.Primitive;
 import cell.core.talk.TalkContext;
 import cell.core.talk.dialect.ActionDialect;
 import cube.common.Packet;
+import cube.common.action.AIGCAction;
+import cube.aigc.completion.CompletionError;
 import cube.dispatcher.DispatcherTask;
 import cube.dispatcher.Performer;
 import org.json.JSONObject;
@@ -34,25 +36,43 @@ public class PassThroughTask extends DispatcherTask {
 
     @Override
     public void run() {
-        if (this.waitResponse) {
-            ActionDialect response = this.performer.syncTransmit(this.talkContext, this.cellet.getName(), this.getAction());
+        try {
+            if (this.waitResponse) {
+                ActionDialect response = this.performer.syncTransmit(this.talkContext, this.cellet.getName(), this.getAction());
 
-            if (null == response) {
-                Packet request = this.getRequest();
-                // 发生错误
-                Packet packet = new Packet(request.sn, request.name, new JSONObject());
-                response = this.makeGatewayErrorResponse(packet);
+                if (null == response) {
+                    Packet request = this.getRequest();
+                    // 发生错误
+                    Packet packet = new Packet(request.sn, request.name, new JSONObject());
+                    response = this.makeGatewayErrorResponse(packet);
+                }
+                else {
+                    response = this.makeResponse(response);
+                }
+
+                this.cellet.speak(this.talkContext, response);
             }
             else {
-                response = this.makeResponse(response);
+                this.performer.transmit(this.talkContext, this.cellet, this.getAction());
             }
 
-            this.cellet.speak(this.talkContext, response);
+        } catch (CapabilityUnavailableException e) {
+            if (AIGCAction.ChatCompletion.name.equals(this.getRequest().name)) {
+                this.respondCompletionError(new CompletionError(503, "service_unavailable", e.getMessage(), null));
+            } else {
+                this.cellet.speak(this.talkContext, this.packResponse(new JSONObject().put("message", e.getMessage()),
+                        cube.common.state.AIGCStateCode.UnitNoReady.code, cube.common.StateCode.OK, "OK"));
+            }
+        } catch (CompletionError e) {
+            this.respondCompletionError(e);
+        } finally {
+            ((AIGCCellet) this.cellet).returnTask(this);
         }
-        else {
-            this.performer.transmit(this.talkContext, this.cellet, this.getAction());
-        }
+    }
 
-        ((AIGCCellet) this.cellet).returnTask(this);
+    private void respondCompletionError(CompletionError error) {
+        JSONObject event = new JSONObject().put("requestId", this.getRequest().data.optString("requestId"))
+                .put("sequence", 1).put("kind", "error").put("payload", new JSONObject().put("error", error.toJSON()));
+        this.cellet.speak(this.talkContext, this.makeResponse(new Packet(AIGCAction.ChatCompletionEvent.name, event).toDialect()));
     }
 }

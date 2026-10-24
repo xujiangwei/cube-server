@@ -108,7 +108,7 @@ onMounted(() => {
         <ul class="relative mt-10 space-y-2.5 text-[13px] text-slate-300">
           <li class="flex items-center gap-2">
             <AppIcon name="sitemap" :size="15" class="text-brand-400" />
-            调度机集群拓扑与路由权重
+            调度机集群拓扑与服务能力路由
           </li>
           <li class="flex items-center gap-2">
             <AppIcon name="cpu" :size="15" class="text-brand-400" />

@@ -356,6 +356,11 @@ public class AIGCCellet extends AbstractCellet {
         ActionDialect dialect = new ActionDialect(primitive);
         String action = dialect.getName();
 
+        if (AIGCAction.GetCapabilitySnapshot.name.equals(action)) {
+            this.execute(new GetCapabilitySnapshotTask(this, talkContext, primitive, this.markResponseTime(action)));
+            return;
+        }
+
         if (AIGCAction.ChatCompletionEvent.name.equals(action)) {
             this.service.getCompletions().onUnitEvent(talkContext, dialect);
             return;

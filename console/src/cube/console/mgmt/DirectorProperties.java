@@ -25,13 +25,11 @@ public class DirectorProperties implements JSONable {
 
     public final List<String> cellets;
 
-    public final int weight;
 
-    public DirectorProperties(String address, int port, List<String> cellets, int weight) {
+    public DirectorProperties(String address, int port, List<String> cellets) {
         this.address = address;
         this.port = port;
         this.cellets = cellets;
-        this.weight = weight;
     }
 
     public DirectorProperties(JSONObject json) throws JSONException {
@@ -45,7 +43,6 @@ public class DirectorProperties implements JSONable {
             this.cellets.add(cellet);
         }
 
-        this.weight = json.getInt("weight");
     }
 
     public String getCelletsAsString() {
@@ -87,7 +84,6 @@ public class DirectorProperties implements JSONable {
         JSONObject json = new JSONObject();
         json.put("address", this.address);
         json.put("port", this.port);
-        json.put("weight", this.weight);
 
         JSONArray array = new JSONArray();
         for (String cellet : this.cellets) {

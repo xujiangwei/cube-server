@@ -36,6 +36,9 @@ public enum AIGCAction {
      */
     GetUnits("getUnits"),
 
+    /** Internal dispatcher discovery over the existing AIGC Cellet connection. */
+    GetCapabilitySnapshot("getCapabilitySnapshot"),
+
     /**
      * 获取配置信息。
      */
