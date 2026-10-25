@@ -26,7 +26,9 @@ final class StorageRows {
     private StorageRows() {
     }
 
-    /** 快照投影，空数组与 SQLUtils 的 SELECT * 语义一致。 */
+    /**
+     * 快照投影，空数组与 SQLUtils 的 SELECT * 语义一致。
+     */
     static StorageField[] copyFields(StorageField[] fields) {
         if (null == fields || 0 == fields.length) {
             return null;
@@ -43,8 +45,8 @@ final class StorageRows {
     /**
      * 按声明类型读取一列，SQL NULL 返回 {@code null} 。
      *
-     * @param resultSet 结果集。
-     * @param index 列下标，从 1 开始。
+     * @param resultSet   结果集。
+     * @param index       列下标，从 1 开始。
      * @param literalBase 声明类型，允许为 {@code null}（此时退化为 {@code getObject}）。
      * @return 列值，可能为 {@code null}。
      * @throws SQLException 读取失败时抛出。

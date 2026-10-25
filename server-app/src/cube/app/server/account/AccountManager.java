@@ -146,7 +146,7 @@ public class AccountManager extends TimerTask {
     }
 
     private void loadConfig() {
-        String[] configFiles = new String[] {
+        String[] configFiles = new String[]{
                 "server_dev.properties",
                 "server.properties"
         };
@@ -469,8 +469,7 @@ public class AccountManager extends TimerTask {
         Account account = null;
         if (null != phoneNumber) {
             account = this.accountStorage.readAccountByPhoneNumber(phoneNumber);
-        }
-        else if (null != accountName) {
+        } else if (null != accountName) {
             account = this.accountStorage.readAccountByAccountName(accountName);
         }
 
@@ -489,13 +488,11 @@ public class AccountManager extends TimerTask {
             AuthToken result = Manager.getInstance().getClient().injectAuthToken(authToken);
             if (null != result) {
                 return account;
-            }
-            else {
+            } else {
                 Logger.e(this.getClass(), "#bindAppletAccount - Inject auth token failed");
                 return null;
             }
-        }
-        else {
+        } else {
             Logger.e(this.getClass(), "#bindAppletAccount - Bind applet account failed");
             return null;
         }
@@ -654,8 +651,7 @@ public class AccountManager extends TimerTask {
 
         if (null == account) {
             token = this.login(tokenCode);
-        }
-        else {
+        } else {
             token = account.getToken(tokenCode);
         }
 
@@ -672,8 +668,7 @@ public class AccountManager extends TimerTask {
         if (null == current) {
             current = new OnlineAccount(account, device, token);
             this.onlineIdMap.put(account.id, current);
-        }
-        else {
+        } else {
             current.addDevice(device, token);
         }
 

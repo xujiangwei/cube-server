@@ -225,6 +225,10 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                 }
                 Logger.i(AIGCService.class, "AI Service - Working path: " + workingPath.getAbsolutePath());
 
+                // 预热分词器：词表 349k 行 + HMM 模型约 700KB。放在引导线程里，
+                // 把加载成本从「第一个分词请求」挪到启动阶段；失败只告警，不阻断启动。
+                Tokenizer.warmUp();
+
                 JSONObject config = ConfigUtils.readStorageConfig();
                 if (config.has(AIGCService.NAME)) {
                     config = config.getJSONObject(AIGCService.NAME);

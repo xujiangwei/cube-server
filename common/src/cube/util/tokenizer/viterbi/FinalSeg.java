@@ -12,7 +12,16 @@ import java.util.regex.Matcher;
 
 public class FinalSeg {
 
-    private static FinalSeg singleInstance;
+    /**
+     * 延迟持有者：首次调用 {@link #getInstance()} 时才加载 HMM 模型。
+     *
+     * <p>原来的 {@code synchronized static getInstance()} 每次取实例都要过锁，
+     * 且加载时机由调用方决定；改为持有者后，加载由类初始化锁保证，只发生一次。</p>
+     */
+    private static final class Holder {
+        private static final FinalSeg INSTANCE = new FinalSeg();
+    }
+
     private static final String PROB_EMIT = "assets/tokenizer/prob_emit.txt";
     private static char[] states = new char[]{'B', 'M', 'E', 'S'};
     private static Map<Character, Map<Character, Double>> emit;
@@ -22,14 +31,11 @@ public class FinalSeg {
     private static Double MIN_FLOAT = -3.14e100;
 
     private FinalSeg() {
+        this.loadModel();
     }
 
-    public synchronized static FinalSeg getInstance() {
-        if (null == singleInstance) {
-            singleInstance = new FinalSeg();
-            singleInstance.loadModel();
-        }
-        return singleInstance;
+    public static FinalSeg getInstance() {
+        return Holder.INSTANCE;
     }
 
     private void loadModel() {

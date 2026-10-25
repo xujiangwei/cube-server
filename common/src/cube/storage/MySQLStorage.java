@@ -8,13 +8,7 @@ package cube.storage;
 
 import cell.core.talk.LiteralBase;
 import cell.util.log.Logger;
-import cube.core.AbstractStorage;
-import cube.core.ColumnIndex;
-import cube.core.Conditional;
-import cube.core.Constraint;
-import cube.core.RowVisitor;
-import cube.core.StorageException;
-import cube.core.StorageField;
+import cube.core.*;
 import cube.util.SQLUtils;
 import org.json.JSONObject;
 
@@ -22,11 +16,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.sql.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -187,11 +177,11 @@ public class MySQLStorage extends AbstractStorage {
      * <p>日志里保留表名、条件数量、耗时与池状态；完整 SQL 只在 DEBUG 级输出——
      * 值已内联进 SQL，WARN 级打印整条语句会把业务数据写进日志。</p>
      *
-     * @param table 表名。
+     * @param table        表名。
      * @param conditionals 条件列表。
-     * @param sql 完整 SQL。
-     * @param beginTime 开始时间戳。
-     * @param cause 异常，允许为 {@code null} 。
+     * @param sql          完整 SQL。
+     * @param beginTime    开始时间戳。
+     * @param cause        异常，允许为 {@code null} 。
      */
     private void logQueryFailure(String table, Conditional[] conditionals, String sql, long beginTime,
                                  Throwable cause) {
@@ -209,8 +199,7 @@ public class MySQLStorage extends AbstractStorage {
 
         if (null == cause) {
             Logger.w(this.getClass(), message);
-        }
-        else {
+        } else {
             Logger.w(this.getClass(), message, cause);
         }
 
@@ -257,7 +246,8 @@ public class MySQLStorage extends AbstractStorage {
         }
     }
 
-    private String describeTarget() {        if (null == this.config) {
+    private String describeTarget() {
+        if (null == this.config) {
             return "unknown";
         }
 
@@ -882,7 +872,7 @@ public class MySQLStorage extends AbstractStorage {
      * <p>第 2 个参数 {@code Integer.MIN_VALUE} 是关键：Connector/J 默认会把整个结果集
      * 先读进客户端内存，不设它的话"流式"只是换了个遍历写法，堆压力一点没降。
      * 流式结果集在读完之前独占本连接，因此必须走 {@code finally} 释放。</p>
-     *
+     * <p>
      * {@inheritDoc}
      */
     @Override

@@ -8,13 +8,7 @@ package cube.storage;
 
 import cell.core.talk.LiteralBase;
 import cell.util.log.Logger;
-import cube.core.AbstractStorage;
-import cube.core.ColumnIndex;
-import cube.core.Conditional;
-import cube.core.Constraint;
-import cube.core.RowVisitor;
-import cube.core.StorageException;
-import cube.core.StorageField;
+import cube.core.*;
 import cube.util.SQLUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -429,8 +423,7 @@ public class SQLiteStorage extends AbstractStorage {
                     if (null == fields) {
                         StorageField[] row = StorageFields.scanResultSet(rs);
                         result.add(row);
-                    }
-                    else {
+                    } else {
                         StorageField[] row = new StorageField[fields.length];
 
                         for (int i = 0; i < fields.length; ++i) {
@@ -492,8 +485,7 @@ public class SQLiteStorage extends AbstractStorage {
                     if (null == fields) {
                         StorageField[] row = StorageFields.scanResultSet(rs);
                         result.add(row);
-                    }
-                    else {
+                    } else {
                         StorageField[] row = new StorageField[fields.length];
 
                         for (int i = 0; i < fields.length; ++i) {
@@ -576,7 +568,7 @@ public class SQLiteStorage extends AbstractStorage {
      * <p><b>注意</b>：SQLite 走单连接 + 全局锁，遍历期间会一直持锁，
      * 因此只适合小结果集或离线任务；跨表大批量扫描应走 MySQL 路径。
      * 回调里不要查询或关闭同一个存储；同线程的锁可重入，不能用它保护回调内的嵌套访问。</p>
-     *
+     * <p>
      * {@inheritDoc}
      */
     @Override

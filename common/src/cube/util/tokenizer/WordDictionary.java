@@ -11,7 +11,19 @@ import java.util.Map.Entry;
 
 public class WordDictionary {
 
-    private static WordDictionary singleton;
+    /**
+     * 延迟持有者。
+     *
+     * <p>用类初始化锁代替原来的双检锁：{@code getInstance()} 首次被调用时才加载词表，
+     * 由 JVM 保证线程安全与安全发布（原实现缺少 {@code volatile}，属不安全发布）。</p>
+     *
+     * <p>关键收益：<b>引用 {@link Tokenizer} 这个类不再触发 349k 词条的加载</b>，
+     * 只有真正调用分词时才会解析词表。</p>
+     */
+    private static final class Holder {
+        private static final WordDictionary INSTANCE = new WordDictionary();
+    }
+
     private static final String MAIN_DICT = "assets/tokenizer/dict.txt";
     private static String USER_DICT_SUFFIX = ".dict";
 
@@ -26,15 +38,16 @@ public class WordDictionary {
     }
 
     public static WordDictionary getInstance() {
-        if (singleton == null) {
-            synchronized (WordDictionary.class) {
-                if (singleton == null) {
-                    singleton = new WordDictionary();
-                    return singleton;
-                }
-            }
-        }
-        return singleton;
+        return Holder.INSTANCE;
+    }
+
+    /**
+     * 词条数量。
+     *
+     * @return 已加载的词条数，词表加载失败时为 0。
+     */
+    public int size() {
+        return this.freqs.size();
     }
 
     /**
@@ -59,7 +72,7 @@ public class WordDictionary {
                     }
 
                     Log.debug(String.format(Locale.getDefault(), "loading dict %s", path.toString()));
-                    singleton.loadUserDict(path);
+                    this.loadUserDict(path);
                 }
                 loadedPath.add(absPath);
             } catch (IOException e) {
@@ -74,7 +87,7 @@ public class WordDictionary {
                 if (!loadedPath.contains(path)) {
                     try {
                         Log.debug("initialize user dictionary: " + path);
-                        singleton.loadUserDict(path);
+                        this.loadUserDict(path);
                         loadedPath.add(path);
                     } catch (Exception e) {
                         Log.error(String.format(Locale.getDefault(), "%s: load user dict failure!", path));

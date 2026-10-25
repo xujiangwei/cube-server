@@ -21,8 +21,17 @@ public final class AIGCSPI {
      * {@link ModuleDescriptor#spiVersion} 经 {@link #isCompatible(int)} 校验，
      * 不支持的版本拒绝加载。</p>
      *
-     * <p>v26 仅新增默认方法，显式兼容 v25 的已有插件；未来版本不能自动视为兼容。
+     * <p><b>v26</b> 仅新增默认方法，显式兼容 v25 的已有插件；未来版本不能自动视为兼容。
      * v26 森林插件需在 v26 宿主上运行。</p>
+     *
+     * <p><b>⚠️ 改本常量必须重编所有插件</b>：{@code final static int} 会被 javac
+     * <b>内联</b>进每个引用它的插件字节码。内联是必需的——若改为普通字段或方法，
+     * 旧插件在运行期读到的是宿主的当前值，"兼容性校验"将恒真而失效。
+     * 代价是未重编的插件会永久带着旧版本号，宿主只在启动时回一行
+     * {@code requires SPI version N ... rejected}，模块整体不装载。
+     * 因此两个插件的构建脚本都挂了 {@code check-spi} 目标（见
+     * {@code cube.test.SpiVersionCheck}）：产物内联值与源码不一致即构建失败。
+     * 修改本常量后依次重建 common → dispatcher → 各插件，不要只重建 common。</p>
      *
      * <p><b>宿主服务能力</b>：{@link AIGCHost#getContact}、
      * {@link AIGCHost#getMembership}、{@link AIGCHost#getRemainingUsages}、
@@ -50,7 +59,6 @@ public final class AIGCSPI {
      * {@code SpeechModuleListener} 由各业务模块自行订阅，宿主不再内置任何
      * 业务角色分类。</p>
      */
-    // v26 adds only default methods: v25 plugins remain binary compatible.
     public final static int VERSION = 26;
 
     private AIGCSPI() {
