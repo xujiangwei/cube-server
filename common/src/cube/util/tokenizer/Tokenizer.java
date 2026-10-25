@@ -1,29 +1,105 @@
 package cube.util.tokenizer;
 
+import cell.util.log.Logger;
 import cube.util.tokenizer.viterbi.FinalSeg;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Tokenizer {
 
-    private final static WordDictionary wordDict = WordDictionary.getInstance();
-
-    private final static FinalSeg finalSeg = FinalSeg.getInstance();
-
     private final static String blank = " ";
+
+    /**
+     * 默认用户词典是否已加载。
+     *
+     * <p>原实现每次构造实例都会 stat/枚举 {@code assets/tokenizer/} 并直接加载用户词典，
+     * 实例化次数越多 I/O 越多；这里收敛为一次，且推迟到首次分词/预热时执行。</p>
+     */
+    private final static AtomicBoolean USER_DICT_LOADED = new AtomicBoolean(false);
 
     public enum SegMode {
         INDEX,
         SEARCH
     }
 
+    /**
+     * 构造函数保持轻量：不读词表、不读用户词典。
+     *
+     * <p>词表加载统一发生在 {@link #dict()} 首次被调用时（即首次分词或
+     * {@link #warmUp()}），这样 {@code new Tokenizer()} 不再触发 349k 词条的解析。</p>
+     */
     public Tokenizer() {
+        // Nothing
+    }
+
+    /**
+     * 词表实例（首次真正分词时才加载）。
+     *
+     * <p>改造前这里是 {@code static final WordDictionary}，导致<b>只要引用 Tokenizer 类</b>
+     * 就会在类初始化阶段解析 349k 词条；改为方法内取值后，加载时机推迟到首次分词。</p>
+     *
+     * @return 词表实例。
+     */
+    private static WordDictionary dict() {
+        ensureUserDictLoaded();
+        return WordDictionary.getInstance();
+    }
+
+    /**
+     * 加载默认用户词典（仅一次）。
+     *
+     * <p>放在 {@link #dict()} 内部而不是构造函数里：构造函数应保持零 I/O，
+     * 否则 {@code new Tokenizer()} 依然会把词典加载拉回调用线程。</p>
+     */
+    private static void ensureUserDictLoaded() {
+        if (!USER_DICT_LOADED.compareAndSet(false, true)) {
+            return;
+        }
+
         Path path = Paths.get("assets/tokenizer/");
-        if (Files.exists(path) && Files.isDirectory(path)) {
-            initUserDict(path);
+        if (!Files.exists(path) || !Files.isDirectory(path)) {
+            return;
+        }
+
+        try {
+            // 先触发主词表加载，再叠加用户词典
+            WordDictionary.getInstance().init(path);
+        } catch (Throwable t) {
+            Logger.w(Tokenizer.class, "Failed to load user dictionaries", t);
+        }
+    }
+
+    /**
+     * HMM 模型实例（首次真正分词时才加载）。
+     *
+     * @return 模型实例。
+     */
+    private static FinalSeg seg() {
+        return FinalSeg.getInstance();
+    }
+
+    /**
+     * 预热分词器：显式触发词表与 HMM 模型加载。
+     *
+     * <p>懒加载只是把成本从"类初始化"挪到"首次分词"，如果不预热，抖动会落到第一个
+     * 业务请求上。服务启动时在<b>引导线程</b>里调用本方法，把成本放在可控且有日志的位置。</p>
+     *
+     * <p>失败只记录告警，不抛出——分词不可用不应阻断服务启动。</p>
+     */
+    public static void warmUp() {
+        long begin = System.currentTimeMillis();
+        try {
+            // 用 dict() 而不是 WordDictionary.getInstance()：前者会连同默认用户词典一起加载
+            WordDictionary wordDictionary = dict();
+            FinalSeg.getInstance();
+            Logger.i(Tokenizer.class, "Tokenizer warm-up finished, words: " + wordDictionary.size()
+                    + ", elapsed: " + (System.currentTimeMillis() - begin) + "ms");
+        } catch (Throwable t) {
+            Logger.w(Tokenizer.class, "Tokenizer warm-up failed", t);
         }
     }
 
@@ -33,14 +109,14 @@ public class Tokenizer {
      * @param path user dict dir
      */
     public void initUserDict(Path path) {
-        wordDict.init(path);
+        dict().init(path);
     }
 
     public void initUserDict(String[] paths) {
-        wordDict.init(paths);
+        dict().init(paths);
     }
 
-    private Map<Integer, List<Integer>> createDAG(String sentence) {
+    private Map<Integer, List<Integer>> createDAG(String sentence, WordDictionary wordDict) {
         Map<Integer, List<Integer>> dag = new HashMap<Integer, List<Integer>>();
         DictSegment trie = wordDict.getTrie();
         char[] chars = sentence.toCharArray();
@@ -78,7 +154,8 @@ public class Tokenizer {
     }
 
 
-    private Map<Integer, Pair<Integer>> calc(String sentence, Map<Integer, List<Integer>> dag) {
+    private Map<Integer, Pair<Integer>> calc(String sentence, Map<Integer, List<Integer>> dag,
+                                             WordDictionary wordDict) {
         int N = sentence.length();
         HashMap<Integer, Pair<Integer>> route = new HashMap<Integer, Pair<Integer>>();
         route.put(N, new Pair<Integer>(0, 0.0));
@@ -106,6 +183,8 @@ public class Tokenizer {
      * @return
      */
     public synchronized List<SegToken> process(String paragraph, SegMode mode) {
+        WordDictionary wordDict = dict();
+
         List<SegToken> tokens = new ArrayList<SegToken>();
         StringBuilder sb = new StringBuilder();
         int offset = 0;
@@ -193,10 +272,13 @@ public class Tokenizer {
      * @return
      */
     public synchronized List<String> sentenceProcess(String sentence) {
+        WordDictionary wordDict = dict();
+        FinalSeg finalSeg = seg();
+
         List<String> tokens = new ArrayList<String>();
         int N = sentence.length();
-        Map<Integer, List<Integer>> dag = createDAG(sentence);
-        Map<Integer, Pair<Integer>> route = calc(sentence, dag);
+        Map<Integer, List<Integer>> dag = createDAG(sentence, wordDict);
+        Map<Integer, Pair<Integer>> route = calc(sentence, dag, wordDict);
 
         int x = 0;
         int y = 0;

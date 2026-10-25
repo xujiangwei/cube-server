@@ -39,7 +39,6 @@ public interface Storage {
     StorageType getType();
 
     /**
-     *
      * @param config
      */
     void configure(JSONObject config);
@@ -86,7 +85,7 @@ public interface Storage {
      * <p><b>契约</b>：查询失败返回 {@code null} 并记录日志；查询成功但无匹配数据返回空列表。
      * 调用方必须判空——两者语义不同，不能都当作"没有数据"。</p>
      *
-     * @param table 表名。
+     * @param table  表名。
      * @param fields 字段列表，{@code null} 表示全部字段。
      * @return 查询结果；失败返回 {@code null} 。
      */
@@ -99,8 +98,8 @@ public interface Storage {
      * 无数据返回空列表。需要区分失败与空结果时使用
      * {@link #executeQueryOrThrow(String, StorageField[], Conditional[])}。</p>
      *
-     * @param table 表名。
-     * @param fields 字段列表，{@code null} 表示全部字段。
+     * @param table        表名。
+     * @param fields       字段列表，{@code null} 表示全部字段。
      * @param conditionals 条件列表，允许为 {@code null} 。
      * @return 查询结果；失败返回 {@code null} 。
      */
@@ -117,8 +116,8 @@ public interface Storage {
      * 前者返回 {@code null}，本方法抛 {@link StorageException}。新代码优先使用本方法，
      * 避免"忘记判空"导致 NPE。</p>
      *
-     * @param table 表名。
-     * @param fields 字段列表，{@code null} 表示全部字段。
+     * @param table        表名。
+     * @param fields       字段列表，{@code null} 表示全部字段。
      * @param conditionals 条件列表，允许为 {@code null} 。
      * @return 查询结果，永不为 {@code null} （无数据时为空列表）。
      * @throws StorageException 查询失败时抛出。
@@ -148,13 +147,13 @@ public interface Storage {
      *     <li>提前终止只保证停止回调；驱动释放结果集时可能仍需读取剩余数据。</li>
      * </ol>
      *
-     * @param table 表名。
-     * @param fields 字段列表，{@code null} 或空数组表示全部字段，数组元素不可为 {@code null}。
+     * @param table        表名。
+     * @param fields       字段列表，{@code null} 或空数组表示全部字段，数组元素不可为 {@code null}。
      * @param conditionals 条件列表，允许为 {@code null} 。
-     * @param visitor 行访问器，返回 {@code false} 终止遍历。
-     * @throws StorageException 查询失败或存储未打开时抛出。
+     * @param visitor      行访问器，返回 {@code false} 终止遍历。
+     * @throws StorageException              查询失败或存储未打开时抛出。
      * @throws UnsupportedOperationException 当前实现不支持时抛出。
-     * @throws IllegalArgumentException 访问器或字段元素为空时抛出。
+     * @throws IllegalArgumentException      访问器或字段元素为空时抛出。
      */
     default void forEachRow(String table, StorageField[] fields, Conditional[] conditionals,
                             RowVisitor visitor) {
@@ -173,14 +172,14 @@ public interface Storage {
      * <p>结果列表仍保留全部业务对象，内存随行数增长；本方法减少的是中间行对象。
      * 映射器的运行时异常原样传播，映射器不得保留复用的行数组引用。</p>
      *
-     * @param table 表名。
-     * @param fields 字段列表，{@code null} 或空数组表示全部字段，数组元素不可为 {@code null}。
+     * @param table        表名。
+     * @param fields       字段列表，{@code null} 或空数组表示全部字段，数组元素不可为 {@code null}。
      * @param conditionals 条件列表，允许为 {@code null} 。
-     * @param mapper 行映射器。
-     * @param <T> 映射结果类型。
+     * @param mapper       行映射器。
+     * @param <T>          映射结果类型。
      * @return 结果列表，永不为 {@code null} 。
-     * @throws StorageException 查询失败时抛出。
-     * @throws IllegalArgumentException 映射器或字段元素为空时抛出。
+     * @throws StorageException              查询失败时抛出。
+     * @throws IllegalArgumentException      映射器或字段元素为空时抛出。
      * @throws UnsupportedOperationException 当前实现不支持时抛出。
      */
     default <T> List<T> queryList(String table, StorageField[] fields, Conditional[] conditionals,

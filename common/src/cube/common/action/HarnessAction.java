@@ -19,68 +19,144 @@ import java.util.regex.Pattern;
  * <p>本协议独立于 Python worker 协议。</p>
  */
 public enum HarnessAction {
-    /** 查询服务能力。 */
+    /**
+     * 查询服务能力。
+     */
     Capabilities("GET", "capabilities", null),
-    /** 查询服务器模型、执行器和当前用户获授权的技能/工具。 */
+
+    /**
+     * 查询服务器模型、执行器和当前用户获授权的技能/工具。
+     */
     TaskProfiles("GET", "task-profiles", null),
-    /** 创建运行任务。 */
+
+    /**
+     * 创建运行任务。
+     */
     CreateRun("POST", "runs", "create-run"),
-    /** 查询运行任务详情。 */
+
+    /**
+     * 查询运行任务详情。
+     */
     ReadRun("GET", "runs/ID", null),
-    /** 订阅运行任务的事件流（SSE）。 */
+
+    /**
+     * 订阅运行任务的事件流（SSE）。
+     */
     Events("GET", "runs/ID/events", null),
-    /** 取消运行任务。 */
+
+    /**
+     * 取消运行任务。
+     */
     CancelRun("POST", "runs/ID/cancel", "cancel-run"),
-    /** 恢复运行任务。 */
+
+    /**
+     * 恢复运行任务。
+     */
     ResumeRun("POST", "runs/ID/resume", "resume-run"),
-    /** 提交运行任务的反馈。 */
+
+    /**
+     * 提交运行任务的反馈。
+     */
     Feedback("POST", "runs/ID/feedback", "feedback"),
-    /** 对指定的人工审批给出决策。 */
+
+    /**
+     * 对指定的人工审批给出决策。
+     */
     DecideApproval("POST", "runs/ID/approvals/ID/decision", "approval"),
-    /** 创建输入。 */
+
+    /**
+     * 创建输入。
+     */
     CreateInput("POST", "inputs", "input-create"),
-    /** 查询输入详情。 */
+
+    /**
+     * 查询输入详情。
+     */
     ReadInput("GET", "inputs/ID", null),
-    /** 上传输入内容。 */
+
+    /**
+     * 上传输入内容。
+     */
     UploadInput("PUT", "inputs/ID/content", null),
-    /** 确认输入内容上传完成。 */
+
+    /**
+     * 确认输入内容上传完成。
+     */
     CompleteInput("POST", "inputs/ID/complete", "input-complete"),
-    /** 查询运行任务的产物列表。 */
+
+    /**
+     * 查询运行任务的产物列表。
+     */
     Artifacts("GET", "runs/ID/artifacts", null),
-    /** 查询产物元数据。 */
+
+    /**
+     * 查询产物元数据。
+     */
     ReadArtifact("GET", "artifacts/ID", null),
-    /** 下载产物内容。 */
+
+    /**
+     * 下载产物内容。
+     */
     DownloadArtifact("GET", "artifacts/ID/content", null),
-    /** 获取产物的下载句柄。 */
+
+    /**
+     * 获取产物的下载句柄。
+     */
     DownloadHandle("GET", "artifacts/ID/download-handle", null),
-    /** 查询运行任务的执行轨迹。 */
+
+    /**
+     * 查询运行任务的执行轨迹。
+     */
     Trace("GET", "runs/ID/trace", null),
-    /** 内部控制动作：通知服务单元开始下发文件数据。 */
+
+    /**
+     * 内部控制动作：通知服务单元开始下发文件数据。
+     */
     StartDownload(null, null, null),
-    /** 内部控制动作：查询文件传输结果。 */
+
+    /**
+     * 内部控制动作：查询文件传输结果。
+     */
     TransferResult(null, null, null),
-    /** 内部控制动作：中止文件传输并释放远端租约。 */
+
+    /**
+     * 内部控制动作：中止文件传输并释放远端租约。
+     */
     AbortTransfer(null, null, null);
 
-    /** Harness Cellet 名称，网关与服务单元之间通信的目标 Cellet 。 */
+    /**
+     * Harness Cellet 名称，网关与服务单元之间通信的目标 Cellet 。
+     */
     public static final String CELLET = "Harness";
 
-    /** 请求体大小上限：256 KiB 。 */
+    /**
+     * 请求体大小上限：256 KiB 。
+     */
     public static final int MAX_BODY_BYTES = 262144;
 
-    /** 响应数据大小上限：8 MiB 。 */
+    /**
+     * 响应数据大小上限：8 MiB 。
+     */
     public static final int MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
-    /** 动作的全限定名称，前缀为 "harness." 。 */
+    /**
+     * 动作的全限定名称，前缀为 "harness." 。
+     */
     public final String name;
 
-    /** 动作对应的 HTTP 方法；内部控制动作不经过 HTTP ，取值为 null 。 */
+    /**
+     * 动作对应的 HTTP 方法；内部控制动作不经过 HTTP ，取值为 null 。
+     */
     public final String method;
 
-    /** 动作绑定的服务端 schema 名称；无 schema 的动作取值为 null 。 */
+    /**
+     * 动作绑定的服务端 schema 名称；无 schema 的动作取值为 null 。
+     */
     public final String schema;
 
-    /** 动作 URL 路径模板的编译结果，用于匹配请求路径并提取路径参数。 */
+    /**
+     * 动作 URL 路径模板的编译结果，用于匹配请求路径并提取路径参数。
+     */
     private final Pattern path;
 
     /**

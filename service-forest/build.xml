@@ -6,7 +6,19 @@
     <property name="build.dir" value="build"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.jar" value="${build.dir}/jar"/>
+    <!-- SPI 版本校验的唯一真值来源：源码里的 AIGCSPI.VERSION，而不是可能已过期的 jar -->
+    <property name="common.source.dir" location="../common/src"/>
     <path id="master-classpath">
+        <fileset dir="${lib.dir}"><include name="*.jar"/></fileset>
+        <fileset dir="${dependencies.dir}">
+            <include name="cube-common-*.jar"/>
+            <include name="cube-dispatcher-*.jar"/>
+        </fileset>
+    </path>
+    <!-- 校验用 classpath：优先插件自身产物，再补 common / dispatcher / 三方依赖 -->
+    <path id="spi-check-classpath">
+        <pathelement location="${build.dir}/spi-check"/>
+        <pathelement location="${build.jar}/cube-service-forest.jar"/>
         <fileset dir="${lib.dir}"><include name="*.jar"/></fileset>
         <fileset dir="${dependencies.dir}">
             <include name="cube-common-*.jar"/>
@@ -29,10 +41,34 @@
         </javac>
         <jar destfile="${build.jar}/cube-service-forest.jar" basedir="${build.classes}"/>
     </target>
-    <target name="build-debug" depends="debug">
+    <target name="compile-spi-check" description="编译 SPI 版本校验器（唯一源文件，零外部依赖）">
+        <mkdir dir="${build.dir}/spi-check"/>
+        <javac srcdir="${common.source.dir}" destdir="${build.dir}/spi-check"
+               includes="cube/test/SpiVersionCheck.java"
+               source="1.8" target="1.8" encoding="UTF-8" debug="off"
+               includeantruntime="false" fork="yes"/>
+    </target>
+    <target name="check-spi" depends="compile-spi-check" description="校验插件内联的 SPI 版本与 common 源码一致">
+        <fail message="插件产物不存在：${build.jar}/cube-service-forest.jar，请先执行 build-debug 或 build-release">
+            <condition>
+                <not><available file="${build.jar}/cube-service-forest.jar"/></not>
+            </condition>
+        </fail>
+        <fail message="未找到 ${dependencies.dir}/cube-common-${version.brand}.jar：请先在 common 目录执行 ant build-release">
+            <condition>
+                <not><available file="${dependencies.dir}/cube-common-${version.brand}.jar"/></not>
+            </condition>
+        </fail>
+        <java classname="cube.test.SpiVersionCheck" fork="true" failonerror="true"
+              classpathref="spi-check-classpath">
+            <arg value="cube.service.forest.ForestModule"/>
+            <arg value="${common.source.dir}/cube/aigc/spi/AIGCSPI.java"/>
+        </java>
+    </target>
+    <target name="build-debug" depends="debug,check-spi">
         <copy file="${build.jar}/cube-service-forest.jar" tofile="${dependencies.dir}/cube-service-forest-${version.brand}.jar"/>
     </target>
-    <target name="build-release" depends="release">
+    <target name="build-release" depends="release,check-spi">
         <copy file="${build.jar}/cube-service-forest.jar" tofile="${dependencies.dir}/cube-service-forest-${version.brand}.jar"/>
     </target>
 </project>
