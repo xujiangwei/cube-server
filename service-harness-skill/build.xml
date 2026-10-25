@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="cube-service-harness-skill" default="build" basedir=".">
+  <property name="build.dir" location="build"/>
+  <property name="harness.module" location="../service-harness"/>
+  <property name="python.exe" value="python"/>
+  <path id="cp">
+    <pathelement location="${harness.module}/build/cube-service-harness-3.0.jar"/>
+    <pathelement location="../build/cube-common-3.0.jar"/>
+    <pathelement location="../deploy/bin/cell.jar"/>
+    <fileset dir="../deploy/libs" includes="*.jar"/>
+    <pathelement location="${build.dir}/classes"/>
+  </path>
+  <target name="check">
+    <fail message="Requires an actual JDK 8"><condition><not><matches string="${java.version}" pattern="^1\.8\."/></not></condition></fail>
+    <available file="${harness.module}/build/cube-service-harness-3.0.jar" property="harness.present"/>
+    <fail unless="harness.present" message="Build service-harness with JDK 8 first"/>
+  </target>
+  <target name="build" depends="check">
+    <mkdir dir="${build.dir}/classes"/>
+    <javac srcdir="src" destdir="${build.dir}/classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
+    <sync todir="${build.dir}/classes/cube/service/harness/skill/schemas"><fileset dir="harness-tools" includes="*/input.schema.json,*/output.schema.json"/></sync>
+    <jar destfile="${build.dir}/cube-service-harness-skill-3.0.jar" basedir="${build.dir}/classes"/>
+  </target>
+  <target name="build-debug" depends="build"><copy file="${build.dir}/cube-service-harness-skill-3.0.jar" todir="../build"/></target>
+  <target name="build-release" depends="build-debug"/>
+  <target name="packages">
+    <exec executable="${python.exe}" failonerror="true"><arg value="-B"/><arg value="scripts/build_packages.py"/><arg value="--output"/><arg path="${build.dir}/packages"/></exec>
+  </target>
+  <target name="compile-tests" depends="build,packages">
+    <ant dir="${harness.module}" target="test" inheritall="false"/>
+    <mkdir dir="${build.dir}/test-classes"/>
+    <javac srcdir="test" destdir="${build.dir}/test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/></classpath></javac>
+  </target>
+  <path id="test.cp"><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/><pathelement location="${build.dir}/test-classes"/></path>
+  <target name="test" depends="compile-tests">
+    <exec executable="${python.exe}" failonerror="true"><arg value="-B"/><arg value="scripts/test_smoke.py"/></exec>
+    <java classname="cube.service.harness.skill.ProviderTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/></java>
+    <java classname="cube.service.harness.test.CommonToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/></java>
+  </target>
+  <target name="stage" depends="build,packages">
+    <fail unless="stage.dir" message="Set -Dstage.dir to the intended Harness stage; this target does not activate providers"/>
+    <mkdir dir="${stage.dir}/libs"/>
+    <copy file="${build.dir}/cube-service-harness-skill-3.0.jar" todir="${stage.dir}/libs"/>
+    <copy todir="${stage.dir}/harness-skill/config"><fileset dir="config"/></copy>
+    <copy todir="${stage.dir}/harness-skill/packages"><fileset dir="${build.dir}/packages" includes="*.zip"/></copy>
+    <copy file="README.md" todir="${stage.dir}/harness-skill"/>
+    <copy file="VERIFICATION.md" todir="${stage.dir}/harness-skill"/>
+  </target>
+  <target name="clean"><delete dir="${build.dir}/classes"/><delete dir="${build.dir}/test-classes"/><delete dir="${build.dir}/packages"/><delete file="${build.dir}/cube-service-harness-skill-3.0.jar"/></target>
+</project>

@@ -1,0 +1,13 @@
+{
+  "documents": [
+    {
+      "id": "intro",
+      "tenant": "tenant-a",
+      "subjects": [
+        "user-a"
+      ],
+      "source": "kb:intro@1",
+      "text": "Cube Harness uses authorized tools to retrieve evidence."
+    }
+  ]
+}

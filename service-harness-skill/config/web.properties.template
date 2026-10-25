@@ -1,0 +1,5 @@
+# Empty means public IPv4 HTTPS hosts; optional comma-separated exact DNS names
+web.hosts=
+web.max.bytes=1048576
+network.timeout.millis=5000
+result.max.bytes=12288

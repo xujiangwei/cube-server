@@ -1,0 +1,85 @@
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "searchedAt": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "trust": {
+      "type": "string",
+      "maxLength": 32,
+      "enum": [
+        "untrusted-source-data"
+      ]
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "sourceId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048
+          },
+          "snippet": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "engine": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "publishedAt": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "sourceId",
+          "title",
+          "url",
+          "snippet",
+          "engine"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 10
+    },
+    "partial": {
+      "type": "boolean"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      },
+      "maxItems": 16
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "query",
+    "searchedAt",
+    "trust",
+    "results",
+    "partial",
+    "warnings",
+    "truncated"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "maxLength": 256,
+      "minLength": 1
+    },
+    "language": {
+      "type": "string",
+      "maxLength": 32,
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+    },
+    "maxResults": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+    },
+    "timeRange": {
+      "type": "string",
+      "maxLength": 5,
+      "enum": [
+        "",
+        "day",
+        "month",
+        "year"
+      ]
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "additionalProperties": false
+}

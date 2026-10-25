@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "id": "trusted-cpu",
+  "version": "1",
+  "kind": "runtime",
+  "mode": "trusted-python-v1",
+  "capabilities": [
+    "resources",
+    "tool.execute"
+  ],
+  "maxWorkspaceBytes": 1048576,
+  "maxWorkspaceFiles": 64,
+  "certification": "offline-trusted-runner",
+  "toolSetVersion": "broker-tools"
+}

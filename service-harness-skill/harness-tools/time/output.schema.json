@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "instant": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "zone": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "localTime": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "epochMillis": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "offset": {
+      "type": "string",
+      "maxLength": 16
+    }
+  },
+  "required": [
+    "instant",
+    "zone",
+    "localTime",
+    "epochMillis",
+    "offset"
+  ],
+  "additionalProperties": false
+}

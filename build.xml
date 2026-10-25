@@ -406,6 +406,12 @@
 	<target name="build-harness-release">
 		<ant dir="service-harness" target="build-release" inheritall="false" />
 	</target>
+	<target name="build-harness-skill-debug" depends="build-harness-debug">
+		<ant dir="service-harness-skill" target="build-debug" inheritall="false" />
+	</target>
+	<target name="build-harness-skill-release" depends="build-harness-release">
+		<ant dir="service-harness-skill" target="build-release" inheritall="false" />
+	</target>
 	<target name="build-service-with-harness-debug" depends="build-service-debug,build-harness-debug" />
 	<target name="build-service-with-harness-release" depends="build-service-release,build-harness-release" />
 	<target name="build-with-harness" depends="build,build-harness-release" />

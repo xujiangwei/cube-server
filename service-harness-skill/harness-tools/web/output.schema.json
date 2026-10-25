@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "properties": {
+    "source": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "finalUrl": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "fetchedAt": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "mediaType": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "sha256": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "trust": {
+      "type": "string",
+      "maxLength": 32,
+      "enum": [
+        "untrusted-source-data"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 16384
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "source",
+    "finalUrl",
+    "fetchedAt",
+    "mediaType",
+    "title",
+    "sha256",
+    "trust",
+    "text",
+    "truncated"
+  ],
+  "additionalProperties": false
+}

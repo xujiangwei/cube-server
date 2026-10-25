@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "properties": {
+    "expression": {
+      "type": "string",
+      "maxLength": 512,
+      "minLength": 1
+    }
+  },
+  "required": [
+    "expression"
+  ],
+  "additionalProperties": false
+}

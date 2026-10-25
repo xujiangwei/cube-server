@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "kind": "policy",
+  "id": "default",
+  "version": "1",
+  "skillReleases": [
+    "REPLACE_WITH_PUBLISHED_RELEASE_DIGEST"
+  ],
+  "permissions": [
+    "skill.list",
+    "skill.activate",
+    "resource.list",
+    "resource.read",
+    "resource.search",
+    "calculator.evaluate"
+  ],
+  "businessLimits": {
+    "maxActiveRuns": 128,
+    "maxLifetimeMillis": 300000
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "maxLength": 7,
+      "enum": [
+        "now",
+        "convert"
+      ]
+    },
+    "zone": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1
+    },
+    "instant": {
+      "type": "string",
+      "maxLength": 64,
+      "minLength": 1
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "additionalProperties": false
+}

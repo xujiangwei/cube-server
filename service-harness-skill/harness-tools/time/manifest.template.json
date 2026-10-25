@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 6,
+  "name": "common/time",
+  "version": "1",
+  "runtime": {
+    "id": "trusted-cpu",
+    "version": "1"
+  },
+  "skillFile": "SKILL.md",
+  "dependencyLock": "dependencies.lock.json",
+  "permissions": [
+    "skill.list",
+    "skill.activate",
+    "resource.list",
+    "resource.read",
+    "resource.search",
+    "time.read"
+  ],
+  "tools": [
+    {
+      "name": "common.time.query",
+      "kind": "executable",
+      "entrypoint": "main.py",
+      "inputSchema": "input.schema.json",
+      "outputSchema": "output.schema.json",
+      "permission": "time.read",
+      "effect": "read-only",
+      "brokerOperation": "common.time.query.v1",
+      "runnerType": "tool"
+    }
+  ],
+  "resources": [
+    {
+      "path": "SKILL.md",
+      "role": "skill",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "dependencies.lock.json",
+      "role": "lock",
+      "mediaType": "application/json"
+    },
+    {
+      "path": "main.py",
+      "role": "entrypoint",
+      "mediaType": "text/plain"
+    },
+    {
+      "path": "input.schema.json",
+      "role": "schema",
+      "mediaType": "application/json"
+    },
+    {
+      "path": "output.schema.json",
+      "role": "schema",
+      "mediaType": "application/json"
+    }
+  ]
+}

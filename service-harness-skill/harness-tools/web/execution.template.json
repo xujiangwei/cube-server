@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "server-default",
+  "version": "1",
+  "kind": "execution",
+  "model": {
+    "id": "offline-scripted",
+    "version": "1"
+  },
+  "runtime": {
+    "id": "trusted-cpu",
+    "version": "1"
+  },
+  "requiredCapabilities": [
+    "resources",
+    "tool_calls",
+    "tool.execute"
+  ],
+  "contextPolicy": {
+    "version": "context-v1",
+    "budgetVersion": "full-json-bytes-v1",
+    "outputReserve": 2048,
+    "maxSourceChars": 4096,
+    "compaction": "extractive-v1",
+    "maxInputBytes": 48000
+  },
+  "executionLimits": {
+    "maxRounds": 8,
+    "maxTools": 16,
+    "maxRepairs": 1,
+    "maxLifetimeMillis": 60000
+  }
+}

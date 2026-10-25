@@ -1,0 +1,58 @@
+{
+  "type": "object",
+  "properties": {
+    "indexDigest": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "trust": {
+      "type": "string",
+      "maxLength": 32,
+      "enum": [
+        "untrusted-source-data"
+      ]
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "sha256": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "documentId",
+          "source",
+          "sha256",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 5
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "indexDigest",
+    "trust",
+    "citations",
+    "truncated"
+  ],
+  "additionalProperties": false
+}

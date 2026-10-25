@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "properties": {
+    "inputId": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "sha256": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "trust": {
+      "type": "string",
+      "maxLength": 32,
+      "enum": [
+        "untrusted-source-data"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 16384
+    },
+    "originalBytes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 16384
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "inputId",
+    "sha256",
+    "trust",
+    "text",
+    "originalBytes",
+    "truncated"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "result": {
+      "type": "string",
+      "maxLength": 4096
+    },
+    "precision": {
+      "type": "string",
+      "maxLength": 16,
+      "enum": [
+        "DECIMAL128"
+      ]
+    }
+  },
+  "required": [
+    "result",
+    "precision"
+  ],
+  "additionalProperties": false
+}

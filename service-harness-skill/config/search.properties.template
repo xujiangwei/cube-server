@@ -1,0 +1,5 @@
+search.url=http://127.0.0.1:8080/search
+# Optional reverse-proxy bearer token, never included in SKILL
+search.token=
+network.timeout.millis=5000
+result.max.bytes=12288

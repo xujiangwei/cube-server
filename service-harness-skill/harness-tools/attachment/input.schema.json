@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "properties": {
+    "inputId": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1
+    }
+  },
+  "required": [
+    "inputId"
+  ],
+  "additionalProperties": false
+}

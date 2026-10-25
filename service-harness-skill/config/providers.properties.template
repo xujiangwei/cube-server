@@ -1,0 +1,14 @@
+# Install the JAR first. Register only the required providers.
+broker.providers=search,web,knowledge,attachment,time,calculator
+broker.provider.search.class=cube.service.harness.skill.SearchProvider
+broker.provider.search.config=C:/private/harness/search.properties
+broker.provider.web.class=cube.service.harness.skill.WebPageProvider
+broker.provider.web.config=C:/private/harness/web.properties
+broker.provider.knowledge.class=cube.service.harness.skill.KnowledgeProvider
+broker.provider.knowledge.config=C:/private/harness/knowledge.properties
+broker.provider.attachment.class=cube.service.harness.skill.TextAttachmentProvider
+broker.provider.attachment.config=C:/private/harness/attachment.properties
+broker.provider.time.class=cube.service.harness.skill.TimeProvider
+broker.provider.time.config=C:/private/harness/time.properties
+broker.provider.calculator.class=cube.service.harness.skill.CalculatorProvider
+broker.provider.calculator.config=C:/private/harness/calculator.properties
