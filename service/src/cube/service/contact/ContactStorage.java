@@ -10,9 +10,12 @@ import cell.core.talk.LiteralBase;
 import cell.util.log.Logger;
 import cube.common.Storagable;
 import cube.common.entity.*;
+import cube.core.ColumnIndex;
 import cube.core.Conditional;
 import cube.core.Constraint;
+import cube.core.RowMapper;
 import cube.core.Storage;
+import cube.core.StorageException;
 import cube.core.StorageField;
 import cube.storage.StorageFactory;
 import cube.storage.StorageFields;
@@ -229,6 +232,16 @@ public class ContactStorage implements Storagable {
                     Constraint.DEFAULT_NULL
             })
     };
+
+    /**
+     * {@link #pointFields} 的列下标，顺序必须与数组逐项一致。
+     */
+    private final static int POINT_ID = 0;
+    private final static int POINT_CONTACT_ID = 1;
+    private final static int POINT_POINT = 2;
+    private final static int POINT_TIMESTAMP = 3;
+    private final static int POINT_SOURCE = 4;
+    private final static int POINT_COMMENT = 5;
 
     /**
      * 会员信息字段。
@@ -2039,7 +2052,7 @@ public class ContactStorage implements Storagable {
         });
     }
 
-    public List<Point> readPoints(long contactId, String domain) {
+    public List<Point> readPoints(final long contactId, final String domain) {
         List<Point> list = new ArrayList<>();
 
         String table = this.pointTableNameMap.get(domain);
@@ -2047,17 +2060,38 @@ public class ContactStorage implements Storagable {
             return list;
         }
 
-        List<StorageField[]> result = this.query(table, this.pointFields, new Conditional[] {
-                Conditional.createEqualTo("contact_id", contactId)
-        });
-        for (StorageField[] fields : result) {
-            Map<String, StorageField> data = StorageFields.get(fields);
-            Point point = new Point(data.get("id").getLong(), domain, data.get("timestamp").getLong(),
-                    data.get("contact_id").getLong(), data.get("point").getInt(),
-                    data.get("source").getString(), data.get("comment").getString());
-            list.add(point);
+        try {
+            // 流式映射：直接产出 Point，不再经过 StorageField 与每行的 HashMap
+            return this.storage.queryList(table, this.pointFields, new Conditional[] {
+                    Conditional.createEqualTo("contact_id", contactId)
+            }, new RowMapper<Point>() {
+                @Override
+                public Point map(Object[] values, ColumnIndex columns) {
+                    return new Point(longOf(values[POINT_ID]), domain,
+                            longOf(values[POINT_TIMESTAMP]),
+                            longOf(values[POINT_CONTACT_ID]),
+                            ((Number) values[POINT_POINT]).intValue(),
+                            (String) values[POINT_SOURCE],
+                            (String) values[POINT_COMMENT]);
+                }
+            });
+        } catch (StorageException e) {
+            // 与既有行为保持一致：失败降级为空列表 + WARN，不把异常抛给上层
+            Logger.w(this.getClass(), "#readPoints - Query failed, return empty list, table: " + table);
+            return list;
         }
-        return list;
+    }
+
+    /**
+     * 读取长整型值，{@code null} 返回 0。
+     *
+     * <p>与 {@code StorageField#getLong()} 对空值的处理保持一致，避免改造前后行为漂移。</p>
+     *
+     * @param value 列值。
+     * @return 长整型值。
+     */
+    private static long longOf(Object value) {
+        return (null == value) ? 0L : ((Number) value).longValue();
     }
 
     public synchronized boolean writeMembership(Membership membership) {

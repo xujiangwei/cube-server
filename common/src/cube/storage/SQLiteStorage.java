@@ -9,8 +9,11 @@ package cube.storage;
 import cell.core.talk.LiteralBase;
 import cell.util.log.Logger;
 import cube.core.AbstractStorage;
+import cube.core.ColumnIndex;
 import cube.core.Conditional;
 import cube.core.Constraint;
+import cube.core.RowVisitor;
+import cube.core.StorageException;
 import cube.core.StorageField;
 import cube.util.SQLUtils;
 import org.json.JSONException;
@@ -559,6 +562,62 @@ public class SQLiteStorage extends AbstractStorage {
         }
 
         return result;
+    }
+
+    /**
+     * 流式遍历查询结果。
+     *
+     * <p><b>注意</b>：SQLite 走单连接 + 全局锁，遍历期间会一直持锁，
+     * 因此只适合小结果集或离线任务；跨表大批量扫描应走 MySQL 路径。
+     * 回调里再访问同一个存储会被同一把锁挡住（同线程可重入，但会在同一连接上交错执行）。</p>
+     *
+     * {@inheritDoc}
+     */
+    @Override
+    public void forEachRow(String table, StorageField[] fields, Conditional[] conditionals,
+                           RowVisitor visitor) {
+        if (null == visitor) {
+            throw new IllegalArgumentException("RowVisitor is required, table: " + table);
+        }
+
+        if (!this.isReady()) {
+            throw new StorageException("Streaming query failed, storage is not open: " + table);
+        }
+
+        String sql = SQLUtils.spellSelect(table, fields, conditionals);
+
+        Statement statement = null;
+        ResultSet resultSet = null;
+        synchronized (this.lock) {
+            try {
+                statement = this.connection.createStatement(ResultSet.TYPE_FORWARD_ONLY,
+                        ResultSet.CONCUR_READ_ONLY);
+                resultSet = statement.executeQuery(sql);
+
+                ColumnIndex columns = (null == fields)
+                        ? ColumnIndex.of(resultSet.getMetaData())
+                        : ColumnIndex.of(fields);
+
+                Object[] values = new Object[columns.size()];
+                while (resultSet.next()) {
+                    for (int i = 0; i < values.length; ++i) {
+                        values[i] = (null == fields)
+                                ? resultSet.getObject(i + 1)
+                                : StorageRows.read(resultSet, i + 1, fields[i].getLiteralBase());
+                    }
+
+                    if (!visitor.visit(values, columns)) {
+                        break;
+                    }
+                }
+            } catch (SQLException e) {
+                Logger.w(this.getClass(), "#forEachRow - SQL: " + sql, e);
+                throw new StorageException("Streaming query failed: " + table, e);
+            } finally {
+                StorageRows.closeQuietly(resultSet);
+                StorageRows.closeQuietly(statement);
+            }
+        }
     }
 
     @Override

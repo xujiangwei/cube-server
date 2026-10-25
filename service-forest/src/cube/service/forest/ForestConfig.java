@@ -1,9 +1,17 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.forest;
 
 import cube.aigc.spi.AIGCHost;
 import org.json.JSONObject;
 
-/** Configuration is private to the forest module; no database is required. */
+/**
+ * Configuration is private to the forest module; no database is required.
+ */
 public final class ForestConfig {
     public static final String UNIT = "forest-detection";
     public final long maxBytes, maxPixels, timeoutMs;

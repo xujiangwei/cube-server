@@ -9,8 +9,11 @@ package cube.storage;
 import cell.core.talk.LiteralBase;
 import cell.util.log.Logger;
 import cube.core.AbstractStorage;
+import cube.core.ColumnIndex;
 import cube.core.Conditional;
 import cube.core.Constraint;
+import cube.core.RowVisitor;
+import cube.core.StorageException;
 import cube.core.StorageField;
 import cube.util.SQLUtils;
 import org.json.JSONObject;
@@ -871,6 +874,65 @@ public class MySQLStorage extends AbstractStorage {
         }
 
         return result;
+    }
+
+    /**
+     * 流式遍历查询结果。
+     *
+     * <p>第 2 个参数 {@code Integer.MIN_VALUE} 是关键：Connector/J 默认会把整个结果集
+     * 先读进客户端内存，不设它的话"流式"只是换了个遍历写法，堆压力一点没降。
+     * 流式结果集在读完之前独占本连接，因此必须走 {@code finally} 释放。</p>
+     *
+     * {@inheritDoc}
+     */
+    @Override
+    public void forEachRow(String table, StorageField[] fields, Conditional[] conditionals,
+                           RowVisitor visitor) {
+        if (null == visitor) {
+            throw new IllegalArgumentException("RowVisitor is required, table: " + table);
+        }
+
+        long beginTime = System.currentTimeMillis();
+
+        Connection connection = this.pool.get();
+        if (null == connection) {
+            this.logQueryFailure(table, conditionals, null, beginTime, null);
+            throw new StorageException("Streaming query failed, no connection: " + table);
+        }
+
+        String sql = SQLUtils.spellSelect(table, fields, conditionals);
+
+        Statement statement = null;
+        ResultSet resultSet = null;
+        try {
+            statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+            statement.setFetchSize(Integer.MIN_VALUE);
+            resultSet = statement.executeQuery(sql);
+
+            ColumnIndex columns = (null == fields)
+                    ? ColumnIndex.of(resultSet.getMetaData())
+                    : ColumnIndex.of(fields);
+
+            Object[] values = new Object[columns.size()];
+            while (resultSet.next()) {
+                for (int i = 0; i < values.length; ++i) {
+                    values[i] = (null == fields)
+                            ? resultSet.getObject(i + 1)
+                            : StorageRows.read(resultSet, i + 1, fields[i].getLiteralBase());
+                }
+
+                if (!visitor.visit(values, columns)) {
+                    break;
+                }
+            }
+        } catch (SQLException e) {
+            this.logQueryFailure(table, conditionals, sql, beginTime, e);
+            throw new StorageException("Streaming query failed: " + table, e);
+        } finally {
+            StorageRows.closeQuietly(resultSet);
+            StorageRows.closeQuietly(statement);
+            this.pool.returnConn(connection);
+        }
     }
 
     @Override

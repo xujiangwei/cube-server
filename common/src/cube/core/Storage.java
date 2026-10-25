@@ -9,6 +9,7 @@ package cube.core;
 import cube.storage.StorageType;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -130,6 +131,63 @@ public interface Storage {
         }
 
         return rows;
+    }
+
+    /**
+     * 逐行遍历查询结果，不把结果集物化进内存。
+     *
+     * <p><b>默认实现不支持</b>：只有真正实现了流式读取的存储器才覆盖本方法。
+     * 这样新增接口方法不会破坏外部实现类的二进制兼容。</p>
+     *
+     * <p><b>契约</b>：</p>
+     * <ol>
+     *     <li>{@code values} 数组在回调之间复用，回调返回后内容会被下一行覆盖，
+     *     需要保留数据必须自行 {@code clone()}；</li>
+     *     <li>遍历期间当前连接被本次查询独占，回调里禁止再对同一个存储发起查询；</li>
+     *     <li>查询失败抛 {@link StorageException}（与 {@link #executeQueryOrThrow} 一致）。</li>
+     * </ol>
+     *
+     * @param table 表名。
+     * @param fields 字段列表，{@code null} 表示全部字段。
+     * @param conditionals 条件列表，允许为 {@code null} 。
+     * @param visitor 行访问器，返回 {@code false} 终止遍历。
+     * @throws StorageException 查询失败或当前实现不支持时抛出。
+     */
+    default void forEachRow(String table, StorageField[] fields, Conditional[] conditionals,
+                            RowVisitor visitor) {
+        throw new UnsupportedOperationException("forEachRow is not supported by "
+                + this.getClass().getName());
+    }
+
+    /**
+     * 查询并逐行映射成业务对象。
+     *
+     * <p>与 {@link #executeQuery} 的差别：不产生 {@link StorageField} 中间层，
+     * 每行只留下调用方自己的对象，适合列表、批量读取等热点路径。</p>
+     *
+     * <p>默认实现在 {@link #forEachRow} 之上实现；存储器不支持流式读取时抛
+     * {@link UnsupportedOperationException}。</p>
+     *
+     * @param table 表名。
+     * @param fields 字段列表，{@code null} 表示全部字段。
+     * @param conditionals 条件列表，允许为 {@code null} 。
+     * @param mapper 行映射器。
+     * @param <T> 映射结果类型。
+     * @return 结果列表，永不为 {@code null} 。
+     * @throws StorageException 查询失败时抛出。
+     */
+    default <T> List<T> queryList(String table, StorageField[] fields, Conditional[] conditionals,
+                                  final RowMapper<T> mapper) {
+        final List<T> result = new ArrayList<>();
+        this.forEachRow(table, fields, conditionals, new RowVisitor() {
+            @Override
+            public boolean visit(Object[] values, ColumnIndex columns) {
+                result.add(mapper.map(values, columns));
+                return true;
+            }
+        });
+
+        return result;
     }
 
     boolean execute(String sql);
