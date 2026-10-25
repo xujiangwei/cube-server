@@ -100,6 +100,11 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     private final UnitScheduler unitScheduler;
 
+    private final cube.service.aigc.unit.PluginUnitInvoker pluginUnits =
+            new cube.service.aigc.unit.PluginUnitInvoker(this);
+
+    public cube.service.aigc.unit.PluginUnitInvoker getPluginUnits() { return this.pluginUnits; }
+
     /**
      * 频道管理器：频道的创建、查询、保活与回收。
      */
@@ -1003,8 +1008,17 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                 models.put(new JSONObject().put("id", model.getModel()).put("unit", model.getUnitName()));
             }
         }
+        JSONArray modules = new JSONArray();
+        cube.service.aigc.spi.ModuleRegistry registry = this.cellet == null ? null : this.cellet.getModuleRegistry();
+        if (registry != null) for (cube.aigc.spi.ActionModule module : registry.getModules()) {
+            JSONArray actions = new JSONArray();
+            for (cube.aigc.spi.ActionBinding binding : module.getActions()) actions.put(binding.action);
+            modules.put(new JSONObject().put("name", module.getName()).put("actions", actions));
+        }
+        // Additive extension: v1 discovery clients continue reading their original fields.
         return new JSONObject().put("version", 1).put("instanceId", this.capabilityInstanceId)
-                .put("ready", ready).put("units", units).put("models", models);
+                .put("ready", ready).put("units", units).put("models", models)
+                .put("moduleRoutingVersion", 1).put("modules", modules);
     }
 
     @Override

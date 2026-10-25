@@ -100,8 +100,20 @@ public class UnitScheduler {
      * @param context      通信上下文。
      * @return 返回本次涉及的单元列表。
      */
-    public List<AIGCUnit> setup(Contact contact, List<AICapability> capabilities, TalkContext context) {
+    public synchronized List<AIGCUnit> setup(Contact contact, List<AICapability> capabilities, TalkContext context) {
         List<AIGCUnit> result = new ArrayList<>(capabilities.size());
+
+        Set<String> reported = new HashSet<>();
+        for (AICapability capability : capabilities) reported.add(AIGCUnit.makeQueryKey(contact, capability));
+        for (Map.Entry<String, AIGCUnit> entry : new ArrayList<>(this.unitMap.entrySet())) {
+            Contact previous = entry.getValue().getContact();
+            if (previous.getId().equals(contact.getId())
+                    && previous.getDomain().getName().equals(contact.getDomain().getName())
+                    && !reported.contains(entry.getKey())) {
+                if (this.unitMap.remove(entry.getKey(), entry.getValue()))
+                    EventCenter.getInstance().removeUnitMeta(entry.getValue());
+            }
+        }
 
         for (AICapability capability : capabilities) {
             String key = AIGCUnit.makeQueryKey(contact, capability);
@@ -133,13 +145,14 @@ public class UnitScheduler {
      * @param contact 联系人。
      * @return 返回被注销的单元列表。
      */
-    public List<AIGCUnit> teardown(Contact contact) {
+    public synchronized List<AIGCUnit> teardown(Contact contact) {
         List<AIGCUnit> result = new ArrayList<>();
 
         Iterator<AIGCUnit> iter = this.unitMap.values().iterator();
         while (iter.hasNext()) {
             AIGCUnit unit = iter.next();
-            if (unit.getContact().getId().equals(contact.getId())) {
+            if (unit.getContact().getId().equals(contact.getId())
+                    && unit.getContact().getDomain().getName().equals(contact.getDomain().getName())) {
                 result.add(unit);
                 iter.remove();
                 // 从事件中心移除
@@ -155,7 +168,7 @@ public class UnitScheduler {
      *
      * @return 返回单元列表。
      */
-    public List<AIGCUnit> getAll() {
+    public synchronized List<AIGCUnit> getAll() {
         List<AIGCUnit> list = new ArrayList<>(this.unitMap.size());
         list.addAll(this.unitMap.values());
         return list;

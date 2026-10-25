@@ -672,6 +672,14 @@ public final class AIGCHostImpl implements AIGCHost {
     // ───────── 文件与资源 ─────────
 
     @Override
+    public ActionDialect invokePluginUnit(String name, JSONObject input, long timeoutMs) {
+        return this.service.getPluginUnits().invoke(name, input, timeoutMs);
+    }
+
+    @Override
+    public int countPluginUnits(String name) { return this.service.getPluginUnits().count(name); }
+
+    @Override
     public FileLabel getFile(String domain, String fileCode) {
         if (null == domain || null == fileCode) {
             return null;

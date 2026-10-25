@@ -54,6 +54,10 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
     private final AtomicBoolean responded = new AtomicBoolean(false);
 
     private volatile boolean cancelled = false;
+    private volatile boolean deferred = false;
+
+    @Override
+    public void deferResponse() { this.deferred = true; }
 
     private AuthToken authToken;
 
@@ -111,7 +115,7 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
             // ⚠️ 流式动作不补：处理器交回控制权时首段可能仍在生成中，
             //    此时补一个空成功会让客户端把后续片段当成 unsolicited。
             //    流式动作的「必须应答」由处理器自己负责。
-            if (!this.binding.streaming && !this.isResponded()) {
+            if (!this.binding.streaming && !this.deferred && !this.isResponded()) {
                 this.respondEmpty(stateCode);
             }
         } catch (Exception e) {
@@ -123,7 +127,7 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
             }
         } finally {
             // 与既有任务类的语义一致，但用 finally 收口，避免处理器异常导致计时记录缺少结束标记
-            this.markResponseTime();
+            if (!this.deferred) this.markResponseTime();
         }
     }
 
@@ -177,8 +181,12 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
         }
 
         // makeResponse 内部会把请求上的 _performer 复制到应答，dispatcher 依此回送
-        this.cellet.speak(this.talkContext,
-                this.makeResponse(this.dialect, this.request, code.code, data));
+        try {
+            this.cellet.speak(this.talkContext,
+                    this.makeResponse(this.dialect, this.request, code.code, data));
+        } finally {
+            if (this.deferred) this.markResponseTime();
+        }
     }
 
     @Override

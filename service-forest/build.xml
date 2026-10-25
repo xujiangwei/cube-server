@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="cube-service-forest" default="build-release" basedir=".">
+    <property name="version.brand" value="3.0"/>
+    <property name="lib.dir" value="../../cube-server-dependencies"/>
+    <property name="dependencies.dir" value="../build"/>
+    <property name="build.dir" value="build"/>
+    <property name="build.classes" value="${build.dir}/classes"/>
+    <property name="build.jar" value="${build.dir}/jar"/>
+    <path id="master-classpath">
+        <fileset dir="${lib.dir}"><include name="*.jar"/></fileset>
+        <fileset dir="${dependencies.dir}">
+            <include name="cube-common-*.jar"/>
+            <include name="cube-dispatcher-*.jar"/>
+        </fileset>
+    </path>
+    <target name="init"><mkdir dir="${build.classes}"/><mkdir dir="${build.jar}"/></target>
+    <target name="clean"><delete dir="${build.dir}"/></target>
+    <target name="debug" depends="clean,init">
+        <javac srcdir="src" destdir="${build.classes}" source="1.8" target="1.8"
+               encoding="UTF-8" debug="on" includeantruntime="false" fork="yes">
+            <classpath refid="master-classpath"/>
+        </javac>
+        <jar destfile="${build.jar}/cube-service-forest.jar" basedir="${build.classes}"/>
+    </target>
+    <target name="release" depends="clean,init">
+        <javac srcdir="src" destdir="${build.classes}" source="1.8" target="1.8"
+               encoding="UTF-8" debug="off" includeantruntime="false" fork="yes">
+            <classpath refid="master-classpath"/>
+        </javac>
+        <jar destfile="${build.jar}/cube-service-forest.jar" basedir="${build.classes}"/>
+    </target>
+    <target name="build-debug" depends="debug">
+        <copy file="${build.jar}/cube-service-forest.jar" tofile="${dependencies.dir}/cube-service-forest-${version.brand}.jar"/>
+    </target>
+    <target name="build-release" depends="release">
+        <copy file="${build.jar}/cube-service-forest.jar" tofile="${dependencies.dir}/cube-service-forest-${version.brand}.jar"/>
+    </target>
+</project>

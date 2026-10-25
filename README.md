@@ -35,6 +35,7 @@
 | 服务单元 | `service/` | 独立进程 | 业务落点：Cell 容器 + Kernel 模块化结构，承载 AIGC、联系人、文件、协同、机器人等能力 |
 | 资源执行单元 | `service-harness/` | 可选 Cellet | 资源循环与推理编排：worker 注册、RunStore 账本、模型调度，配套 Python Harness |
 | 业务模块 | `service-psychology/` | 插件 jar | 心理学业务模块（AIGC Module 形态）：37 个业务动作 + 30 个 REST 端点 |
+| 森林模块 | `service-forest/` | 可选插件 jar | 通过 Python OmniForest 检测树冠，提供检测及能力查询接口；启停与接入见 [使用说明](service-forest/README.md) |
 | 公共库 | `common/` | jar | 协议包、实体模型、动作枚举、模块 SPI（`cube.aigc.spi.*`）、存储与工具 |
 | 控制台 | `console/` | Web | 管理界面：管理/监视多个服务节点 |
 | 应用服务器 | `server-app/` | 独立进程 | 应用型服务入口（基于 `cube.client.*` SDK） |

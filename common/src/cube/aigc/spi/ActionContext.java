@@ -107,6 +107,9 @@ public interface ActionContext {
      */
     boolean isResponded();
 
+    /** Opt into one deferred response, preserving the normal duplicate-response guard. */
+    default void deferResponse() { throw new UnsupportedOperationException("Deferred responses are unavailable"); }
+
     /**
      * 提交异步任务。
      *

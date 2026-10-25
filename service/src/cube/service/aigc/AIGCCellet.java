@@ -397,6 +397,7 @@ public class AIGCCellet extends AbstractCellet {
 
         if (dialect.containsParam(Responder.NotifierKey)) {
             // 应答阻塞访问
+            this.service.getPluginUnits().complete(talkContext, dialect);
             for (Responder responder : this.responderList) {
                 if (responder.isResponse(dialect)) {
                     responder.notifyResponse(dialect);

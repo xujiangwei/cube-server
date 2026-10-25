@@ -490,6 +490,22 @@ public class Manager implements Tickable, PerformerListener {
         return (null != this.checkAndGetToken(token, device));
     }
 
+    /** Module-owned actions need no central enum; preserve the full response code. */
+    public Packet syncModuleRequest(String token, String module, String action, String requiredUnit,
+                                    JSONObject data, long timeoutMs) {
+        if (module == null || !module.matches("[a-z][a-z0-9-]{0,63}")
+                || action == null || !action.matches("[A-Za-z][A-Za-z0-9]{0,95}")
+                || timeoutMs <= 0 || timeoutMs > 3600000)
+            throw new IllegalArgumentException("Invalid module request");
+        ActionDialect request = new Packet(action, data).toDialect();
+        request.addParam("token", token);
+        request.addParam("moduleName", module);
+        request.addParam("moduleUnit", requiredUnit == null ? "" : requiredUnit);
+        ActionDialect response = this.syncTransmit(AIGCCellet.NAME, request, timeoutMs);
+        if (response == null) throw new cube.aigc.spi.PluginCallException(AIGCStateCode.UnitError, 504, "Module request timed out");
+        return new Packet(response);
+    }
+
     public String checkAndGetToken(String token, Device device) {
         ContactToken contactToken = this.resolveContactToken(token, device);
         return null == contactToken ? null : contactToken.authToken.getCode();

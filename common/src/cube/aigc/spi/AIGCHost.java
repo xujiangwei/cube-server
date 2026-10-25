@@ -428,6 +428,15 @@ public interface AIGCHost {
      */
     ActionDialect invokeUnit(AIGCUnit unit, String action, JSONObject data, long timeoutMs);
 
+    /** Invoke a named plugin using its dedicated channel, without built-in fallback. */
+    default ActionDialect invokePluginUnit(String unitName, JSONObject input, long timeoutMs) {
+        throw new PluginCallException(cube.common.state.AIGCStateCode.UnitError, 503,
+                "This host does not support plugin unit calls");
+    }
+
+    /** Connected providers; registration does not imply model readiness. */
+    default int countPluginUnits(String unitName) { return 0; }
+
     // ───────── 文件与资源 ─────────
 
     /**

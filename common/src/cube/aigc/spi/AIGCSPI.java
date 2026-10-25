@@ -18,11 +18,11 @@ public final class AIGCSPI {
      * SPI 契约版本。
      *
      * <p>模块各自编译期固化此值；运行期由
-     * {@link ModuleDescriptor#spiVersion} 与本值比对，不匹配即拒绝加载，
-     * 不做静默降级。</p>
+     * {@link ModuleDescriptor#spiVersion} 经 {@link #isCompatible(int)} 校验，
+     * 不支持的版本拒绝加载。</p>
      *
-     * <p>取值递增代表契约有增补：模块声明的版本低于此值时，
-     * 说明其依赖了宿主尚未提供的能力，直接拒绝加载而非降级运行。</p>
+     * <p>v26 仅新增默认方法，显式兼容 v25 的已有插件；未来版本不能自动视为兼容。
+     * v26 森林插件需在 v26 宿主上运行。</p>
      *
      * <p><b>宿主服务能力</b>：{@link AIGCHost#getContact}、
      * {@link AIGCHost#getMembership}、{@link AIGCHost#getRemainingUsages}、
@@ -54,7 +54,8 @@ public final class AIGCSPI {
  * {@code SpeechModuleListener} 由各业务模块自行订阅，宿主不再内置任何
  * 业务角色分类。</p>
  */
-    public final static int VERSION = 25;
+    // v26 adds only default methods: v25 plugins remain binary compatible.
+    public final static int VERSION = 26;
 
     private AIGCSPI() {
     }
@@ -63,9 +64,9 @@ public final class AIGCSPI {
      * 判断模块声明的 SPI 版本是否受当前宿主支持。
      *
      * @param spiVersion 模块声明的 SPI 版本。
-     * @return 版本一致时返回 <code>true</code>。
+     * @return 当前支持 v25 或 v26 时返回 <code>true</code>。
      */
     public static boolean isCompatible(int spiVersion) {
-        return VERSION == spiVersion;
+        return VERSION == spiVersion || spiVersion == 25;
     }
 }

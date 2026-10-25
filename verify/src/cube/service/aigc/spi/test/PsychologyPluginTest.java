@@ -139,7 +139,7 @@ public class PsychologyPluginTest {
             // 场景3：描述符合规性
             ModuleDescriptor descriptor = module.getDescriptor();
             assertTrue("S3 模块名与描述符名一致", module.getName().equals(descriptor.name));
-            assertTrue("S3 SPI 版本一致", descriptor.spiVersion == AIGCSPI.VERSION);
+            assertTrue("S3 SPI 版本受宿主支持", AIGCSPI.isCompatible(descriptor.spiVersion));
             assertTrue("S3 不声明必需单元能力", descriptor.requiredCapabilities.isEmpty());
             assertTrue("S3 声明为非可选模块", !descriptor.optional);
 

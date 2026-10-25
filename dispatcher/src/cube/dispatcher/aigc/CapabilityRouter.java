@@ -175,6 +175,7 @@ public final class CapabilityRouter {
         String action = dialect.getName();
         JSONObject data = new Packet(dialect).data;
         if (AIGCAction.GetCapabilitySnapshot.name.equals(action)) throw unavailable("Internal discovery action");
+        if (dialect.containsParam("moduleName")) return selectModule(dialect, action);
         String channel = data.optString("channel", data.optString("code", ""));
         boolean chat = AIGCAction.Chat.name.equals(action);
         boolean requestChannel = AIGCAction.RequestChannel.name.equals(action);
@@ -218,6 +219,37 @@ public final class CapabilityRouter {
         Director director = eligible.get((int) Math.floorMod(cursor, (long) eligible.size()));
         cursors.put(key, cursor == Long.MAX_VALUE ? 0 : cursor + 1);
         return director;
+    }
+
+    private Director selectModule(ActionDialect request, String action) {
+        String module = request.getParamAsString("moduleName");
+        String unit = request.containsParam("moduleUnit") ? request.getParamAsString("moduleUnit") : "";
+        if (module == null || module.isEmpty()) throw unavailable("Missing module name");
+        List<Director> eligible = new ArrayList<>();
+        for (Director director : candidates()) {
+            JSONObject snapshot = states.get(director).snapshot.json;
+            if (snapshot.optInt("moduleRoutingVersion", 0) != 1) continue;
+            JSONArray modules = snapshot.optJSONArray("modules");
+            boolean ownsAction = false;
+            if (modules != null) for (int i = 0; i < modules.length(); i++) {
+                JSONObject entry = modules.getJSONObject(i);
+                if (!module.equals(entry.optString("name"))) continue;
+                JSONArray actions = entry.optJSONArray("actions");
+                if (actions != null) for (int j = 0; j < actions.length(); j++)
+                    if (action.equals(actions.getString(j))) ownsAction = true;
+            }
+            boolean hasUnit = unit == null || unit.isEmpty();
+            JSONArray units = states.get(director).snapshot.units;
+            if (!hasUnit) for (int i = 0; i < units.length(); i++)
+                if (unit.equals(units.getJSONObject(i).getJSONObject("capability").getString("name"))) hasUnit = true;
+            if (ownsAction && hasUnit) eligible.add(director);
+        }
+        if (eligible.isEmpty()) throw unavailable("Module action unavailable: " + module + "/" + action);
+        String key = "module:" + module + ":" + action + ":" + unit;
+        if (cursors.size() > 4096) cursors.clear();
+        long cursor = cursors.getOrDefault(key, 0L);
+        cursors.put(key, cursor == Long.MAX_VALUE ? 0 : cursor + 1);
+        return eligible.get((int) Math.floorMod(cursor, (long) eligible.size()));
     }
 
     private String completionKey(JSONObject request) {

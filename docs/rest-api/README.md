@@ -1,5 +1,9 @@
 # 文档说明
 
+## 森林场景 OmniForest
+
+森林接口已加入 apiDoc，源码见 [Forest.js](src/Forest.js)：上传图片后调用 `POST /aigc/forest/detect/:token` 获取树冠数量及位置，或调用 `GET /aigc/forest/capability/:token` 查询限制和在线提供者。业务地址使用 dispatcher，响应统一为 `{code,data}`。安装和启停配置见 [service-forest 说明](../../service-forest/README.md)。
+
 ## Harness 资源任务
 
 Harness 的 18 个业务接口已纳入 apiDoc，接口源码见 [Harness.js](src/Harness.js)，生成页面见 [Harness 接口文档](output/index.html#api-Harness)。部署、认证与接入流程见 [Harness 任务 API](src/Harness.md)，涵盖任务、控制/审批、文件/产物、反馈、trace 与 SSE。

@@ -22,6 +22,7 @@
 	<property name="project-service-multipointcomm.dir" value="service-multipointcomm" />
 	<property name="project-service-conference.dir" value="service-conference" />
 	<property name="project-service-psychology.dir" value="service-psychology" />
+	<property name="project-service-forest.dir" value="service-forest" />
 	<property name="project-service-riskmgmt.dir" value="service-riskmgmt" />
 
 	<property name="project-ferryboat.dir" value="ferryboat" />
@@ -127,6 +128,7 @@
 	<!-- Builds all service projects for debug                               -->
 	<!-- =================================================================== -->
 	<target name="build-service-debug" depends="build-common-debug,build-dispatcher-debug">
+		<ant dir="${project-service-forest.dir}" target="build-debug" inheritall="false" inheritrefs="false" />
 		<!-- 心理学业务模块插件。
 		     ⚠️ 必须排在 service 之前：该模块的 dispatcher 子包向网关注入 REST 端点，
 		     编译期引用 cube-dispatcher-*.jar，故 depends 里加了 build-dispatcher-debug。
@@ -178,6 +180,7 @@
 	<!-- Builds all service projects for release                             -->
 	<!-- =================================================================== -->
 	<target name="build-service-release" depends="build-common-release,build-dispatcher-release">
+		<ant dir="${project-service-forest.dir}" target="build-release" inheritall="false" inheritrefs="false" />
 		<!-- 心理学业务模块插件。必须排在 service 之前，理由同 build-service-debug。 -->
 		<ant antfile="build.xml"
 				dir="${project-service-psychology.dir}"

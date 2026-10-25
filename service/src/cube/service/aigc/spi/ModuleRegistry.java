@@ -504,7 +504,7 @@ public final class ModuleRegistry {
      * 宿主不预置业务能力名，无从判断「缺失」是配置错误还是部署预期。
      * 因此此处只记录明确的 WARN，把判断权交给运维。</p>
      *
-     * @return 全部已装载模块的声明能力均可用时返回 <code>true</code>。
+     * @return 全部非可选模块的声明能力均可用时返回 <code>true</code>。
      */
     public boolean verifyCapabilities() {
     boolean allAvailable = true;
@@ -517,17 +517,16 @@ public final class ModuleRegistry {
 
         for (String capability : descriptor.requiredCapabilities) {
             if (null == this.host || !this.host.hasUnit(capability)) {
-                // 能力缺失意味着该模块的核心动作无法执行，属故障而非提示，
-                // 故记 ERROR：模块已装载但功能不可用，宿主据此回ModuleNotLoaded
-                Logger.e(ModuleRegistry.class, "#verifyCapabilities - Module \"" + module.getName()
-                        + "\" requires capability \"" + capability + "\" but NO unit is available");
-                allAvailable = false;
+                String message = "#verifyCapabilities - Module \"" + module.getName()
+                        + "\" requires capability \"" + capability + "\" but NO unit is available";
+                if (descriptor.optional) Logger.w(ModuleRegistry.class, message);
+                else { Logger.e(ModuleRegistry.class, message); allAvailable = false; }
             }
         }
     }
 
     if (allAvailable) {
-        Logger.i(ModuleRegistry.class, "#verifyCapabilities - All required capabilities of "
+        Logger.i(ModuleRegistry.class, "#verifyCapabilities - Required capabilities of non-optional modules among "
                 + this.modules.size() + " module(s) are available");
     }
 
