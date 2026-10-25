@@ -894,16 +894,23 @@ public class MySQLStorage extends AbstractStorage {
 
         long beginTime = System.currentTimeMillis();
 
-        Connection connection = this.pool.get();
+        // 在借用前完成参数校验和 SQL 构建，避免参数异常泄漏连接。
+        fields = StorageRows.copyFields(fields);
+        String sql = SQLUtils.spellSelect(table, fields, conditionals);
+        ConnectionPool current = this.pool;
+        if (null == current) {
+            this.logQueryFailure(table, conditionals, null, beginTime, null);
+            throw new StorageException("Streaming query failed, storage is not open: " + table);
+        }
+        Connection connection = current.get();
         if (null == connection) {
             this.logQueryFailure(table, conditionals, null, beginTime, null);
             throw new StorageException("Streaming query failed, no connection: " + table);
         }
 
-        String sql = SQLUtils.spellSelect(table, fields, conditionals);
-
         Statement statement = null;
         ResultSet resultSet = null;
+        boolean reusable = true;
         try {
             statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
             statement.setFetchSize(Integer.MIN_VALUE);
@@ -926,12 +933,18 @@ public class MySQLStorage extends AbstractStorage {
                 }
             }
         } catch (SQLException e) {
+            reusable = null == e.getSQLState() || !e.getSQLState().startsWith("08");
             this.logQueryFailure(table, conditionals, sql, beginTime, e);
             throw new StorageException("Streaming query failed: " + table, e);
         } finally {
-            StorageRows.closeQuietly(resultSet);
-            StorageRows.closeQuietly(statement);
-            this.pool.returnConn(connection);
+            reusable = StorageRows.closeQuietly(resultSet) && reusable;
+            reusable = StorageRows.closeQuietly(statement) && reusable;
+            // close/open 可能更换池；连接必须归还到借用时的池。
+            if (reusable) {
+                current.returnConn(connection);
+            } else {
+                current.discard(connection);
+            }
         }
     }
 
@@ -1222,17 +1235,21 @@ public class MySQLStorage extends AbstractStorage {
                 Iterator<Connection> iter = this.connections.iterator();
                 while (iter.hasNext()) {
                     Connection conn = iter.next();
-                    Long timestamp = this.timestamps.get(conn);
-                    if (null != timestamp) {
-                        if (System.currentTimeMillis() - timestamp > 60 * 1000) {
+                    boolean expired = false;
+                    // 与 get() 的 poll 使用同一把锁，并确认取得空闲连接所有权。
+                    synchronized (this) {
+                        Long timestamp = this.timestamps.get(conn);
+                        if (null != timestamp && System.currentTimeMillis() - timestamp > 60 * 1000
+                                && this.connections.remove(conn)) {
                             this.timestamps.remove(conn);
-                            iter.remove();
-                            try {
-                                conn.close();
-                            } catch (Exception e) {
-                                // 释放失败不影响主流程，仅记录
-                                Logger.d(MySQLStorage.class, "#run - Failed to close 'conn': " + e.getMessage());
-                            }
+                            expired = true;
+                        }
+                    }
+                    if (expired) {
+                        try {
+                            conn.close();
+                        } catch (Exception e) {
+                            Logger.d(MySQLStorage.class, "#run - Failed to close 'conn': " + e.getMessage());
                         }
                     }
                 }

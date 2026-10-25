@@ -8,6 +8,7 @@ package cube.storage;
 
 import cell.core.talk.LiteralBase;
 import cell.util.log.Logger;
+import cube.core.StorageField;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -17,12 +18,26 @@ import java.sql.Statement;
  * 流式读取用的行值提取与资源释放工具。
  *
  * <p>核心是<b>保留 SQL NULL</b>：{@code getLong} 对 NULL 返回 0，直接装箱会把
- * "空值"变成"零值"，破坏调用方 {@code isNullValue()} 的语义。因此数值类型统一用
- * {@code wasNull()} 判断。</p>
+ * "空值"变成"零值"。新行 API 统一用 {@code wasNull()} 区分二者；
+ * 旧的带类型 {@code executeQuery} 仍保持原有的数值 getter 行为。</p>
  */
 final class StorageRows {
 
     private StorageRows() {
+    }
+
+    /** 快照投影，空数组与 SQLUtils 的 SELECT * 语义一致。 */
+    static StorageField[] copyFields(StorageField[] fields) {
+        if (null == fields || 0 == fields.length) {
+            return null;
+        }
+        StorageField[] copy = fields.clone();
+        for (StorageField field : copy) {
+            if (null == field) {
+                throw new IllegalArgumentException("Query fields must not contain null");
+            }
+        }
+        return copy;
     }
 
     /**
@@ -59,27 +74,31 @@ final class StorageRows {
         }
     }
 
-    static void closeQuietly(ResultSet resultSet) {
+    static boolean closeQuietly(ResultSet resultSet) {
         if (null == resultSet) {
-            return;
+            return true;
         }
 
         try {
             resultSet.close();
+            return true;
         } catch (SQLException e) {
             Logger.d(StorageRows.class, "#closeQuietly - Failed to close result set: " + e.getMessage());
+            return false;
         }
     }
 
-    static void closeQuietly(Statement statement) {
+    static boolean closeQuietly(Statement statement) {
         if (null == statement) {
-            return;
+            return true;
         }
 
         try {
             statement.close();
+            return true;
         } catch (SQLException e) {
             Logger.d(StorageRows.class, "#closeQuietly - Failed to close statement: " + e.getMessage());
+            return false;
         }
     }
 }

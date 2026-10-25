@@ -144,14 +144,17 @@ public interface Storage {
      *     <li>{@code values} 数组在回调之间复用，回调返回后内容会被下一行覆盖，
      *     需要保留数据必须自行 {@code clone()}；</li>
      *     <li>遍历期间当前连接被本次查询独占，回调里禁止再对同一个存储发起查询；</li>
-     *     <li>查询失败抛 {@link StorageException}（与 {@link #executeQueryOrThrow} 一致）。</li>
+     *     <li>查询失败抛 {@link StorageException}；回调的运行时异常原样传播，资源仍会释放；</li>
+     *     <li>提前终止只保证停止回调；驱动释放结果集时可能仍需读取剩余数据。</li>
      * </ol>
      *
      * @param table 表名。
-     * @param fields 字段列表，{@code null} 表示全部字段。
+     * @param fields 字段列表，{@code null} 或空数组表示全部字段，数组元素不可为 {@code null}。
      * @param conditionals 条件列表，允许为 {@code null} 。
      * @param visitor 行访问器，返回 {@code false} 终止遍历。
-     * @throws StorageException 查询失败或当前实现不支持时抛出。
+     * @throws StorageException 查询失败或存储未打开时抛出。
+     * @throws UnsupportedOperationException 当前实现不支持时抛出。
+     * @throws IllegalArgumentException 访问器或字段元素为空时抛出。
      */
     default void forEachRow(String table, StorageField[] fields, Conditional[] conditionals,
                             RowVisitor visitor) {
@@ -167,17 +170,24 @@ public interface Storage {
      *
      * <p>默认实现在 {@link #forEachRow} 之上实现；存储器不支持流式读取时抛
      * {@link UnsupportedOperationException}。</p>
+     * <p>结果列表仍保留全部业务对象，内存随行数增长；本方法减少的是中间行对象。
+     * 映射器的运行时异常原样传播，映射器不得保留复用的行数组引用。</p>
      *
      * @param table 表名。
-     * @param fields 字段列表，{@code null} 表示全部字段。
+     * @param fields 字段列表，{@code null} 或空数组表示全部字段，数组元素不可为 {@code null}。
      * @param conditionals 条件列表，允许为 {@code null} 。
      * @param mapper 行映射器。
      * @param <T> 映射结果类型。
      * @return 结果列表，永不为 {@code null} 。
      * @throws StorageException 查询失败时抛出。
+     * @throws IllegalArgumentException 映射器或字段元素为空时抛出。
+     * @throws UnsupportedOperationException 当前实现不支持时抛出。
      */
     default <T> List<T> queryList(String table, StorageField[] fields, Conditional[] conditionals,
                                   final RowMapper<T> mapper) {
+        if (null == mapper) {
+            throw new IllegalArgumentException("RowMapper is required, table: " + table);
+        }
         final List<T> result = new ArrayList<>();
         this.forEachRow(table, fields, conditionals, new RowVisitor() {
             @Override

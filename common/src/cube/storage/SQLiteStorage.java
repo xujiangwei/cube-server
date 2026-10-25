@@ -54,25 +54,27 @@ public class SQLiteStorage extends AbstractStorage {
 
     @Override
     public void open() {
-        if (null != this.connection) {
-            return;
-        }
+        synchronized (this.lock) {
+            if (null != this.connection) {
+                return;
+            }
 
-        JSONObject config = this.getConfig();
-        String file = null;
-        try {
-            file = config.getString(CONFIG_FILE);
-        } catch (JSONException e) {
-            Logger.e(this.getClass(), "Open SQLite Storage", e);
-            return;
-        }
+            JSONObject config = this.getConfig();
+            String file = null;
+            try {
+                file = config.getString(CONFIG_FILE);
+            } catch (JSONException e) {
+                Logger.e(this.getClass(), "Open SQLite Storage", e);
+                return;
+            }
 
-        try {
-            this.connection = DriverManager.getConnection("jdbc:sqlite:" + file);
-            this.applyPragmas();
-            Logger.i(this.getClass(), "SQLite storage is ready: " + file);
-        } catch (SQLException e) {
-            Logger.e(this.getClass(), "Open SQLite Storage", e);
+            try {
+                this.connection = DriverManager.getConnection("jdbc:sqlite:" + file);
+                this.applyPragmas();
+                Logger.i(this.getClass(), "SQLite storage is ready: " + file);
+            } catch (SQLException e) {
+                Logger.e(this.getClass(), "Open SQLite Storage", e);
+            }
         }
     }
 
@@ -104,17 +106,19 @@ public class SQLiteStorage extends AbstractStorage {
 
     @Override
     public void close() {
-        if (null == this.connection) {
-            return;
-        }
+        synchronized (this.lock) {
+            if (null == this.connection) {
+                return;
+            }
 
-        try {
-            this.connection.close();
-        } catch (SQLException e) {
-            Logger.e(this.getClass(), "Close SQLite Storage", e);
-        }
+            try {
+                this.connection.close();
+            } catch (SQLException e) {
+                Logger.e(this.getClass(), "Close SQLite Storage", e);
+            }
 
-        this.connection = null;
+            this.connection = null;
+        }
     }
 
     @Override
@@ -533,35 +537,37 @@ public class SQLiteStorage extends AbstractStorage {
 
     @Override
     public List<StorageField[]> executeQuery(String sql) {
-        ArrayList<StorageField[]> result = new ArrayList<>();
+        synchronized (this.lock) {
+            ArrayList<StorageField[]> result = new ArrayList<>();
 
-        if (!this.isReady()) {
-            return result;
-        }
-
-        Statement statement = null;
-
-        try {
-            statement = this.connection.createStatement();
-            ResultSet rs = statement.executeQuery(sql);
-            while (rs.next()) {
-                StorageField[] row = StorageFields.scanResultSet(rs);
-                result.add(row);
+            if (!this.isReady()) {
+                return result;
             }
-        } catch (SQLException e) {
-            Logger.d(this.getClass(), e.getMessage());
-        } finally {
-            if (null != statement) {
-                try {
-                    statement.close();
-                } catch (SQLException e) {
-                    // 释放失败不影响主流程，仅记录
-                    Logger.d(SQLiteStorage.class, "#executeQuery - Failed to close 'statement': " + e.getMessage());
+
+            Statement statement = null;
+
+            try {
+                statement = this.connection.createStatement();
+                ResultSet rs = statement.executeQuery(sql);
+                while (rs.next()) {
+                    StorageField[] row = StorageFields.scanResultSet(rs);
+                    result.add(row);
+                }
+            } catch (SQLException e) {
+                Logger.d(this.getClass(), e.getMessage());
+            } finally {
+                if (null != statement) {
+                    try {
+                        statement.close();
+                    } catch (SQLException e) {
+                        // 释放失败不影响主流程，仅记录
+                        Logger.d(SQLiteStorage.class, "#executeQuery - Failed to close 'statement': " + e.getMessage());
+                    }
                 }
             }
-        }
 
-        return result;
+            return result;
+        }
     }
 
     /**
@@ -569,7 +575,7 @@ public class SQLiteStorage extends AbstractStorage {
      *
      * <p><b>注意</b>：SQLite 走单连接 + 全局锁，遍历期间会一直持锁，
      * 因此只适合小结果集或离线任务；跨表大批量扫描应走 MySQL 路径。
-     * 回调里再访问同一个存储会被同一把锁挡住（同线程可重入，但会在同一连接上交错执行）。</p>
+     * 回调里不要查询或关闭同一个存储；同线程的锁可重入，不能用它保护回调内的嵌套访问。</p>
      *
      * {@inheritDoc}
      */
@@ -580,17 +586,19 @@ public class SQLiteStorage extends AbstractStorage {
             throw new IllegalArgumentException("RowVisitor is required, table: " + table);
         }
 
-        if (!this.isReady()) {
-            throw new StorageException("Streaming query failed, storage is not open: " + table);
-        }
-
+        fields = StorageRows.copyFields(fields);
         String sql = SQLUtils.spellSelect(table, fields, conditionals);
 
         Statement statement = null;
         ResultSet resultSet = null;
         synchronized (this.lock) {
+            // 与 open/close 共用锁，避免就绪检查和使用连接之间被关闭。
+            Connection current = this.connection;
+            if (null == current) {
+                throw new StorageException("Streaming query failed, storage is not open: " + table);
+            }
             try {
-                statement = this.connection.createStatement(ResultSet.TYPE_FORWARD_ONLY,
+                statement = current.createStatement(ResultSet.TYPE_FORWARD_ONLY,
                         ResultSet.CONCUR_READ_ONLY);
                 resultSet = statement.executeQuery(sql);
 
@@ -611,7 +619,7 @@ public class SQLiteStorage extends AbstractStorage {
                     }
                 }
             } catch (SQLException e) {
-                Logger.w(this.getClass(), "#forEachRow - SQL: " + sql, e);
+                Logger.w(this.getClass(), "#forEachRow - Query failed, table: " + table, e);
                 throw new StorageException("Streaming query failed: " + table, e);
             } finally {
                 StorageRows.closeQuietly(resultSet);
@@ -622,28 +630,30 @@ public class SQLiteStorage extends AbstractStorage {
 
     @Override
     public boolean execute(String sql) {
-        if (!this.isReady()) {
-            return false;
-        }
+        synchronized (this.lock) {
+            if (!this.isReady()) {
+                return false;
+            }
 
-        Statement statement = null;
+            Statement statement = null;
 
-        try {
-            statement = this.connection.createStatement();
-            return statement.execute(sql);
-        } catch (SQLException e) {
-            Logger.w(this.getClass(), "#execute - SQL: " + sql, e);
-        } finally {
-            if (null != statement) {
-                try {
-                    statement.close();
-                } catch (SQLException e) {
-                    // 释放失败不影响主流程，仅记录
-                    Logger.d(SQLiteStorage.class, "#execute - Failed to close 'statement': " + e.getMessage());
+            try {
+                statement = this.connection.createStatement();
+                return statement.execute(sql);
+            } catch (SQLException e) {
+                Logger.w(this.getClass(), "#execute - SQL: " + sql, e);
+            } finally {
+                if (null != statement) {
+                    try {
+                        statement.close();
+                    } catch (SQLException e) {
+                        // 释放失败不影响主流程，仅记录
+                        Logger.d(SQLiteStorage.class, "#execute - Failed to close 'statement': " + e.getMessage());
+                    }
                 }
             }
-        }
 
-        return false;
+            return false;
+        }
     }
 }
