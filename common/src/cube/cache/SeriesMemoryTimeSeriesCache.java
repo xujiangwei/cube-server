@@ -28,7 +28,7 @@ public class SeriesMemoryTimeSeriesCache extends AbstractTimeSeriesCache {
 
     private String configFile;
 
-    private SeriesMemory memory;
+    private volatile SeriesMemory memory;
 
     /**
      * 构造函数。
@@ -43,7 +43,7 @@ public class SeriesMemoryTimeSeriesCache extends AbstractTimeSeriesCache {
      * {@inheritDoc}
      */
     @Override
-    public void start() {
+    public synchronized void start() {
         if (null != this.memory) {
             return;
         }
@@ -58,13 +58,31 @@ public class SeriesMemoryTimeSeriesCache extends AbstractTimeSeriesCache {
      * {@inheritDoc}
      */
     @Override
-    public void stop() {
+    public synchronized void stop() {
         if (null == this.memory) {
             return;
         }
 
         this.memory.stop();
         this.memory = null;
+    }
+
+    /**
+     * 判断缓存是否已就绪。
+     *
+     * @return 已启动返回 {@code true} 。
+     */
+    public boolean isReady() {
+        return null != this.memory;
+    }
+
+    /**
+     * 未启动时明确失败，而不是在调用处抛 NPE。
+     */
+    private void ensureReady() {
+        if (null == this.memory) {
+            throw new IllegalStateException("SeriesMemoryTimeSeriesCache is not started: " + getName());
+        }
     }
 
     /**
@@ -86,6 +104,8 @@ public class SeriesMemoryTimeSeriesCache extends AbstractTimeSeriesCache {
      */
     @Override
     public void add(CacheKey key, CacheValue value) {
+        this.ensureReady();
+
         long timestamp = value.getTimestamp();
         if (timestamp == 0) {
             this.memory.add(key.get(), value.get());
@@ -100,6 +120,7 @@ public class SeriesMemoryTimeSeriesCache extends AbstractTimeSeriesCache {
      */
     @Override
     public void add(CacheKey key, CacheValue value, long timestamp) {
+        this.ensureReady();
         this.memory.add(key.get(), value.get(), timestamp);
     }
 
@@ -108,6 +129,8 @@ public class SeriesMemoryTimeSeriesCache extends AbstractTimeSeriesCache {
      */
     @Override
     public List<CacheValue> query(CacheKey key, long beginningTime, long endingTime) {
+        this.ensureReady();
+
         List<SeriesItem> list = this.memory.query(key.get(), beginningTime, endingTime);
         ArrayList<CacheValue> result = new ArrayList<>();
         for (SeriesItem item : list) {
@@ -122,6 +145,7 @@ public class SeriesMemoryTimeSeriesCache extends AbstractTimeSeriesCache {
      */
     @Override
     public void delete(CacheKey key, long timestamp) {
+        this.ensureReady();
         this.memory.delete(key.get(), timestamp);
     }
 }

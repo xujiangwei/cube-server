@@ -14,6 +14,7 @@ import cell.util.log.Logger;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 管理器守护线程。
@@ -21,15 +22,21 @@ import java.util.concurrent.Executors;
  */
 public class ManagementDaemon extends Thread {
 
-    private Kernel kernel;
+    private final Kernel kernel;
 
-    private boolean spinning = true;
+    /**
+     * 运行标志。
+     *
+     * <p>必须 {@code volatile}：{@link #terminate()} 由停机线程调用，
+     * 缺少可见性时循环可能一直读到旧值，导致停机无效。</p>
+     */
+    private volatile boolean spinning = true;
 
     private final long spinningSleep = 60 * 1000;
 
     private long lastCheckTime = System.currentTimeMillis();
 
-    private ExecutorService executor;
+    private final ExecutorService executor;
 
     public ManagementDaemon(Kernel kernel) {
         setName("ManagementDaemon");
@@ -44,7 +51,13 @@ public class ManagementDaemon extends Thread {
             try {
                 Thread.sleep(this.spinningSleep);
             } catch (InterruptedException e) {
-                Logger.e(ManagementDaemon.class, "#run - Interrupted", e);
+                // 停机时由 terminate() 中断，属预期路径
+                if (!this.spinning) {
+                    break;
+                }
+
+                Logger.d(ManagementDaemon.class, "#run - Interrupted, continue spinning");
+                continue;
             }
 
             if (!this.spinning) {
@@ -57,7 +70,13 @@ public class ManagementDaemon extends Thread {
                 this.executor.execute(new Runnable() {
                     @Override
                     public void run() {
-                        module.onTick(module, kernel);
+                        // 单模块抛异常不能影响其它模块，也不能静默消失
+                        try {
+                            module.onTick(module, kernel);
+                        } catch (Throwable t) {
+                            Logger.w(ManagementDaemon.class, "#run - onTick failed: "
+                                    + module.getClass().getName(), t);
+                        }
                     }
                 });
             }
@@ -83,10 +102,34 @@ public class ManagementDaemon extends Thread {
         }
     }
 
+    /**
+     * 终止守护线程。
+     *
+     * <p>先置标志再中断：线程可能正阻塞在 60 秒的 {@code sleep} 里，
+     * 只置标志会让停机最多多等一分钟。随后等待线程与任务池收尾。</p>
+     */
     public final void terminate() {
         this.spinning = false;
+        this.interrupt();
+
+        if (Thread.currentThread() != this) {
+            try {
+                this.join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
         if (null != this.executor && !this.executor.isShutdown()) {
             this.executor.shutdown();
+            try {
+                if (!this.executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    this.executor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                this.executor.shutdownNow();
+            }
         }
     }
 }

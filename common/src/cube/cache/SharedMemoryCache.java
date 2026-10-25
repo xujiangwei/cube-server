@@ -23,7 +23,7 @@ public class SharedMemoryCache extends AbstractCache {
 
     private String configFile;
 
-    private SharedMemory memory;
+    private volatile SharedMemory memory;
 
     /**
      * 构造函数。
@@ -38,7 +38,7 @@ public class SharedMemoryCache extends AbstractCache {
      * {@inheritDoc}
      */
     @Override
-    public void start() {
+    public synchronized void start() {
         if (null != this.memory) {
             return;
         }
@@ -53,13 +53,34 @@ public class SharedMemoryCache extends AbstractCache {
      * {@inheritDoc}
      */
     @Override
-    public void stop() {
+    public synchronized void stop() {
         if (null == this.memory) {
             return;
         }
 
         this.memory.stop();
         this.memory = null;
+    }
+
+    /**
+     * 判断缓存是否已就绪。
+     *
+     * @return 已启动返回 {@code true} 。
+     */
+    public boolean isReady() {
+        return null != this.memory;
+    }
+
+    /**
+     * 未启动时明确失败。
+     *
+     * <p>原实现直接使用 {@code this.memory}，未 {@code start()} 或启动失败时表现为 NPE，
+     * 堆栈指向缓存调用方，看不出根因。这里改为带缓存名的 {@link IllegalStateException}。</p>
+     */
+    private void ensureReady() {
+        if (null == this.memory) {
+            throw new IllegalStateException("SharedMemoryCache is not started: " + getName());
+        }
     }
 
     /**
@@ -81,6 +102,7 @@ public class SharedMemoryCache extends AbstractCache {
      */
     @Override
     public void put(CacheKey key, CacheValue value) {
+        this.ensureReady();
         this.memory.applyPut(key.get(), value.get());
     }
 
@@ -89,6 +111,8 @@ public class SharedMemoryCache extends AbstractCache {
      */
     @Override
     public CacheValue get(CacheKey key) {
+        this.ensureReady();
+
         JSONObject value = this.memory.applyGet(key.get());
         if (null == value) {
             return null;
@@ -109,6 +133,7 @@ public class SharedMemoryCache extends AbstractCache {
      */
     @Override
     public void remove(CacheKey key) {
+        this.ensureReady();
         this.memory.applyRemove(key.get());
     }
 
@@ -117,6 +142,8 @@ public class SharedMemoryCache extends AbstractCache {
      */
     @Override
     public void execute(CacheKey key, final CacheTransaction transaction) {
+        this.ensureReady();
+
         Context context = new Context(key);
 
         LockFuture future = new LockFuture() {
@@ -129,14 +156,9 @@ public class SharedMemoryCache extends AbstractCache {
         context.lockFuture = future;
 
         try {
-            if (null != this.memory) {
-                this.memory.apply(key.get(), future);
-            }
-            else {
-                Logger.w(this.getClass(), "#execute - Memory instance is null");
-            }
+            this.memory.apply(key.get(), future);
         } catch (Exception e) {
-            Logger.e(this.getClass(), "#execute", e);
+            Logger.e(this.getClass(), "#execute - Failed to acquire lock, key: " + key.get(), e);
         }
     }
 

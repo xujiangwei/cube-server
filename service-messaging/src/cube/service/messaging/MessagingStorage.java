@@ -131,6 +131,7 @@ public class MessagingStorage implements Storagable {
     @Override
     public void open() {
         this.storage.open();
+        StorageFactory.ensureOpen(this.storage, this.getClass().getSimpleName());
     }
 
     @Override

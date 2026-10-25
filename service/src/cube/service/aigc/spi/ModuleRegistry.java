@@ -18,37 +18,37 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
-     * 业务模块注册表。
-     *
-     * <p>持有唯一的 {@link ActionRouter} 实例，负责：读取模块清单 → 实例化 →
-     * 校验 {@link ModuleDescriptor#spiVersion} → 建立动作绑定 →
-     * 调用 {@link ActionModule#setup(AIGCHost)}。</p>
-     *
-     * <p><b>模块发现方式</b>：显式列出模块全限定类名
-     * （<code>aigc-modules.properties</code>）。选择理由：本工程为 JDK 8 + ant +
-     * 手写启动脚本，无依赖解析机制；按类路径顺序自动发现会引入「同名类被遮蔽」的
-     * 调试成本，且模块启停需要运维开关，配置文件天然承载该职责。</p>
-     *
-     * <p><b>装载时序</b>：本类由 {@code AIGCCellet#install()} 构造，但
-     * <b>{@link #load()} 不在 install() 中执行</b>——它由 {@code AIGCService}
-     * 的引导线程在宿主存储就绪后经 {@code AIGCCellet#loadModules()} 触发。
-     * 延后的原因是模块的 {@code setup()} 可能读取宿主存储配置，
-     * 宿主存储未就绪时装载会失败。</p>
-     *
-     * <p>即便装载晚于 install，也仍早于任何一次
-     * {@code AIGCCellet#onListened}（内核启动后才收报文），
-     * 故路由表在首个请求到达前已权威。</p>
-     *
-     * <p><b>线程约束</b>：<b>{@link #load()} 运行在单元安装阶段，此时宿主的服务级
-     * 线程池尚未创建，因此本方法内严禁调用线程池或新建线程</b>，
-     * 只允许做文件读取、反射实例化与内存注册。模块的 {@code setup()} 在本方法内
-     * 被同步调用，故模块实现<b>不得</b>在 {@code setup()} 中提交异步任务或阻塞等待
-     * 宿主就绪；确需异步应在首次动作派发时惰性启动。</p>
-     *
-     * <p><b>能力校验时机</b>：{@link #verifyCapabilities()} <b>不在</b>装载阶段执行。
-     * 原因是装载时单元尚未注册（单元由后续的 Relay 上报产生），此刻校验必然全部失败。
-     * 因此校验被设计为宿主就绪后的显式调用，见该方法注释。</p>
-     */
+ * 业务模块注册表。
+ *
+ * <p>持有唯一的 {@link ActionRouter} 实例，负责：读取模块清单 → 实例化 →
+ * 校验 {@link ModuleDescriptor#spiVersion} → 建立动作绑定 →
+ * 调用 {@link ActionModule#setup(AIGCHost)}。</p>
+ *
+ * <p><b>模块发现方式</b>：显式列出模块全限定类名
+ * （<code>aigc-modules.properties</code>）。选择理由：本工程为 JDK 8 + ant +
+ * 手写启动脚本，无依赖解析机制；按类路径顺序自动发现会引入「同名类被遮蔽」的
+ * 调试成本，且模块启停需要运维开关，配置文件天然承载该职责。</p>
+ *
+ * <p><b>装载时序</b>：本类由 {@code AIGCCellet#install()} 构造，但
+ * <b>{@link #load()} 不在 install() 中执行</b>——它由 {@code AIGCService}
+ * 的引导线程在宿主存储就绪后经 {@code AIGCCellet#loadModules()} 触发。
+ * 延后的原因是模块的 {@code setup()} 可能读取宿主存储配置，
+ * 宿主存储未就绪时装载会失败。</p>
+ *
+ * <p>即便装载晚于 install，也仍早于任何一次
+ * {@code AIGCCellet#onListened}（内核启动后才收报文），
+ * 故路由表在首个请求到达前已权威。</p>
+ *
+ * <p><b>线程约束</b>：<b>{@link #load()} 运行在单元安装阶段，此时宿主的服务级
+ * 线程池尚未创建，因此本方法内严禁调用线程池或新建线程</b>，
+ * 只允许做文件读取、反射实例化与内存注册。模块的 {@code setup()} 在本方法内
+ * 被同步调用，故模块实现<b>不得</b>在 {@code setup()} 中提交异步任务或阻塞等待
+ * 宿主就绪；确需异步应在首次动作派发时惰性启动。</p>
+ *
+ * <p><b>能力校验时机</b>：{@link #verifyCapabilities()} <b>不在</b>装载阶段执行。
+ * 原因是装载时单元尚未注册（单元由后续的 Relay 上报产生），此刻校验必然全部失败。
+ * 因此校验被设计为宿主就绪后的显式调用，见该方法注释。</p>
+ */
 public final class ModuleRegistry {
 
     /**
@@ -187,7 +187,7 @@ public final class ModuleRegistry {
 
         if (!file.exists()) {
             Logger.i(ModuleRegistry.class, "#load - Module config \"" + CONFIG_FILE
-            + "\" NOT found, no AIGC action module is loaded");
+                    + "\" NOT found, no AIGC action module is loaded");
             this.router.setLoaded(true);
             return 0;
         }
@@ -283,17 +283,17 @@ public final class ModuleRegistry {
      * 读取模块的启用开关。
      *
      * @param properties 配置属性。
-     * @param index 模块序号。
+     * @param index      模块序号。
      * @return 启用时返回 <code>true</code>；未配置或值非法时按「启用」处理。
      */
     private boolean isEnabled(Properties properties, int index) {
-    String value = properties.getProperty(KEY_PREFIX + index + KEY_ENABLED_SUFFIX);
-    if (null == value) {
-        return true;
-    }
+        String value = properties.getProperty(KEY_PREFIX + index + KEY_ENABLED_SUFFIX);
+        if (null == value) {
+            return true;
+        }
 
-    return Boolean.parseBoolean(value.trim());
-}
+        return Boolean.parseBoolean(value.trim());
+    }
 
     /**
      * 实例化一个模块。
@@ -399,21 +399,21 @@ public final class ModuleRegistry {
      */
     private boolean bindActions(ActionModule module) {
         List<ActionBinding> actions = module.getActions();
-    if (null == actions || actions.isEmpty()) {
-        Logger.w(ModuleRegistry.class, "#bindActions - Module \"" + module.getName()
-                + "\" provides NO action");
-        return true;
-    }
-
-    boolean success = true;
-    for (ActionBinding binding : actions) {
-        if (!this.router.bind(binding, module)) {
-            success = false;
+        if (null == actions || actions.isEmpty()) {
+            Logger.w(ModuleRegistry.class, "#bindActions - Module \"" + module.getName()
+                    + "\" provides NO action");
+            return true;
         }
-    }
 
-    return success;
-}
+        boolean success = true;
+        for (ActionBinding binding : actions) {
+            if (!this.router.bind(binding, module)) {
+                success = false;
+            }
+        }
+
+        return success;
+    }
 
     /**
      * 登记模块声明的动作名。
@@ -426,27 +426,27 @@ public final class ModuleRegistry {
      * @param module 模块实例。
      */
     private void declareActions(ActionModule module) {
-    try {
-        List<ActionBinding> actions = module.getActions();
-        if (null == actions) {
-            return;
-        }
-
-        List<String> names = new ArrayList<>(actions.size());
-        for (ActionBinding binding : actions) {
-            if (null != binding) {
-                names.add(binding.action);
+        try {
+            List<ActionBinding> actions = module.getActions();
+            if (null == actions) {
+                return;
             }
-        }
 
-        this.router.declareAll(names);
-    } catch (Throwable t) {
-        // 声明阶段失败不阻断装载：该模块的绑定与 setup 仍照常进行，
-        // 只是失去「明确状态码」这层兜底，退化为既有分支处理
-        Logger.e(ModuleRegistry.class, "#declareActions - FAILED for module \""
-                + module.getName() + "\"", (t instanceof Exception) ? (Exception) t : null);
+            List<String> names = new ArrayList<>(actions.size());
+            for (ActionBinding binding : actions) {
+                if (null != binding) {
+                    names.add(binding.action);
+                }
+            }
+
+            this.router.declareAll(names);
+        } catch (Throwable t) {
+            // 声明阶段失败不阻断装载：该模块的绑定与 setup 仍照常进行，
+            // 只是失去「明确状态码」这层兜底，退化为既有分支处理
+            Logger.e(ModuleRegistry.class, "#declareActions - FAILED for module \""
+                    + module.getName() + "\"", (t instanceof Exception) ? (Exception) t : null);
+        }
     }
-}
 
     /**
      * 注销模块的全部动作绑定，用于初始化失败时回滚。
@@ -454,11 +454,11 @@ public final class ModuleRegistry {
      * @param module 模块实例。
      */
     private void unbindActions(ActionModule module) {
-    if (this.router.unbindAll(module)) {
-        Logger.w(ModuleRegistry.class, "#unbindActions - Actions of module \"" + module.getName()
-                + "\" have been unbound");
+        if (this.router.unbindAll(module)) {
+            Logger.w(ModuleRegistry.class, "#unbindActions - Actions of module \"" + module.getName()
+                    + "\" have been unbound");
+        }
     }
-}
 
     /**
      * 初始化模块。
@@ -472,26 +472,26 @@ public final class ModuleRegistry {
      * @return 初始化成功时返回 <code>true</code>。
      */
     private boolean setupModule(ActionModule module) {
-    ModuleDescriptor descriptor = module.getDescriptor();
-    boolean optional = (null != descriptor) && descriptor.optional;
+        ModuleDescriptor descriptor = module.getDescriptor();
+        boolean optional = (null != descriptor) && descriptor.optional;
 
-    try {
-        module.setup(this.host);
-        Logger.i(ModuleRegistry.class, "#setupModule - Module \"" + module.getName() + "\" is ready");
-        return true;
-    } catch (Throwable t) {
-        // 捕获 Throwable 而非 Exception：模块的 setup 由第三方提供，
-        // Error（如 NoClassDefFoundError）同样不应让宿主启动失败
-        Logger.e(ModuleRegistry.class, "#setupModule - Module \"" + module.getName()
-                + "\" setup FAILED, optional=" + optional, (t instanceof Exception) ? (Exception) t : null);
+        try {
+            module.setup(this.host);
+            Logger.i(ModuleRegistry.class, "#setupModule - Module \"" + module.getName() + "\" is ready");
+            return true;
+        } catch (Throwable t) {
+            // 捕获 Throwable 而非 Exception：模块的 setup 由第三方提供，
+            // Error（如 NoClassDefFoundError）同样不应让宿主启动失败
+            Logger.e(ModuleRegistry.class, "#setupModule - Module \"" + module.getName()
+                    + "\" setup FAILED, optional=" + optional, (t instanceof Exception) ? (Exception) t : null);
 
-        if (!optional) {
-            this.blockingFailure = true;
+            if (!optional) {
+                this.blockingFailure = true;
+            }
+
+            return false;
         }
-
-        return false;
     }
-}
 
     /**
      * 校验模块声明的单元能力是否均可用。
@@ -507,31 +507,34 @@ public final class ModuleRegistry {
      * @return 全部非可选模块的声明能力均可用时返回 <code>true</code>。
      */
     public boolean verifyCapabilities() {
-    boolean allAvailable = true;
+        boolean allAvailable = true;
 
-    for (ActionModule module : this.modules) {
-        ModuleDescriptor descriptor = module.getDescriptor();
-        if (null == descriptor || descriptor.requiredCapabilities.isEmpty()) {
-            continue;
-        }
+        for (ActionModule module : this.modules) {
+            ModuleDescriptor descriptor = module.getDescriptor();
+            if (null == descriptor || descriptor.requiredCapabilities.isEmpty()) {
+                continue;
+            }
 
-        for (String capability : descriptor.requiredCapabilities) {
-            if (null == this.host || !this.host.hasUnit(capability)) {
-                String message = "#verifyCapabilities - Module \"" + module.getName()
-                        + "\" requires capability \"" + capability + "\" but NO unit is available";
-                if (descriptor.optional) Logger.w(ModuleRegistry.class, message);
-                else { Logger.e(ModuleRegistry.class, message); allAvailable = false; }
+            for (String capability : descriptor.requiredCapabilities) {
+                if (null == this.host || !this.host.hasUnit(capability)) {
+                    String message = "#verifyCapabilities - Module \"" + module.getName()
+                            + "\" requires capability \"" + capability + "\" but NO unit is available";
+                    if (descriptor.optional) Logger.w(ModuleRegistry.class, message);
+                    else {
+                        Logger.e(ModuleRegistry.class, message);
+                        allAvailable = false;
+                    }
+                }
             }
         }
-    }
 
-    if (allAvailable) {
-        Logger.i(ModuleRegistry.class, "#verifyCapabilities - Required capabilities of non-optional modules among "
-                + this.modules.size() + " module(s) are available");
-    }
+        if (allAvailable) {
+            Logger.i(ModuleRegistry.class, "#verifyCapabilities - Required capabilities of non-optional modules among "
+                    + this.modules.size() + " module(s) are available");
+        }
 
-    return allAvailable;
-}
+        return allAvailable;
+    }
 
     /**
      * 是否存在「非可选模块初始化失败」。
@@ -542,8 +545,8 @@ public final class ModuleRegistry {
      * @return 存在非可选模块初始化失败时返回 <code>true</code>。
      */
     public boolean hasBlockingFailure() {
-    return this.blockingFailure;
-}
+        return this.blockingFailure;
+    }
 
     /**
      * 卸载全部模块并清空路由表。
@@ -552,24 +555,24 @@ public final class ModuleRegistry {
      * 且不向上抛出——停机路径不应因插件异常而中断。</p>
      */
     public void teardownAll() {
-    for (ActionModule module : this.modules) {
-        try {
-            module.teardown();
-            Logger.i(ModuleRegistry.class, "#teardownAll - Module \"" + module.getName() + "\" is stopped");
-        } catch (Throwable t) {
-            Logger.e(ModuleRegistry.class, "#teardownAll - Module \"" + module.getName()
-                    + "\" teardown FAILED", (t instanceof Exception) ? (Exception) t : null);
+        for (ActionModule module : this.modules) {
+            try {
+                module.teardown();
+                Logger.i(ModuleRegistry.class, "#teardownAll - Module \"" + module.getName() + "\" is stopped");
+            } catch (Throwable t) {
+                Logger.e(ModuleRegistry.class, "#teardownAll - Module \"" + module.getName()
+                        + "\" teardown FAILED", (t instanceof Exception) ? (Exception) t : null);
+            }
+
+            this.router.unbindAll(module);
+            this.moduleMap.remove(module.getName());
         }
 
-        this.router.unbindAll(module);
-        this.moduleMap.remove(module.getName());
+        this.modules.clear();
+        this.blockingFailure = false;
+
+        Logger.i(ModuleRegistry.class, "#teardownAll - All AIGC action modules are unloaded");
     }
-
-    this.modules.clear();
-    this.blockingFailure = false;
-
-    Logger.i(ModuleRegistry.class, "#teardownAll - All AIGC action modules are unloaded");
-}
 
     /**
      * 驱动全部模块的心跳。
@@ -582,13 +585,13 @@ public final class ModuleRegistry {
      * @param now 当前时刻（毫秒）。
      */
     public void tick(long now) {
-    for (ActionModule module : this.modules) {
-        try {
-            module.onTick(now);
-        } catch (Throwable t) {
-            Logger.e(ModuleRegistry.class, "#tick - Module \"" + module.getName()
-                    + "\" onTick FAILED", (t instanceof Exception) ? (Exception) t : null);
+        for (ActionModule module : this.modules) {
+            try {
+                module.onTick(now);
+            } catch (Throwable t) {
+                Logger.e(ModuleRegistry.class, "#tick - Module \"" + module.getName()
+                        + "\" onTick FAILED", (t instanceof Exception) ? (Exception) t : null);
+            }
         }
     }
-}
 }

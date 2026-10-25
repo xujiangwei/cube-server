@@ -107,8 +107,12 @@ public interface ActionContext {
      */
     boolean isResponded();
 
-    /** Opt into one deferred response, preserving the normal duplicate-response guard. */
-    default void deferResponse() { throw new UnsupportedOperationException("Deferred responses are unavailable"); }
+    /**
+     * Opt into one deferred response, preserving the normal duplicate-response guard.
+     */
+    default void deferResponse() {
+        throw new UnsupportedOperationException("Deferred responses are unavailable");
+    }
 
     /**
      * 提交异步任务。
@@ -117,7 +121,7 @@ public interface ActionContext {
      * 禁止直接使用宿主服务级共享线程池。</p>
      *
      * @param taskKey 任务键，用于日志与去重。
-     * @param job 任务体。
+     * @param job     任务体。
      */
     void async(String taskKey, Runnable job);
 

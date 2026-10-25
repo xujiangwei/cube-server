@@ -35,7 +35,15 @@ public class SQLiteStorage extends AbstractStorage {
 
     public final static String CONFIG_FILE = "file";
 
-    private Connection connection = null;
+    private volatile Connection connection = null;
+
+    /**
+     * 访问串行化锁。
+     *
+     * <p>原实现直接以连接对象作为监视器：一旦 {@link #open()} 重新赋值连接，锁对象就换了，
+     * 两个线程可以同时进入临界区。锁必须是独立且不变的。</p>
+     */
+    private final Object lock = new Object();
 
     public SQLiteStorage(String name) {
         super(name, StorageType.SQLite);
@@ -58,8 +66,36 @@ public class SQLiteStorage extends AbstractStorage {
 
         try {
             this.connection = DriverManager.getConnection("jdbc:sqlite:" + file);
+            this.applyPragmas();
+            Logger.i(this.getClass(), "SQLite storage is ready: " + file);
         } catch (SQLException e) {
             Logger.e(this.getClass(), "Open SQLite Storage", e);
+        }
+    }
+
+    /**
+     * 应用连接级 PRAGMA。
+     *
+     * <p>WAL 让读写不互相阻塞；{@code busy_timeout} 把"数据库被占用"从立即失败改为等待重试，
+     * 这是单连接串行访问下最容易被忽略的一处稳定性配置。</p>
+     */
+    private void applyPragmas() {
+        Statement statement = null;
+        try {
+            statement = this.connection.createStatement();
+            statement.execute("PRAGMA journal_mode=WAL");
+            statement.execute("PRAGMA synchronous=NORMAL");
+            statement.execute("PRAGMA busy_timeout=5000");
+        } catch (SQLException e) {
+            Logger.w(this.getClass(), "#applyPragmas - Failed to apply PRAGMA", e);
+        } finally {
+            if (null != statement) {
+                try {
+                    statement.close();
+                } catch (SQLException e) {
+                    Logger.d(this.getClass(), "#applyPragmas - Failed to close statement: " + e.getMessage());
+                }
+            }
         }
     }
 
@@ -110,7 +146,7 @@ public class SQLiteStorage extends AbstractStorage {
 
         Statement statement = null;
 
-        synchronized (this.connection) {
+        synchronized (this.lock) {
             try {
                 statement = this.connection.createStatement();
                 statement.setQueryTimeout(10);
@@ -155,7 +191,7 @@ public class SQLiteStorage extends AbstractStorage {
 
         Statement statement = null;
 
-        synchronized (this.connection) {
+        synchronized (this.lock) {
             try {
                 statement = this.connection.createStatement();
                 statement.executeUpdate(sql);
@@ -227,7 +263,7 @@ public class SQLiteStorage extends AbstractStorage {
 
         Statement statement = null;
 
-        synchronized (this.connection) {
+        synchronized (this.lock) {
             try {
                 statement = this.connection.createStatement();
                 statement.executeUpdate(sql);
@@ -256,7 +292,7 @@ public class SQLiteStorage extends AbstractStorage {
 
         boolean success = true;
 
-        synchronized (this.connection) {
+        synchronized (this.lock) {
             for (StorageField[] fields : fieldsList) {
                 // 拼写 SQL 语句
                 String sql = SQLUtils.spellInsert(table, fields);
@@ -305,7 +341,7 @@ public class SQLiteStorage extends AbstractStorage {
 
         Statement statement = null;
 
-        synchronized (this.connection) {
+        synchronized (this.lock) {
             try {
                 statement = this.connection.createStatement();
                 statement.executeUpdate(sql);
@@ -338,7 +374,7 @@ public class SQLiteStorage extends AbstractStorage {
 
         Statement statement = null;
 
-        synchronized (this.connection) {
+        synchronized (this.lock) {
             try {
                 statement = this.connection.createStatement();
                 statement.executeUpdate(sql);
@@ -377,7 +413,7 @@ public class SQLiteStorage extends AbstractStorage {
 
         Statement statement = null;
 
-        synchronized (this.connection) {
+        synchronized (this.lock) {
             try {
                 statement = this.connection.createStatement();
                 ResultSet rs = statement.executeQuery(sql);
@@ -441,7 +477,7 @@ public class SQLiteStorage extends AbstractStorage {
 
         Statement statement = null;
 
-        synchronized (this.connection) {
+        synchronized (this.lock) {
             try {
                 statement = this.connection.createStatement();
                 ResultSet rs = statement.executeQuery(sql);
