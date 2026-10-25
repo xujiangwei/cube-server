@@ -214,24 +214,46 @@ public class HttpServer {
 //        }
 
         if (joinThread) {
+            if (!this.startServer()) {
+                return;
+            }
+
             try {
-                this.server.start();
                 this.server.join();
-            } catch (Exception e) {
-                Logger.e(HttpServer.class, "#start - Unhandled exception", e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                Logger.w(HttpServer.class, "#start - Interrupted while joining the server thread");
             }
         }
         else {
-            (new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        server.start();
-                    } catch (Exception e) {
-                        Logger.e(HttpServer.class, "#run - Unhandled exception", e);
-                    }
-                }
-            }).start();
+            // 同步启动：start() 在连接器就绪后返回，端口占用会立即抛异常。
+            // 原实现把它丢进裸线程，调用方无法知道启动是否成功，stop() 还会作用在未启动的 server 上。
+            this.startServer();
+        }
+    }
+
+    /**
+     * 启动 Jetty 服务，失败时回滚。
+     *
+     * @return 启动成功返回 {@code true} 。
+     */
+    private boolean startServer() {
+        try {
+            this.server.start();
+            Logger.i(HttpServer.class, "#startServer - Server started, plain: " + this.plainPort
+                    + (this.securePort > 0 ? ", secure: " + this.securePort : ""));
+            return true;
+        } catch (Exception e) {
+            Logger.e(HttpServer.class, "#startServer - Failed to start server", e);
+
+            try {
+                this.server.stop();
+            } catch (Exception ex) {
+                Logger.d(HttpServer.class, "#startServer - Failed to stop the broken server: " + ex.getMessage());
+            }
+
+            this.server = null;
+            return false;
         }
     }
 

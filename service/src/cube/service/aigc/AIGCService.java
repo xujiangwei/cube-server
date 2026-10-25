@@ -100,10 +100,12 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     private final UnitScheduler unitScheduler;
 
-    private final cube.service.aigc.unit.PluginUnitInvoker pluginUnits =
+    private final PluginUnitInvoker pluginUnits =
             new cube.service.aigc.unit.PluginUnitInvoker(this);
 
-    public cube.service.aigc.unit.PluginUnitInvoker getPluginUnits() { return this.pluginUnits; }
+    public PluginUnitInvoker getPluginUnits() {
+        return this.pluginUnits;
+    }
 
     /**
      * 频道管理器：频道的创建、查询、保活与回收。
@@ -1826,8 +1828,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             return null;
         }
 
-        AuthToken authToken = authService.getToken(tokenCode);
-        return authToken;
+        return authService.getToken(tokenCode);
     }
 
     /**

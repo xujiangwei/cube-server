@@ -6,67 +6,45 @@
 
 package cube.service.aigc.spi;
 
-import cell.core.net.Endpoint;
 import cell.core.talk.dialect.ActionDialect;
 import cell.util.log.Logger;
-import cube.aigc.psychology.Painting;
-import cube.aigc.psychology.ReportPermission;
-import cube.aigc.complex.attachment.Attachment;
 import cube.aigc.SemanticSearchListener;
-import cube.aigc.text.Keyword;
+import cube.aigc.complex.attachment.Attachment;
+import cube.aigc.cv.MatchSimilarityListener;
 import cube.aigc.listener.GenerateTextListener;
 import cube.aigc.listener.SpeechModuleListener;
 import cube.aigc.listener.VoiceDiarizationListener;
-import cube.aigc.cv.MatchSimilarityListener;
 import cube.aigc.psychology.Attribute;
-import cube.aigc.psychology.consultation.ConsultationTheme;
-import cube.aigc.psychology.EvaluationReport;
-import cube.common.entity.VoiceDiarization;
-import cube.common.entity.AIGCChatHistory;
-import cube.common.entity.Chart;
-import cube.aigc.psychology.PaintingReport;
-import cube.aigc.psychology.ScaleReport;
-import cube.aigc.psychology.Theme;
-import cube.aigc.psychology.algorithm.Attention;
+import cube.aigc.psychology.ReportPermission;
 import cube.aigc.psychology.composition.HexagonDimensionScore;
-import cube.aigc.psychology.composition.PaintingFeatureSet;
-import cube.aigc.psychology.composition.Scale;
-import cube.aigc.psychology.listener.PaintingReportListener;
-import cube.aigc.psychology.listener.ScaleReportListener;
+import cube.aigc.psychology.consultation.ConsultationTheme;
 import cube.aigc.spi.AIGCHost;
 import cube.aigc.spi.AIGCPluginContextLite;
 import cube.aigc.spi.ActionModule;
+import cube.aigc.text.Keyword;
 import cube.auth.AuthToken;
 import cube.common.Language;
-import cube.common.entity.AIGCChannel;
-import cube.common.entity.AIGCUnit;
-import cube.common.entity.Contact;
-import cube.common.entity.Membership;
-import cube.common.entity.FileLabel;
-import cube.common.entity.GeneratingOption;
-import cube.common.entity.GeneratingRecord;
-import cube.common.entity.ObjectInfo;
-import cube.common.entity.User;
+import cube.common.entity.*;
 import cube.core.Module;
 import cube.core.Storage;
 import cube.service.aigc.AIGCCellet;
-import cube.service.aigc.member.MemberCenter;
-import cube.service.contact.ContactManager;
 import cube.service.aigc.AIGCHook;
 import cube.service.aigc.AIGCPluginContext;
 import cube.service.aigc.AIGCService;
 import cube.service.aigc.guidance.Prompts;
-import cube.service.cv.CVService;
-import cube.util.AudioUtils;
-import cube.service.aigc.utils.WavToMp3Context;
+import cube.service.aigc.member.MemberCenter;
 import cube.service.aigc.utils.AudioProcessor;
 import cube.service.aigc.utils.ContentTools;
+import cube.service.aigc.utils.WavToMp3Context;
+import cube.service.contact.ContactManager;
+import cube.service.cv.CVService;
+import cube.storage.StorageFactory;
+import cube.storage.StorageType;
+import cube.util.AudioUtils;
+import cube.util.FileUtils;
 import cube.util.tokenizer.SegToken;
 import cube.util.tokenizer.Tokenizer;
 import cube.util.tokenizer.keyword.TFIDFAnalyzer;
-import cube.storage.StorageFactory;
-import cube.storage.StorageType;
-import cube.util.FileUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -87,7 +65,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  *       不加任何判断、不改语义，因此可逐字段对拍；</li>
  *   <li><b>派生方法只做「适配」不做「业务」</b>：如 {@link #generateStructured} 仅负责
  *       「提问 → 解析 → 校验」，{@link #extractKeywords} 仅负责「委托分析器 → 收敛为词列表」，
- *       {@link #queryPaintingReport} 仅负责「委托场景 → 收敛为 JSON」，
  *       均不含任何业务规则；</li>
  *   <li><b>失败一律降级不抛</b>：模块是可选增强，其异常不得影响主服务，
  *       因此内部异常统一转为「返回空值 + 记 ERROR」。</li>
@@ -162,7 +139,7 @@ public final class AIGCHostImpl implements AIGCHost {
 
     @Override
     public AIGCChannel createChannelByCode(String tokenCode, String participant, String channelCode,
-            Language language) {
+                                           Language language) {
         if (null == tokenCode) {
             return null;
         }
@@ -193,7 +170,7 @@ public final class AIGCHostImpl implements AIGCHost {
     /**
      * 构造函数。
      *
-     * @param service AIGC 服务。
+     * @param service  AIGC 服务。
      * @param registry 模块注册表。
      */
     public AIGCHostImpl(AIGCService service, ModuleRegistry registry) {
@@ -386,7 +363,7 @@ public final class AIGCHostImpl implements AIGCHost {
 
     @Override
     public AIGCChannel acquireChannel(AuthToken token, String participant, String channelCode,
-            Language language) {
+                                      Language language) {
         if (null == token) {
             return null;
         }
@@ -462,7 +439,7 @@ public final class AIGCHostImpl implements AIGCHost {
 
     @Override
     public GeneratingRecord syncGenerateText(AIGCUnit unit, String prompt, GeneratingOption option,
-            List<GeneratingRecord> history, Contact participantContact) {
+                                             List<GeneratingRecord> history, Contact participantContact) {
         if (null == unit) {
             Logger.w(this.getClass(), "#syncGenerateText - Unit is NULL");
             return null;
@@ -473,7 +450,7 @@ public final class AIGCHostImpl implements AIGCHost {
 
     @Override
     public GeneratingRecord syncGenerateText(AuthToken token, String capabilityName, String prompt,
-            GeneratingOption option, List<GeneratingRecord> history, Contact participantContact) {
+                                             GeneratingOption option, List<GeneratingRecord> history, Contact participantContact) {
         if (null == token) {
             Logger.w(this.getClass(), "#syncGenerateText - Token is NULL");
             return null;
@@ -495,7 +472,7 @@ public final class AIGCHostImpl implements AIGCHost {
      */
     @Override
     public JSONObject generateStructured(AIGCUnit unit, String prompt, String jsonSchema,
-            String schemaName, long timeoutMs) {
+                                         String schemaName, long timeoutMs) {
         if (null == unit || null == prompt) {
             Logger.w(this.getClass(), "#generateStructured - Unit or prompt is NULL");
             return null;
@@ -585,11 +562,9 @@ public final class AIGCHostImpl implements AIGCHost {
             if (inString) {
                 if (escaped) {
                     escaped = false;
-                }
-                else if ('\\' == c) {
+                } else if ('\\' == c) {
                     escaped = true;
-                }
-                else if ('"' == c) {
+                } else if ('"' == c) {
                     inString = false;
                 }
                 continue;
@@ -597,11 +572,9 @@ public final class AIGCHostImpl implements AIGCHost {
 
             if ('"' == c) {
                 inString = true;
-            }
-            else if (c == begin) {
+            } else if (c == begin) {
                 ++depth;
-            }
-            else if (c == end) {
+            } else if (c == end) {
                 --depth;
                 if (0 == depth) {
                     return this.tryParse(trimmed.substring(start, i + 1));
@@ -677,7 +650,9 @@ public final class AIGCHostImpl implements AIGCHost {
     }
 
     @Override
-    public int countPluginUnits(String name) { return this.service.getPluginUnits().count(name); }
+    public int countPluginUnits(String name) {
+        return this.service.getPluginUnits().count(name);
+    }
 
     @Override
     public FileLabel getFile(String domain, String fileCode) {
@@ -699,7 +674,7 @@ public final class AIGCHostImpl implements AIGCHost {
 
     @Override
     public FileLabel saveFile(AuthToken token, String fileCode, File file, String filename,
-            boolean deleteAfterSave) {
+                              boolean deleteAfterSave) {
         if (null == token) {
             Logger.w(this.getClass(), "#saveFile - Auth token is NULL");
             return null;
@@ -902,7 +877,7 @@ public final class AIGCHostImpl implements AIGCHost {
 
     @Override
     public AIGCChannel createChannel(AuthToken authToken, String participant, String channelCode,
-            Language language) {
+                                     Language language) {
         if (null == authToken) {
             return null;
         }
@@ -912,8 +887,8 @@ public final class AIGCHostImpl implements AIGCHost {
 
     @Override
     public void generateText(AIGCChannel channel, AIGCUnit unit, String query, String prompt, GeneratingOption option,
-            List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
-            List<String> categories, boolean recordable, GenerateTextListener listener) {
+                             List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
+                             List<String> categories, boolean recordable, GenerateTextListener listener) {
         if (null == channel || null == unit) {
             return;
         }
@@ -924,7 +899,7 @@ public final class AIGCHostImpl implements AIGCHost {
 
     @Override
     public FileLabel performSpeakerDiarization(AuthToken authToken, FileLabel fileLabel, boolean preprocess,
-            boolean storage, boolean jumpToFirst, boolean sentiment, VoiceDiarizationListener listener) {
+                                               boolean storage, boolean jumpToFirst, boolean sentiment, VoiceDiarizationListener listener) {
         if (null == authToken || null == fileLabel) {
             return null;
         }
@@ -987,7 +962,7 @@ public final class AIGCHostImpl implements AIGCHost {
 
     @Override
     public boolean writeCounselingRecording(AuthToken authToken, String streamName, long timestamp, long duration,
-            Attribute attribute, ConsultationTheme theme, String fileCode) {
+                                            Attribute attribute, ConsultationTheme theme, String fileCode) {
         if (null == authToken) {
             return false;
         }
@@ -1028,7 +1003,7 @@ public final class AIGCHostImpl implements AIGCHost {
     }
 
     /**
-    /**
+     * /**
      * 获取宿主服务，供派生能力按需使用。
      *
      * <p>仅供宿主内部桥接类使用，<b>不得</b>暴露给模块——否则插件可经此拿到
@@ -1052,14 +1027,11 @@ public final class AIGCHostImpl implements AIGCHost {
     private AIGCHook resolveHook(String hookKey) {
         if (AIGCHook.AppEvent.equalsIgnoreCase(hookKey)) {
             return this.service.getPluginSystem().getAppEventHook();
-        }
-        else if (AIGCHook.ImportKnowledgeDoc.equalsIgnoreCase(hookKey)) {
+        } else if (AIGCHook.ImportKnowledgeDoc.equalsIgnoreCase(hookKey)) {
             return this.service.getPluginSystem().getImportKnowledgeDocHook();
-        }
-        else if (AIGCHook.RemoveKnowledgeDoc.equalsIgnoreCase(hookKey)) {
+        } else if (AIGCHook.RemoveKnowledgeDoc.equalsIgnoreCase(hookKey)) {
             return this.service.getPluginSystem().getRemoveKnowledgeDocHook();
-        }
-        else if (AIGCHook.TaskProcessing.equalsIgnoreCase(hookKey)) {
+        } else if (AIGCHook.TaskProcessing.equalsIgnoreCase(hookKey)) {
             return this.service.getPluginSystem().getTaskProcessingHook();
         }
 
@@ -1126,21 +1098,21 @@ public final class AIGCHostImpl implements AIGCHost {
 // 留痕由「任务处理」钩子的消费者完成（含风控侧按 domain 分表写入），
 // 因此此处不直接写库，而是把描述符还原成上下文后触发钩子。
 // 注意：描述符持有的是令牌码而非令牌对象，需先解析才能构造上下文。
-AuthToken authToken = this.resolveToken(descriptor.token);
-if (null == authToken) {
-    Logger.w(this.getClass(), "#writeUsage - Can NOT resolve token: " + descriptor.token);
-    return;
-}
+        AuthToken authToken = this.resolveToken(descriptor.token);
+        if (null == authToken) {
+            Logger.w(this.getClass(), "#writeUsage - Can NOT resolve token: " + descriptor.token);
+            return;
+        }
 
-AIGCPluginContextLite lite = new AIGCPluginContextLite(authToken, descriptor.task);
-lite.setInputTokens(descriptor.getInputTokens());
-lite.setOutputTokens(descriptor.getOutputTokens());
+        AIGCPluginContextLite lite = new AIGCPluginContextLite(authToken, descriptor.task);
+        lite.setInputTokens(descriptor.getInputTokens());
+        lite.setOutputTokens(descriptor.getOutputTokens());
 
 // 描述符只保存单元 ID，而宿主上下文要求单元对象，故单元字段不在此还原：
 // 钩子消费者若需要单元信息，应从模块自身的调用期上下文取，而非依赖此处回填。
 
-this.fireHook(AIGCHook.TaskProcessing, lite);
-}
+        this.fireHook(AIGCHook.TaskProcessing, lite);
+    }
 
     @Override
     public <T> T getSiblingModule(String moduleName, Class<T> type) {
@@ -1162,6 +1134,7 @@ this.fireHook(AIGCHook.TaskProcessing, lite);
 
         return type.cast(module);
     }
+
     @Override
     public void fillHexagonScoreDescription(HexagonDimensionScore hds, Language language) {
         if (null == hds) {
@@ -1179,6 +1152,7 @@ this.fireHook(AIGCHook.TaskProcessing, lite);
 
         return ContentTools.extract(query, this.service.getTokenizer());
     }
+
     @Override
     public ObjectInfo detectObject(String domain, String fileCode, boolean visualize) {
         if (null == domain || null == fileCode) {
@@ -1197,6 +1171,7 @@ this.fireHook(AIGCHook.TaskProcessing, lite);
             return null;
         }
     }
+
     @Override
     public String generatePersonalKnowledge(String tokenCode, String query, boolean english) {
         if (null == query) {
@@ -1213,7 +1188,7 @@ this.fireHook(AIGCHook.TaskProcessing, lite);
 
     @Override
     public boolean matchSimilarity(FileLabel fileLabel, List<String> templateNames,
-            MatchSimilarityListener listener) {
+                                   MatchSimilarityListener listener) {
         if (null == fileLabel || null == templateNames || templateNames.isEmpty()) {
             return false;
         }
@@ -1240,7 +1215,7 @@ this.fireHook(AIGCHook.TaskProcessing, lite);
      *
      * @param taskKey 任务键，用于日志。
      * @param delayMs 延迟（毫秒）。
-     * @param job 任务体。
+     * @param job     任务体。
      */
     private void scheduleDelayed(String taskKey, long delayMs, Runnable job) {
         java.util.concurrent.ScheduledExecutorService executor = this.delayExecutor;
@@ -1305,7 +1280,7 @@ this.fireHook(AIGCHook.TaskProcessing, lite);
 
     @Override
     public FileLabel saveFileWithContext(AuthToken token, String fileCode, File file, String filename,
-            boolean deleteAfterSave, JSONObject context) {
+                                         boolean deleteAfterSave, JSONObject context) {
         if (null == token || null == file) {
             return null;
         }

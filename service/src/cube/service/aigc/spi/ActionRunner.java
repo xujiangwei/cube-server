@@ -11,10 +11,10 @@ import cell.core.talk.Primitive;
 import cell.core.talk.TalkContext;
 import cell.core.talk.dialect.ActionDialect;
 import cell.util.log.Logger;
+import cube.aigc.spi.AIGCHost;
 import cube.aigc.spi.ActionBinding;
 import cube.aigc.spi.ActionContext;
 import cube.aigc.spi.ActionModule;
-import cube.aigc.spi.AIGCHost;
 import cube.auth.AuthToken;
 import cube.benchmark.ResponseTime;
 import cube.common.Packet;
@@ -57,24 +57,26 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
     private volatile boolean deferred = false;
 
     @Override
-    public void deferResponse() { this.deferred = true; }
+    public void deferResponse() {
+        this.deferred = true;
+    }
 
     private AuthToken authToken;
 
     /**
      * 构造函数。
      *
-     * @param cellet Cellet 实例。
-     * @param talkContext 会话上下文。
-     * @param primitive 原始数据。
+     * @param cellet       Cellet 实例。
+     * @param talkContext  会话上下文。
+     * @param primitive    原始数据。
      * @param responseTime 应答计时记录，由
-     *            <code>AIGCCellet#markResponseTime</code> 在派发前创建。
-     * @param host 宿主能力接口，可为 <code>null</code>。
-     * @param binding 动作绑定。
-     * @param module 所属模块实例。
+     *                     <code>AIGCCellet#markResponseTime</code> 在派发前创建。
+     * @param host         宿主能力接口，可为 <code>null</code>。
+     * @param binding      动作绑定。
+     * @param module       所属模块实例。
      */
     public ActionRunner(Cellet cellet, TalkContext talkContext, Primitive primitive, ResponseTime responseTime,
-            AIGCHost host, ActionBinding binding, ActionModule module) {
+                        AIGCHost host, ActionBinding binding, ActionModule module) {
         super(cellet, talkContext, primitive, responseTime);
         this.host = host;
         this.binding = binding;
@@ -173,8 +175,7 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
             // CAS 仍然执行，使 isResponded() 如实反映「至少应答过一次」，
             // 供处理器自查；只是不再充当闸门。
             this.responded.compareAndSet(false, true);
-        }
-        else if (!this.responded.compareAndSet(false, true)) {
+        } else if (!this.responded.compareAndSet(false, true)) {
             Logger.w(ActionRunner.class, "#respond - Action \"" + this.binding.action
                     + "\" has already responded, ignore the duplicated one");
             return;

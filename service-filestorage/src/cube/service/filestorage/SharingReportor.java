@@ -16,12 +16,18 @@ import cube.util.TextUtils;
 import org.json.JSONObject;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 报告数据计算器。
  */
 public class SharingReportor {
+
+    /**
+     * IP 库不可用时只提示一次，避免逐条记录刷屏。
+     */
+    private final static AtomicBoolean IP_DB_WARNED = new AtomicBoolean(false);
 
     private ServiceStorage storage;
 
@@ -168,17 +174,13 @@ public class SharingReportor {
     private void mergeTimePoint(ServiceStorage.TimePoint timePoint, Map<String, AtomicInteger> ipMap,
                                 Map<String, AtomicInteger> osMap,
                                 Map<String, AtomicInteger> swMap) {
-        String ipLocation = IPSeeker.getInstance().findIP(timePoint.address).getMainInfo();
-        if (ipLocation.length() == 0) {
-            ipLocation = timePoint.address;
-        }
+        String ipLocation = resolveLocation(timePoint.address);
         if (ipMap.containsKey(ipLocation)) {
             ipMap.get(ipLocation).incrementAndGet();
         }
         else {
             ipMap.put(ipLocation, new AtomicInteger(1));
         }
-
         if (null != timePoint.userAgent) {
             JSONObject us = TextUtils.parseUserAgent(timePoint.userAgent);
             String osName = us.getString("osName");
@@ -200,6 +202,28 @@ public class SharingReportor {
         }
         else if (null != timePoint.agent) {
             // TODO
+        }
+    }
+
+    /**
+     * 解析 IP 归属地。
+     *
+     * <p>IP 库缺失时退化为原始地址：报表宁可少一列归属地，也不该因为一个可选依赖整体失败。
+     * 原实现直接链式调用 {@code getInstance().findIP(...)}，库缺失时抛 NPE 打断整份报表。</p>
+     *
+     * @param address IP 地址。
+     * @return 归属地或原始地址。
+     */
+    private static String resolveLocation(String address) {
+        try {
+            String location = IPSeeker.getInstance().findIP(address).getMainInfo();
+            return (null == location || location.isEmpty()) ? address : location;
+        } catch (Exception e) {
+            if (IP_DB_WARNED.compareAndSet(false, true)) {
+                Logger.w(SharingReportor.class, "#resolveLocation - IP database is unavailable, "
+                        + "use raw address: " + e.getMessage());
+            }
+            return address;
         }
     }
 

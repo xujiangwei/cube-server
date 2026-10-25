@@ -31,41 +31,61 @@ public final class IPSeeker {
     private final long indexTail;
     private final String databaseVersion;
 
+    /**
+     * 打包进 jar 的资源名。
+     */
+    private final static String CLASSPATH_RESOURCE = "ip-db.dat";
+
+    /**
+     * 外部文件路径（历史约定）。
+     */
+    private final static String FILE_PATH = "assets/ip-db.dat";
+
     private IPSeeker() throws IOException {
-        final InputStream in = new FileInputStream("assets/ip-db.dat");
-        final ByteArrayOutputStream out = new ByteArrayOutputStream(11 * 1024 * 1024); // 11MB
-        final byte[] buffer = new byte[4096];
-        try {
-            while (true) {
-                final int r = in.read(buffer);
-                if (r == -1) {
-                    break;
+        this(loadData());
+    }
+
+    /**
+     * 加载 IP 库数据。
+     *
+     * <p>优先从 classpath 读取（部署时不必依赖工作目录），找不到再退回 {@code assets/ip-db.dat}。
+     * 直接返回 {@code byte[]}，省掉"读进缓冲流再整体复制"的那一次 11MB 拷贝。</p>
+     *
+     * @return IP 库数据。
+     * @throws IOException 读取失败时抛出。
+     */
+    private static byte[] loadData() throws IOException {
+        InputStream in = IPSeeker.class.getClassLoader().getResourceAsStream(CLASSPATH_RESOURCE);
+        if (null != in) {
+            try {
+                return readFully(in);
+            } finally {
+                try {
+                    in.close();
+                } catch (IOException e) {
+                    Logger.d(IPSeeker.class, "#loadData - Failed to close 'in': " + e.getMessage());
                 }
-                out.write(buffer, 0, r);
-            }
-
-            data = out.toByteArray();
-        } catch (IOException e) {
-            throw e;
-        } finally {
-            try {
-                in.close();
-            } catch (IOException e) {
-                // 释放失败不影响主流程，仅记录
-                Logger.d(IPSeeker.class, "#IPSeeker - Failed to close 'in': " + e.getMessage());
-            }
-
-            try {
-                out.close();
-            } catch (IOException e) {
-                // 释放失败不影响主流程，仅记录
-                Logger.d(IPSeeker.class, "#IPSeeker - Failed to close 'out': " + e.getMessage());
             }
         }
 
-        indexHead = readLong32(0);
-        indexTail = readLong32(4);
-        databaseVersion = parseDatabaseVersion();
+        File file = new File(FILE_PATH);
+        if (!file.exists()) {
+            throw new FileNotFoundException("IP database not found, classpath: " + CLASSPATH_RESOURCE
+                    + " or file: " + FILE_PATH);
+        }
+
+        return Files.readAllBytes(file.toPath());
+    }
+
+    private static byte[] readFully(InputStream in) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(11 * 1024 * 1024);
+        byte[] buffer = new byte[8192];
+        int length;
+        while ((length = in.read(buffer)) != -1) {
+            out.write(buffer, 0, length);
+        }
+
+        return out.toByteArray();
     }
 
     public IPSeeker(final byte[] data) {
@@ -79,12 +99,20 @@ public final class IPSeeker {
         this(Files.readAllBytes(file));
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return IP 查询器实例。
+     * @throws IllegalStateException IP 库缺失或损坏时抛出。
+     */
     public synchronized static IPSeeker getInstance() {
         if (null == IPSeeker.instance) {
             try {
                 IPSeeker.instance = new IPSeeker();
             } catch (IOException e) {
-                Logger.e(IPSeeker.class, "#getInstance - I/O error", e);
+                // 返回 null 会让调用方在链式调用处抛 NPE，看不出根因；这里明确失败
+                Logger.e(IPSeeker.class, "#getInstance - Failed to load the IP database", e);
+                throw new IllegalStateException("Failed to load the IP database", e);
             }
         }
 

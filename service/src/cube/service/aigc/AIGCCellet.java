@@ -35,7 +35,7 @@ public class AIGCCellet extends AbstractCellet {
 
     private AIGCService service;
 
-    private ConcurrentLinkedQueue<Responder> responderList;
+    private final ConcurrentLinkedQueue<Responder> responderList;
 
     /**
      * AIGC 业务模块注册表。

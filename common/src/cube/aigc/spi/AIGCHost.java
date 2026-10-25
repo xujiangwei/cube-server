@@ -6,47 +6,25 @@
 
 package cube.aigc.spi;
 
-import cube.aigc.text.Keyword;
-import cube.aigc.listener.VoiceDiarizationListener;
-import cube.aigc.listener.SpeechModuleListener;
-import cube.aigc.complex.attachment.Attachment;
-import cube.aigc.listener.GenerateTextListener;
-import cell.core.net.Endpoint;
 import cell.core.talk.dialect.ActionDialect;
 import cube.aigc.AppEvent;
+import cube.aigc.SemanticSearchListener;
 import cube.aigc.TaskDescriptor;
 import cube.aigc.Usage;
-import cube.aigc.psychology.Attribute;
-import cube.aigc.psychology.consultation.ConsultationTheme;
-import cube.common.entity.AIGCChatHistory;
-import cube.common.entity.Chart;
-import cube.aigc.psychology.EvaluationReport;
-import cube.aigc.SemanticSearchListener;
+import cube.aigc.complex.attachment.Attachment;
 import cube.aigc.cv.MatchSimilarityListener;
-import cube.aigc.psychology.Painting;
+import cube.aigc.listener.GenerateTextListener;
+import cube.aigc.listener.SpeechModuleListener;
+import cube.aigc.listener.VoiceDiarizationListener;
+import cube.aigc.psychology.Attribute;
 import cube.aigc.psychology.ReportPermission;
-import cube.aigc.psychology.PaintingReport;
-import cube.aigc.psychology.ScaleReport;
-import cube.aigc.psychology.Theme;
 import cube.aigc.psychology.composition.HexagonDimensionScore;
-import cube.aigc.psychology.composition.PaintingFeatureSet;
-import cube.aigc.psychology.composition.Scale;
-import cube.aigc.psychology.listener.PaintingReportListener;
-import cube.aigc.psychology.listener.ScaleReportListener;
+import cube.aigc.psychology.consultation.ConsultationTheme;
+import cube.aigc.text.Keyword;
 import cube.auth.AuthToken;
 import cube.common.Language;
-import cube.common.entity.AIGCChannel;
-import cube.common.entity.AIGCUnit;
-import cube.common.entity.Contact;
-import cube.common.entity.Membership;
-import cube.common.entity.User;
-import cube.common.entity.VoiceDiarization;
-import cube.common.entity.FileLabel;
-import cube.common.entity.GeneratingOption;
-import cube.common.entity.GeneratingRecord;
-import cube.common.entity.ObjectInfo;
+import cube.common.entity.*;
 import cube.core.Storage;
-import cube.storage.StorageFactory;
 import cube.storage.StorageType;
 import org.json.JSONObject;
 
@@ -105,7 +83,7 @@ public interface AIGCHost {
      *
      * @param tokenCode 令牌码。
      * @return 令牌有效且对应用户已注册时返回 <code>true</code>；令牌无效、
-     *         联系人缺失或用户未注册时返回 <code>false</code>。
+     * 联系人缺失或用户未注册时返回 <code>false</code>。
      */
     boolean isRegistered(String tokenCode);
 
@@ -143,15 +121,16 @@ public interface AIGCHost {
      * @return 返回用户档案；不存在时返回 <code>null</code>。
      */
     User getUserById(long uid);
+
     /**
      * 读取联系人的会员资格。
      *
      * <p>入参为域名 + 联系人 ID，而非会员系统本身——会员系统位于宿主，
      * 不可作为返回类型出现在本接口。</p>
      *
-     * @param domain存储域。
-     * @param contactId 联系人 ID。
-     * @param state 会员状态，取值见 {@link Membership#STATE_NORMAL}等常量。
+     * @param domain     存储域。
+     * @param contactId  联系人 ID。
+     * @param state      会员状态，取值见 {@link Membership#STATE_NORMAL}等常量。
      * @return 返回会员资格；不存在时返回 {@code null}。
      */
     Membership getMembership(String domain, long contactId, int state);
@@ -161,7 +140,7 @@ public interface AIGCHost {
      *
      * <p>用于付费能力的用量闸门：剩余次数不足时拒绝执行。</p>
      *
-     * @param user 用户。
+     * @param user       用户。
      * @param membership 会员资格。
      * @return 返回剩余次数。
      */
@@ -170,8 +149,8 @@ public interface AIGCHost {
     /**
      * 判定用户对某份报告是否具备查看权限。
      *
-     * @param domain 存储域。
-     * @param user 用户。
+     * @param domain   存储域。
+     * @param user     用户。
      * @param reportSn 报告序列号。
      * @return 返回权限判定结果。
      */
@@ -225,7 +204,7 @@ public interface AIGCHost {
      * 否则并发首调会重复加载语料。</p>
      *
      * @param content 待分析文本。
-     * @param topN 关键词数量上限。
+     * @param topN    关键词数量上限。
      * @return 返回按 TF-IDF 权重降序的关键词列表。
      */
     List<String> extractKeywords(String content, int topN);
@@ -238,7 +217,7 @@ public interface AIGCHost {
      * 权重表由宿主维护，模块只读取结果。</p>
      *
      * @param content 待分析文本。
-     * @param topN 最多返回的词条数。
+     * @param topN    最多返回的词条数。
      * @return 返回带权重的词条，按权重降序；无词条时返回空列表。
      */
     List<Keyword> extractWeightedKeywords(String content, int topN);
@@ -255,10 +234,10 @@ public interface AIGCHost {
     /**
      * 申请频道，已存在时复用。
      *
-     * @param token 访问令牌。
+     * @param token       访问令牌。
      * @param participant 参与者。
      * @param channelCode 频道码，为 <code>null</code> 时由宿主生成。
-     * @param language 会话语言。
+     * @param language    会话语言。
      * @return 返回频道。
      */
     AIGCChannel acquireChannel(AuthToken token, String participant, String channelCode, Language language);
@@ -266,7 +245,7 @@ public interface AIGCHost {
     /**
      * 申请频道（由宿主按令牌码解析访问令牌）。
      *
-     * @param tokenCode 令牌码。
+     * @param tokenCode   令牌码。
      * @param participant 参与者。
      * @return 返回频道。
      */
@@ -321,7 +300,7 @@ public interface AIGCHost {
      * 提升该联系人的上下文缓存命中率。</p>
      *
      * @param capabilityName 单元能力名。
-     * @param contactId 联系人 ID。
+     * @param contactId      联系人 ID。
      * @return 无可用单元时返回 <code>null</code>。
      */
     AIGCUnit selectUnitForContact(String capabilityName, long contactId);
@@ -332,13 +311,14 @@ public interface AIGCHost {
      * <p>与 {@link #acquireChannel} 的区别：本方法接受令牌码而非令牌对象，
      * 供只有令牌码的调用方使用。</p>
      *
-     * @param tokenCode 访问令牌码。
+     * @param tokenCode   访问令牌码。
      * @param participant 参与者标识。
      * @param channelCode 频道码。
-     * @param language 会话语言。
+     * @param language    会话语言。
      * @return 返回新建的频道；令牌无效时返回 <code>null</code>。
      */
     AIGCChannel createChannelByCode(String tokenCode, String participant, String channelCode, Language language);
+
     /**
      * 统计指定能力名下的有效单元数量。
      *
@@ -366,15 +346,15 @@ public interface AIGCHost {
     /**
      * 以指定单元同步生成文本。
      *
-     * @param unit 执行单元。
-     * @param prompt 提示词。
-     * @param option 生成选项。
-     * @param history 历史记录。
+     * @param unit               执行单元。
+     * @param prompt             提示词。
+     * @param option             生成选项。
+     * @param history            历史记录。
      * @param participantContact 参与者联系人。
      * @return 返回生成结果。
      */
     GeneratingRecord syncGenerateText(AIGCUnit unit, String prompt, GeneratingOption option,
-            List<GeneratingRecord> history, Contact participantContact);
+                                      List<GeneratingRecord> history, Contact participantContact);
 
     /**
      * 以指定能力名为指定联系人同步生成文本。
@@ -387,16 +367,16 @@ public interface AIGCHost {
      * <p>报告生成这类「同一联系人连续多段生成」的场景必须走亲和选点，
      * 换成全局选点会改变单元分布，属行为变更而非等价重构。</p>
      *
-     * @param token 调用者的访问令牌，用于亲和选点。
-     * @param capabilityName 单元能力名。
-     * @param prompt 提示词。
-     * @param option 生成选项。
-     * @param history 历史记录，可为 {@code null}。
+     * @param token              调用者的访问令牌，用于亲和选点。
+     * @param capabilityName     单元能力名。
+     * @param prompt             提示词。
+     * @param option             生成选项。
+     * @param history            历史记录，可为 {@code null}。
      * @param participantContact 参与者联系人，可为 {@code null}。
      * @return 返回生成结果；无可用单元时返回 {@code null}。
      */
     GeneratingRecord syncGenerateText(AuthToken token, String capabilityName, String prompt,
-            GeneratingOption option, List<GeneratingRecord> history, Contact participantContact);
+                                      GeneratingOption option, List<GeneratingRecord> history, Contact participantContact);
 
     /**
      * 以指定单元同步生成可校验的结构化结果。
@@ -405,44 +385,50 @@ public interface AIGCHost {
      * → 巡检任务计划」这类业务，必须拿到符合 JSON Schema 的结果，
      * 而自由文本接口无法满足。</p>
      *
-     * @param unit 执行单元。
-     * @param prompt 提示词。
+     * @param unit       执行单元。
+     * @param prompt     提示词。
      * @param jsonSchema JSON Schema 描述。
      * @param schemaName 模式名，用于日志与指标。
-     * @param timeoutMs 超时（毫秒）。
+     * @param timeoutMs  超时（毫秒）。
      * @return 返回解析后的结构化结果。
      */
     JSONObject generateStructured(AIGCUnit unit, String prompt, String jsonSchema,
-            String schemaName, long timeoutMs);
+                                  String schemaName, long timeoutMs);
 
     /**
      * 以指定单元执行一次受控调用。
      *
      * <p>宿主负责超时控制、日志、指标与熔断。</p>
      *
-     * @param unit 执行单元。
-     * @param action 动作名。
-     * @param data 动作数据。
+     * @param unit      执行单元。
+     * @param action    动作名。
+     * @param data      动作数据。
      * @param timeoutMs 超时（毫秒）。
      * @return 返回应答方言。
      */
     ActionDialect invokeUnit(AIGCUnit unit, String action, JSONObject data, long timeoutMs);
 
-    /** Invoke a named plugin using its dedicated channel, without built-in fallback. */
+    /**
+     * Invoke a named plugin using its dedicated channel, without built-in fallback.
+     */
     default ActionDialect invokePluginUnit(String unitName, JSONObject input, long timeoutMs) {
         throw new PluginCallException(cube.common.state.AIGCStateCode.UnitError, 503,
                 "This host does not support plugin unit calls");
     }
 
-    /** Connected providers; registration does not imply model readiness. */
-    default int countPluginUnits(String unitName) { return 0; }
+    /**
+     * Connected providers; registration does not imply model readiness.
+     */
+    default int countPluginUnits(String unitName) {
+        return 0;
+    }
 
     // ───────── 文件与资源 ─────────
 
     /**
      * 获取文件标签。
      *
-     * @param domain 域。
+     * @param domain   域。
      * @param fileCode 文件码。
      * @return 返回文件标签，不存在时返回 <code>null</code>。
      */
@@ -456,7 +442,7 @@ public interface AIGCHost {
      * 下载动作由文件存储服务完成，模块不直接发起网络请求。</p>
      *
      * @param authToken 访问令牌。
-     * @param fileUrl 外部文件链接。
+     * @param fileUrl   外部文件链接。
      * @return 返回文件标签；下载或登记失败时返回 {@code null}。
      */
     FileLabel downloadFile(AuthToken authToken, String fileUrl);
@@ -464,7 +450,7 @@ public interface AIGCHost {
     /**
      * 加载文件内容。
      *
-     * @param domain 域。
+     * @param domain   域。
      * @param fileCode 文件码。
      * @return 返回文件，不存在时返回 <code>null</code>。
      */
@@ -473,15 +459,15 @@ public interface AIGCHost {
     /**
      * 保存文件。
      *
-     * @param token 访问令牌。
-     * @param fileCode 文件码。
-     * @param file 文件内容。
-     * @param filename 文件名。
+     * @param token           访问令牌。
+     * @param fileCode        文件码。
+     * @param file            文件内容。
+     * @param filename        文件名。
      * @param deleteAfterSave 保存后是否删除源文件。
      * @return 返回文件标签。
      */
     cube.common.entity.FileLabel saveFile(AuthToken token, String fileCode, File file, String filename,
-            boolean deleteAfterSave);
+                                          boolean deleteAfterSave);
 
     /**
      * 保存文件并附带业务上下文。
@@ -489,21 +475,21 @@ public interface AIGCHost {
      * <p>与 {@link #saveFile} 的区别：本方法可把额外的键值对（如音频时长）
      * 随文件一并登记，供后续按文件查询时取用。</p>
      *
-     * @param token 访问令牌。
-     * @param fileCode 文件码。
-     * @param file 源文件。
-     * @param filename 文件名。
+     * @param token           访问令牌。
+     * @param fileCode        文件码。
+     * @param file            源文件。
+     * @param filename        文件名。
      * @param deleteAfterSave 保存后是否删除源文件。
-     * @param context 随文件登记的业务上下文。
+     * @param context         随文件登记的业务上下文。
      * @return 返回文件标签；保存失败时返回 <code>null</code>。
      */
     cube.common.entity.FileLabel saveFileWithContext(AuthToken token, String fileCode, File file, String filename,
-            boolean deleteAfterSave, JSONObject context);
+                                                     boolean deleteAfterSave, JSONObject context);
 
     /**
      * 删除文件。
      *
-     * @param domain 域。
+     * @param domain   域。
      * @param fileCode 文件码。
      * @return 返回被删除的文件标签。
      */
@@ -528,7 +514,7 @@ public interface AIGCHost {
      *   <li><code>assets/&lt;moduleName&gt;/&lt;relativePath&gt;</code>（兼容既有部署）</li>
      * </ol>
      *
-     * @param moduleName 模块名。
+     * @param moduleName   模块名。
      * @param relativePath 相对路径。
      * @return 返回资源内容，两级路径均不存在时返回 <code>null</code>。
      */
@@ -559,8 +545,8 @@ public interface AIGCHost {
      * <p>宿主代管存储的打开与关闭顺序，模块不自行管理存储生命周期。</p>
      *
      * @param storageName 存储名。
-     * @param type 存储类型。
-     * @param config 存储配置。
+     * @param type        存储类型。
+     * @param config      存储配置。
      * @return 返回存储实例。
      */
     Storage openModuleStorage(String storageName, StorageType type, JSONObject config);
@@ -582,7 +568,7 @@ public interface AIGCHost {
      *
      * @param contactId 联系人 ID。
      * @param eventName 事件名。
-     * @param limit 数量上限。
+     * @param limit     数量上限。
      * @return 返回事件列表，按时间戳倒序；服务未就绪时返回空列表。
      */
     List<AppEvent> queryAppEvents(long contactId, String eventName, int limit);
@@ -597,7 +583,7 @@ public interface AIGCHost {
      *
      * @param taskKey 任务键，用于日志与去重。
      * @param delayMs 延迟（毫秒）。
-     * @param job 任务体。
+     * @param job     任务体。
      */
     void schedule(String taskKey, long delayMs, Runnable job);
 
@@ -653,9 +639,9 @@ public interface AIGCHost {
      * <p>可用性已由 {@link ModuleDescriptor#requires} 在装载时校验，
      * 但本方法仍做类型校验：不匹配时返回 <code>null</code> 而非抛异常。</p>
      *
-     * @param <T> 模块类型。
+     * @param <T>        模块类型。
      * @param moduleName 模块名。
-     * @param type 模块类型。
+     * @param type       模块类型。
      * @return 返回模块实例，不存在或类型不匹配时返回 <code>null</code>。
      */
     <T> T getSiblingModule(String moduleName, Class<T> type);
@@ -669,7 +655,7 @@ public interface AIGCHost {
      * <p>模块侧典型用法是把它包装成函数式接口注入自己的存储层，
      * 与宿主侧已有的注入方式同构。</p>
      *
-     * @param hds 六维得分，将被就地填充。
+     * @param hds      六维得分，将被就地填充。
      * @param language 会话语言。
      */
     void fillHexagonScoreDescription(HexagonDimensionScore hds, Language language);
@@ -692,8 +678,8 @@ public interface AIGCHost {
      * 返回值可直接拼入提示词。</p>
      *
      * @param tokenCode 访问令牌码，用于定位联系人档案。
-     * @param query 问题。
-     * @param english 是否以英文提问（影响人称表述）。
+     * @param query     问题。
+     * @param english   是否以英文提问（影响人称表述）。
      * @return 返回补充文本；无知识库、无命中或联系人信息缺失时返回 <code>null</code>。
      */
     String generatePersonalKnowledge(String tokenCode, String query, boolean english);
@@ -706,8 +692,8 @@ public interface AIGCHost {
      * <p>该能力由宿主转发至计算机视觉服务处理，模块侧无法自行实现。
      * 返回的 {@link ObjectInfo} 位于 common，模块可直接读取其物体列表。</p>
      *
-     * @param domain 存储域。
-     * @param fileCode 文件码。
+     * @param domain    存储域。
+     * @param fileCode  文件码。
      * @param visualize 是否输出可视化标注。
      * @return 返回检测结果；检测失败时返回 {@code null}。
      */
@@ -724,13 +710,13 @@ public interface AIGCHost {
      * <p>本方法为异步：立即返回是否已受理，检索结果经回调送达。
      * 调用方若需同步等待，须自行在回调中释放等待信号。</p>
      *
-     * @param fileLabel 待检索的绘画文件。
+     * @param fileLabel     待检索的绘画文件。
      * @param templateNames 模板素材名列表。
-     * @param listener 检索完成回调。
+     * @param listener      检索完成回调。
      * @return 受理成功时返回 <code>true</code>。
      */
     boolean matchSimilarity(FileLabel fileLabel, List<String> templateNames,
-            MatchSimilarityListener listener);
+                            MatchSimilarityListener listener);
 
     /**
      * 取得服务的工作目录。
@@ -756,10 +742,10 @@ public interface AIGCHost {
     /**
      * 新建会话频道。
      *
-     * @param authToken 访问令牌。
+     * @param authToken   访问令牌。
      * @param participant 参与者标识。
      * @param channelCode 频道码；传 <code>null</code> 时由宿主生成随机码。
-     * @param language 会话语言。
+     * @param language    会话语言。
      * @return 返回新建的频道。
      */
     AIGCChannel createChannel(AuthToken authToken, String participant, String channelCode, Language language);
@@ -771,21 +757,21 @@ public interface AIGCHost {
      * 会把该频道的上下文（含历史、附件、可用领域）一并交给单元，
      * 用于多段对话的上下文延续。生成是异步的，立即返回。</p>
      *
-     * @param channel 会话频道。
-     * @param unit 目标单元。
-     * @param query 本次输入。
-     * @param prompt 提示词。
-     * @param option 生成选项。
-     * @param histories 历史生成记录。
+     * @param channel      会话频道。
+     * @param unit         目标单元。
+     * @param query        本次输入。
+     * @param prompt       提示词。
+     * @param option       生成选项。
+     * @param histories    历史生成记录。
      * @param maxHistories 最多携带的历史条数。
-     * @param attachments 附件列表。
-     * @param categories 领域列表。
-     * @param recordable 是否记录留痕。
-     * @param listener 产出回调。
+     * @param attachments  附件列表。
+     * @param categories   领域列表。
+     * @param recordable   是否记录留痕。
+     * @param listener     产出回调。
      */
     void generateText(AIGCChannel channel, AIGCUnit unit, String query, String prompt, GeneratingOption option,
-            List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
-            List<String> categories, boolean recordable, GenerateTextListener listener);
+                      List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
+                      List<String> categories, boolean recordable, GenerateTextListener listener);
 
     /**
      * 分离音频中的说话人并写回文件标签。
@@ -799,17 +785,17 @@ public interface AIGCHost {
      * {@code indicator} 保持 {@code null}。需要指标的调用方（如咨询策略
      * 生成）应显式传 {@code true}，只关心转写与说话人的调用方可关闭。</p>
      *
-     * @param authToken 访问令牌。
-     * @param fileLabel 待处理音频。
-     * @param preprocess 是否先做降噪等预处理。
-     * @param storage 结果是否落库。
+     * @param authToken   访问令牌。
+     * @param fileLabel   待处理音频。
+     * @param preprocess  是否先做降噪等预处理。
+     * @param storage     结果是否落库。
      * @param jumpToFirst 是否跳到首条结果。
-     * @param sentiment 是否分析内容语料的正负面 / 中性指标。
-     * @param listener 分离结果回调。
+     * @param sentiment   是否分析内容语料的正负面 / 中性指标。
+     * @param listener    分离结果回调。
      * @return 返回待处理的文件标签；单元不可用时返回 <code>null</code>。
      */
     FileLabel performSpeakerDiarization(AuthToken authToken, FileLabel fileLabel, boolean preprocess,
-            boolean storage, boolean jumpToFirst, boolean sentiment, VoiceDiarizationListener listener);
+                                        boolean storage, boolean jumpToFirst, boolean sentiment, VoiceDiarizationListener listener);
 
     /**
      * 注册语音能力模块级监听器。
@@ -825,7 +811,7 @@ public interface AIGCHost {
      *
      * @param listener 监听器。
      * @return 注册成功返回 <code>true</code>；参数为 {@code null} 或已注册时
-     *         返回 <code>false</code>。
+     * 返回 <code>false</code>。
      */
     boolean registerSpeechListener(SpeechModuleListener listener);
 
@@ -834,7 +820,7 @@ public interface AIGCHost {
      *
      * @param listener 监听器。
      * @return 注销成功返回 <code>true</code>；参数为 {@code null} 或未注册时
-     *         返回 <code>false</code>。
+     * 返回 <code>false</code>。
      */
     boolean unregisterSpeechListener(SpeechModuleListener listener);
 
@@ -892,9 +878,9 @@ public interface AIGCHost {
      * 读取某联系人在指定时间窗内的对话历史。
      *
      * @param contactId 联系人 ID。
-     * @param domain 存储域。
+     * @param domain    存储域。
      * @param startTime 起始时间戳。
-     * @param endTime 结束时间戳。
+     * @param endTime   结束时间戳。
      * @return 返回对话历史列表；无记录时返回空列表。
      */
     List<AIGCChatHistory> readChatHistories(long contactId, String domain, long startTime, long endTime);
@@ -918,17 +904,17 @@ public interface AIGCHost {
     /**
      * 写入一条咨询录音记录。
      *
-     * @param authToken 访问令牌。
+     * @param authToken  访问令牌。
      * @param streamName 录音流名。
-     * @param timestamp 起始时间戳。
-     * @param duration 时长（毫秒）。
-     * @param attribute 受测人属性。
-     * @param theme 咨询主题。
-     * @param fileCode 录音文件码。
+     * @param timestamp  起始时间戳。
+     * @param duration   时长（毫秒）。
+     * @param attribute  受测人属性。
+     * @param theme      咨询主题。
+     * @param fileCode   录音文件码。
      * @return 写入成功时返回 <code>true</code>。
      */
     boolean writeCounselingRecording(AuthToken authToken, String streamName, long timestamp, long duration,
-            Attribute attribute, ConsultationTheme theme, String fileCode);
+                                     Attribute attribute, ConsultationTheme theme, String fileCode);
 
     /**
      * 在知识库中做语义检索。
@@ -939,7 +925,7 @@ public interface AIGCHost {
      * <p>本方法为异步：立即返回是否已受理，结果经回调送达。
      * 调用方若需同步等待，须自行在回调中释放等待信号。</p>
      *
-     * @param query 检索问题。
+     * @param query    检索问题。
      * @param listener 检索完成回调。
      * @return 受理成功时返回 <code>true</code>。
      */
