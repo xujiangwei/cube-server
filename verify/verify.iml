@@ -19,10 +19,12 @@
       </library>
     </orderEntry>
     <orderEntry type="module" module-name="common" />
+    <orderEntry type="module" module-name="dispatcher" />
     <orderEntry type="module" module-name="service" />
     <!-- ⚠️ 刻意依赖 service-psychology：本模块是全工程唯一允许在编译期
          引用插件的地方。原因见 verify/build.xml 顶部的说明。
          service 模块本身【不得】加这条依赖（见 service/service.iml）。 -->
     <orderEntry type="module" module-name="service-psychology" />
+    <orderEntry type="module" module-name="service-forest" />
   </component>
 </module>

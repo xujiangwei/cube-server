@@ -25,5 +25,6 @@
          未加此条时 Class.forName("...PsychologyDispatcherExtension") 会失败，
          扩展静默不生效（不抛异常，只记一条 ERROR）。 -->
     <orderEntry type="module" module-name="service-psychology" scope="RUNTIME" />
+    <orderEntry type="module" module-name="service-forest" scope="RUNTIME" />
   </component>
 </module>
