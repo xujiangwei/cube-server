@@ -260,7 +260,7 @@ Java 侧：
 
 1. 继续使用 JDK 8 和 Ant。新模块构建排在 `common`、`dispatcher` 之后。
 2. 生成 `cube-service-forest-<工程版本>.jar`，与心理学插件一样放入对应运行环境的 `libs/`，部署目录为 `deploy/libs/`。
-3. service 的 `aigc-modules.properties` 增加 `cube.service.forest.ForestModule`；dispatcher 的 `module.extensions` 追加 `cube.service.forest.dispatcher.ForestEndpoints`，保留已有配置项。
+3. service 的 `aigc-modules.properties` 增加 `cube.service.forest.ForestModule`；dispatcher 的 `module.extensions.<n>` 新增一行 `cube.service.forest.dispatcher.ForestEndpoints`，保留已有配置项。
 4. 不放入 `deploy/cellets/`，不使用旧的钩子插件 `config/plugin.json` 注册该业务模块。
 
 Python 侧：

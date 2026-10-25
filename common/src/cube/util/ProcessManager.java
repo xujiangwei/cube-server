@@ -18,7 +18,14 @@ import java.util.concurrent.Executors;
 
 /**
  * 进程管理器。
+ *
+ * @deprecated 不要使用。本类存在三处设计缺陷：用固定 16 线程池做阻塞读流（并发进程数一高就会互相饿死）、
+ * {@code waitFor()} 没有超时（子进程挂死会永久占用调用线程）、输出无上限累积。
+ * 新的子进程调用请使用 {@code cube.processor.Subprocess}（合并流 + 独立读线程 + 超时强杀 + 仅 0 判成功）。
+ * 本类仓库内已无调用点（唯一的引用是 {@code Kernel#shutdown} 里的 {@code destroy()}），
+ * 保留只为二进制兼容，后续版本删除。
  */
+@Deprecated
 public final class ProcessManager {
 
     private final static ProcessManager instance = new ProcessManager();

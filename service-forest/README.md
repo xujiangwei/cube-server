@@ -14,7 +14,7 @@ module.2.class=cube.service.forest.ForestModule
 module.2.enabled=true
 ```
 
-dispatcher 的 `config/dispatcher.properties` 在 `module.extensions` 原有列表末尾追加 `cube.service.forest.dispatcher.ForestEndpoints`。重启对应进程后生效；停用 Java 模块可将该模块的 `enabled` 改为 false，停用接口则从扩展列表移除森林端点声明。
+dispatcher 的 `config/dispatcher.properties` 按「一行一个扩展」新增一行 `module.extensions.30=cube.service.forest.dispatcher.ForestEndpoints`（编号取未被占用的值即可，装载按编号升序，不影响已有条目）。重启对应进程后生效；停用 Java 模块可将该模块的 `enabled` 改为 false，停用接口则注释掉该行。
 
 Python 插件位于 `C:/Users/hermi/workspace/apexnova-wisdom/plugins/omniforest`，按其 README 在 `config.properties` 开启 `plugins.enabled=True` 和 `plugin.omniforest=True`。当前本机 Python 配置仍默认关闭森林插件，未修改其他单元开关，也未部署或重启服务。
 

@@ -271,8 +271,9 @@ robot.enabled=false
 robot.api=http://127.0.0.1:2280/event/callback/{token}
 robot.callback=http://127.0.0.1:7010/robot/event/{token}
 
-# 业务模块网关扩展（详见第六章）
-module.extensions=cube.service.psychology.PsychologyDispatcherExtension,cube.service.psychology.dispatcher.PsychologyEndpoints
+# 业务模块网关扩展（详见第六章）；一行一个扩展，编号只表达装载顺序，允许跳号
+module.extensions.10=cube.service.psychology.PsychologyDispatcherExtension
+module.extensions.20=cube.service.psychology.dispatcher.PsychologyEndpoints
 module.rest.enabled=false
 
 # Harness 代理网关（默认关闭，仅 loopback development）
@@ -444,8 +445,9 @@ module.1.class=cube.service.psychology.PsychologyModule
 module.1.enabled=true
 module.1.optional=false
 
-# dispatcher/config/dispatcher.properties（网关端点装载）
-module.extensions=<前缀声明类>,<端点提供者类>
+# dispatcher/config/dispatcher.properties（网关端点装载，一行一个，按编号升序装载）
+module.extensions.10=<前缀声明类>
+module.extensions.20=<端点提供者类>
 ```
 
 **第 6 步 · 构建与部署** —— 构建序必须是 `dispatcher` 之后（插件编译期依赖它），顶层 `ant build` 已声明该顺序：

@@ -310,9 +310,13 @@ public final class Kernel {
     /**
      * 安装消息队列。
      *
+     * <p><b>当前状态</b>：本方法在仓库内没有调用点，且唯一能装配的 {@link AdapterMQ} 是空实现，
+     * 装上之后不会产生任何实际行为。保留是为了二进制兼容，新代码不要依赖。</p>
+     *
      * @param name 指定消息队列名称。
      * @param config 指定队列配置信息。
      */
+    @SuppressWarnings("deprecation")
     public AbstractMQ installMQ(String name, JSONObject config) {
         AbstractMQ mq = null;
         try {
@@ -339,6 +343,10 @@ public final class Kernel {
 
     /**
      * 卸载消息队列。
+     *
+     * <p><b>注意</b>：本方法只调用 {@code stop()}，<b>不会</b>从内部映射里移除实例，
+     * 因此卸载后 {@link #getMQ(String)} 仍会返回已停止的对象。这是既有行为，本次不做改动
+     * （修改会改变 {@code getMQ} 的返回值语义），调用方请勿依赖卸载后的 {@code getMQ}。</p>
      *
      * @param name 指定队列名称。
      */

@@ -76,8 +76,8 @@
   <text x="60" y="496" font-size="13.5" font-weight="700" fill="#FFFFFF">dispatcher 进程 —— 端点注入</text>
 
   <rect x="62" y="524" width="486" height="52" rx="8" fill="#FFFFFF" stroke="#BFDBFE"/>
-  <text x="78" y="544" font-size="12" font-weight="700" fill="#1E40AF">module.extensions=cube.service.psychology.…</text>
-  <text x="78" y="564" font-size="11" fill="#64748B">dispatcher.properties：扩展实现类清单（逗号分隔）</text>
+  <text x="78" y="544" font-size="12" font-weight="700" fill="#1E40AF">module.extensions.10=cube.service.psychology.…</text>
+  <text x="78" y="564" font-size="11" fill="#64748B">dispatcher.properties：一行一个扩展类，&lt;n&gt; 仅表达装载顺序</text>
 
   <line x1="305" y1="576" x2="305" y2="598" stroke="#2563EB" stroke-width="1.5" marker-end="url(#arrowB)"/>
   <text x="315" y="592" font-size="11" fill="#1D4ED8">DispatcherExtensions.load()</text>

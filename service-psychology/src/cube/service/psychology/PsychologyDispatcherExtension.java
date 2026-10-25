@@ -18,7 +18,7 @@ import java.util.List;
  * <p><b>本类只声明前缀</b>——模块的端点由
  * {@link cube.service.psychology.dispatcher.PsychologyEndpoints} 提供，
  * 它同样实现 {@link DispatcherExtension}，由 dispatcher 侧按配置项
- * {@code module.extensions} 里的类名反射装载。</p>
+ * {@code module.extensions.<n>} 里的类名反射装载。</p>
  *
  * <p>⚠️ 心理学有端点的前缀<b>不</b>都在 {@code /aigc/psychology} 下：
  * {@code /aigc/painting}、{@code /aigc/copilot}、{@code /aigc/chart}、

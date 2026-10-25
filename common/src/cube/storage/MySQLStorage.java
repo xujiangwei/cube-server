@@ -71,6 +71,15 @@ public class MySQLStorage extends AbstractStorage {
     private final ConcurrentHashMap<String, AtomicLong> queryFailures = new ConcurrentHashMap<>();
 
     /**
+     * 是否已校验过服务端 {@code sql_mode}。
+     *
+     * <p>只校验一次：{@link SQLUtils} 的字符串转义依赖反斜杠转义（MySQL 默认），
+     * 若服务端开了 {@code NO_BACKSLASH_ESCAPES}，转义语义会变。这里只告警，不改变任何执行结果。</p>
+     */
+    private final java.util.concurrent.atomic.AtomicBoolean sqlModeChecked =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
+    /**
      * 连接池空闲连接回收间隔（秒）。
      */
     private final static long REAPER_INTERVAL_SECONDS = 60;
@@ -207,8 +216,45 @@ public class MySQLStorage extends AbstractStorage {
         }
     }
 
-    private String describeTarget() {
-        if (null == this.config) {
+    /**
+     * 一次性校验服务端 {@code sql_mode}。
+     *
+     * <p>{@code SQLUtils} 通过"先转义反斜杠、再转义单引号"构造字面量，这依赖 MySQL 默认的
+     * 反斜杠转义。若服务端启用了 {@code NO_BACKSLASH_ESCAPES}，同样的转义会产生不同语义。
+     * 这里只在首次查询时检查一次并输出 WARN；校验本身失败也不影响后续查询。</p>
+     *
+     * @param connection 当前借出的连接。
+     */
+    private void checkSqlMode(Connection connection) {
+        if (!this.sqlModeChecked.compareAndSet(false, true)) {
+            return;
+        }
+
+        Statement statement = null;
+        try {
+            statement = connection.createStatement();
+            ResultSet rs = statement.executeQuery("SELECT @@SESSION.sql_mode");
+            if (rs.next()) {
+                String mode = rs.getString(1);
+                if (null != mode && mode.toUpperCase().contains("NO_BACKSLASH_ESCAPES")) {
+                    Logger.w(this.getClass(), "#checkSqlMode - NO_BACKSLASH_ESCAPES is enabled, "
+                            + "the escaping in SQLUtils assumes backslash escapes, sql_mode: " + mode);
+                }
+            }
+        } catch (Exception e) {
+            Logger.d(this.getClass(), "#checkSqlMode - Skipped: " + e.getMessage());
+        } finally {
+            if (null != statement) {
+                try {
+                    statement.close();
+                } catch (SQLException e) {
+                    Logger.d(MySQLStorage.class, "#checkSqlMode - Failed to close 'statement': " + e.getMessage());
+                }
+            }
+        }
+    }
+
+    private String describeTarget() {        if (null == this.config) {
             return "unknown";
         }
 
@@ -654,6 +700,9 @@ public class MySQLStorage extends AbstractStorage {
 
         ArrayList<StorageField[]> result = new ArrayList<>();
 
+        // 一次性校验 sql_mode（只告警，不影响查询）
+        this.checkSqlMode(connection);
+
         // 拼写 SQL 语句
         String sql = SQLUtils.spellSelect(table, fields, conditionals);
 
@@ -793,6 +842,9 @@ public class MySQLStorage extends AbstractStorage {
             this.logQueryFailure(null, null, sql, beginTime, null);
             return result;
         }
+
+        // 一次性校验 sql_mode（只告警，不影响查询）
+        this.checkSqlMode(connection);
 
         Statement statement = null;
 

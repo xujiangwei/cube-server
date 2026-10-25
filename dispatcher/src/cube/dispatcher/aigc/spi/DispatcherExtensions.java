@@ -15,8 +15,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * 业务模块扩展发现器。
@@ -25,7 +27,8 @@ import java.util.Set;
  * classpath 顺序不确定；且模块启停需要运维开关（心理学是付费域，巡检是实验室域），
  * 配置文件天然承载。风格与 {@code config/aigc-modules.properties} 一致。</p>
  *
- * <p>配置项：{@code module.extensions}，逗号分隔的实现类全限定名。
+ * <p>配置项：一行一个扩展，键为 {@code module.extensions.<n>}，值为实现类全限定名，
+ * 按 {@code <n>} 升序装载。旧的逗号分隔写法 {@code module.extensions=A,B,C} 仅作兼容保留。
  * 未配置或为空时返回空列表，此时不注册任何扩展。</p>
  *
  * <p><b>本侧只持有接口</b>：实现类由各业务模块提供（编译期反向依赖本模块），
@@ -41,9 +44,14 @@ import java.util.Set;
 public final class DispatcherExtensions {
 
     /**
-     * 配置项名称。
+     * 配置项名称。旧写法：逗号分隔的类名列表（已废弃，仅作兼容）。
      */
     public final static String CONFIG_EXTENSIONS = "module.extensions";
+
+    /**
+     * 配置项前缀。新写法：{@code module.extensions.<n>=<类全限定名>}，一行一个。
+     */
+    public final static String CONFIG_EXTENSIONS_PREFIX = CONFIG_EXTENSIONS + ".";
 
     private DispatcherExtensions() {
     }
@@ -74,26 +82,141 @@ public final class DispatcherExtensions {
             return extensions;
         }
 
-        String value = properties.getProperty(CONFIG_EXTENSIONS, "").trim();
-        if (value.isEmpty()) {
-            Logger.i(DispatcherExtensions.class, "#load - \"" + CONFIG_EXTENSIONS + "\" is empty,"
-                    + " no extension is loaded");
+        if (null == properties) {
+            Logger.e(DispatcherExtensions.class, "#load - Config is NULL: " + file.getAbsolutePath());
             return extensions;
         }
 
-        for (String className : value.split(",")) {
-            String name = className.trim();
-            if (name.isEmpty()) {
-                continue;
-            }
+        List<String> classNames = resolveClassNames(properties);
+        if (classNames.isEmpty()) {
+            Logger.i(DispatcherExtensions.class, "#load - \"" + CONFIG_EXTENSIONS_PREFIX
+                    + "<n>\" is empty, no extension is loaded");
+            return extensions;
+        }
 
+        for (String name : classNames) {
             DispatcherExtension extension = instantiate(name);
             if (null != extension) {
                 extensions.add(extension);
             }
         }
 
+        Logger.i(DispatcherExtensions.class, "#load - Extensions loaded: "
+                + extensions.size() + "/" + classNames.size());
+
         return extensions;
+    }
+
+    /**
+     * 解析配置中的扩展类名列表，返回结果即装载顺序。
+     *
+     * <p><b>推荐写法（一行一个）</b>：{@code module.extensions.<n>=<类全限定名>}，
+     * 按 {@code <n>} 升序装载。{@code <n>} 只需唯一，<b>允许跳号</b>
+     * （建议按 10/20/30 编排，中间插入新扩展时无需重排后续编号，
+     * 增删一个扩展在配置文件里只产生一行 diff）。</p>
+     *
+     * <p><b>旧写法</b>：{@code module.extensions=A,B,C}，仅为兼容已上线的部署配置保留。
+     * 只要存在任一新写法条目，旧写法整体失效，两者不会混用。</p>
+     *
+     * @param properties 配置文件内容。
+     * @return 返回按装载顺序排列的类名；未配置时返回空列表。
+     */
+    static List<String> resolveClassNames(Properties properties) {
+        List<String> classNames = new ArrayList<>();
+        if (null == properties) {
+            return classNames;
+        }
+
+        // TreeMap：按 <n> 升序装载，与配置文件里的书写顺序无关
+        Map<Integer, String> indexed = new TreeMap<>();
+        for (String key : properties.stringPropertyNames()) {
+            if (!key.startsWith(CONFIG_EXTENSIONS_PREFIX)) {
+                continue;
+            }
+
+            String suffix = key.substring(CONFIG_EXTENSIONS_PREFIX.length()).trim();
+            int index;
+            try {
+                index = Integer.parseInt(suffix);
+            } catch (NumberFormatException e) {
+                Logger.w(DispatcherExtensions.class, "#resolveClassNames - Invalid key \"" + key
+                        + "\", expected \"" + CONFIG_EXTENSIONS_PREFIX + "<n>\", IGNORED");
+                continue;
+            }
+
+            String name = properties.getProperty(key, "").trim();
+            if (name.isEmpty()) {
+                Logger.w(DispatcherExtensions.class, "#resolveClassNames - Empty value of \"" + key
+                        + "\", IGNORED");
+                continue;
+            }
+
+            if (indexed.containsKey(index)) {
+                Logger.e(DispatcherExtensions.class, "#resolveClassNames - Duplicate index " + index
+                        + ", IGNORED \"" + name + "\"");
+                continue;
+            }
+
+            indexed.put(index, name);
+        }
+
+        String legacy = properties.getProperty(CONFIG_EXTENSIONS, "").trim();
+
+        if (!indexed.isEmpty()) {
+            if (!legacy.isEmpty()) {
+                Logger.w(DispatcherExtensions.class, "#resolveClassNames - Both \"" + CONFIG_EXTENSIONS
+                        + "\" and \"" + CONFIG_EXTENSIONS_PREFIX + "<n>\" are present,"
+                        + " the indexed entries WIN and the comma separated list is IGNORED");
+            }
+
+            for (Map.Entry<Integer, String> entry : indexed.entrySet()) {
+                addClassName(classNames, entry.getValue());
+            }
+
+            return classNames;
+        }
+
+        if (legacy.isEmpty()) {
+            return classNames;
+        }
+
+        Logger.w(DispatcherExtensions.class, "#resolveClassNames - \"" + CONFIG_EXTENSIONS
+                + "\" (comma separated) is DEPRECATED, use \"" + CONFIG_EXTENSIONS_PREFIX
+                + "<n>\" with one extension per line");
+
+        for (String part : legacy.split(",")) {
+            addClassName(classNames, part);
+        }
+
+        return classNames;
+    }
+
+    /**
+     * 追加一个类名，跳过空白项和重复项。
+     *
+     * <p>重复声明会导致同一个扩展被实例化两次，其前缀与端点必然被判为冲突，
+     * 徒增 ERROR 日志且掩盖真实配置错误，故此处直接去重。</p>
+     *
+     * @param classNames 目标列表。
+     * @param name 类全限定名。
+     */
+    private static void addClassName(List<String> classNames, String name) {
+        if (null == name) {
+            return;
+        }
+
+        String trimmed = name.trim();
+        if (trimmed.isEmpty()) {
+            return;
+        }
+
+        if (classNames.contains(trimmed)) {
+            Logger.w(DispatcherExtensions.class, "#addClassName - \"" + trimmed
+                    + "\" is declared more than once, only the first occurrence is loaded");
+            return;
+        }
+
+        classNames.add(trimmed);
     }
 
     /**

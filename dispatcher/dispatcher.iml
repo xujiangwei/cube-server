@@ -19,7 +19,7 @@
     </orderEntry>
     <orderEntry type="module" module-name="common" />
     <!-- 心理学业务模块插件。RUNTIME 作用域：网关侧只用反射按类名加载它的
-         DispatcherExtension（见 config/dispatcher.properties 的 module.extensions），
+         DispatcherExtension（见 config/dispatcher.properties 的 module.extensions.<n>），
          编译期不引用其任何类型，故无需 COMPILE 作用域——这也保持了
          「插件只依赖 cube-common」的依赖方向不被破坏。
          未加此条时 Class.forName("...PsychologyDispatcherExtension") 会失败，

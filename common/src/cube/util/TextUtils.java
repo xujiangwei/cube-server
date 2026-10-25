@@ -26,6 +26,8 @@ public final class TextUtils {
     // Pattern.compile("^-?[0-9]+");
     private static final Pattern sPatternNumeric = Pattern.compile("^-?\\d+(\\.\\d+)?$");
 
+    // 注意：由于 | 的优先级，实际语义是「以数字+年 开头」或「包含 月 / 日」或「以 号 结尾」，
+    // 而不是「日期整体匹配」。属于既有行为，调用方（isDate 等）依赖该宽匹配，未做修正。
     private static final Pattern sDate = Pattern.compile("^\\d+年|月|日|号$");
 
     private static final Pattern sBrowserNameSafari = Pattern.compile("Version\\/([\\d.]+).*Safari");
@@ -334,6 +336,11 @@ public final class TextUtils {
 
     /**
      * 将中文的数字字符转为阿拉伯数字字符。例如："二"转为"2"。
+     *
+     * <p><b>已知限制（保留既有行为，未修正）</b>：实现是逐字符替换，只特判了"十一 / 十二"。
+     * 因此"二十"会得到 {@code 210}、"十五"会得到 {@code 105}。当前调用方只用于"日期 / 序号"
+     * 这类 0-12 的取值，改动会影响既有识别结果，故此处仅记录，不做修改。
+     * 若需要支持 20 以上的数值，应另起方法做真正的数值解析，而不是修改本方法。</p>
      *
      * @param value
      * @return

@@ -251,45 +251,4 @@ public final class JSONUtils {
     public static String serializeLineFeed(String text) {
         return text.replaceAll("\\n", "\\\\n");
     }
-
-    /**
-     * 反转义数据库读出的文本。
-     *
-     * @param text
-     * @return
-     * @deprecated 该实现存在缺陷，请勿继续使用：它把 {@code \"} 还原为 {@code "}、
-     * 把 {@code \\} 还原为 {@code \}，会把<b>合法</b>的 JSON 文本破坏成非法 JSON；
-     * 且使用 {@code String.replaceAll()} 做纯字符串替换（替换串里 {@code \} 与 {@code $}
-     * 有特殊含义）属于误用。
-     * 读取路径请改用 {@code cube.service.util.JSONStorageUtils#decodeObject(String)} /
-     * {@code decodeArray(String)}：先按标准 JSON 解析，失败时才对历史脏数据做修复，
-     * 无法修复时返回 {@code null} 而不是抛出/破坏数据。
-     */
-    @Deprecated
-    public static String deserializeEscape(String text) {
-        String result = text.replaceAll("\\\\\"", "\\\"");
-        result = result.replaceAll("\\\\n", "\\n");
-        result = result.replaceAll("\\\\\\\\", "\\\\");
-        return result;
-    }
-
-
-    public static void main(String[] args) {
-        JSONObject json = new JSONObject();
-
-        String content = "X\"JW\"，结束。\n下一行\\前面是斜线";
-
-        json.put("reference", "Abnormal");
-        json.put("content", content);
-        System.out.println("Raw : " + json.toString());
-
-        String dbString = serializeEscape(json.toString());
-        System.out.println("Seri: " + dbString);
-
-        String rawString = deserializeEscape(dbString);
-        System.out.println("Desi: " + rawString);
-
-        json = new JSONObject(rawString);
-        System.out.println(json.getString("content"));
-    }
 }
