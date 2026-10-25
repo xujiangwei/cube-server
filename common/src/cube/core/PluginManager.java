@@ -36,6 +36,14 @@ public class PluginManager {
 
     private volatile boolean started = false;
 
+    /**
+     * 已部署的插件描述。
+     *
+     * <p>必须持有到 {@link #stop()}：每个描述拥有一个 {@link URLClassLoader}，
+     * 不关闭会导致 jar 句柄泄漏（Linux 下无法替换 jar，Windows 下文件被占用）。</p>
+     */
+    private final List<PluginDesc> deployed = new ArrayList<>();
+
     public PluginManager(Kernel kernel) {
         this.kernel = kernel;
     }
@@ -54,6 +62,10 @@ public class PluginManager {
                         if (desc.isValid()) {
                             list.add(desc);
                         }
+                        else {
+                            // 无效描述可能已创建 ClassLoader，必须显式关闭
+                            desc.close();
+                        }
                     }
                 } catch (JSONException e) {
                     Logger.e(PluginManager.class, "#start - JSON error", e);
@@ -63,8 +75,18 @@ public class PluginManager {
             // 注册插件
             for (PluginDesc desc : list) {
                 Module module = this.kernel.getModule(desc.module);
+                if (null == module) {
+                    // 模块缺失不应阻断宿主启动：跳过并记录
+                    Logger.w(this.getClass(), "#start - No such module: " + desc.module
+                            + ", skip plugin deployment");
+                    desc.close();
+                    continue;
+                }
+
                 PluginSystem ps = module.getPluginSystem();
                 if (null == ps) {
+                    Logger.w(this.getClass(), "#start - No plugin system for module: " + desc.module);
+                    desc.close();
                     continue;
                 }
 
@@ -72,6 +94,8 @@ public class PluginManager {
                     ps.register(e.getKey(), e.getValue());
                     Logger.i(this.getClass(), "Register plugin : #" + desc.module + " [" + e.getKey() + "] - " + e.getValue().getClass().getName());
                 }
+
+                this.deployed.add(desc);
             }
 
             list.clear();
@@ -99,6 +123,12 @@ public class PluginManager {
                 plugin.teardown();
             }
         }
+
+        // 先 teardown 再关闭 ClassLoader
+        for (PluginDesc desc : this.deployed) {
+            desc.close();
+        }
+        this.deployed.clear();
     }
 
     private JSONObject readConfig() {
@@ -150,6 +180,11 @@ public class PluginManager {
 
         protected Map<String, Plugin> pluginMap;
 
+        /**
+         * 插件 jar 的类加载器，生命周期由 {@link PluginManager} 管理。
+         */
+        protected URLClassLoader loader;
+
         protected PluginDesc(JSONObject json) {
             try {
                 String filepath = json.getString("file");
@@ -159,7 +194,7 @@ public class PluginManager {
                     this.module = json.getString("module");
                     this.pluginMap = new HashMap<>();
 
-                    URLClassLoader loader = new URLClassLoader(new URL[]{ file.toURI().toURL() });
+                    this.loader = new URLClassLoader(new URL[]{ file.toURI().toURL() });
 
                     // 读取插件列表
                     JSONArray list = json.getJSONArray("plugins");
@@ -169,7 +204,7 @@ public class PluginManager {
                         String className = pluginJson.getString("class");
 
                         try {
-                            Class clazz = loader.loadClass(className);
+                            Class clazz = this.loader.loadClass(className);
                             Plugin plugin = (Plugin) clazz.getDeclaredConstructor().newInstance();
                             this.pluginMap.put(hook, plugin);
                         } catch (ClassNotFoundException e) {
@@ -195,7 +230,21 @@ public class PluginManager {
         }
 
         protected boolean isValid() {
-            return (null != this.module);
+            return (null != this.module) && (null != this.loader);
+        }
+
+        /**
+         * 关闭插件类加载器，释放 jar 句柄。
+         */
+        protected void close() {
+            if (null != this.loader) {
+                try {
+                    this.loader.close();
+                } catch (IOException e) {
+                    Logger.d(PluginManager.class, "#close - Failed to close class loader: " + e.getMessage());
+                }
+                this.loader = null;
+            }
         }
     }
 }

@@ -535,7 +535,7 @@ public class ContactStorage implements Storagable {
 
         List<Contact> list = new ArrayList<>();
         String table = this.contactTableNameMap.get(domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, this.contactFields, new Conditional[] {
+        List<StorageField[]> result = this.query(table, this.contactFields, new Conditional[] {
                 Conditional.createBracket(conditionals.toArray(new Conditional[0])),
                 Conditional.createAnd(),
                 Conditional.createUnequalTo(new StorageField("mask", ContactMask.SignOut.mask)),
@@ -553,8 +553,29 @@ public class ContactStorage implements Storagable {
         return list;
     }
 
-    private Contact makeContact(String domain, StorageField[] data) {
-        Map<String, StorageField> map = StorageFields.get(data);
+    /**
+     * 查询并把"查询失败"（{@code null}）收敛为空列表。
+     *
+     * <p>存储层契约：{@code null} 表示查询失败，空集合表示无数据。列表类接口不应把
+     * {@code null} 继续往上层传，也不能因为一次查询失败就抛 NPE——这里统一降级为
+     * "空结果 + WARN"，由调用方按"没有数据"处理。</p>
+     *
+     * @param table 表名。
+     * @param fields 字段列表。
+     * @param conditionals 条件列表。
+     * @return 查询结果，永不为 {@code null} 。
+     */
+    private List<StorageField[]> query(String table, StorageField[] fields, Conditional[] conditionals) {
+        List<StorageField[]> rows = this.storage.executeQuery(table, fields, conditionals);
+        if (null == rows) {
+            Logger.w(this.getClass(), "#query - Query failed, return empty list, table: " + table);
+            return new ArrayList<>();
+        }
+
+        return rows;
+    }
+
+    private Contact makeContact(String domain, StorageField[] data) {        Map<String, StorageField> map = StorageFields.get(data);
         Long contactId = map.get("id").getLong();
         String name = map.get("name").getString();
         long timestamp = map.get("timestamp").getLong();
@@ -683,7 +704,7 @@ public class ContactStorage implements Storagable {
         }
 
         // 查询
-        List<StorageField[]> result = this.storage.executeQuery(table, this.contactZoneFields, conditionals);
+        List<StorageField[]> result = this.query(table, this.contactZoneFields, conditionals);
 
         if (result.isEmpty()) {
             return list;
@@ -705,7 +726,7 @@ public class ContactStorage implements Storagable {
                     map.get("peer_mode").getInt() == 1);
 
             // 查询成员
-            List<StorageField[]> partResult = this.storage.executeQuery(table, this.contactZoneParticipantFields, new Conditional[] {
+            List<StorageField[]> partResult = this.query(table, this.contactZoneParticipantFields, new Conditional[] {
                     Conditional.createEqualTo("contact_zone_id", zone.getId()),
             });
 
@@ -1711,7 +1732,7 @@ public class ContactStorage implements Storagable {
 
         List<JSONObject> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.query(table, new StorageField[] {
                         new StorageField("top_id", LiteralBase.LONG),
                         new StorageField("type", LiteralBase.STRING)
                 },
@@ -1810,7 +1831,7 @@ public class ContactStorage implements Storagable {
         String table = this.blockListTablePrefix + domain;
         table = SQLUtils.correctTableName(table);
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.blockListFields, new Conditional[] {
+        List<StorageField[]> result = this.query(table, this.blockListFields, new Conditional[] {
                 Conditional.createEqualTo("contact_id", LiteralBase.LONG, contactId)
         });
 
@@ -1880,7 +1901,7 @@ public class ContactStorage implements Storagable {
         List<Contact> result = new ArrayList<>();
         String table = this.contactTableNameMap.get(domain);
 
-        List<StorageField[]> list = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> list = this.query(table, new StorageField[] {
                     new StorageField("id", LiteralBase.LONG),
                     new StorageField("name", LiteralBase.STRING),
                     new StorageField("context", LiteralBase.STRING)
@@ -1905,7 +1926,7 @@ public class ContactStorage implements Storagable {
         }
 
         if (TextUtils.isNumeric(keyword)) {
-            list = this.storage.executeQuery(table, new StorageField[] {
+            list = this.query(table, new StorageField[] {
                     new StorageField("id", LiteralBase.LONG),
                     new StorageField("name", LiteralBase.STRING),
                     new StorageField("context", LiteralBase.STRING)
@@ -1941,10 +1962,10 @@ public class ContactStorage implements Storagable {
      * @return 如果没有匹配的数据返回 {@code null} 值。
      */
     public List<Group> searchGroups(String domain, String keyword) {
-        List<Group> result = null;
+        List<Group> result = new ArrayList<>();
         String table = this.groupTableNameMap.get(domain);
 
-        List<StorageField[]> list = this.storage.executeQuery(table, null, new Conditional[] {
+        List<StorageField[]> list = this.query(table, null, new Conditional[] {
                     Conditional.createBracket(new Conditional[] {
                             Conditional.createEqualTo("state", LiteralBase.INT, GroupState.Normal.code),
                             Conditional.createAnd(),
@@ -1958,7 +1979,8 @@ public class ContactStorage implements Storagable {
         );
 
         if (list.isEmpty()) {
-            return null;
+            // 无匹配数据返回空列表：{@code null} 留给"查询失败"，两者语义不同
+            return result;
         }
 
         result = new ArrayList<>(list.size());
@@ -1994,6 +2016,10 @@ public class ContactStorage implements Storagable {
 
         String sql = "SELECT SUM(point) FROM `" + table + "` WHERE `contact_id`=" + contactId;
         List<StorageField[]> result = this.storage.executeQuery(sql);
+        if (null == result || result.isEmpty() || 0 == result.get(0).length) {
+            return 0;
+        }
+
         return result.get(0)[0].isNullValue() ? 0 : result.get(0)[0].getInt();
     }
 
@@ -2020,7 +2046,7 @@ public class ContactStorage implements Storagable {
             return list;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.pointFields, new Conditional[] {
+        List<StorageField[]> result = this.query(table, this.pointFields, new Conditional[] {
                 Conditional.createEqualTo("contact_id", contactId)
         });
         for (StorageField[] fields : result) {

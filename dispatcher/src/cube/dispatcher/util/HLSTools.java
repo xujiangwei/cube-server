@@ -7,12 +7,14 @@
 package cube.dispatcher.util;
 
 import cell.util.log.Logger;
+import cube.processor.Subprocess;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
@@ -20,6 +22,16 @@ import java.util.Properties;
  * HLS 工具。
  */
 public final class HLSTools {
+
+    /**
+     * 版本探测超时：15 秒。
+     */
+    private final static long VERSION_TIMEOUT_MILLIS = 15 * 1000L;
+
+    /**
+     * 切片超时：10 分钟（与 FFmpeg 转码一致）。
+     */
+    private final static long HLS_TIMEOUT_MILLIS = 10 * 60 * 1000L;
 
     private static String ffmpeg = null;
 
@@ -75,40 +87,16 @@ public final class HLSTools {
             return false;
         }
 
-        int status = -1;
+        Subprocess.Result result = Subprocess.execute(
+                Arrays.asList(ffmpegPath, "-version"), null, VERSION_TIMEOUT_MILLIS);
 
-        Process process = null;
-        ProcessBuilder pb = new ProcessBuilder(ffmpegPath, "-version");
-
-        try {
-            process = pb.start();
-
-//            FlexibleByteBuffer buf = new FlexibleByteBuffer(512);
-//            byte[] bytes = new byte[128];
-//            InputStream is = process.getInputStream();
-//            int len = 0;
-//            while ((len = is.read(bytes)) > 0) {
-//                buf.put(bytes, 0, len);
-//            }
-//            buf.flip();
-//            String output = new String(buf.array(), 0, buf.limit());
-
-            try {
-                status = process.waitFor();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        } catch (IOException e) {
-            Logger.w(HLSTools.class, "#checkEnabled", e);
-        } finally {
-            if (null != process) {
-                process.destroy();
-            }
-
-            process = null;
+        // ffmpeg -version 的正常退出码是 0
+        if (!result.isSuccess()) {
+            Logger.w(HLSTools.class, "#checkEnabled - " + result);
+            return false;
         }
 
-        return (0 == status || 1 == status);
+        return true;
     }
 
     public static boolean toHLS(File workPath, File inputFile, File outputFile) {
@@ -129,36 +117,13 @@ public final class HLSTools {
         commandLine.add("h264_mp4toannexb");
         commandLine.add(outputFile.getName());
 
-        int status = -1;
+        Subprocess.Result result = Subprocess.execute(commandLine, workPath, HLS_TIMEOUT_MILLIS);
 
-        Process process = null;
-        ProcessBuilder pb = new ProcessBuilder(commandLine);
-        // 设置工作目录
-        pb.directory(workPath);
-
-        try {
-            process = pb.start();
-
-            try {
-                status = process.waitFor();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        } catch (IOException e) {
-            Logger.w(HLSTools.class, "toHLS", e);
-        } finally {
-            if (null != process) {
-                process.destroy();
-            }
-
-            process = null;
-        }
-
-        if (0 == status || 1 == status) {
+        if (result.isSuccess()) {
             return true;
         }
         else {
-            Logger.w(HLSTools.class, "#toHLS : " + status);
+            Logger.w(HLSTools.class, "#toHLS - " + result);
             return false;
         }
     }
