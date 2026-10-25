@@ -7,14 +7,7 @@
 package cube.service.aigc.spi.test;
 
 import cell.core.talk.dialect.ActionDialect;
-import cube.aigc.psychology.app.Customer;
-import cube.aigc.spi.AIGCPluginContextLite;
-import cube.aigc.spi.AIGCHost;
-import cube.aigc.spi.AIGCSPI;
-import cube.aigc.spi.ActionBinding;
-import cube.aigc.spi.ActionContext;
-import cube.aigc.spi.ActionModule;
-import cube.aigc.spi.ModuleDescriptor;
+import cube.aigc.spi.*;
 import cube.auth.AuthToken;
 import cube.common.Language;
 import cube.common.Packet;
@@ -25,7 +18,6 @@ import cube.service.aigc.spi.ModuleRegistry;
 import cube.service.psychology.PsychologyModule;
 import cube.service.psychology.scene.PsychologyScene;
 import cube.storage.StorageType;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -225,8 +217,7 @@ public class PsychologyPluginTest {
             for (cube.aigc.spi.ActionBinding binding : bindings) {
                 if (binding.requiresToken) {
                     ++trueCount;
-                }
-                else {
+                } else {
                     ++falseCount;
                 }
             }
@@ -237,7 +228,7 @@ public class PsychologyPluginTest {
             assertTrue("S10 其中 8 个requiresToken=true", 8 == trueCount);
             assertTrue("S10 其余全部 requiresToken=false", trueCount + falseCount == router.router.size());
 
-            for (String name : new String[] {"appQueryCustomer", "appNewCustomer",
+            for (String name : new String[]{"appQueryCustomer", "appNewCustomer",
                     "appUpdateCustomer", "appDeleteCustomer", "appQuerySchedule",
                     "appNewSchedule", "appUpdateSchedule", "appDeleteSchedule"}) {
                 assertTrue("S10 " + name + " 已绑定", router.router.isBound(name));
@@ -264,12 +255,12 @@ public class PsychologyPluginTest {
             // 准备两种身份的上下文
             AuthToken regToken = token("t-reg", 1001L);
             AuthToken unregToken = token("t-unreg", 2002L);
-        NoopHost regHost = new NoopHost();
-        regHost.registered = true;
-        regHost.resolvedToken = regToken;
-        NoopHost unregHost = new NoopHost();
-        unregHost.registered = false;
-        unregHost.resolvedToken = unregToken;
+            NoopHost regHost = new NoopHost();
+            regHost.registered = true;
+            regHost.resolvedToken = regToken;
+            NoopHost unregHost = new NoopHost();
+            unregHost.registered = false;
+            unregHost.resolvedToken = unregToken;
 
             // S13 未注册用户：两个 Query 的字段名不同（本批最易错点）
             // 客户回page/size
@@ -748,8 +739,7 @@ public class PsychologyPluginTest {
             // 语音监听器随模块卸载注销：宿主的分离事件不再进入本模块
             assertTrue("S7 卸载后语音监听器已注销",
                     registryHost.registeredSpeechListeners.isEmpty());
-        }
-        finally {
+        } finally {
             config.delete();
             storage.delete();
 
@@ -766,7 +756,7 @@ public class PsychologyPluginTest {
      * 构造访问令牌。
      *
      * @param code 令牌码。
-     * @param cid 联系人 ID。
+     * @param cid  联系人 ID。
      * @return 返回令牌。
      */
     private static AuthToken token(String code, long cid) {
@@ -807,13 +797,13 @@ public class PsychologyPluginTest {
      *
      * @param module 动作所属模块。
      * @param action 动作名。
-     * @param token 已解析的令牌；传 {@code null} 表示令牌无效。
-     * @param host 宿主能力接口。
-     * @param data 请求体 JSON，可为 {@code null} 表示不带该参数。
+     * @param token  已解析的令牌；传 {@code null} 表示令牌无效。
+     * @param host   宿主能力接口。
+     * @param data   请求体 JSON，可为 {@code null} 表示不带该参数。
      * @return 返回上下文。
      */
     private static RecordingContext ctx(ActionModule module, String action, AuthToken token,
-            AIGCHost host, String data) {
+                                        AIGCHost host, String data) {
         String tokenCode = (null == token) ? null : token.getCode();
         return new RecordingContext(dialect(action, tokenCode, data), module, token, host);
     }
@@ -823,7 +813,7 @@ public class PsychologyPluginTest {
      *
      * @param router 路由器夹具。
      * @param action 动作名。
-     * @param ctx 动作上下文。
+     * @param ctx    动作上下文。
      * @return 返回状态码。
      */
     private static AIGCStateCode handle(ActionRouterFixture router, String action, RecordingContext ctx) {
@@ -851,8 +841,8 @@ public class PsychologyPluginTest {
      * 要验证的差异（无 token 时应答必须是 {@code NoToken}）。</p>
      *
      * @param action 动作名。
-     * @param token 令牌，可为 {@code null} 表示不带该参数。
-     * @param data 参数 JSON 字符串，可为 {@code null} 表示不带该参数。
+     * @param token  令牌，可为 {@code null} 表示不带该参数。
+     * @param data   参数 JSON 字符串，可为 {@code null} 表示不带该参数。
      * @return 返回方言。
      */
     private static ActionDialect dialect(String action, String token, String data) {
@@ -872,7 +862,7 @@ public class PsychologyPluginTest {
     /**
      * 写入配置文件。
      *
-     * @param file 目标文件。
+     * @param file    目标文件。
      * @param content 内容。
      */
     private static void write(File file, String content) throws Exception {
@@ -884,15 +874,14 @@ public class PsychologyPluginTest {
     /**
      * 断言为真。
      *
-     * @param message 断言描述。
+     * @param message   断言描述。
      * @param condition 条件。
      */
     private static void assertTrue(String message, boolean condition) {
         if (condition) {
             ++passed;
             System.out.println("[PASS] " + message);
-        }
-        else {
+        } else {
             ++failed;
             System.out.println("[FAIL] " + message);
         }
@@ -940,9 +929,9 @@ public class PsychologyPluginTest {
          * 构造函数。
          *
          * @param dialect 请求方言。
-         * @param module 所属模块。
-         * @param token 已解析的令牌；传 null 表示未解析（requiresToken=false 的场景）。
-         * @param host 宿主能力接口。
+         * @param module  所属模块。
+         * @param token   已解析的令牌；传 null 表示未解析（requiresToken=false 的场景）。
+         * @param host    宿主能力接口。
          */
         RecordingContext(ActionDialect dialect, ActionModule module, AuthToken token, AIGCHost host) {
             this.dialect = dialect;
@@ -1078,7 +1067,7 @@ public class PsychologyPluginTest {
 
         @Override
         public void fillHexagonScoreDescription(cube.aigc.psychology.composition.HexagonDimensionScore hds,
-                Language language) {
+                                                Language language) {
         }
 
         @Override
@@ -1098,7 +1087,7 @@ public class PsychologyPluginTest {
 
         @Override
         public cube.common.entity.AIGCChannel acquireChannel(AuthToken token, String participant,
-                String channelCode, cube.common.Language language) {
+                                                             String channelCode, cube.common.Language language) {
             return null;
         }
 
@@ -1139,29 +1128,29 @@ public class PsychologyPluginTest {
 
         @Override
         public cube.common.entity.GeneratingRecord syncGenerateText(cube.common.entity.AIGCUnit unit,
-                String prompt, cube.common.entity.GeneratingOption option,
-                List<cube.common.entity.GeneratingRecord> history,
-                cube.common.entity.Contact participantContact) {
+                                                                    String prompt, cube.common.entity.GeneratingOption option,
+                                                                    List<cube.common.entity.GeneratingRecord> history,
+                                                                    cube.common.entity.Contact participantContact) {
             return null;
         }
 
         @Override
         public cube.common.entity.GeneratingRecord syncGenerateText(cube.auth.AuthToken token,
-                String capabilityName, String prompt, cube.common.entity.GeneratingOption option,
-                List<cube.common.entity.GeneratingRecord> history,
-                cube.common.entity.Contact participantContact) {
+                                                                    String capabilityName, String prompt, cube.common.entity.GeneratingOption option,
+                                                                    List<cube.common.entity.GeneratingRecord> history,
+                                                                    cube.common.entity.Contact participantContact) {
             return null;
         }
 
         @Override
         public JSONObject generateStructured(cube.common.entity.AIGCUnit unit, String prompt,
-                String jsonSchema, String schemaName, long timeoutMs) {
+                                             String jsonSchema, String schemaName, long timeoutMs) {
             return null;
         }
 
         @Override
         public cell.core.talk.dialect.ActionDialect invokeUnit(cube.common.entity.AIGCUnit unit,
-                String action, JSONObject data, long timeoutMs) {
+                                                               String action, JSONObject data, long timeoutMs) {
             return null;
         }
 
@@ -1177,7 +1166,7 @@ public class PsychologyPluginTest {
 
         @Override
         public cube.common.entity.FileLabel saveFile(AuthToken token, String fileCode, File file,
-                String filename, boolean deleteAfterSave) {
+                                                     String filename, boolean deleteAfterSave) {
             return null;
         }
 
@@ -1203,7 +1192,7 @@ public class PsychologyPluginTest {
 
         @Override
         public cube.common.entity.FileLabel saveFileWithContext(cube.auth.AuthToken token, String fileCode,
-                java.io.File file, String filename, boolean deleteAfterSave, org.json.JSONObject context) {
+                                                                java.io.File file, String filename, boolean deleteAfterSave, org.json.JSONObject context) {
             return null;
         }
 
@@ -1229,7 +1218,7 @@ public class PsychologyPluginTest {
 
         @Override
         public cube.common.entity.AIGCChannel createChannelByCode(String tokenCode, String participant,
-                String channelCode, cube.common.Language language) {
+                                                                  String channelCode, cube.common.Language language) {
             return null;
         }
 
@@ -1250,23 +1239,23 @@ public class PsychologyPluginTest {
 
         @Override
         public cube.common.entity.AIGCChannel createChannel(cube.auth.AuthToken authToken, String participant,
-                String channelCode, cube.common.Language language) {
+                                                            String channelCode, cube.common.Language language) {
             return null;
         }
 
         @Override
         public void generateText(cube.common.entity.AIGCChannel channel, cube.common.entity.AIGCUnit unit,
-                String query, String prompt, cube.common.entity.GeneratingOption option,
-                java.util.List<cube.common.entity.GeneratingRecord> histories, int maxHistories,
-                java.util.List<cube.aigc.complex.attachment.Attachment> attachments,
-                java.util.List<String> categories, boolean recordable,
-                cube.aigc.listener.GenerateTextListener listener) {
+                                 String query, String prompt, cube.common.entity.GeneratingOption option,
+                                 java.util.List<cube.common.entity.GeneratingRecord> histories, int maxHistories,
+                                 java.util.List<cube.aigc.complex.attachment.Attachment> attachments,
+                                 java.util.List<String> categories, boolean recordable,
+                                 cube.aigc.listener.GenerateTextListener listener) {
         }
 
         @Override
         public cube.common.entity.FileLabel performSpeakerDiarization(cube.auth.AuthToken authToken,
-                cube.common.entity.FileLabel fileLabel, boolean preprocess, boolean storage, boolean jumpToFirst,
-                boolean sentiment, cube.aigc.listener.VoiceDiarizationListener listener) {
+                                                                      cube.common.entity.FileLabel fileLabel, boolean preprocess, boolean storage, boolean jumpToFirst,
+                                                                      boolean sentiment, cube.aigc.listener.VoiceDiarizationListener listener) {
             return null;
         }
 
@@ -1286,7 +1275,7 @@ public class PsychologyPluginTest {
 
         @Override
         public java.util.List<cube.common.entity.AIGCChatHistory> readChatHistories(long contactId, String domain,
-                long startTime, long endTime) {
+                                                                                    long startTime, long endTime) {
             return null;
         }
 
@@ -1302,8 +1291,8 @@ public class PsychologyPluginTest {
 
         @Override
         public boolean writeCounselingRecording(cube.auth.AuthToken authToken, String streamName, long timestamp,
-                long duration, cube.aigc.psychology.Attribute attribute,
-                cube.aigc.psychology.consultation.ConsultationTheme theme, String fileCode) {
+                                                long duration, cube.aigc.psychology.Attribute attribute,
+                                                cube.aigc.psychology.consultation.ConsultationTheme theme, String fileCode) {
             return false;
         }
 
@@ -1324,8 +1313,8 @@ public class PsychologyPluginTest {
 
         @Override
         public boolean matchSimilarity(cube.common.entity.FileLabel fileLabel,
-                java.util.List<String> templateNames,
-                cube.aigc.cv.MatchSimilarityListener listener) {
+                                       java.util.List<String> templateNames,
+                                       cube.aigc.cv.MatchSimilarityListener listener) {
             return false;
         }
 
@@ -1351,7 +1340,7 @@ public class PsychologyPluginTest {
 
         @Override
         public cube.aigc.psychology.ReportPermission allowPredictPainting(String domain,
-                cube.common.entity.User user, long reportSn) {
+                                                                          cube.common.entity.User user, long reportSn) {
             return null;
         }
 
@@ -1391,6 +1380,7 @@ public class PsychologyPluginTest {
         public <T> T getSiblingModule(String moduleName, Class<T> type) {
             return null;
         }
+
         @Override
         public void discardAudioTasks(java.util.Collection<String> fileCodes) {
         }
@@ -1545,7 +1535,7 @@ public class PsychologyPluginTest {
             return report;
         }
 
-        
+
         /**
          * 构造一份量表报告。
          *

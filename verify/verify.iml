@@ -7,7 +7,6 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <!-- 三方依赖：与宿主/插件模块同用仓库上一层目录 -->
     <orderEntry type="module-library">
       <library>
         <CLASSES>
@@ -21,10 +20,42 @@
     <orderEntry type="module" module-name="common" />
     <orderEntry type="module" module-name="dispatcher" />
     <orderEntry type="module" module-name="service" />
-    <!-- ⚠️ 刻意依赖 service-psychology：本模块是全工程唯一允许在编译期
-         引用插件的地方。原因见 verify/build.xml 顶部的说明。
-         service 模块本身【不得】加这条依赖（见 service/service.iml）。 -->
     <orderEntry type="module" module-name="service-psychology" />
     <orderEntry type="module" module-name="service-forest" />
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/cell-3.0.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/luajava-1.1.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/rhino-1.9.1.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/nlp-core-1.2.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/json-20201115.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/servlet-api-3.1.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/zxing-core-3.5.3.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/zxing-javase-3.5.3.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/sqlite-jdbc-3.32.3.2.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/thumbnailator-0.4.13.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/javax.websocket-api-1.0.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/jetty-io-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/jetty-http-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/jetty-util-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/mysql-connector-java-8.0.23.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/jetty-client-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/jetty-server-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/jetty-servlet-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/websocket-api-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/jetty-servlets-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/websocket-client-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/websocket-common-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/websocket-server-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/jetty-annotations-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/websocket-servlet-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/javax-websocket-client-impl-9.4.33.v20201020.jar!/" />
+          <root url="jar://$MODULE_DIR$/../../cube-server-dependencies/javax-websocket-server-impl-9.4.33.v20201020.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
   </component>
 </module>

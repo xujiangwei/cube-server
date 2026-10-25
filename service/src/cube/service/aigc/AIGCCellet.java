@@ -200,28 +200,6 @@ public class AIGCCellet extends AbstractCellet {
         return responseDialect;
     }
 
-    /**
-     * 校验已装载业务模块声明的单元能力是否均可用。
-     *
-     * <p><b>调用时机</b>：必须在宿主就绪之后——单元由 Relay 上报产生，
-     * {@code install()} 阶段单元表必然为空，此刻校验只会得到全量误报。
-     * 因此本方法不在装载路径上自动执行，由宿主在服务就绪后显式调用一次。</p>
-     *
-     * <p>校验失败不阻止模块工作，只记录明确的 WARN：能力是否应当存在
-     * 取决于部署形态，宿主不预置业务能力名，无从判断「缺失」是配置错误还是部署预期。</p>
-     *
-     * @return 全部声明能力均可用时返回 <code>true</code>。
-     */
-    public boolean verifyModuleCapabilities() {
-        ModuleRegistry registry = this.moduleRegistry;
-
-        if (null == registry) {
-            return true;
-        }
-
-        return registry.verifyCapabilities();
-    }
-
     public AIGCService getService() {
         return this.service;
     }

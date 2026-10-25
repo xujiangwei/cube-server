@@ -45,9 +45,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 被同步调用，故模块实现<b>不得</b>在 {@code setup()} 中提交异步任务或阻塞等待
  * 宿主就绪；确需异步应在首次动作派发时惰性启动。</p>
  *
- * <p><b>能力校验时机</b>：{@link #verifyCapabilities()} <b>不在</b>装载阶段执行。
- * 原因是装载时单元尚未注册（单元由后续的 Relay 上报产生），此刻校验必然全部失败。
- * 因此校验被设计为宿主就绪后的显式调用，见该方法注释。</p>
+ * <p><b>能力不是启动契约</b>：单元由 Relay 上报产生，而部署顺序是「先 service，
+ * 后算法单元」，因此装载阶段乃至服务启动完成时单元表必然为空，任何启动期判定
+ * 都只会把部署顺序误报成「模块不可用」。故本类不做能力校验，只提供
+ * {@link #logCapabilityDeclarations()} 记录声明现状与
+ * {@link #countCapabilityProviders(String)} 实时查询，能力是否可用由运行期回答。</p>
  */
 public final class ModuleRegistry {
 
@@ -494,21 +496,14 @@ public final class ModuleRegistry {
     }
 
     /**
-     * 校验模块声明的单元能力是否均可用。
+     * 记录各模块声明的单元能力及此刻的提供者数量。
      *
-     * <p><b>调用时机</b>：必须在宿主就绪（单元已通过 Relay 上报注册）之后调用，
-     * 因此<b>不能</b>在 {@link #load()} 内执行——装载阶段单元表必然为空，
-     * 那样只会得到全量误报。</p>
-     *
-     * <p>校验失败不阻止模块工作：模块声明的能力可能只在特定部署形态下才有单元，
-     * 宿主不预置业务能力名，无从判断「缺失」是配置错误还是部署预期。
-     * 因此此处只记录明确的 WARN，把判断权交给运维。</p>
-     *
-     * @return 全部非可选模块的声明能力均可用时返回 <code>true</code>。
+     * <p><b>这不是校验，也不产生任何判定</b>：单元由 Relay 上报产生，而部署顺序是
+     * 「先 service，后算法单元」，启动完成时提供者数量为 0 属常态。此处只把
+     * 声明内容与现状写入 INFO 日志，供部署者核对「声明的能力名是否写错」——
+     * 能力是否可用由 {@link #countCapabilityProviders(String)} 在运行期实时回答。</p>
      */
-    public boolean verifyCapabilities() {
-        boolean allAvailable = true;
-
+    public void logCapabilityDeclarations() {
         for (ActionModule module : this.modules) {
             ModuleDescriptor descriptor = module.getDescriptor();
             if (null == descriptor || descriptor.requiredCapabilities.isEmpty()) {
@@ -516,24 +511,29 @@ public final class ModuleRegistry {
             }
 
             for (String capability : descriptor.requiredCapabilities) {
-                if (null == this.host || !this.host.hasUnit(capability)) {
-                    String message = "#verifyCapabilities - Module \"" + module.getName()
-                            + "\" requires capability \"" + capability + "\" but NO unit is available";
-                    if (descriptor.optional) Logger.w(ModuleRegistry.class, message);
-                    else {
-                        Logger.e(ModuleRegistry.class, message);
-                        allAvailable = false;
-                    }
-                }
+                Logger.i(ModuleRegistry.class, "#capabilities - Module \"" + module.getName()
+                        + "\" declares capability \"" + capability + "\", providers now: "
+                        + this.countCapabilityProviders(capability)
+                        + " (runtime state, NOT a startup gate)");
             }
         }
+    }
 
-        if (allAvailable) {
-            Logger.i(ModuleRegistry.class, "#verifyCapabilities - Required capabilities of non-optional modules among "
-                    + this.modules.size() + " module(s) are available");
+    /**
+     * 实时统计某能力的有效提供者数量。
+     *
+     * <p>这是能力状态的唯一权威来源：每次调用都查当前单元表，随单元上下线变化，
+     * 不做缓存、不做启动期快照。</p>
+     *
+     * @param capability 单元能力名，取值等于单元上报的 <code>AICapability.getName()</code>。
+     * @return 返回有效提供者数量；宿主未设置或能力名为 <code>null</code> 时返回 0。
+     */
+    public int countCapabilityProviders(String capability) {
+        if (null == this.host || null == capability) {
+            return 0;
         }
 
-        return allAvailable;
+        return this.host.countUnits(capability);
     }
 
     /**

@@ -32,7 +32,7 @@ import java.util.List;
  * 模块注册表装载流程验证。
  *
  * <p>覆盖装载语义：启用开关 → 实例化 → 绑定 → setup 的顺序、
- * setup 失败后的动作回滚、可选性对阻塞状态的影响、能力校验，以及停机卸载。</p>
+ * setup 失败后的动作回滚、可选性对阻塞状态的影响、能力状态（运行期实时计数），以及停机卸载。</p>
  *
  * <p>本用例在临时目录内构造配置文件，通过切换工作目录来驱动
  * {@link ModuleRegistry#load()}，不依赖真实宿主环境。</p>
@@ -167,22 +167,20 @@ public class ModuleRegistryLoadTest {
             assertTrue("S8 先注册者仍持有该动作",
                     "good".equals(registry.getRouter().lookup("goodAction").getOwner().getName()));
 
-            // 场景9：能力校验——hasUnit 假值时报告不可用
+            // 场景9：能力不是启动契约——无提供者时不构成降级，实时计数为 0
             resetModuleEvents();
             write(config, "module.1.class=cube.service.aigc.spi.test.ModuleRegistryLoadTest$NeedsCapabilityModule");
             NoopHost host = new NoopHost();
             host.capabilityAvailable = false;
             registry = newRegistry(host);
             registry.load();
-            assertTrue("S9 能力缺失时校验不通过", !registry.verifyCapabilities());
+            registry.logCapabilityDeclarations();
+            assertTrue("S9 无提供者时计数为 0", 0 == registry.countCapabilityProviders("SomeCapability"));
+            assertTrue("S9 能力缺失不触发降级标记", !registry.hasBlockingFailure());
 
-            // 场景10：能力齐备时校验通过
-            resetModuleEvents();
-            host = new NoopHost();
+            // 场景10：提供者上线后实时可见（无需重启、无需重新装载）
             host.capabilityAvailable = true;
-            registry = newRegistry(host);
-            registry.load();
-            assertTrue("S10 能力齐备时校验通过", registry.verifyCapabilities());
+            assertTrue("S10 提供者上线后计数实时可见", 1 == registry.countCapabilityProviders("SomeCapability"));
 
             // 场景11：teardownAll 释放全部模块与绑定
             resetModuleEvents();

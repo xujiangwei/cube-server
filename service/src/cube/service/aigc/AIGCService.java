@@ -264,14 +264,22 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                     // 模块装载结果必须由宿主消费，否则「插件没装」与「动作没命中」
                     // 在运行期无法区分。此处按fail-fast 语义处理：
                     // 模块未就绪时，宿主不提供该业务域的能力，其余平台能力不受影响。
+                    //
+                    // 只以「装载/初始化失败」作为降级依据，能力不参与判定：
+                    // 单元由 Relay 上报产生，部署顺序是先 service 后算法单元，
+                    // 启动完成时单元表必然为空，把能力并入判定只会把部署顺序
+                    // 误报成「模块不可用」。能力状态由模块在运行期自行回答。
                     ModuleRegistry registry = theCellet.getModuleRegistry();
                     boolean blocked = (null != registry) && registry.hasBlockingFailure();
-                    boolean capabilitiesOk = (null == registry) || registry.verifyCapabilities();
 
-                    AIGCService.this.moduleDegraded = blocked || !capabilitiesOk;
+                    AIGCService.this.moduleDegraded = blocked;
 
-                    if (AIGCService.this.moduleDegraded) {
-                        Logger.e(AIGCService.class, "#start - 业务模块未就绪（装载失败或能力缺失），"
+                    if (null != registry) {
+                        registry.logCapabilityDeclarations();
+                    }
+
+                    if (blocked) {
+                        Logger.e(AIGCService.class, "#start - 业务模块初始化失败，"
                                 + "宿主不提供该业务域能力；平台能力（聊天/知识库/频道/文件）不受影响");
                     }
                 } else {
