@@ -79,6 +79,11 @@ public class SQLiteStorage extends AbstractStorage {
     }
 
     @Override
+    public boolean isOpen() {
+        return null != this.connection;
+    }
+
+    @Override
     public void configure(JSONObject config) {
         super.configure(config);
     }

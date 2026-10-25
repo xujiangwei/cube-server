@@ -8,6 +8,7 @@ package cube.processor;
 
 import cell.util.log.Logger;
 import cube.util.ConfigUtils;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -22,6 +23,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * FFMPEG 工具。
  */
 public abstract class FFmpeg extends Processor {
+
+    /**
+     * 探测媒体属性的超时：60 秒。
+     */
+    private final static long PROBE_TIMEOUT_MILLIS = 60 * 1000L;
+
+    /**
+     * 执行转码的超时：10 分钟。
+     *
+     * <p>视频转码耗时与文件大小、码率强相关，这里给一个宽松上界；超时后进程会被强制终止，
+     * 避免调用线程永久挂起。</p>
+     */
+    private final static long CALL_TIMEOUT_MILLIS = 10 * 60 * 1000L;
 
     private AtomicBoolean running;
 
@@ -76,60 +90,30 @@ public abstract class FFmpeg extends Processor {
         commandLine.add("json");
         commandLine.add(filePath);
 
-        Process process = null;
-        ProcessBuilder pb = new ProcessBuilder(commandLine);
-        // 设置工作目录
-        pb.directory(getWorkPath().toFile());
-
-        ProcessorContext context = new ProcessorContext() {
-            @Override
-            public JSONObject toJSON() {
-                List<String> lines = getStdOutput();
-                if (null != lines) {
-                    StringBuilder buf = new StringBuilder();
-                    for (String line : lines) {
-                        buf.append(line.trim()).append("\n");
-                    }
-
-                    return new JSONObject(buf.toString());
-                }
-                else {
-                    return null;
-                }
-            }
-
-            @Override
-            public JSONObject toCompactJSON() {
-                return this.toJSON();
-            }
-        };
-
-        int status = -1;
+        this.running.set(true);
+        Subprocess.Result result;
         try {
-            process = pb.start();
-
-            this.running.set(true);
-
-            Runnable worker = this.buildInputStreamWorker(process.getInputStream(), context);
-            worker.run();
-
-            try {
-                status = process.waitFor();
-            } catch (InterruptedException e) {
-                Logger.e(FFmpeg.class, "#toCompactJSON - Interrupted", e);
-            }
-        } catch (IOException e) {
-            Logger.e(FFmpeg.class, "#toCompactJSON - I/O error", e);
+            result = Subprocess.execute(commandLine, getWorkPath().toFile(), PROBE_TIMEOUT_MILLIS);
         } finally {
-            if (null != process) {
-                process.destroy();
-            }
-
-            process = null;
+            this.running.set(false);
         }
 
-        this.running.set(false);
-        return context.toJSON();
+        if (!result.isSuccess()) {
+            Logger.w(this.getClass(), "#probe - Failed to probe: " + filePath + " - " + result);
+            return null;
+        }
+
+        StringBuilder buf = new StringBuilder();
+        for (String line : result.getOutput()) {
+            buf.append(line.trim()).append("\n");
+        }
+
+        try {
+            return new JSONObject(buf.toString());
+        } catch (JSONException e) {
+            Logger.w(this.getClass(), "#probe - Invalid JSON output: " + filePath, e);
+            return null;
+        }
     }
 
     protected boolean call(List<String> params, ProcessorContext context) {
@@ -137,37 +121,25 @@ public abstract class FFmpeg extends Processor {
         commandLine.add(this.ffmpegCommand);
         commandLine.addAll(params);
 
-        int status = -1;
-
-        Process process = null;
-        ProcessBuilder pb = new ProcessBuilder(commandLine);
-        // 设置工作目录
-        pb.directory(getWorkPath().toFile());
-
+        this.running.set(true);
+        Subprocess.Result result;
         try {
-            process = pb.start();
-
-            this.running.set(true);
-
-            Runnable worker = this.buildInputStreamWorker(process.getErrorStream(), context);
-            worker.run();
-
-            try {
-                status = process.waitFor();
-            } catch (InterruptedException e) {
-                Logger.e(FFmpeg.class, "#call - Interrupted", e);
-            }
-        } catch (IOException e) {
-            Logger.e(FFmpeg.class, "#call - I/O error", e);
+            result = Subprocess.execute(commandLine, getWorkPath().toFile(), CALL_TIMEOUT_MILLIS);
         } finally {
-            if (null != process) {
-                process.destroy();
-            }
-
-            process = null;
+            this.running.set(false);
         }
 
-        this.running.set(false);
-        return (0 == status || 1 == status);
+        if (null != context) {
+            for (String line : result.getOutput()) {
+                context.appendStdOutput(line);
+            }
+        }
+
+        if (!result.isSuccess()) {
+            Logger.w(this.getClass(), "#call - Failed: " + this.ffmpegCommand + " - " + result);
+            return false;
+        }
+
+        return true;
     }
 }

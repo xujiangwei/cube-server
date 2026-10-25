@@ -6,7 +6,9 @@
 
 package cube.service.fileprocessor.processor;
 
+import cell.util.log.Logger;
 import cube.common.entity.TextConstraint;
+import cube.processor.Subprocess;
 import cube.util.FileUtils;
 import cube.vision.Color;
 import cube.vision.Rectangle;
@@ -24,6 +26,11 @@ import java.util.List;
  * 注释 “disable ghostscript format types” 相关
  */
 public final class ImageMagick {
+
+    /**
+     * 单条 convert 命令超时：2 分钟。
+     */
+    private final static long EXECUTE_TIMEOUT_MILLIS = 2 * 60 * 1000L;
 
     private ImageMagick() {
     }
@@ -46,7 +53,7 @@ public final class ImageMagick {
         commandLine.add(output);
 
         int status = execute(workPath, commandLine);
-        if (-1 != status) {
+        if (0 == status) {
             File file = new File(workPath, output);
             return awaits(file);
         }
@@ -77,7 +84,7 @@ public final class ImageMagick {
         commandLine.add(output);
 
         int status = execute(workPath, commandLine);
-        if (-1 != status) {
+        if (0 == status) {
             File file = new File(workPath, output);
             return awaits(file);
         }
@@ -106,7 +113,7 @@ public final class ImageMagick {
         commandLine.add(output);
 
         int status = execute(workPath, commandLine);
-        if (-1 != status) {
+        if (0 == status) {
             File file = new File(workPath, output);
             return awaits(file);
         }
@@ -142,7 +149,7 @@ public final class ImageMagick {
         commandLine.add(output);
 
         int status = execute(workPath, commandLine);
-        if (-1 != status) {
+        if (0 == status) {
             File file = new File(workPath, output);
             return awaits(file);
         }
@@ -168,7 +175,7 @@ public final class ImageMagick {
         commandLine.add(output);
 
         int status = execute(workPath, commandLine);
-        if (-1 != status) {
+        if (0 == status) {
             File file = new File(workPath, output);
             return awaits(file);
         }
@@ -196,7 +203,7 @@ public final class ImageMagick {
         commandLine.add(output);
 
         int status = execute(workPath, commandLine);
-        if (-1 != status) {
+        if (0 == status) {
             File file = new File(workPath, output);
             return awaits(file);
         }
@@ -223,7 +230,7 @@ public final class ImageMagick {
         commandLine.add(output);
 
         int status = execute(workPath, commandLine);
-        if (-1 != status) {
+        if (0 == status) {
             File file = new File(workPath, output);
             return awaits(file);
         }
@@ -272,7 +279,7 @@ public final class ImageMagick {
 
         File watermarkFile = new File(workPath, watermark);
         int status = execute(workPath, commandLine);
-        if (-1 != status) {
+        if (0 == status) {
             if (!awaits(watermarkFile)) {
                 return false;
             }
@@ -295,7 +302,7 @@ public final class ImageMagick {
         // 删除水印文件。
         watermarkFile.delete();
 
-        if (-1 != status) {
+        if (0 == status) {
             File file = new File(workPath, output);
             return awaits(file);
         }
@@ -322,7 +329,7 @@ public final class ImageMagick {
         commandLine.add(output);
 
         int status = execute(workPath, commandLine);
-        if (-1 != status) {
+        if (0 == status) {
             File file = new File(workPath, output);
             return awaits(file);
         }
@@ -411,7 +418,7 @@ public final class ImageMagick {
         commandLine.add(outputFilename);
 
         int status = execute(workPath, commandLine);
-        if (-1 != status) {
+        if (0 == status) {
             List<File> files = new ArrayList<>();
 
             File file = new File(workPath, outputFilename);
@@ -438,32 +445,39 @@ public final class ImageMagick {
     }
 
     private static int execute(File workPath, List<String> commandLine) {
-        int status = -1;
+        Subprocess.Result result = Subprocess.execute(commandLine, workPath, EXECUTE_TIMEOUT_MILLIS);
 
-        Process process = null;
-        ProcessBuilder pb = new ProcessBuilder(commandLine);
-        // 设置工作目录
-        pb.directory(workPath);
-
-        try {
-            process = pb.start();
-
-            try {
-                status = process.waitFor();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (null != process) {
-                process.destroy();
-            }
-
-            process = null;
+        if (!result.isStarted()) {
+            Logger.e(ImageMagick.class, "#execute - Failed to start: " + commandLine.get(0)
+                    + ", error: " + result.getError());
+            return -1;
         }
 
-        return status;
+        if (result.isTimedOut()) {
+            Logger.w(ImageMagick.class, "#execute - Timeout, command: " + commandLine.get(0));
+            return -1;
+        }
+
+        if (0 != result.getExitCode()) {
+            Logger.w(ImageMagick.class, "#execute - Failed: " + commandLine.get(0)
+                    + ", exit: " + result.getExitCode() + ", output: " + tail(result));
+        }
+
+        return result.getExitCode();
+    }
+
+    private static String tail(Subprocess.Result result) {
+        List<String> output = result.getOutput();
+        if (null == output || output.isEmpty()) {
+            return "";
+        }
+
+        int from = Math.max(0, output.size() - 3);
+        StringBuilder buf = new StringBuilder();
+        for (int i = from; i < output.size(); ++i) {
+            buf.append(output.get(i)).append(" | ");
+        }
+        return buf.toString();
     }
 
     private static boolean awaits(File file) {
@@ -471,7 +485,8 @@ public final class ImageMagick {
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                Logger.d(ImageMagick.class, "#awaits - Interrupted: " + file.getName());
             }
         }
 
@@ -484,7 +499,9 @@ public final class ImageMagick {
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                Logger.d(ImageMagick.class, "#awaits - Interrupted: " + file.getName());
+                break;
             }
 
             if (System.currentTimeMillis() - start > timeout) {

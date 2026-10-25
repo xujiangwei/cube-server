@@ -9,8 +9,8 @@ package cube.service.fileprocessor.processor;
 import cell.util.log.Logger;
 import cube.processor.Processor;
 import cube.processor.ProcessorContext;
+import cube.processor.Subprocess;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +20,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Libre Office 操作处理器。
  */
 public abstract class LibreOffice extends Processor {
+
+    /**
+     * 文档转换超时：3 分钟。
+     */
+    private final static long CONVERT_TIMEOUT_MILLIS = 3 * 60 * 1000L;
 
     private AtomicBoolean running;
 
@@ -41,36 +46,26 @@ public abstract class LibreOffice extends Processor {
         commandLine.add("libreoffice");
         commandLine.addAll(params);
 
-        int status = -1;
-
-        Process process = null;
-        ProcessBuilder pb = new ProcessBuilder(commandLine);
-        // 设置工作目录
-        pb.directory(getWorkPath().toFile());
-
+        this.running.set(true);
+        Subprocess.Result result;
         try {
-            process = pb.start();
-
-            this.running.set(true);
-
-            Runnable worker = this.buildInputStreamWorker(process.getErrorStream(), context);
-            worker.run();
-
-            try {
-                status = process.waitFor();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        } catch (IOException e) {
-            Logger.e(this.getClass(), "#call", e);
+            result = Subprocess.execute(commandLine, getWorkPath().toFile(), CONVERT_TIMEOUT_MILLIS);
         } finally {
-            if (null != process) {
-                process.destroy();
-            }
-
-            process = null;
+            this.running.set(false);
         }
 
-        return (-1 != status);
+        if (null != context) {
+            for (String line : result.getOutput()) {
+                context.appendStdOutput(line);
+            }
+        }
+
+        // 只有退出码 0 才是成功：原实现用 (-1 != status)，任何退出码都算成功
+        if (!result.isSuccess()) {
+            Logger.w(this.getClass(), "#call - Conversion failed: " + result);
+            return false;
+        }
+
+        return true;
     }
 }

@@ -18,20 +18,71 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * 文件下载器。
+ *
+ * <p><b>证书策略（刻意为之，勿"修复"）</b>：外部站点大量存在自签证书、证书链不完整、
+ * 域名与证书不匹配的情况，本类的目标是尽可能把内容下载下来，因此默认信任任意证书与主机名。
+ * 约束：</p>
+ * <ol>
+ *     <li>只在本连接上 {@code setSSLSocketFactory} / {@code setHostnameVerifier}，
+ *     <b>禁止</b>修改 {@code HttpsURLConnection} 的全局默认值；</li>
+ *     <li>仅用于外部内容抓取，不得用于调用内部服务或业务 API；</li>
+ *     <li>首次使用 https 时打一条 WARN，便于审计定位。</li>
+ * </ol>
+ *
+ * <p><b>失败处理</b>：下载先写 {@code xxx.part}，成功后再改名；任何失败（超限、IO 错误、
+ * 监听器异常）都会删除临时文件，避免 {@code storage/downloads/} 里堆积半截文件。</p>
+ */
 public class FileDownloader {
+
+    /**
+     * 建立连接超时（毫秒）。
+     */
+    private final static int CONNECT_TIMEOUT = 5000;
+
+    /**
+     * 读数据超时（毫秒）。没有它，对端接受连接后不吐数据会让调用线程永久阻塞。
+     */
+    private final static int READ_TIMEOUT = 30 * 1000;
+
+    /**
+     * 最大重定向跳数。
+     */
+    private final static int MAX_REDIRECTS = 3;
+
+    private final static AtomicBoolean TRUST_ALL_WARNED = new AtomicBoolean(false);
 
     private String workPath = "storage/downloads/";
 
     private int sizeLimit = 10 * 1024 * 1024;
 
+    /**
+     * 信任任意证书的 SSL 上下文工厂，构造失败时为 {@code null}（退化为系统默认校验）。
+     */
+    private SSLSocketFactory trustAllSocketFactory;
+
     public FileDownloader() {
-//        System.setProperty("https.protocols", "TLSv1.2,TLSv1.1");
         File path = new File(this.workPath);
-        if (!path.exists()) {
-            path.mkdirs();
+        if (!path.exists() && !path.mkdirs()) {
+            Logger.w(FileDownloader.class, "#FileDownloader - Failed to create work path: "
+                    + path.getAbsolutePath());
+        }
+
+        try {
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            TrustManager[] tm = new TrustManager[]{ new DefaultX509TrustManager() };
+            sslContext.init(null, tm, null);
+            this.trustAllSocketFactory = new TLS12SSLSocketFactory(sslContext.getSocketFactory());
+        } catch (Exception e) {
+            Logger.e(FileDownloader.class, "#FileDownloader - Failed to initialize trust-all SSL context, "
+                    + "fallback to system default", e);
         }
     }
 
@@ -42,116 +93,93 @@ public class FileDownloader {
         }
     }
 
+    /**
+     * 下载文件。
+     *
+     * @param fileUrl 文件地址，支持 http 与 https。
+     * @param listener 进度监听器，允许为 {@code null} 。
+     * @return 下载完成的文件；失败返回 {@code null} 。
+     */
     public File downloadFile(String fileUrl, FileDownloaderListener listener) {
+        final FileDownloaderListener target = (null == listener) ? new SilentListener() : listener;
+
         int contentLength = 0;
         String contentType = null;
 
         InputStream is = null;
         FileOutputStream fos = null;
+        HttpURLConnection conn = null;
+        File partFile = null;
+        File file = null;
 
         // 本地文件名
         String filename = System.currentTimeMillis() + "_" + Utils.randomString(8);
 
         try {
-            URL url = new URL(fileUrl);
-            String protocol = url.getProtocol();
-            if (protocol.equalsIgnoreCase("https")) {
-                SSLContext sslContext = SSLContext.getInstance("TLS");
-                TrustManager[] tm = new TrustManager[]{ new DefaultX509TrustManager() };
-                // 初始化
-                sslContext.init(null, tm, null);
-                SSLSocketFactory ssf = new TLS12SSLSocketFactory(sslContext.getSocketFactory());
+            conn = this.openConnection(fileUrl);
 
-                HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
-                conn.setHostnameVerifier(new TrustAnyHostnameVerifier());
-                conn.setDoOutput(false);
-                conn.setDoInput(true);
-                conn.setUseCaches(false);
-                conn.setConnectTimeout(5000);
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("User-Agent", "Baize/3.0");
-                conn.setSSLSocketFactory(ssf);
-                conn.connect();
-
-                if (HttpURLConnection.HTTP_OK != conn.getResponseCode()) {
-                    Logger.e(this.getClass(), "Can NOT connect: " + fileUrl);
-                    listener.onError("Unable to connect to the server");
-                    return null;
-                }
-
-                contentLength = conn.getContentLength();
-                if (contentLength > 0 && contentLength > this.sizeLimit) {
-                    Logger.e(this.getClass(), "The content length exceeds the limit: " + fileUrl +
-                            " - " + contentLength + "/" + this.sizeLimit);
-                    listener.onError("The content length exceeds the limit: " + fileUrl +
-                            " - " + contentLength + "/" + this.sizeLimit);
-                    return null;
-                }
-
-                contentType = conn.getContentType();
-                is = conn.getInputStream();
+            int responseCode = conn.getResponseCode();
+            if (HttpURLConnection.HTTP_OK != responseCode) {
+                Logger.e(this.getClass(), "Can NOT connect: " + fileUrl + " - HTTP " + responseCode);
+                this.notifyError(target, "Unable to connect to the server: HTTP " + responseCode);
+                return null;
             }
-            else {
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setDoOutput(false);
-                conn.setDoInput(true);
-                conn.setUseCaches(false);
-                conn.setConnectTimeout(5000);
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("User-Agent", "Baize/3.0");
-                conn.connect();
 
-                if (HttpURLConnection.HTTP_OK != conn.getResponseCode()) {
-                    Logger.e(this.getClass(), "Can NOT connect: " + fileUrl);
-                    listener.onError("Unable to connect to the server");
-                    return null;
-                }
-
-                contentLength = conn.getContentLength();
-                if (contentLength > 0 && contentLength > this.sizeLimit) {
-                    Logger.e(this.getClass(), "The content length exceeds the limit: " + fileUrl +
-                            " - " + contentLength + "/" + this.sizeLimit);
-                    listener.onError("The content length exceeds the limit: " + fileUrl +
-                            " - " + contentLength + "/" + this.sizeLimit);
-                    return null;
-                }
-
-                contentType = conn.getContentType();
-                is = conn.getInputStream();
+            contentLength = conn.getContentLength();
+            if (contentLength > this.sizeLimit) {
+                Logger.e(this.getClass(), "The content length exceeds the limit: " + fileUrl +
+                        " - " + contentLength + "/" + this.sizeLimit);
+                this.notifyError(target, "The content length exceeds the limit: " + fileUrl +
+                        " - " + contentLength + "/" + this.sizeLimit);
+                return null;
             }
+
+            contentType = conn.getContentType();
 
             // 解析文件类型
             FileType fileType = FileType.matchMimeType(contentType);
             filename = filename + "." + fileType.getPreferredExtension();
 
-            File file = new File(this.workPath, filename);
-            fos = new FileOutputStream(file);
+            file = new File(this.workPath, filename);
+            partFile = new File(this.workPath, filename + ".part");
+
+            is = conn.getInputStream();
+            fos = new FileOutputStream(partFile);
+
             byte[] bytes = new byte[10240];
-            int length = 0;
-            // 复位长度
+            int length;
             int downloadLength = 0;
+
             while ((length = is.read(bytes)) > 0) {
-                fos.write(bytes, 0, length);
-
                 downloadLength += length;
-                listener.onProgress(filename, downloadLength, contentLength);
 
+                // 先判上限再落盘：避免把超限数据写进文件后才发现
                 if (downloadLength > this.sizeLimit) {
                     Logger.e(this.getClass(), "The download length exceeds the limit: " + fileUrl +
                             " - " + downloadLength + "/" + this.sizeLimit);
-                    listener.onError("The download length exceeds the limit: " + fileUrl +
+                    this.notifyError(target, "The download length exceeds the limit: " + fileUrl +
                             " - " + downloadLength + "/" + this.sizeLimit);
                     return null;
                 }
-            }
-            fos.flush();
 
-            listener.onCompleted(file);
+                fos.write(bytes, 0, length);
+                this.notifyProgress(target, filename, downloadLength, contentLength);
+            }
+
+            fos.flush();
+            fos.close();
+            fos = null;
+
+            // 原子改名：下载完成之前，目标文件不存在
+            Files.move(partFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            partFile = null;
+
+            this.notifyCompleted(target, file);
 
             return file;
         } catch (Exception e) {
             Logger.e(this.getClass(), "#downloadFile", e);
-            listener.onError(e.getMessage());
+            this.notifyError(target, e.getMessage());
             return null;
         } finally {
             if (null != is) {
@@ -171,9 +199,130 @@ public class FileDownloader {
                     Logger.d(FileDownloader.class, "#downloadFile - Failed to close 'fos': " + e.getMessage());
                 }
             }
+
+            if (null != conn) {
+                conn.disconnect();
+            }
+
+            // 失败路径：删除半截文件
+            if (null != partFile && partFile.exists() && !partFile.delete()) {
+                Logger.w(FileDownloader.class, "#downloadFile - Failed to delete partial file: "
+                        + partFile.getAbsolutePath());
+            }
         }
     }
 
+    /**
+     * 建立连接，并跟随最多 {@link #MAX_REDIRECTS} 跳重定向。
+     *
+     * <p>{@link HttpURLConnection} 默认不跟随 https → http 的跨协议重定向，这里显式处理。</p>
+     *
+     * @param fileUrl 原始地址。
+     * @return 已就绪的连接。
+     * @throws IOException 建立失败或重定向过多时抛出。
+     */
+    private HttpURLConnection openConnection(String fileUrl) throws IOException {
+        String current = fileUrl;
+
+        for (int hop = 0; hop <= MAX_REDIRECTS; ++hop) {
+            URL url = new URL(current);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            this.configure(conn, url);
+
+            int code = conn.getResponseCode();
+            if (code == HttpURLConnection.HTTP_MOVED_PERM || code == HttpURLConnection.HTTP_MOVED_TEMP
+                    || code == HttpURLConnection.HTTP_SEE_OTHER || code == 307 || code == 308) {
+                String location = conn.getHeaderField("Location");
+                conn.disconnect();
+
+                if (null == location || location.isEmpty()) {
+                    throw new IOException("Redirect without Location: " + current);
+                }
+
+                current = new URL(url, location).toString();
+                Logger.d(this.getClass(), "#openConnection - Redirect to: " + current);
+                continue;
+            }
+
+            return conn;
+        }
+
+        throw new IOException("Too many redirects: " + fileUrl);
+    }
+
+    private void configure(HttpURLConnection conn, URL url) {
+        conn.setDoOutput(false);
+        conn.setDoInput(true);
+        conn.setUseCaches(false);
+        conn.setConnectTimeout(CONNECT_TIMEOUT);
+        conn.setReadTimeout(READ_TIMEOUT);
+        conn.setInstanceFollowRedirects(false);
+
+        try {
+            conn.setRequestMethod("GET");
+        } catch (Exception e) {
+            // 某些协议实现不支持设置方法，保留默认值
+            Logger.d(this.getClass(), "#configure - " + e.getMessage());
+        }
+
+        conn.setRequestProperty("User-Agent", "Baize/3.0");
+
+        if ("https".equalsIgnoreCase(url.getProtocol())) {
+            if (null != this.trustAllSocketFactory) {
+                ((HttpsURLConnection) conn).setSSLSocketFactory(this.trustAllSocketFactory);
+                ((HttpsURLConnection) conn).setHostnameVerifier(new TrustAnyHostnameVerifier());
+
+                if (TRUST_ALL_WARNED.compareAndSet(false, true)) {
+                    Logger.w(this.getClass(), "Certificate verification is DISABLED for external downloads");
+                }
+            }
+        }
+    }
+
+    private void notifyProgress(FileDownloaderListener listener, String filename, int progress, int total) {
+        try {
+            listener.onProgress(filename, progress, total);
+        } catch (Exception e) {
+            Logger.w(this.getClass(), "#notifyProgress - Listener failed: " + e.getMessage());
+        }
+    }
+
+    private void notifyCompleted(FileDownloaderListener listener, File file) {
+        try {
+            listener.onCompleted(file);
+        } catch (Exception e) {
+            Logger.w(this.getClass(), "#notifyCompleted - Listener failed: " + e.getMessage());
+        }
+    }
+
+    private void notifyError(FileDownloaderListener listener, String error) {
+        try {
+            listener.onError(error);
+        } catch (Exception e) {
+            Logger.w(this.getClass(), "#notifyError - Listener failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 空监听器：调用方不关心进度时使用，避免到处判空。
+     */
+    private static final class SilentListener implements FileDownloaderListener {
+
+        @Override
+        public void onProgress(String fileName, int progressLength, int totalLength) {
+            // Nothing
+        }
+
+        @Override
+        public void onCompleted(File file) {
+            // Nothing
+        }
+
+        @Override
+        public void onError(String error) {
+            // Nothing
+        }
+    }
 
     protected class TrustAnyHostnameVerifier implements HostnameVerifier {
         @Override

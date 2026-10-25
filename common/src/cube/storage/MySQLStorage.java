@@ -21,7 +21,11 @@ import java.sql.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * MySQL 存储器。
@@ -50,6 +54,27 @@ public class MySQLStorage extends AbstractStorage {
 
     private volatile ConnectionPool pool;
 
+    /**
+     * 空闲连接回收任务。
+     *
+     * <p>原实现让 {@code ConnectionPool} 继承 {@code TimerTask} 却从未调度，回收逻辑是死代码。
+     * 这里改为显式的单线程调度器，随 {@link #open()} 启动、{@link #close()} 取消。</p>
+     */
+    private volatile ScheduledExecutorService reaper;
+
+    /**
+     * 查询失败计数，按表维度累计。
+     *
+     * <p>失败本身不抛出异常（见 {@link #executeQuery(String, StorageField[], Conditional[])} 的契约），
+     * 因此必须可观测：这个计数器由上报模块读取，让"连接池打满"在控制台可见。</p>
+     */
+    private final ConcurrentHashMap<String, AtomicLong> queryFailures = new ConcurrentHashMap<>();
+
+    /**
+     * 连接池空闲连接回收间隔（秒）。
+     */
+    private final static long REAPER_INTERVAL_SECONDS = 60;
+
     public MySQLStorage(String name) {
         super(name, StorageType.MySQL);
     }
@@ -69,16 +94,127 @@ public class MySQLStorage extends AbstractStorage {
         }
 
         this.pool = new ConnectionPool(64, this.config);
+
+        // 启动空闲连接回收。守护线程，避免阻塞进程退出。
+        this.reaper = Executors.newSingleThreadScheduledExecutor(new java.util.concurrent.ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable runnable) {
+                Thread thread = new Thread(runnable, "MySQLStorage-Reaper");
+                thread.setDaemon(true);
+                return thread;
+            }
+        });
+        this.reaper.scheduleWithFixedDelay(this.pool, REAPER_INTERVAL_SECONDS, REAPER_INTERVAL_SECONDS,
+                TimeUnit.SECONDS);
+
+        Logger.i(this.getClass(), "#open - Storage is ready: " + describeTarget());
     }
 
     @Override
     public synchronized void close() {
+        if (null != this.reaper) {
+            this.reaper.shutdownNow();
+            this.reaper = null;
+        }
+
         if (null == this.pool) {
             return;
         }
 
         this.pool.close();
         this.pool = null;
+    }
+
+    @Override
+    public boolean isOpen() {
+        return null != this.pool;
+    }
+
+    /**
+     * 查询失败次数（指定表）。
+     *
+     * @param table 表名。
+     * @return 累计失败次数。
+     */
+    public long getQueryFailureCount(String table) {
+        AtomicLong counter = this.queryFailures.get(keyOf(table));
+        return (null == counter) ? 0L : counter.get();
+    }
+
+    /**
+     * 查询失败次数（全部表）。
+     *
+     * @return 累计失败次数。
+     */
+    public long getQueryFailureTotal() {
+        long total = 0L;
+        for (AtomicLong counter : this.queryFailures.values()) {
+            total += counter.get();
+        }
+        return total;
+    }
+
+    private static String keyOf(String table) {
+        return (null == table) ? "unknown" : table;
+    }
+
+    private void increaseQueryFailure(String table) {
+        String key = keyOf(table);
+        AtomicLong counter = this.queryFailures.get(key);
+        if (null == counter) {
+            AtomicLong created = new AtomicLong(0L);
+            AtomicLong existing = this.queryFailures.putIfAbsent(key, created);
+            counter = (null == existing) ? created : existing;
+        }
+        counter.incrementAndGet();
+    }
+
+    /**
+     * 记录一次查询失败。
+     *
+     * <p>日志里保留表名、条件数量、耗时与池状态；完整 SQL 只在 DEBUG 级输出——
+     * 值已内联进 SQL，WARN 级打印整条语句会把业务数据写进日志。</p>
+     *
+     * @param table 表名。
+     * @param conditionals 条件列表。
+     * @param sql 完整 SQL。
+     * @param beginTime 开始时间戳。
+     * @param cause 异常，允许为 {@code null} 。
+     */
+    private void logQueryFailure(String table, Conditional[] conditionals, String sql, long beginTime,
+                                 Throwable cause) {
+        this.increaseQueryFailure(table);
+
+        int conditionCount = (null == conditionals) ? 0 : conditionals.length;
+        long cost = System.currentTimeMillis() - beginTime;
+        ConnectionPool current = this.pool;
+        String poolState = (null == current) ? "closed" : (current.count.get() + "/" + current.maxConn);
+
+        String message = "#executeQuery - Failed, table: " + table
+                + ", conditions: " + conditionCount
+                + ", cost: " + cost + "ms"
+                + ", pool: " + poolState;
+
+        if (null == cause) {
+            Logger.w(this.getClass(), message);
+        }
+        else {
+            Logger.w(this.getClass(), message, cause);
+        }
+
+        if (Logger.isDebugLevel()) {
+            Logger.d(this.getClass(), "#executeQuery - SQL: " + sql);
+        }
+    }
+
+    private String describeTarget() {
+        if (null == this.config) {
+            return "unknown";
+        }
+
+        return this.config.optString(CONFIG_HOST, "127.0.0.1")
+                + ":" + this.config.optInt(CONFIG_PORT, 3306)
+                + "/" + this.config.optString(CONFIG_SCHEMA, "cube");
     }
 
     /**
@@ -503,14 +639,16 @@ public class MySQLStorage extends AbstractStorage {
 
     @Override
     public List<StorageField[]> executeQuery(String table, StorageField[] fields, Conditional[] conditionals) {
+        long beginTime = System.currentTimeMillis();
+
         if (null == this.pool) {
-            Logger.e(this.getClass(), "#executeQuery - The connection pool is not ready");
+            this.logQueryFailure(table, conditionals, null, beginTime, null);
             return null;
         }
 
         Connection connection = this.pool.get();
         if (null == connection) {
-            Logger.e(this.getClass(), "#executeQuery - Failed to obtain connection");
+            this.logQueryFailure(table, conditionals, null, beginTime, null);
             return null;
         }
 
@@ -552,7 +690,7 @@ public class MySQLStorage extends AbstractStorage {
                 }
             }
         } catch (SQLException e) {
-            Logger.w(this.getClass(), "#executeQuery - SQL: " + sql, e);
+            this.logQueryFailure(table, conditionals, sql, beginTime, e);
         } finally {
             if (null != statement) {
                 try {
@@ -571,15 +709,18 @@ public class MySQLStorage extends AbstractStorage {
     @Override
     public List<StorageField[]> executeQuery(String[] tables, StorageField[] fields, Conditional[] conditionals) {
         ArrayList<StorageField[]> result = new ArrayList<>();
+        long beginTime = System.currentTimeMillis();
 
+        // TODO 契约统一（见 EVALUATION-2026-10-25 R1）：本重载与 String sql 重载在失败时仍返回空集合，
+        // 因为调用点（ContactStorage/AIGCStorage 等）尚未判空。切换为 null 前必须逐点补齐判空。
         if (null == this.pool) {
-            Logger.e(this.getClass(), "#executeQuery - The connection pool is not ready");
+            this.logQueryFailure(Arrays.toString(tables), conditionals, null, beginTime, null);
             return result;
         }
 
         Connection connection = this.pool.get();
         if (null == connection) {
-            Logger.e(this.getClass(), "#executeQuery - Failed to obtain connection");
+            this.logQueryFailure(Arrays.toString(tables), conditionals, null, beginTime, null);
             return result;
         }
 
@@ -620,7 +761,7 @@ public class MySQLStorage extends AbstractStorage {
                 }
             }
         } catch (SQLException e) {
-            Logger.w(this.getClass(), "#executeQuery - SQL: " + sql, e);
+            this.logQueryFailure(Arrays.toString(tables), conditionals, sql, beginTime, e);
         } finally {
             if (null != statement) {
                 try {
@@ -640,15 +781,16 @@ public class MySQLStorage extends AbstractStorage {
     @Override
     public List<StorageField[]> executeQuery(String sql) {
         ArrayList<StorageField[]> result = new ArrayList<>();
+        long beginTime = System.currentTimeMillis();
 
         if (null == this.pool) {
-            Logger.e(this.getClass(), "#executeQuery - The connection pool is not ready");
+            this.logQueryFailure(null, null, sql, beginTime, null);
             return result;
         }
 
         Connection connection = this.pool.get();
         if (null == connection) {
-            Logger.e(this.getClass(), "#executeQuery - Failed to obtain connection");
+            this.logQueryFailure(null, null, sql, beginTime, null);
             return result;
         }
 
@@ -662,7 +804,7 @@ public class MySQLStorage extends AbstractStorage {
                 result.add(row);
             }
         } catch (SQLException e) {
-            Logger.w(this.getClass(), "#executeQuery - SQL: " + sql, e);
+            this.logQueryFailure(null, null, sql, beginTime, e);
         } finally {
             if (null != statement) {
                 try {
@@ -719,8 +861,11 @@ public class MySQLStorage extends AbstractStorage {
     /**
      * 连接池。
      * 连接池会对长时间未使用的连接做有效性探测，探测失败则丢弃并重建。
+     *
+     * <p>回收任务由 {@link MySQLStorage#open()} 调度的单线程调度器驱动，
+     * 每 {@link MySQLStorage#REAPER_INTERVAL_SECONDS} 秒执行一次 {@link #run()}。</p>
      */
-    protected class ConnectionPool extends TimerTask {
+    protected class ConnectionPool implements Runnable {
 
         private final int timeout = 28000;
 
@@ -773,7 +918,8 @@ public class MySQLStorage extends AbstractStorage {
                 while (null != conn) {
                     try {
                         if (conn.isClosed()) {
-                            // 获取下一个
+                            // 已关闭的连接直接丢弃，同时清掉时间戳，避免映射泄漏
+                            this.timestamps.remove(conn);
                             synchronized (this) {
                                 conn = this.connections.poll();
                             }
@@ -931,13 +1077,7 @@ public class MySQLStorage extends AbstractStorage {
             this.connections.clear();
             this.timestamps.clear();
 
-            synchronized (this) {
-                this.notifyAll();
-            }
-
-            synchronized (this) {
-                this.notifyAll();
-            }
+            this.notifyAll();
 
             for (Connection conn : connList) {
                 try {
@@ -949,68 +1089,45 @@ public class MySQLStorage extends AbstractStorage {
         }
 
         protected boolean testConnection(Connection conn) {
-            Statement statement = null;
             try {
-                statement = conn.createStatement();
-                ResultSet rs = statement.executeQuery("select version()");
-                if (rs.next()) {
-                    return true;
-                } else {
-                    try {
-                        statement.close();
-                        statement = null;
-                        conn.close();
-                    } catch (SQLException ex) {
-                        // 释放失败不影响主流程，仅记录
-                        Logger.d(MySQLStorage.class, "#testConnection - Failed to close 'conn': " + ex.getMessage());
-                    }
-                    return false;
-                }
-            } catch (Exception e) {
-                Logger.d(this.getClass(), e.getMessage());
-                try {
-                    statement.close();
-                    statement = null;
-                    conn.close();
-                } catch (SQLException ex) {
-                    // 释放失败不影响主流程，仅记录
-                    Logger.d(MySQLStorage.class, "#testConnection - Failed to close 'conn': " + ex.getMessage());
-                }
+                // JDBC4 的有效性探测：由驱动发轻量 ping，避免每次借用都跑一条 SQL
+                return conn.isValid(2);
+            } catch (SQLException e) {
+                Logger.d(this.getClass(), "#testConnection - " + e.getMessage());
                 return false;
-            } finally {
-                if (null != statement) {
-                    try {
-                        statement.close();
-                    } catch (SQLException e) {
-                        // 释放失败不影响主流程，仅记录
-                        Logger.d(MySQLStorage.class, "#testConnection - Failed to close 'statement': " + e.getMessage());
-                    }
-                }
+            } catch (RuntimeException e) {
+                Logger.d(this.getClass(), "#testConnection - " + e.getMessage());
+                return false;
             }
         }
 
         @Override
         public void run() {
-            Iterator<Connection> iter = this.connections.iterator();
-            while (iter.hasNext()) {
-                Connection conn = iter.next();
-                Long timestamp = this.timestamps.get(conn);
-                if (null != timestamp) {
-                    if (System.currentTimeMillis() - timestamp > 60 * 1000) {
-                        this.timestamps.remove(conn);
-                        iter.remove();
-                        try {
-                            conn.close();
-                        } catch (Exception e) {
-                            // 释放失败不影响主流程，仅记录
-                            Logger.d(MySQLStorage.class, "#run - Failed to close 'conn': " + e.getMessage());
+            // 回收任务绝不能让异常逃逸：一旦抛出，调度器会取消后续所有执行
+            try {
+                Iterator<Connection> iter = this.connections.iterator();
+                while (iter.hasNext()) {
+                    Connection conn = iter.next();
+                    Long timestamp = this.timestamps.get(conn);
+                    if (null != timestamp) {
+                        if (System.currentTimeMillis() - timestamp > 60 * 1000) {
+                            this.timestamps.remove(conn);
+                            iter.remove();
+                            try {
+                                conn.close();
+                            } catch (Exception e) {
+                                // 释放失败不影响主流程，仅记录
+                                Logger.d(MySQLStorage.class, "#run - Failed to close 'conn': " + e.getMessage());
+                            }
                         }
                     }
                 }
-            }
 
-            synchronized (this) {
-                this.notifyAll();
+                synchronized (this) {
+                    this.notifyAll();
+                }
+            } catch (Throwable t) {
+                Logger.w(this.getClass(), "#run - Recycle task failed", t);
             }
         }
     }

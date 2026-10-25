@@ -8,6 +8,7 @@ package cube.service.fileprocessor;
 
 import cell.util.log.Logger;
 import cube.common.entity.Image;
+import cube.processor.Subprocess;
 import cube.util.FileType;
 import cube.util.FileUtils;
 import cube.vision.Size;
@@ -15,11 +16,11 @@ import net.coobird.thumbnailator.Thumbnails;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * 图片工具。
@@ -28,38 +29,39 @@ public final class ImageTools {
 
     public static String WORKING_PATH = "storage/tmp/";
 
+    /**
+     * 探测 ImageMagick 是否可用的超时：15 秒。
+     */
+    private final static long CHECK_TIMEOUT_MILLIS = 15 * 1000L;
+
+    /**
+     * 读取图片信息的超时：30 秒。
+     */
+    private final static long IDENTIFY_TIMEOUT_MILLIS = 30 * 1000L;
+
+    /**
+     * 单次图片转换的超时：2 分钟。
+     */
+    private final static long CONVERT_TIMEOUT_MILLIS = 2 * 60 * 1000L;
+
     private static boolean USE_IMAGEMAGICK = true;
 
     private ImageTools() {
     }
 
     public static boolean check() {
-        ProcessBuilder pb = new ProcessBuilder("convert", "-help");
+        Subprocess.Result result = Subprocess.execute(Arrays.asList("convert", "-help"), null,
+                CHECK_TIMEOUT_MILLIS);
 
-        Process process = null;
-        int status = -1;
-
-        try {
-            process = pb.start();
-            try {
-                status = process.waitFor();
-            } catch (InterruptedException e) {
-            }
-        } catch (IOException e) {
-            status = 2;
-        } finally {
-            if (null != process) {
-                process.destroy();
-            }
-        }
-
-        if (status == 1 || status == 0) {
+        // convert -help 的正常退出码是 1，这里接受 0 与 1
+        int exitCode = result.getExitCode();
+        if (result.isStarted() && !result.isTimedOut() && (0 == exitCode || 1 == exitCode)) {
             USE_IMAGEMAGICK = true;
             Logger.i(ImageTools.class, "Use ImageMagick for processing image data");
         }
         else {
             USE_IMAGEMAGICK = false;
-            Logger.i(ImageTools.class, "Use Java Image IO for processing image data");
+            Logger.i(ImageTools.class, "Use Java Image IO for processing image data - " + result);
         }
 
         return USE_IMAGEMAGICK;
@@ -75,47 +77,31 @@ public final class ImageTools {
         Image image = null;
 
         if (USE_IMAGEMAGICK) {
-            ProcessBuilder pb = new ProcessBuilder("identify", "-format", "%m %w %h ", fullpath);
+            List<String> command = new ArrayList<>();
+            command.add("identify");
+            command.add("-format");
+            command.add("%m %w %h ");
+            command.add(fullpath);
 
-            Process process = null;
-            BufferedReader stdInput = null;
-            int status = -1;
+            Subprocess.Result result = Subprocess.execute(command, null, IDENTIFY_TIMEOUT_MILLIS);
+            if (!result.isSuccess()) {
+                Logger.w(ImageTools.class, "#identify - Failed: " + fullpath + " - " + result);
+                return null;
+            }
 
-            try {
-                // 启动进程
-                process = pb.start();
-
-                stdInput = new BufferedReader(new InputStreamReader(process.getInputStream()));
-
-                String line = null;
-                while ((line = stdInput.readLine()) != null) {
-                    if (line.length() > 0) {
-                        String[] tmp = line.split(" ");
-                        if (tmp.length == 3 || line.startsWith("GIF")) {
-                            FileType type = FileType.matchExtension(tmp[0]);
-                            if (type == FileType.JPEG || type == FileType.PNG || type == FileType.GIF || type == FileType.BMP) {
+            for (String line : result.getOutput()) {
+                if (line.length() > 0) {
+                    String[] tmp = line.split(" ");
+                    if (tmp.length == 3 || line.startsWith("GIF")) {
+                        FileType type = FileType.matchExtension(tmp[0]);
+                        if (type == FileType.JPEG || type == FileType.PNG || type == FileType.GIF || type == FileType.BMP) {
+                            try {
                                 image = new Image(type, Integer.parseInt(tmp[1]), Integer.parseInt(tmp[2]));
+                            } catch (NumberFormatException e) {
+                                Logger.w(ImageTools.class, "#identify - Invalid output line: " + line);
                             }
                         }
                     }
-                }
-
-                try {
-                    status = process.waitFor();
-                } catch (InterruptedException e) {
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                if (null != stdInput) {
-                    try {
-                        stdInput.close();
-                    } catch (IOException e) {
-                    }
-                }
-
-                if (null != process) {
-                    process.destroy();
                 }
             }
         }
@@ -126,7 +112,7 @@ public final class ImageTools {
                image = new Image(fileType, source.getWidth(), source.getHeight());
                source = null;
             } catch (IOException e) {
-                e.printStackTrace();
+                Logger.w(ImageTools.class, "#identify - Failed to read image: " + fullpath, e);
             }
         }
 
@@ -161,39 +147,9 @@ public final class ImageTools {
 
             command.add(outputFile + ".jpg");
 
-            ProcessBuilder pb = new ProcessBuilder(command);
-
-            Process process = null;
-            BufferedReader stdError = null;
-            int status = -1;
-
-            try {
-                String line = null;
-                process = pb.start();
-                stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-                while ((line = stdError.readLine()) != null) {
-                    if (line.length() > 0) {
-                        Logger.w(ImageTools.class, "#thumbnail - " + line);
-                    }
-                }
-
-                try {
-                    status = process.waitFor();
-                } catch (InterruptedException e) {
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                if (null != stdError) {
-                    try {
-                        stdError.close();
-                    } catch (IOException e) {
-                    }
-                }
-
-                if (null != process) {
-                    process.destroy();
-                }
+            Subprocess.Result result = Subprocess.execute(command, null, CONVERT_TIMEOUT_MILLIS);
+            if (!result.isSuccess()) {
+                Logger.w(ImageTools.class, "#thumbnail - " + result);
             }
 
             File file = new File(outputFile + ".jpg");
@@ -239,39 +195,16 @@ public final class ImageTools {
      */
     public static Image thumbnailResize(String inputFile, String outputFile, int size) {
         if (USE_IMAGEMAGICK) {
-            ProcessBuilder pb = new ProcessBuilder("convert", inputFile, "-thumbnail", size + "x" + size, outputFile + ".jpg");
+            List<String> command = new ArrayList<>();
+            command.add("convert");
+            command.add(inputFile);
+            command.add("-thumbnail");
+            command.add(size + "x" + size);
+            command.add(outputFile + ".jpg");
 
-            Process process = null;
-            BufferedReader stdError = null;
-            int status = 1;
-
-            try {
-                String line = null;
-                process = pb.start();
-                stdError = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-                while ((line = stdError.readLine()) != null) {
-                    if (line.length() > 0) {
-                        Logger.w(ImageTools.class, "#thumbnailResize - " + line);
-                    }
-                }
-
-                try {
-                    status = process.waitFor();
-                } catch (InterruptedException e) {
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                if (null != stdError) {
-                    try {
-                        stdError.close();
-                    } catch (IOException e) {
-                    }
-                }
-
-                if (null != process) {
-                    process.destroy();
-                }
+            Subprocess.Result result = Subprocess.execute(command, null, CONVERT_TIMEOUT_MILLIS);
+            if (!result.isSuccess()) {
+                Logger.w(ImageTools.class, "#thumbnailResize - " + result);
             }
 
             File file = new File(outputFile + ".jpg");
