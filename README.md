@@ -272,7 +272,6 @@ robot.api=http://127.0.0.1:2280/event/callback/{token}
 robot.callback=http://127.0.0.1:7010/robot/event/{token}
 
 # 业务模块网关扩展（详见第六章）；一行一个扩展，编号只表达装载顺序，允许跳号
-module.extensions.10=cube.service.psychology.PsychologyDispatcherExtension
 module.extensions.20=cube.service.psychology.dispatcher.PsychologyEndpoints
 module.rest.enabled=false
 
@@ -409,11 +408,10 @@ service-psychology/src/cube/service/psychology/
 ├── action/                        # ③ 37 个动作处理器，一动作一类，实现 AIGCActionTask
 ├── scene/                         # ④ 业务场景：咨询 / 副驾 / 语音流 / 报告生成
 ├── dataset/                       # ⑤ 量表 / 问卷数据集
-├── dispatcher/
-│   ├── PsychologyEndpoints        # ⑥ 端点提供者：implements DispatcherExtension，
-│   │                              #    getEndpointHandlers() 返回 30 个 ContextHandler
-│   └── handler/                   #    30 个端点实现，继承网关 AIGCHandler
-└── PsychologyDispatcherExtension  #    纯前缀声明的薄壳（诊断用）
+└── dispatcher/
+    ├── PsychologyEndpoints        # ⑥ 端点提供者：implements DispatcherExtension，
+    │                              #    声明 REST 前缀并提供 30 个 ContextHandler
+    └── handler/                   #    30 个端点实现，继承网关 AIGCHandler
 ```
 
 六个组成部分的职责：
@@ -425,7 +423,7 @@ service-psychology/src/cube/service/psychology/
 | ③ 动作处理器 | `AIGCActionTask` | 读参数一律 `ctx.getRequest().data`；`requiresToken` 逐个动作对齐 |
 | ④ 业务场景 | 模块自有包 | 可经 `AIGCHost` 使用宿主的模型单元、知识库、分词器等平台能力 |
 | ⑤ 数据集 | 模块资产 | 量表 / 问卷按需内置 |
-| ⑥ 端点注入 | `cube.dispatcher.aigc.spi.DispatcherExtension` | `getEndpointHandlers()` 是 **default 方法**，只声明前缀的旧实现无需改动；路径一律以各 handler 自身的 `super(path)` 为准，**一经发布不可改** |
+| ⑥ 端点注入 | `cube.dispatcher.aigc.spi.DispatcherExtension` | 同一个实现声明 REST 前缀并提供端点，无需单独的前缀声明类；路径一律以各 handler 自身的 `super(path)` 为准，**一经发布不可改** |
 
 ### 6.3 开发步骤
 
@@ -435,7 +433,7 @@ service-psychology/src/cube/service/psychology/
 
 **第 3 步 · 实现动作** —— 在 `action/` 下一动作一类实现 `AIGCActionTask`，并在 `getActions()` 里逐个绑定（`ActionBinding` 声明 `requiresToken` 等）。
 
-**第 4 步 · 注入端点**（可选）—— 实现 `DispatcherExtension`：把端点清单与实现放进模块的 `dispatcher/` 子包。跨包继承 `AIGCHandler` **必须显式 import**（其关键方法为 `protected`）；在 `getEndpointHandlers()` 的列表里登记，顺序即注册顺序。
+**第 4 步 · 注入端点**（可选）—— 实现 `DispatcherExtension`：把端点清单与实现放进模块的 `dispatcher/` 子包。在同一个实现中通过 `getRestPrefixes()` 声明供冲突诊断的前缀，无需另建声明类；前缀不参与请求路由或兜底通道定位。跨包继承 `AIGCHandler` **必须显式 import**（其关键方法为 `protected`）；在 `getEndpointHandlers()` 的列表里登记，顺序即注册顺序。
 
 **第 5 步 · 声明装载** —— 两处配置：
 
@@ -446,7 +444,6 @@ module.1.enabled=true
 module.1.optional=false
 
 # dispatcher/config/dispatcher.properties（网关端点装载，一行一个，按编号升序装载）
-module.extensions.10=<前缀声明类>
 module.extensions.20=<端点提供者类>
 ```
 
