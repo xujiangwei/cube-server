@@ -30,11 +30,15 @@ import java.util.Map;
  * <ul>
  *   <li><code>GET /statistic/recent</code> —— 昨日用户统计（仅统计 ID 位数大于等于 8 位的联系人）</li>
  *   <li><code>GET /statistic/daily</code> —— 指定日期的用户统计</li>
+ *   <li><code>GET /statistic/range</code> —— 日期区间的逐日统计与区间汇总（供周/月/年视图使用）</li>
  *   <li><code>GET /statistic/units</code> —— 昨日 AI 单元概览（ID 位数大于等于 6 且小于 8 位的联系人），
  *       每行是一个 Contact 物理实体，<code>capabilities</code> 为该实体承载的能力（来自节点上报）</li>
  * </ul>
  */
 public class StatisticDataHandler extends ContextHandler {
+
+    /** 区间查询允许的最大天数：一年 + 一天，避免一次拉取过长时间跨度。 */
+    private static final int MAX_RANGE_DAYS = 366;
 
     private Console console;
 
@@ -125,6 +129,61 @@ public class StatisticDataHandler extends ContextHandler {
 
                 respondOk(response, data);
             }
+            else if (target.equals("/range")) {
+                String query = request.getQueryString();
+                Map<String, String> params = (null == query) ? new HashMap<String, String>()
+                        : Utils.parseQueryStringParams(URLDecoder.decode(query, "UTF-8"));
+
+                String domain = params.get("domain");
+                if (null == domain || domain.isEmpty()) {
+                    respond(response, HttpStatus.BAD_REQUEST_400);
+                    return;
+                }
+
+                Calendar to = Calendar.getInstance();
+                Calendar from = Calendar.getInstance();
+
+                try {
+                    if (params.containsKey("days")) {
+                        int days = Integer.parseInt(params.get("days"));
+                        if (days < 1) {
+                            days = 1;
+                        }
+                        if (days > MAX_RANGE_DAYS) {
+                            days = MAX_RANGE_DAYS;
+                        }
+                        from.add(Calendar.DAY_OF_MONTH, -(days - 1));
+                    }
+                    else if (params.containsKey("from") && params.containsKey("to")) {
+                        if (!setDate(from, params.get("from")) || !setDate(to, params.get("to"))) {
+                            respond(response, HttpStatus.BAD_REQUEST_400);
+                            return;
+                        }
+                    }
+                    else {
+                        // 缺省最近 30 天（含今日）
+                        from.add(Calendar.DAY_OF_MONTH, -29);
+                    }
+                } catch (NumberFormatException e) {
+                    respond(response, HttpStatus.BAD_REQUEST_400);
+                    return;
+                }
+
+                // 日期部分比较，忽略时分秒
+                if (toYmd(from) > toYmd(to)) {
+                    respond(response, HttpStatus.BAD_REQUEST_400);
+                    return;
+                }
+
+                JSONObject data = console.getStatisticDataManager().queryStatisticRange(domain, from, to);
+                if (null == data) {
+                    respond(response, HttpStatus.NOT_FOUND_404);
+                    return;
+                }
+
+                data.put("tag", console.getTag());
+                respondOk(response, data);
+            }
             else if (target.equals("/daily")) {
                 String query = URLDecoder.decode(request.getQueryString(), "UTF-8");
                 Map<String, String> params = Utils.parseQueryStringParams(query);
@@ -166,6 +225,62 @@ public class StatisticDataHandler extends ContextHandler {
 
                 respondOk(response, data);
             }
+        }
+
+        /**
+         * 解析 <code>yyyy-MM-dd</code> 格式的日期到日历对象，时分秒清零。
+         *
+         * @param calendar 目标日历。
+         * @param value 日期字符串。
+         * @return 解析成功返回 {@code true} 。
+         */
+        private boolean setDate(Calendar calendar, String value) {
+            if (null == value) {
+                return false;
+            }
+
+            String[] parts = value.split("-");
+            if (parts.length != 3) {
+                return false;
+            }
+
+            int year;
+            int month;
+            int date;
+
+            try {
+                year = Integer.parseInt(parts[0]);
+                month = Integer.parseInt(parts[1]);
+                date = Integer.parseInt(parts[2]);
+            } catch (NumberFormatException e) {
+                return false;
+            }
+
+            if (month < 1 || month > 12 || date < 1 || date > 31) {
+                return false;
+            }
+
+            calendar.set(Calendar.YEAR, year);
+            calendar.set(Calendar.MONTH, month - 1);
+            calendar.set(Calendar.DAY_OF_MONTH, date);
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+
+            return true;
+        }
+
+        /**
+         * 把日历转换为 <code>yyyyMMdd</code> 形式的整数，便于比较大小。
+         *
+         * @param calendar 指定日历。
+         * @return 返回日期整数。
+         */
+        private int toYmd(Calendar calendar) {
+            return calendar.get(Calendar.YEAR) * 10000
+                    + (calendar.get(Calendar.MONTH) + 1) * 100
+                    + calendar.get(Calendar.DATE);
         }
     }
 }

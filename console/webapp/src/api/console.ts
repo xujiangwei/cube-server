@@ -16,6 +16,7 @@ import type {
   PerformanceReportResponse,
   ServiceDeployInfo,
   ServiceServer,
+  StatisticRangeResponse,
   StatisticResponse,
   UnitOverviewResponse,
   UserToken
@@ -161,6 +162,21 @@ export function fetchDailyStatistic(
 ): Promise<StatisticResponse> {
   return request<StatisticResponse>('/statistic/daily', {
     query: { domain, year, month, date }
+  })
+}
+
+/**
+ * 查询最近若干天的逐日统计与区间汇总。
+ *
+ * 周/月/年视图都基于这个接口：后端只物化日粒度，区间指标由日数据即时聚合，
+ * 其中去重活跃人数需要事件明细仍在保留期内。
+ */
+export function fetchStatisticRange(
+  domain: string,
+  days: number
+): Promise<StatisticRangeResponse> {
+  return request<StatisticRangeResponse>('/statistic/range', {
+    query: { domain, days }
   })
 }
 

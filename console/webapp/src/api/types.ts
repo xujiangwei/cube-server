@@ -292,6 +292,65 @@ export interface StatisticResponse {
   date: number
 }
 
+/**
+ * 逐日统计（区间查询）。
+ *
+ * 字段为可选：早期日期只有 TNU/DAU/AOT/TD，没有 AOTT/AOTU 分子分母。
+ */
+export interface StatisticDayStat {
+  TNU?: number
+  DAU?: number
+  /** 人均在线时长，单位：小时 */
+  AOT?: number
+  /** 当日活跃用户在线总时长，单位：毫秒 */
+  AOTT?: number
+  /** 当日参与 AOT 计算的活跃用户数 */
+  AOTU?: number
+  TD?: StatisticSlice[]
+}
+
+/** 区间内的某一天 */
+export interface StatisticDay {
+  year: number
+  month: number
+  date: number
+  statistic: StatisticDayStat
+}
+
+/**
+ * 区间汇总。
+ *
+ * `dauSum` 是逐日活跃之和，**不是**区间去重活跃人数；去重口径见 `uv`。
+ */
+export interface StatisticRangeSummary {
+  /** 有统计结果的天数 */
+  days: number
+  /** 区间末日的用户总数 */
+  tnu: number
+  dauSum: number
+  dauMax: number
+  dauAvg: number
+  aotTotalMillis: number
+  aotUsers: number
+  /** 区间加权人均在线时长，单位：小时 */
+  aot: number
+  /** 用 AOT × DAU 还原分子分母的天数 */
+  estimatedDays: number
+  /** 区间去重活跃用户数；-1 表示明细已过保留期，无法计算 */
+  uv: number
+  uvScoped: 'detail' | 'unavailable'
+}
+
+/** 区间统计响应 */
+export interface StatisticRangeResponse {
+  tag: string
+  domain: string
+  from: { year: number; month: number; date: number }
+  to: { year: number; month: number; date: number }
+  summary: StatisticRangeSummary
+  days: StatisticDay[]
+}
+
 /** AI 单元的工作状态 */
 export type UnitState = 'online' | 'offline' | 'inactive'
 

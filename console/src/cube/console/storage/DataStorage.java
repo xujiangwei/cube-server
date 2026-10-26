@@ -33,6 +33,12 @@ public class DataStorage {
     // Average online time
     public final String ITEM_AOT = "AOT";
 
+    // 当日活跃用户在线总时长（毫秒）
+    public final String ITEM_AOT_TOTAL = "AOTT";
+
+    // 当日参与 AOT 计算的活跃用户数
+    public final String ITEM_AOT_USERS = "AOTU";
+
     // Time Distribution
     public final String ITEM_TD = "TD";
 
@@ -105,37 +111,130 @@ public class DataStorage {
         sql.append(" AND `date`=").append(date);
 
         List<StorageField[]> result = this.statisticStorage.executeQuery(sql.toString());
-        if (result.isEmpty()) {
+        if (null == result || result.isEmpty()) {
             return null;
         }
 
         JSONObject json = new JSONObject();
 
         for (StorageField[] row : result) {
-            String item = row[0].getString();
-            String data = row[1].getString();
-
-            if (item.equals(ITEM_TNU)) {
-                json.put(item, Integer.parseInt(data));
-            }
-            else if (item.equals(ITEM_DAU)) {
-                json.put(item, Integer.parseInt(data));
-            }
-            else if (item.equals(ITEM_AOT)) {
-                // 单位：小时
-                double hours = Double.parseDouble(data);
-                if (hours > LEGACY_AOT_MILLIS_THRESHOLD) {
-                    // 兼容旧口径（毫秒）数据
-                    hours = hours / (60.0 * 60.0 * 1000.0);
-                }
-                json.put(item, Math.round(hours * 100) / 100.0);
-            }
-            else if (item.equals(ITEM_TD)) {
-                json.put(item, new JSONArray(data));
-            }
+            parseItem(json, row[0].getString(), row[1].getString());
         }
 
         return json;
+    }
+
+    /**
+     * 查询指定域在日期区间内的逐日统计。
+     *
+     * @param domain 指定域。
+     * @param fromYmd 起始日期，格式为 <code>yyyyMMdd</code> 的整数。
+     * @param toYmd 结束日期，格式为 <code>yyyyMMdd</code> 的整数。
+     * @return 返回按日期升序的列表，每项包含 <code>year</code>、<code>month</code>、<code>date</code>、
+     *         <code>statistic</code>；无数据时返回空列表。
+     */
+    public List<JSONObject> queryContactStatisticsRange(String domain, int fromYmd, int toYmd) {
+        ArrayList<JSONObject> list = new ArrayList<>();
+
+        String table = this.contactStatisticsTablePrefix + domain;
+        table = SQLUtils.correctTableName(table);
+
+        // 统计表每域每年不足两千行，用日期表达式过滤即可，不值得为区间查询再建联合索引
+        StringBuilder sql = new StringBuilder("SELECT `year`,`month`,`date`,`item`,`data` FROM ");
+        sql.append(table);
+        sql.append(" WHERE (`year`*10000+`month`*100+`date`)>=").append(fromYmd);
+        sql.append(" AND (`year`*10000+`month`*100+`date`)<=").append(toYmd);
+        sql.append(" ORDER BY `year`,`month`,`date`");
+
+        List<StorageField[]> result = this.statisticStorage.executeQuery(sql.toString());
+        if (null == result || result.isEmpty()) {
+            return list;
+        }
+
+        JSONObject current = null;
+        int currentYear = -1;
+        int currentMonth = -1;
+        int currentDate = -1;
+
+        for (StorageField[] row : result) {
+            int year = row[0].getInt();
+            int month = row[1].getInt();
+            int date = row[2].getInt();
+
+            if (null == current || year != currentYear || month != currentMonth || date != currentDate) {
+                current = new JSONObject();
+                current.put("year", year);
+                current.put("month", month);
+                current.put("date", date);
+                current.put("statistic", new JSONObject());
+                list.add(current);
+
+                currentYear = year;
+                currentMonth = month;
+                currentDate = date;
+            }
+
+            parseItem(current.getJSONObject("statistic"), row[3].getString(), row[4].getString());
+        }
+
+        return list;
+    }
+
+    /**
+     * 统计区间内去重后的活跃用户数。
+     *
+     * <p>周/月活跃人数不能由日活跃数相加得到（同一用户会被重复计数），必须回到事件明细去重。
+     * 明细只保留有限天数，超出后返回 -1 表示不可用。</p>
+     *
+     * @param domain 指定域。
+     * @param beginning 起始时间戳（含）。
+     * @param ending 结束时间戳（不含）。
+     * @return 返回去重活跃用户数；明细不可用时返回 -1 。
+     */
+    public int countDistinctActiveUsers(String domain, long beginning, long ending) {
+        String table = SQLUtils.correctTableName(this.contactEventTablePrefix + domain);
+
+        StringBuilder sql = new StringBuilder("SELECT COUNT(DISTINCT `contact_id`) FROM ");
+        sql.append(table);
+        sql.append(" WHERE `event`='SignIn'");
+        sql.append(" AND `time`>=").append(beginning);
+        sql.append(" AND `time`<").append(ending);
+        sql.append(" AND `contact_id`>=").append(Contact.MIN_USER_CONTACT_ID);
+
+        List<StorageField[]> result = this.statisticStorage.executeQuery(sql.toString());
+        if (null == result || result.isEmpty()) {
+            return -1;
+        }
+
+        return result.get(0)[0].isNullValue() ? 0 : result.get(0)[0].getInt();
+    }
+
+    /**
+     * 解析一条统计指标到目标结构。
+     *
+     * @param json 目标结构。
+     * @param item 指标名。
+     * @param data 指标值。
+     */
+    private void parseItem(JSONObject json, String item, String data) {
+        if (item.equals(ITEM_TNU) || item.equals(ITEM_DAU) || item.equals(ITEM_AOT_USERS)) {
+            json.put(item, Integer.parseInt(data));
+        }
+        else if (item.equals(ITEM_AOT)) {
+            // 单位：小时
+            double hours = Double.parseDouble(data);
+            if (hours > LEGACY_AOT_MILLIS_THRESHOLD) {
+                // 兼容旧口径（毫秒）数据
+                hours = hours / (60.0 * 60.0 * 1000.0);
+            }
+            json.put(item, Math.round(hours * 100) / 100.0);
+        }
+        else if (item.equals(ITEM_AOT_TOTAL)) {
+            json.put(item, Long.parseLong(data));
+        }
+        else if (item.equals(ITEM_TD)) {
+            json.put(item, new JSONArray(data));
+        }
     }
 
     /**

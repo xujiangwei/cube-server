@@ -48,6 +48,13 @@ public class StatisticDataManager {
     /** 工作单元活跃回溯窗口：用于计算最近活动时间与近期活跃天数。 */
     private static final long UNIT_TRAIL_WINDOW = 30L * 24 * 60 * 60 * 1000L;
 
+    /**
+     * 事件明细的保留天数，必须与 service 侧统计模块的保留期一致。
+     *
+     * 区间超过该天数时，明细已被清理，无法再做区间去重活跃统计。
+     */
+    private static final long DETAIL_WINDOW_DAYS = 90L;
+
     /** 工作状态：在线。 */
     public static final String UNIT_STATE_ONLINE = "online";
 
@@ -103,6 +110,152 @@ public class StatisticDataManager {
     public JSONObject queryStatisticData(String domain, int year, int month, int date) {
         JSONObject data = this.storage.queryContactStatistics(domain, year, month, date);
         return data;
+    }
+
+    /**
+     * 查询指定域在日期区间内的逐日统计与区间汇总。
+     *
+     * <p>周/月/年不单独物化：日统计表每域每年不足两千行，按区间取逐日数据后即时聚合，
+     * 成本远低于维护多套汇总表，也不会出现「日表与月表对不上」的双写问题。</p>
+     *
+     * <p>聚合口径有三个容易做错的地方，这里显式区分：</p>
+     * <ul>
+     *     <li><b>DAU</b>：逐日去重，跨日相加会重复计数，因此只给出 {@code dauSum}（日活之和）、
+     *     {@code dauMax}、{@code dauAvg}，不冒充周活/月活；</li>
+     *     <li><b>UV</b>：区间去重活跃人数来自事件明细，受明细保留期限制，取不到时返回 -1 并标注
+     *     {@code uvScoped=unavailable}，不回退成 dauSum；</li>
+     *     <li><b>AOT</b>：按「区间总时长 ÷ 区间总人数」加权，而不是对日均值取平均；
+     *     早期日期没有分子分母，用 {@code AOT × DAU} 还原并计入 {@code estimatedDays}。</li>
+     * </ul>
+     *
+     * @param domain 指定域。
+     * @param from 起始日期（含）。
+     * @param to 结束日期（含）。
+     * @return 返回区间数据；存储器未就绪时返回 {@code null} 。
+     */
+    public JSONObject queryStatisticRange(String domain, Calendar from, Calendar to) {
+        if (null == this.storage) {
+            return null;
+        }
+
+        // 统一到日边界：调用方传进来的可能是「当前时刻」，直接参与去重统计会多算一天
+        Calendar fromDay = startOfDay(from);
+        Calendar toDay = startOfDay(to);
+
+        List<JSONObject> days = this.storage.queryContactStatisticsRange(domain,
+                toYmd(fromDay), toYmd(toDay));
+
+        long aotTotal = 0L;
+        long aotUsers = 0L;
+        int dauSum = 0;
+        int dauMax = 0;
+        int numDays = 0;
+        int estimatedDays = 0;
+        int tnu = 0;
+
+        for (JSONObject day : days) {
+            JSONObject statistic = day.getJSONObject("statistic");
+            if (!statistic.has("TNU")) {
+                // 该日没有统计结果（服务停机或尚未采集），不参与汇总
+                continue;
+            }
+
+            ++numDays;
+
+            int dau = statistic.optInt("DAU", 0);
+            dauSum += dau;
+            if (dau > dauMax) {
+                dauMax = dau;
+            }
+
+            tnu = statistic.optInt("TNU", tnu);
+
+            long dayTotal = statistic.optLong("AOTT", -1L);
+            int dayUsers = statistic.optInt("AOTU", -1);
+
+            if (dayTotal < 0L || dayUsers < 0) {
+                // 旧口径数据只有日均值，用 AOT × DAU 还原分子分母
+                dayUsers = dau;
+                dayTotal = Math.round(statistic.optDouble("AOT", 0.0d) * 3600000.0d) * (long) dayUsers;
+                ++estimatedDays;
+            }
+
+            aotTotal += dayTotal;
+            aotUsers += dayUsers;
+        }
+
+        JSONObject summary = new JSONObject();
+        summary.put("days", numDays);
+        summary.put("tnu", tnu);
+        summary.put("dauSum", dauSum);
+        summary.put("dauMax", dauMax);
+        summary.put("dauAvg", (numDays > 0) ? round2((double) dauSum / (double) numDays) : 0.0d);
+        summary.put("aotTotalMillis", aotTotal);
+        summary.put("aotUsers", aotUsers);
+        summary.put("aot", (aotUsers > 0)
+                ? round2((double) aotTotal / 3600000.0d / (double) aotUsers) : 0.0d);
+        summary.put("estimatedDays", estimatedDays);
+
+        // 区间去重活跃人数：只有明细仍在保留期内才能精确计算
+        int uv = -1;
+        if (this.withinDetailWindow(fromDay)) {
+            uv = this.storage.countDistinctActiveUsers(domain, fromDay.getTimeInMillis(),
+                    toDay.getTimeInMillis() + 24L * 60L * 60L * 1000L);
+        }
+        summary.put("uv", uv);
+        summary.put("uvScoped", (uv >= 0) ? "detail" : "unavailable");
+
+        JSONObject data = new JSONObject();
+        data.put("domain", domain);
+        data.put("from", toYmdJson(fromDay));
+        data.put("to", toYmdJson(toDay));
+        data.put("summary", summary);
+        data.put("days", days);
+
+        return data;
+    }
+
+    /**
+     * 把日历归一到当日零点。
+     *
+     * @param calendar 指定日历。
+     * @return 返回新的日历实例，入参为 {@code null} 时返回当日零点。
+     */
+    private static Calendar startOfDay(Calendar calendar) {
+        Calendar result = (null == calendar) ? Calendar.getInstance() : (Calendar) calendar.clone();
+        result.set(Calendar.HOUR_OF_DAY, 0);
+        result.set(Calendar.MINUTE, 0);
+        result.set(Calendar.SECOND, 0);
+        result.set(Calendar.MILLISECOND, 0);
+        return result;
+    }
+
+    /**
+     * 判断区间起点是否仍在事件明细的保留期内。
+     *
+     * <p>该值与 service 侧事件明细的保留天数保持一致：超出后明细已被清理，
+     * 无法再做区间去重统计。</p>
+     *
+     * @param from 区间起点。
+     * @return 在保留期内返回 {@code true} 。
+     */
+    private boolean withinDetailWindow(Calendar from) {
+        long span = System.currentTimeMillis() - from.getTimeInMillis();
+        return span <= DETAIL_WINDOW_DAYS * 24L * 60L * 60L * 1000L;
+    }
+
+    private static int toYmd(Calendar cal) {
+        return cal.get(Calendar.YEAR) * 10000
+                + (cal.get(Calendar.MONTH) + 1) * 100
+                + cal.get(Calendar.DATE);
+    }
+
+    private static JSONObject toYmdJson(Calendar cal) {
+        JSONObject json = new JSONObject();
+        json.put("year", cal.get(Calendar.YEAR));
+        json.put("month", cal.get(Calendar.MONTH) + 1);
+        json.put("date", cal.get(Calendar.DATE));
+        return json;
     }
 
     public List<String> getDomains() {
@@ -336,6 +489,9 @@ public class StatisticDataManager {
      * SignOut 结束会话，DeviceTimeout 结束会话并扣除 15 秒心跳余量；区间结束时仍未结束的会话
      * 按到区间结束计算。
      *
+     * <p>末尾未闭合的会话必须<b>累加</b>而不是只在「完全没有闭合会话」时补：当日若存在
+     * 「先签出、再签入且未签出」，旧写法会把末段整段丢弃。</p>
+     *
      * @param events 按时间升序排列的事件列表。
      * @param ending 区间结束时间戳。
      * @return 返回在线时长，单位：毫秒。
@@ -357,23 +513,23 @@ public class StatisticDataManager {
 
             if (EVENT_DEVICE_TIMEOUT.equals(name)) {
                 if (startTime > 0) {
-                    duration += (time - startTime) - 15000L;
+                    duration += Math.max(0L, (time - startTime) - 15000L);
                 }
                 startTime = 0;
             }
             else if (EVENT_SIGN_OUT.equals(name)) {
                 if (startTime > 0) {
-                    duration += time - startTime;
+                    duration += Math.max(0L, time - startTime);
                 }
                 startTime = 0;
             }
         }
 
-        if (duration == 0 && startTime != 0) {
-            duration = ending - startTime;
+        if (startTime != 0) {
+            duration += Math.max(0L, ending - startTime);
         }
 
-        return duration;
+        return (duration < 0L) ? 0L : duration;
     }
 
     /**
