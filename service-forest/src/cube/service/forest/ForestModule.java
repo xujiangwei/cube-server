@@ -23,9 +23,13 @@ import java.util.concurrent.TimeUnit;
  * Forest business module. No storage migrations, model imports or sibling-module dependencies.
  */
 public final class ForestModule implements ActionModule {
+
     public static final String NAME = "forest", DETECT = "forestDetect", CAPABILITY = "forestGetCapability";
+
     private volatile ForestDetectionService detection;
+
     private volatile ThreadPoolExecutor executor;
+
     private long timeoutMs;
 
     public String getName() {
