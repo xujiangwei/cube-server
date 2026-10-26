@@ -13,7 +13,7 @@ import org.json.JSONObject;
  * Configuration is private to the forest module; no database is required.
  */
 public final class ForestConfig {
-    public static final String UNIT = "forest-detection";
+    public static final String UNIT = "OmniForest";
     public final long maxBytes, maxPixels, timeoutMs;
     public final int concurrency, queueSize;
     public final double threshold;

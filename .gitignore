@@ -121,3 +121,4 @@ service/storage/harness/resources/.harness-lock
 docs/rest-api/src/harness/README.md
 docs/rest-api/src/Harness.md
 docs/rest-api/src/Compatibility.md
+docs/2026-10-25-service-forest-design.md

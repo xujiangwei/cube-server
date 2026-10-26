@@ -15,7 +15,8 @@ import java.util.regex.Pattern;
 
 /** Exact-name plugin dispatch. Reservations survive caller timeouts. */
 public final class PluginUnitInvoker {
-    private static final Pattern NAME = Pattern.compile("[a-z][a-z0-9]*(?:-[a-z0-9]+)*");
+    private static final Pattern NAME = Pattern.compile("[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*");
+    private static final Pattern ACTION = Pattern.compile("[a-z][a-z0-9]*(?:-[a-z0-9]+)*");
     private final AIGCService service;
     private final Map<Long, Reservation> pending = new HashMap<>();
     private final Map<AIGCUnit, ReportedStatus> statuses = new IdentityHashMap<>();
@@ -104,7 +105,10 @@ public final class PluginUnitInvoker {
                 copy.getString("stage");
                 if (copy.getString("error").length() > 2048) return false;
                 JSONArray actions = copy.getJSONArray("actions");
-                for (int j = 0; j < actions.length(); j++) validateName(actions.getString(j));
+                for (int j = 0; j < actions.length(); j++) {
+                    String action = actions.getString(j);
+                    if (action.length() > 64 || !ACTION.matcher(action).matches()) return false;
+                }
                 updates.put(unit, new ReportedStatus(context, sequence, clock.getAsLong(), copy, capacity, active));
             }
             statuses.entrySet().removeIf(entry -> same(context, entry.getValue().context) && !updates.containsKey(entry.getKey()));

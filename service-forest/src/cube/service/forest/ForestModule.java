@@ -53,7 +53,7 @@ public final class ForestModule implements ActionModule {
             detection = new ForestDetectionService(host, config);
             executor = new ThreadPoolExecutor(config.concurrency, config.concurrency, 30, TimeUnit.SECONDS,
                     new ArrayBlockingQueue<Runnable>(config.queueSize), job -> {
-                Thread thread = new Thread(job, "forest-detection");
+                Thread thread = new Thread(job, "OmniForest");
                 thread.setDaemon(true);
                 return thread;
             }, new ThreadPoolExecutor.AbortPolicy());

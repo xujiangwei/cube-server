@@ -37,7 +37,7 @@ public final class ForestHttpTest {
             }
             @Override public ActionDialect syncTransmit(String cellet, ActionDialect request, long timeout) {
                 check("forest".equals(request.getParamAsString("moduleName")), "module route forwarded");
-                check((request.getName().equals("forestDetect") ? "forest-detection" : "")
+                check((request.getName().equals("forestDetect") ? "OmniForest" : "")
                         .equals(request.getParamAsString("moduleUnit")), "required unit forwarded");
                 JSONObject result = code == 0 ? new JSONObject().put("accepted", true)
                         : new JSONObject().put("message", "isolated failure").put("httpStatus", http);

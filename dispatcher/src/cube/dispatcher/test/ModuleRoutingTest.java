@@ -20,10 +20,10 @@ public final class ModuleRoutingTest {
     }
     public static void main(String[] args) throws Exception {
         try (Fixture f = new Fixture()) {
-            Node legacy = f.add("legacy", unit("forest-detection", "ObjectDetection", false, false));
+            Node legacy = f.add("legacy", unit("OmniForest", "ObjectDetection", false, false));
             Node noModel = f.add("no-model");
-            Node a = f.add("forest-a", unit("forest-detection", "ObjectDetection", false, false));
-            Node b = f.add("forest-b", unit("forest-detection", "ObjectDetection", false, false));
+            Node a = f.add("forest-a", unit("OmniForest", "ObjectDetection", false, false));
+            Node b = f.add("forest-b", unit("OmniForest", "ObjectDetection", false, false));
             until(() -> f.performer.getCapabilityRouter().candidates().size() == 4);
             advertise(noModel); advertise(a); advertise(b);
             f.refresh(noModel); f.refresh(a); f.refresh(b);
@@ -39,17 +39,18 @@ public final class ModuleRoutingTest {
             });
             int aCalls = 0, bCalls = 0;
             for (int i = 0; i < 20; i++) {
-                cube.dispatcher.Director selected = f.select(request("forestDetect", "forest-detection"));
+                cube.dispatcher.Director selected = f.select(request("forestDetect", "OmniForest"));
                 check(selected == a.director || selected == b.director, "only loaded forest providers selected");
                 if (selected == a.director) aCalls++; else bCalls++;
             }
             check(aCalls == 10 && bCalls == 10, "same-capability services share traffic");
-            unavailable(() -> f.select(request("forestDetect", "Forest-Detection")));
-            unavailable(() -> f.select(request("unknownAction", "forest-detection")));
+            unavailable(() -> f.select(request("forestDetect", "omniforest")));
+            unavailable(() -> f.select(request("forestDetect", "forest-detection")));
+            unavailable(() -> f.select(request("unknownAction", "OmniForest")));
             f.performer.getCapabilityRouter().disconnected(a.speaker);
             f.performer.getCapabilityRouter().disconnected(b.speaker);
             check(f.select(request("forestGetCapability", "")) == noModel.director, "capability query works without a model");
-            unavailable(() -> f.select(request("forestDetect", "forest-detection")));
+            unavailable(() -> f.select(request("forestDetect", "OmniForest")));
             int queries = noModel.queries.get();
             Packet reply = new Packet(f.performer.syncTransmit("AIGC", request("forestGetCapability", ""), 2000));
             check("no-model".equals(Packet.extractDataPayload(reply).getString("node")), "actual forwarding follows module routing");

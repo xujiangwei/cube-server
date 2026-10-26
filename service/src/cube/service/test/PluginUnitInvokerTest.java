@@ -31,7 +31,7 @@ public final class PluginUnitInvokerTest {
             Packet request = new Packet(dialect);
             sent.put(context, request);
             check("pluginInvoke".equals(request.name), "fixed plugin channel");
-            check("forest-detection".equals(request.data.getString("unit")), "exact unit in request");
+            check("OmniForest".equals(request.data.getString("unit")), "exact unit in request");
             if (timeout) return null;
             return response(request).toDialect();
         }
@@ -45,7 +45,7 @@ public final class PluginUnitInvokerTest {
         JSONArray requests = new JSONArray();
         for (int i = 0; i < inFlight; i++) requests.put(i + 1);
         return new JSONObject().put("sequence", sequence).put("units", new JSONArray().put(new JSONObject()
-                .put("unit", "forest-detection").put("state", state).put("stage", state)
+                .put("unit", "OmniForest").put("state", state).put("stage", state)
                 .put("ready", "ready".equals(state)).put("error", "failed".equals(state) ? "warmup failed" : "")
                 .put("maxConcurrency", capacity).put("inFlight", inFlight).put("activeRequests", requests)
                 .put("actions", new JSONArray().put("detection"))));
@@ -55,33 +55,34 @@ public final class PluginUnitInvokerTest {
         AIGCService service = new AIGCService(cellet);
         cube.service.aigc.unit.PluginUnitInvoker invoker = service.getPluginUnits();
         Contact a = new Contact(100L, "test", "a"), b = new Contact(200L, "test", "b");
-        AICapability capability = new AICapability("forest-detection", "ComputerVision", "1.0",
+        AICapability capability = new AICapability("OmniForest", "ComputerVision", "1.0",
                 Collections.singletonList("ObjectDetection"), "OmniForest");
         Context ca = new Context(), cb = new Context();
         service.setupUnit(a, Collections.singletonList(capability), ca);
         service.setupUnit(b, Collections.singletonList(capability), cb);
-        check(invoker.count("forest-detection") == 2, "two providers registered");
-        check(!invoker.status("forest-detection").getBoolean("ready"), "registration alone is not readiness");
-        failure(503, () -> invoker.invoke("forest-detection", new JSONObject(), 100));
+        check(invoker.count("OmniForest") == 2, "two providers registered");
+        check(!invoker.status("OmniForest").getBoolean("ready"), "registration alone is not readiness");
+        failure(503, () -> invoker.invoke("OmniForest", new JSONObject(), 100));
         check(invoker.report(ca, status(1, "ready", 1, 0)), "first provider readiness");
         check(invoker.report(cb, status(1, "ready", 1, 0)), "second provider readiness");
-        for (String name : Arrays.asList("Forest-Detection", " forest-detection ", ""))
+        for (String name : Arrays.asList(" OmniForest ", "Omni_Forest", "../OmniForest", ""))
             failure(400, () -> invoker.invoke(name, new JSONObject(), 100));
-        failure(404, () -> invoker.invoke("unknown-unit", new JSONObject(), 100));
-        invoker.invoke("forest-detection", new JSONObject(), 100);
+        for (String name : Arrays.asList("unknown-unit", "forest-detection", "omniforest", "OMNIFOREST", "Omniforest"))
+            failure(404, () -> invoker.invoke(name, new JSONObject(), 100));
+        invoker.invoke("OmniForest", new JSONObject(), 100);
         cellet.timeout = true;
-        failure(504, () -> invoker.invoke("forest-detection", new JSONObject(), 100));
-        failure(504, () -> invoker.invoke("forest-detection", new JSONObject(), 100));
-        failure(429, () -> invoker.invoke("forest-detection", new JSONObject(), 100));
+        failure(504, () -> invoker.invoke("OmniForest", new JSONObject(), 100));
+        failure(504, () -> invoker.invoke("OmniForest", new JSONObject(), 100));
+        failure(429, () -> invoker.invoke("OmniForest", new JSONObject(), 100));
         for (AIGCUnit unit : service.getAllUnits()) unit.resetRunning();
-        failure(429, () -> invoker.invoke("forest-detection", new JSONObject(), 100));
+        failure(429, () -> invoker.invoke("OmniForest", new JSONObject(), 100));
         invoker.complete(new Context(), response(cellet.sent.get(ca)).toDialect());
-        failure(429, () -> invoker.invoke("forest-detection", new JSONObject(), 100));
+        failure(429, () -> invoker.invoke("OmniForest", new JSONObject(), 100));
         invoker.complete(ca, response(cellet.sent.get(ca)).toDialect());
         cellet.timeout = false;
-        invoker.invoke("forest-detection", new JSONObject(), 100);
+        invoker.invoke("OmniForest", new JSONObject(), 100);
         cb.valid = false;
-        check(invoker.count("forest-detection") == 1, "disconnected provider excluded");
+        check(invoker.count("OmniForest") == 1, "disconnected provider excluded");
         service.setupUnit(a, Collections.emptyList(), ca);
         check(service.getAllUnits().size() == 1, "repeat setup removes old capabilities for that node only");
         Contact otherDomain = new Contact(200L, "other-domain", "other");

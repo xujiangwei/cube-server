@@ -1,6 +1,8 @@
 # service-forest 森林场景插件
 
-本模块提供“上传图片 → 检测树冠 → 返回数量和框”的业务能力。Java 负责权限和接口，Python 的 OmniForest 负责推理。模块名为 `forest`，算法能力名为 `forest-detection`，算法通信动作固定为 `pluginInvoke`。
+本模块提供“上传图片 → 检测树冠 → 返回数量和框”的业务能力。Java 负责权限和接口，Python 的 OmniForest 负责推理。模块名为 `forest`，算法能力名为 `OmniForest`，算法通信动作固定为 `pluginInvoke`。
+
+`OmniForest` 按大小写精确匹配，Java 和 Python 需要同时升级；旧单元名不再作为别名使用。插件 ID、配置前缀仍为 `omniforest`、`plugin.omniforest.*`，业务动作由 `option.action=detection` 指定，REST 路径不变。
 
 ## 构建和接入
 
@@ -16,9 +18,9 @@ module.2.enabled=true
 
 dispatcher 的 `config/dispatcher.properties` 按「一行一个扩展」新增一行 `module.extensions.30=cube.service.forest.dispatcher.ForestEndpoints`（编号取未被占用的值即可，装载按编号升序，不影响已有条目）。重启对应进程后生效；停用 Java 模块可将该模块的 `enabled` 改为 false，停用接口则注释掉该行。
 
-Python 插件位于 `C:/Users/hermi/workspace/apexnova-wisdom/plugins/omniforest`，按其 README 在 `config.properties` 开启 `plugins.enabled=True` 和 `plugin.omniforest=True`。当前本机 Python 配置仍默认关闭森林插件，未修改其他单元开关，也未部署或重启服务。
+Python 插件位于 `C:/Users/hermi/workspace/apexnova-wisdom/plugins/omniforest`，按其 README 在 `config.properties` 开启 `plugins.enabled=True` 和 `plugin.omniforest=True`。具体启用状态以实际配置为准。
 
-公共 SPI 升到 v26，新增方法均提供默认实现，已有 v25 心理学二进制插件仍允许加载；新森林插件要求 v26 宿主。能力快照保持 `version=1`，以新增 `moduleRoutingVersion=1`、`modules` 字段声明模块动作。网关仅将森林业务发给已加载森林模块的 service，检测还要求该 service 已连接 `forest-detection` 提供者。模型是否就绪由实际调用确认。
+公共 SPI 升到 v26，新增方法均提供默认实现，已有 v25 心理学二进制插件仍允许加载；新森林插件要求 v26 宿主。能力快照保持 `version=1`，以新增 `moduleRoutingVersion=1`、`modules` 字段声明模块动作。网关仅将森林业务发给已加载森林模块的 service，检测还要求该 service 已连接 `OmniForest` 提供者。service 根据 Python 的 `pluginStatus` 状态上报确认模型就绪和剩余容量。
 
 ## 使用接口
 
@@ -52,7 +54,7 @@ x-baize-api-platform: Web
 
 `count` 是框数；空结果为 `count=0, refs=[]`。坐标以校正 EXIF 方向后的图像左上角为原点，单位为像素。`elapsed` 为 Python 处理用时的毫秒字符串。
 
-`GET /aigc/forest/capability/{token}` 返回 `{code:0,data:{plugin,unit,online,providers,readiness,formats,maxFiles,maxBytes,maxPixels,scoreThreshold,mode}}`。`online` 表示已连接提供者，`readiness="checked-on-invoke"` 表示需在调用时确认模型就绪；此接口在森林模块已加载但尚无模型节点时也可查询。
+`GET /aigc/forest/capability/{token}` 返回能力及状态，`unit="OmniForest"`、`readiness="reported"`。`online`、`providers` 表示连接状态；`ready`、`readyProviders` 表示完成 warmup 且状态有效的实例，`availableCapacity` 表示剩余容量，`providerStatuses` 包含各实例状态、错误及更新时间。此接口在森林模块已加载但尚无模型节点时也可查询。
 
 | HTTP | 含义 |
 | --- | --- |

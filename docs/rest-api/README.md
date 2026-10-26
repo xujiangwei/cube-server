@@ -21,7 +21,80 @@
 
 ## 森林场景 OmniForest
 
-森林接口已加入 apiDoc，源码见 [Forest.js](src/Forest.js)：上传图片后调用 `POST /aigc/forest/detect/:token` 获取树冠数量及位置，或调用 `GET /aigc/forest/capability/:token` 查询限制和在线提供者。业务地址使用 dispatcher，响应为 `{code,data}`。安装和启停配置见 [service-forest 说明](../../service-forest/README.md)。
+森林场景用于检测图片中的树冠，获取树冠数量和位置。接口参数及完整应答示例见 [Forest.js](src/Forest.js)，生成页面见 [森林场景接口文档](output/index.html#api-Forest)。
+
+推荐调用顺序：
+
+1. 查询森林能力，确认服务可用，并获取图片限制和默认阈值。
+2. 上传一张 JPEG 或 PNG 图片，确认上传完成后保存文件码。
+3. 提交文件码，等待本次请求返回检测结果。
+4. 显示树冠数量，在图片上绘制检测框；失败时按 HTTP 状态码处理。
+
+下列请求均使用 dispatcher 的业务 REST 地址。将示例中的 `http://localhost:7010` 和令牌替换为实际值；如果获取令牌时指定了设备信息，森林接口请求应携带对应的 `x-baize-api-device`、`x-baize-api-platform` 请求头。
+
+### 第一步 - 查询森林能力
+
+调用 [查询森林能力](output/index.html#api-Forest-ForestCapability)：
+
+``` http
+GET http://localhost:7010/aigc/forest/capability/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+```
+
+森林接口统一返回 `{code,data}`。HTTP `200` 且 `code=0` 表示本次调用成功。能力查询成功后，使用 `data` 中的以下字段决定后续操作：
+
+| 字段 | 调用建议 |
+| --- | --- |
+| `ready`、`availableCapacity` | `ready=true` 且容量大于 `0` 时提交检测；未就绪时提示服务暂不可用；已就绪但容量为 `0` 时提示繁忙并稍后查询。 |
+| `formats`、`maxFiles` | 当前支持 JPEG、PNG，单次检测一张图片，多张图片分别提交。 |
+| `maxBytes` | 单张图片的字节上限，默认 `20971520`（20 MiB）。 |
+| `maxPixels` | 单张图片宽度乘以高度的上限，默认 `20000000`。 |
+| `scoreThreshold` | 省略检测阈值时使用的默认值，通常为 `0.3`。 |
+
+`online=true` 仅表示存在在线实例，仍需检查 `ready` 和可用容量。能力查询反映当前状态，提交检测后仍须处理服务繁忙等错误。
+
+### 第二步 - 上传并确认图片
+
+使用 [上传文件数据](output/index.html#api-File_Processing-上传文件数据) 接口，以二进制流上传图片：
+
+``` http
+POST http://localhost:7010/filestorage/file/?token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&filename=forest.jpg
+Content-Type: application/octet-stream
+
+<forest.jpg 的二进制数据>
+```
+
+上传接口默认使用 `{sn,name,data}` 外壳，从 `data.fileCode` 读取文件码。再调用 [查找已上传的文件](output/index.html#api-File_Processing-查找已上传的文件) 接口，确认图片已可查询后再提交检测。上传和检测应使用同一用户、同一域的令牌。
+
+示例文件码为 `UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHlbzAxepzvKBXapMJJZcNkOXiZpEx`，实际调用时必须替换为上传接口返回的值。
+
+### 第三步 - 提交树冠检测
+
+调用 [检测树冠](output/index.html#api-Forest-ForestDetect)，请求体使用 JSON：
+
+``` http
+POST http://localhost:7010/aigc/forest/detect/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+Content-Type: application/json
+
+{
+    "fileCode": "UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHlbzAxepzvKBXapMJJZcNkOXiZpEx"
+}
+```
+
+首次调用建议省略 `scoreThreshold`，使用能力接口返回的默认阈值。若需要减少低置信度结果，可在请求体中增加 `"scoreThreshold": 0.5`；降低阈值则会保留更多候选树冠。阈值必须是 `0` 至 `1` 之间的数值，比较不同图片的数量时建议保持阈值一致。
+
+检测请求体仅包含 `fileCode` 和可选的 `scoreThreshold`。默认检测超时为 60 秒，客户端和代理超时应留出余量。请求等待期间显示处理状态，收到应答后直接处理检测结果。
+
+### 第四步 - 显示结果与处理失败
+
+检测成功后，从 `data.resultPayload` 读取结果：
+
+- `count`：树冠总数，用于数量展示；`data.response` 可用于显示文字说明。
+- `width`、`height`：按 EXIF 方向校正后的图片宽高，单位为像素。显示图片时应使用相同方向。
+- `refs[].boxes[]`：检测框列表，每个框的 `(x1,y1)` 为左上角、`(x2,y2)` 为右下角。绘图时使用 `x=x1`、`y=y1`、`width=x2-x1`、`height=y2-y1`；图片缩放显示时按返回宽高同比例换算，若有留白再加上图片显示位置的偏移。
+
+`count=0`、`refs=[]` 是正常的成功结果，界面可显示“未检出树冠”。
+
+失败时读取 HTTP 状态码和 `data.message`。`400` 检查请求参数；`401` 检查令牌和设备信息；`403` 检查图片归属；`404` 先确认图片上传状态。`413` 按图片限制压缩或缩小后重新上传，`422` 检查图片能否正常打开。`429` 降低并发并延迟重试，`503` 稍后查询能力再提交，`502` 或 `504` 提示稍后重试，避免连续重复提交。完整状态说明见检测接口条目。
 
 ## Harness 资源任务
 
