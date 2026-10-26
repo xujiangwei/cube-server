@@ -76,7 +76,8 @@ public final class ForestDetectionService {
         if (remaining <= 0) throw error(AIGCStateCode.UnitError, 504, "Image preparation timed out");
         JSONObject input = new JSONObject().put("content", "").put("history", new JSONArray())
                 .put("files", new JSONArray().put(label.toJSON()))
-                .put("option", new JSONObject().put("mode", "tile").put("score_threshold", threshold).put("wait", false));
+                .put("option", new JSONObject().put("action", "detection").put("mode", "tile")
+                        .put("score_threshold", threshold).put("wait", false));
         Packet reply = new Packet(host.invokePluginUnit(ForestConfig.UNIT, input, remaining));
         int code = Packet.extractCode(reply);
         if (code != 0) throw error(AIGCStateCode.parse(code), httpStatus(code), "OmniForest detection failed");
@@ -160,9 +161,8 @@ public final class ForestDetectionService {
     }
 
     public JSONObject capability() {
-        int providers = host.countPluginUnits(ForestConfig.UNIT);
-        return new JSONObject().put("plugin", "OmniForest").put("unit", ForestConfig.UNIT)
-                .put("online", providers > 0).put("providers", providers).put("readiness", "checked-on-invoke")
+        return host.getPluginUnitStatus(ForestConfig.UNIT).put("plugin", "OmniForest").put("unit", ForestConfig.UNIT)
+                .put("actions", new JSONArray(Arrays.asList("detection")))
                 .put("formats", new JSONArray(Arrays.asList("jpeg", "png")))
                 .put("maxFiles", 1).put("maxBytes", config.maxBytes).put("maxPixels", config.maxPixels)
                 .put("scoreThreshold", config.threshold).put("mode", "tile");

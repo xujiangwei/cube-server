@@ -980,7 +980,11 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      * @return 返回本次涉及的单元列表。
      */
     public List<AIGCUnit> setupUnit(Contact contact, List<AICapability> capabilities, TalkContext context) {
-        return this.unitScheduler.setup(contact, capabilities, context);
+        synchronized (this.pluginUnits) {
+            List<AIGCUnit> units = this.unitScheduler.setup(contact, capabilities, context);
+            this.pluginUnits.onSetup(units);
+            return units;
+        }
     }
 
     /**

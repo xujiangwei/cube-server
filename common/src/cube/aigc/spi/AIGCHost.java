@@ -423,6 +423,14 @@ public interface AIGCHost {
         return 0;
     }
 
+    /** Connected provider readiness and usable inference capacity. */
+    default JSONObject getPluginUnitStatus(String unitName) {
+        int providers = countPluginUnits(unitName);
+        return new JSONObject().put("online", providers > 0).put("providers", providers).put("ready", false)
+                .put("readyProviders", 0).put("availableCapacity", 0)
+                .put("providerStatuses", new org.json.JSONArray()).put("readiness", "unknown");
+    }
+
     // ───────── 文件与资源 ─────────
 
     /**

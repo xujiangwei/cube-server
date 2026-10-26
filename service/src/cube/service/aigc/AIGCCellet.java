@@ -334,6 +334,11 @@ public class AIGCCellet extends AbstractCellet {
         ActionDialect dialect = new ActionDialect(primitive);
         String action = dialect.getName();
 
+        if ("pluginStatus".equals(action) && !dialect.containsParam(Responder.NotifierKey)) {
+            this.execute(new PluginStatusTask(this, talkContext, primitive, this.markResponseTime(action)));
+            return;
+        }
+
         if (AIGCAction.GetCapabilitySnapshot.name.equals(action)) {
             this.execute(new GetCapabilitySnapshotTask(this, talkContext, primitive, this.markResponseTime(action)));
             return;

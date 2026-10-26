@@ -40,7 +40,7 @@
  * @apiName ForestCapability
  * @apiGroup Forest
  * @apiVersion 1.0.0
- * @apiDescription 查询已加载森林模块的输入限制和已连接提供者数。没有模型节点时也可返回能力信息；online 仅表示节点已注册并连接，模型就绪状态在实际调用时检查。
+ * @apiDescription 查询已加载森林模块的输入限制、连接状态、模型就绪状态和可用容量。Python 使用 warmup.png 完成真实推理后才报告 ready；状态每 10 秒同步，超过 30 秒未更新视为未知，不再调度。没有模型节点时也可返回能力信息。online 仅表示节点已注册并连接。
  * @apiParam {String} token Cube 用户令牌。
  * @apiHeader {String} [x-baize-api-device] 客户端设备名。
  * @apiHeader {String} [x-baize-api-platform] 客户端平台。
@@ -50,7 +50,12 @@
  * @apiSuccess {String} data.unit 固定为 forest-detection。
  * @apiSuccess {Boolean} data.online 是否存在已连接提供者。
  * @apiSuccess {Number} data.providers 当前 service 下已连接提供者数。
- * @apiSuccess {String} data.readiness 固定为 checked-on-invoke。
+ * @apiSuccess {String} data.readiness 固定为 reported。
+ * @apiSuccess {Boolean} data.ready 是否至少有一个完成 warmup 且状态有效的就绪实例。
+ * @apiSuccess {Number} data.readyProviders 当前就绪实例数，包含繁忙实例。
+ * @apiSuccess {Number} data.availableCapacity 扣除 Python 在途请求和 Java 预留后的剩余推理容量，同一请求不重复扣除。
+ * @apiSuccess {Object[]} data.providerStatuses 各连接实例的 contactId、domain、state、stage、ready、error、updatedAt 和容量详情。updatedAt 是 Java 接收状态的 Unix 毫秒时间；未知或过期时为 0。state 为 registered、initializing、ready、failed、stopping、stopped 或 unknown。
+ * @apiSuccess {String[]} data.actions 支持的业务动作，当前仅 detection。Java 调用插件时显式传 option.action=detection；缺省时也执行检测，未知动作返回参数错误码 1。树冠分割暂未实现。
  * @apiSuccessExample {json} 没有提供者时:
- * {"code":0,"data":{"plugin":"OmniForest","unit":"forest-detection","online":false,"providers":0,"readiness":"checked-on-invoke","formats":["jpeg","png"],"maxFiles":1,"maxBytes":20971520,"maxPixels":20000000,"scoreThreshold":0.3,"mode":"tile"}}
+ * {"code":0,"data":{"plugin":"OmniForest","unit":"forest-detection","online":false,"providers":0,"ready":false,"readyProviders":0,"availableCapacity":0,"providerStatuses":[],"readiness":"reported","actions":["detection"],"formats":["jpeg","png"],"maxFiles":1,"maxBytes":20971520,"maxPixels":20000000,"scoreThreshold":0.3,"mode":"tile"}}
  */

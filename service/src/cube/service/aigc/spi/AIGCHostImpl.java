@@ -655,6 +655,11 @@ public final class AIGCHostImpl implements AIGCHost {
     }
 
     @Override
+    public JSONObject getPluginUnitStatus(String name) {
+        return this.service.getPluginUnits().status(name);
+    }
+
+    @Override
     public FileLabel getFile(String domain, String fileCode) {
         if (null == domain || null == fileCode) {
             return null;

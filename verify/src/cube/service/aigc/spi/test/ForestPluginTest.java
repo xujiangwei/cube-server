@@ -43,11 +43,15 @@ public final class ForestPluginTest {
                             case "loadFile": return image;
                             case "readModuleResource": return null;
                             case "countPluginUnits": return 0;
+                            case "getPluginUnitStatus": return new JSONObject().put("online", false).put("providers", 0)
+                                    .put("ready", false).put("readyProviders", 0).put("availableCapacity", 0)
+                                    .put("providerStatuses", new JSONArray()).put("readiness", "reported");
                             case "invokePluginUnit":
                                 check(ForestConfig.UNIT.equals(values[0]), "exact plugin unit");
                                 JSONObject input = (JSONObject) values[1];
                                 check(input.getJSONArray("files").getJSONObject(0).getLong("ownerId") == 123L, "authorized label forwarded");
                                 check(!input.getJSONObject("option").getBoolean("wait"), "model calls fail fast on contention");
+                                check("detection".equals(input.getJSONObject("option").getString("action")), "explicit detection action");
                                 return new Packet("pluginInvoke", new JSONObject().put("code", 0).put("data", result())).toDialect();
                             default: throw new UnsupportedOperationException(method.getName());
                         }
@@ -59,6 +63,10 @@ public final class ForestPluginTest {
             check(detection.detect(token, request).getJSONObject("resultPayload").getInt("count") == 0, "empty result is successful");
             check(image.length() == length && image.lastModified() == modified, "source image not changed");
             check(!detection.capability().getBoolean("online"), "capability query works without providers");
+            check(!detection.capability().getBoolean("ready")
+                    && detection.capability().getInt("availableCapacity") == 0, "missing providers are not ready and have no capacity");
+            check("reported".equals(detection.capability().getString("readiness"))
+                    && "detection".equals(detection.capability().getJSONArray("actions").getString(0)), "readiness and action capability contract");
             failure(401, () -> detection.detect(null, request));
             failure(403, () -> detection.detect(new AuthToken("t", "test", "app", 999L, 0L, Long.MAX_VALUE, false), request));
             failure(400, () -> detection.detect(token, new JSONObject().put("fileCode", code).put("unit", "other")));

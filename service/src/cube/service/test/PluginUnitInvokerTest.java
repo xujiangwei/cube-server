@@ -41,6 +41,15 @@ public final class PluginUnitInvokerTest {
                 .put("resultPayload", new JSONObject()).put("performance", new JSONObject());
         return new Packet(request.sn, "pluginInvoke", new JSONObject().put("code", 0).put("data", result));
     }
+    static JSONObject status(long sequence, String state, int capacity, int inFlight) {
+        JSONArray requests = new JSONArray();
+        for (int i = 0; i < inFlight; i++) requests.put(i + 1);
+        return new JSONObject().put("sequence", sequence).put("units", new JSONArray().put(new JSONObject()
+                .put("unit", "forest-detection").put("state", state).put("stage", state)
+                .put("ready", "ready".equals(state)).put("error", "failed".equals(state) ? "warmup failed" : "")
+                .put("maxConcurrency", capacity).put("inFlight", inFlight).put("activeRequests", requests)
+                .put("actions", new JSONArray().put("detection"))));
+    }
     public static void main(String[] args) throws Exception {
         Cellet cellet = new Cellet();
         AIGCService service = new AIGCService(cellet);
@@ -52,6 +61,10 @@ public final class PluginUnitInvokerTest {
         service.setupUnit(a, Collections.singletonList(capability), ca);
         service.setupUnit(b, Collections.singletonList(capability), cb);
         check(invoker.count("forest-detection") == 2, "two providers registered");
+        check(!invoker.status("forest-detection").getBoolean("ready"), "registration alone is not readiness");
+        failure(503, () -> invoker.invoke("forest-detection", new JSONObject(), 100));
+        check(invoker.report(ca, status(1, "ready", 1, 0)), "first provider readiness");
+        check(invoker.report(cb, status(1, "ready", 1, 0)), "second provider readiness");
         for (String name : Arrays.asList("Forest-Detection", " forest-detection ", ""))
             failure(400, () -> invoker.invoke(name, new JSONObject(), 100));
         failure(404, () -> invoker.invoke("unknown-unit", new JSONObject(), 100));
