@@ -88,7 +88,7 @@
  *
  * @apiParam {String} token 授权令牌。
  *
- * @apiQuery {String} qc 待查询任务的查询码，即提交任务时返回的 <code>queryCode</code> 。
+ * @apiQuery {String} qc 待查询任务的查询码，即提交任务时返回的 <code>queryCode</code> 。同时接受 <code>code</code> 作为别名。
  *
  * @apiSuccess {String} queryCode 操作查询码。
  * @apiSuccess {Number} stateCode 操作状态码。
@@ -193,7 +193,7 @@
  *
  * @apiParam {String} token 授权令牌。
  * 
- * @apiQuery {String} qc 数据查询码。
+ * @apiQuery {String} qc 数据查询码。同时接受 <code>code</code> 作为别名。
  *
  * @apiSuccess {String} queryCode 数据查询码。
  * @apiSuccess {Number} stateCode 操作状态码。
@@ -369,4 +369,83 @@
  * @apiError 401 令牌无效。
  * @apiError 403 参数格式错误。
  * @apiError 404 未找到指定文件的数据。
+ */
+
+/**
+ * @api {post} /aigc/speech/emotion/:token 语音情绪识别
+ * @apiName 语音情绪识别
+ * @apiGroup Audio_Processing
+ * @apiVersion 1.0.0
+ *
+ * @apiDescription 识别整段语音的情绪倾向。使用前先通过文件接口上传语音文件并获得文件码。<br/>
+ *                 该接口在提交任务后立即返回，结果按文件码缓存，使用查询接口获取结果。
+ *
+ * @apiParam {String} token 授权令牌。
+ *
+ * @apiBody {String} fileCode 语音文件的文件码。
+ * @apiBody {Boolean} [reset] 设置为 <code>true</code> 时忽略该文件已有的识别结果并重新识别。默认值：<code>false</code>。
+ *
+ * @apiParamExample {json} 请求示例
+ *     {
+ *         "fileCode": "CnDtDLwrEvDsREVcxWJoPMVNcUsErxsvkUFdaLMVWpRausGrOZpHrPdmToSGynTy"
+ *     }
+ *
+ * @apiSuccess {String} fileCode 语音文件的文件码。
+ * @apiSuccess {Number} stateCode 操作状态码。<code>7</code> 正在处理，<code>0</code> 处理完成。
+ * @apiSuccess {Number} timestamp 提交任务执行时的时间戳。
+ * @apiSuccess {Object} [result] 识别结果。
+ * @apiSuccess {Number} [result.elapsed] 以毫秒为单位的识别耗时。
+ * @apiSuccess {Object} [result.emotion] 情绪描述。
+ * @apiSuccess {String} [result.emotion.name] 情绪名称。
+ * @apiSuccess {String} [result.emotion.primaryWord] 情绪主描述词。
+ * @apiSuccess {String} [result.emotion.secondaryWord] 情绪次描述词。
+ * @apiSuccess {Number} [result.score] 情绪得分。
+ * @apiSuccess {Number} [result.duration] 语音时长，单位：秒。
+ * @apiSuccess {Object} [result.file] 语音文件标签。
+ *
+ * @apiSuccessExample {json} 应答示例
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "fileCode": "CnDtDLwrEvDsREVcxWJoPMVNcUsErxsvkUFdaLMVWpRausGrOZpHrPdmToSGynTy",
+ *         "stateCode": 0,
+ *         "timestamp": 1774944939693,
+ *         "result": {
+ *             "elapsed": 812,
+ *             "emotion": {
+ *                 "name": "Sad",
+ *                 "primaryWord": "悲伤",
+ *                 "secondaryWord": "伤心"
+ *             },
+ *             "score": 0.8002817,
+ *             "duration": 194.95,
+ *             "file": { ... }
+ *         }
+ *     }
+ *
+ * @apiError 400 系统故障。
+ * @apiError 401 令牌无效。
+ * @apiError 403 参数格式错误。
+ */
+
+/**
+ * @api {get} /aigc/speech/emotion/:token 语音情绪识别结果查询
+ * @apiName 语音情绪识别结果查询
+ * @apiGroup Audio_Processing
+ * @apiVersion 1.0.0
+ *
+ * @apiDescription 按文件码查询语音情绪识别任务的状态与结果。
+ *
+ * @apiParam {String} token 授权令牌。
+ *
+ * @apiQuery {String} fc 语音文件的文件码。同时接受 <code>code</code> 作为别名。
+ *
+ * @apiSuccess {String} fileCode 语音文件的文件码。
+ * @apiSuccess {Number} stateCode 操作状态码。<code>7</code> 正在处理，<code>0</code> 处理完成。
+ * @apiSuccess {Number} timestamp 提交任务执行时的时间戳。
+ * @apiSuccess {Object} [result] 识别结果，字段同提交接口。
+ *
+ * @apiError 400 系统故障。
+ * @apiError 401 令牌无效。
+ * @apiError 403 未提供文件码。
+ * @apiError 404 未找到该文件的识别任务。
  */

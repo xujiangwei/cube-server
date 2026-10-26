@@ -671,6 +671,10 @@ public final class StatisticsSystem {
             return;
         }
 
+        // 必须在 DELETE 之前读出旧 TNU：用户总数无法回溯，重算时要原样写回
+        String existingTnu = (version > 0)
+                ? this.readItem(domain, ITEM_TNU, year, month, date) : null;
+
         if (version > 0) {
             // 统计口径已升级，清除当日旧口径数据后重新统计
             this.storage.execute("DELETE FROM " + statisticTable
@@ -680,8 +684,10 @@ public final class StatisticsSystem {
                     + " (version " + STATISTICS_VERSION + ")");
         }
 
-        // 日用户总数：仅统计 ID 位数大于等于 8 位的用户，位数小于 8 位的是 AIGC 工作单元
-        int total = this.countUserContacts(domain);
+        // 日用户总数：仅统计 ID 位数大于等于 8 位的用户，位数小于 8 位的是 AIGC 工作单元。
+        // TNU 是「当日快照」，无法从事件明细回溯：重算历史日期时必须保留原值，否则会把
+        // 停机期间新增的用户算进过去某一天。
+        int total = this.resolveTotalUsers(domain, existingTnu);
         this.writeItem(statisticTable, ITEM_TNU, String.valueOf(total), year, month, date);
 
         // 计算 DAU
@@ -716,6 +722,64 @@ public final class StatisticsSystem {
     private int readStatisticsVersion(String domain, Calendar day) {
         return this.readStatisticsVersion(domain, day.get(Calendar.YEAR),
                 day.get(Calendar.MONTH) + 1, day.get(Calendar.DATE));
+    }
+
+    /**
+     * 计算某日的用户总数。
+     *
+     * <p>用户总数是采集当时的状态，事件明细里没有「当时一共多少人」的信息，因此重算历史日期
+     * 必须沿用已入库的值；只有首次采集的日期（无旧记录）才读取当前总数。</p>
+     *
+     * @param domain 指定域。
+     * @param existingTnu 该日已入库的用户总数，{@code null} 表示无记录。
+     * @return 返回用户总数。
+     */
+    private int resolveTotalUsers(String domain, String existingTnu) {
+        if (null != existingTnu) {
+            try {
+                return Integer.parseInt(existingTnu.trim());
+            } catch (NumberFormatException e) {
+                Logger.w(this.getClass(), "#resolveTotalUsers - Invalid TNU '" + existingTnu
+                        + "' of domain '" + domain + "'");
+            }
+        }
+
+        return this.countUserContacts(domain);
+    }
+
+    /**
+     * 读取指定域某日某个指标的原始值。
+     *
+     * @param domain 指定域。
+     * @param item 指标名。
+     * @param year 年。
+     * @param month 月。
+     * @param date 日。
+     * @return 返回指标值；无记录或查询失败返回 {@code null} 。
+     */
+    private String readItem(String domain, String item, int year, int month, int date) {
+        String table = this.statisticsTableNameMap.get(domain);
+        if (null == table) {
+            return null;
+        }
+
+        List<StorageField[]> rows = this.storage.executeQuery(table, new StorageField[] {
+                new StorageField("data", LiteralBase.STRING)
+        }, new Conditional[] {
+                Conditional.createEqualTo("year", LiteralBase.INT, year),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("month", LiteralBase.INT, month),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("date", LiteralBase.INT, date),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("item", LiteralBase.STRING, item)
+        });
+
+        if (null == rows || rows.isEmpty() || rows.get(0)[0].isNullValue()) {
+            return null;
+        }
+
+        return rows.get(0)[0].getString();
     }
 
     /**

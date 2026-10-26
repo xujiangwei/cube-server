@@ -15,6 +15,7 @@
  * @apiParam {String} token 授权令牌。
  * 
  * @apiBody {String} participant 对话参与人名称。
+ * @apiBody {String} [unit] 指定该频道使用的大模型单元。默认值：<code>Baize</code>。
  * 
  * @apiParamExample {json} 请求示例
  *     {
@@ -24,19 +25,45 @@
  * @apiSuccess {String} code 频道代码。
  * @apiSuccess {Number} creationTime 创建时间戳。
  * @apiSuccess {String} participant 参与人名称。
+ * @apiSuccess {String} language 频道使用的语言标识：<code>cn</code> 中文、<code>en</code> 英文。
+ * @apiSuccess {Object} [authToken] 频道关联的鉴权令牌数据，仅在该频道带令牌时返回。
  * 
  * @apiSuccessExample {json} 应答示例
  *     HTTP/1.1 200 OK
  *     {
  *         "code": "KLKVaPXDZCPRjMPx",
  *         "creationTime": 1680139631664,
- *         "participant": "来自火星的星星"
+ *         "participant": "来自火星的星星",
+ *         "language": "cn"
  *     }
  * 
  * @apiError 400 服务节点访问错误。
  * @apiError 401 Token 无效。
  * @apiError 403 参数错误。
  * @apiError 404 必填参数错误。
+ * @apiError 406 请求过于频繁，被限流。
+ */
+
+/**
+ * @api {get} /aigc/channel/:token 查询对话频道
+ * @apiName 查询对话频道
+ * @apiGroup Data_Management
+ * @apiVersion 1.0.0
+ * 
+ * @apiDescription 按频道码查询对话频道的当前状态。
+ * 
+ * @apiParam {String} token 授权令牌。
+ * 
+ * @apiQuery {String} cc 频道码。
+ * 
+ * @apiSuccess {String} code 频道代码。
+ * @apiSuccess {Number} creationTime 创建时间戳。
+ * @apiSuccess {String} participant 参与人名称。
+ * @apiSuccess {String} language 频道使用的语言标识。
+ * 
+ * @apiError 400 未提供频道码。
+ * @apiError 401 Token 无效。
+ * @apiError 404 频道不存在或已超时销毁。
  */
 
 
@@ -516,9 +543,10 @@
  * 
  * @apiParam {String} token 授权令牌。
  * 
- * @apiBody {Array} prompts 新增的提示词数组。
- * @apiBody {Array} [contactIds] 需要增加提示词的触点ID数组。
- * @apiBody {Number} [contactId] 需要增加提示词的触点ID 。设置为 <code>0</code> 表示提示词为公共提示词。
+ * @apiBody {Array} [prompts] 新增的提示词数组。与 <code>prompt</code> 二选一。
+ * @apiBody {Object} [prompt] 单条提示词对象。与 <code>prompts</code> 二选一。
+ * @apiBody {Array} [contactIds] 需要增加提示词的触点ID数组。与 <code>contactId</code> 二选一。
+ * @apiBody {Number} [contactId] 需要增加提示词的触点ID 。与 <code>contactIds</code> 二选一。设置为 <code>0</code> 表示提示词为公共提示词。
  * 
  * @apiParamExample {json} 新增提示词
  *     {

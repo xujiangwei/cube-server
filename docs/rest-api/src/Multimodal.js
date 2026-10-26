@@ -386,9 +386,14 @@
  *                 只保留最新待处理帧，不排队。回调请求体是原尺寸 PNG，Content-Type 为 <code>image/png</code>，不是 multipart 或 JSON；
  *                 PNG 的 iTXt 扩展键 <code>vlm_meta</code> 包含 UTF-8 JSON。20 MiB 以上的 PNG 跳过回调。
  *                 网络错误、408、429、5xx 最多重试三次且不跟随重定向；接收方应按 <code>eventId</code> 去重。</p>
+ *                 <p>同一路径同时接受 <code>GET ?channel={频道码}&amp;sn={streamId}</code> 查询任务状态，
+ *                 便于不构造请求体的客户端轮询；认证方式与应答结构一致。</p>
  *                 <p> </p>
  *
  * @apiParam {String} token 授权令牌。
+ *
+ * @apiQuery {String} [channel] 查询任务状态时使用。与 <code>sn</code> 一起走 <code>GET</code> 查询通道，不提交请求体。
+ * @apiQuery {Number} [sn] 查询任务状态时使用，取值为 <code>resultPayload.streamId</code>。
  *
  * @apiBody {String} channel 通道的频道码。
  * @apiBody {Object} input 多模态输入信息。

@@ -722,9 +722,12 @@
  * @apiParam {String} token 授权令牌。
  * 
  * @apiQuery {Number} sn 报告序号。
- * @apiQuery {Boolean} [content] 是否指定 Markdown 格式的内容数据。
- * @apiQuery {Boolean} [section] 是否指定分段心理评价数据。
- * @apiQuery {Boolean} [thought] 是否指定思维文本。
+ * @apiQuery {Boolean} [content] 是否返回 Markdown 格式的内容数据。
+ * @apiQuery {Boolean} [section] 是否返回分段心理评价数据。
+ * @apiQuery {Boolean} [thought] 是否返回思维文本。
+ * @apiQuery {Boolean} [summary] 是否返回报告摘要（不含分段正文）。
+ * @apiQuery {Boolean} [rating] 是否返回评分与关注点数据。
+ * @apiQuery {Boolean} [link] 是否返回报告的在线页面链接。
  * 
  * @apiSuccess {Number} sn 报告序号。
  * @apiSuccess {Number} state 报告状态。
@@ -732,9 +735,13 @@
  *                            <p><code>7</code>：<span class="default-value">正在处理数据</span></p>
  *                            <p><code>8</code>：<span class="default-value">正在生成内容</span></p>
  *                            <p><code>9</code>：<span class="default-value">发生故障</span></p>
- * @apiSuccess {String} [content] 报告内容，格式：Markdown 。
- * @apiSuccess {Array}  [sections] 报告分段内容列表，格式：Markdown 。
- * @apiSuccess {String} [thought] 报告推理思维文本内容，格式：Markdown 。
+ * @apiSuccess {Number} timestamp 报告的时间戳。报告未就绪时同样返回。
+ * @apiSuccess {String} [content] 报告内容，格式：Markdown 。仅当 <code>state</code> 为 <code>0</code> 且请求了 <code>content</code> 时返回。
+ * @apiSuccess {Array}  [sections] 报告分段内容列表，格式：Markdown 。仅当 <code>state</code> 为 <code>0</code> 且请求了 <code>section</code> 时返回。
+ * @apiSuccess {String} [thought] 报告推理思维文本内容，格式：Markdown 。仅当 <code>state</code> 为 <code>0</code> 且请求了 <code>thought</code> 时返回。
+ * @apiSuccess {String} [summary] 报告摘要，格式：Markdown 。请求了 <code>summary</code> 时返回。
+ * @apiSuccess {Object} [rating] 评分与关注点数据。请求了 <code>rating</code> 时返回。
+ * @apiSuccess {String} [link] 报告在线页面链接。请求了 <code>link</code> 时返回；链接指向 <code>/aigc/psychology/report/page</code>。
  * 
  * @apiSuccessExample {json} 应答示例
  *     HTTP/1.1 200 OK
@@ -1213,10 +1220,13 @@
  *
  * @apiDescription 与模型进行互动对话，对话可以关联数据和上下文进行子任务推理。
  *                 该接口用于通用场景时需要填写 <code>relation</code> 参数。参数 <code>relations</code> 为兼容爱心理平台的旧参数，建议使用 <code>relation</code> 。
+ *                 <p>请求体的 <code>relations</code> 是该接口的分支开关：提交数组则走旧通道；不提交数组时必须提供 <code>relation</code>（可为 <code>{}</code>），否则直接返回 <code>400</code> 。</p>
  * 
  * @apiParam {String} token 授权令牌。
  * 
- * @apiBody {String} channelCode 会话频道码。
+ * @apiQuery {Boolean} [stream] 是否以流式方式输出。设置该参数（任意值）后，响应体为逐行 JSON 片段，每行是一个完整的应答对象，最后一行 <code>answer</code> 为全文；未设置时返回单个完整 JSON 。
+ * 
+ * @apiBody {String} channelCode 会话频道码。同时接受 <code>channel</code> 作为别名。
  * @apiBody {Array}  [relations] 报告相关数据列表。用于兼容爱心理平台。
  * @apiBody {String} [relations.name] 报告对应的人名。
  * @apiBody {Number} [relations.reportSn] 报告序号。

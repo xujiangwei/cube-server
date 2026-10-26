@@ -32,7 +32,9 @@
  * @apiError (错误) {Object} data 错误说明，含 message，部分服务错误附带 httpStatus。
  * @apiErrorExample {json} 模型繁忙 (HTTP 429):
  * {"code":7,"data":{"message":"OmniForest detection failed","httpStatus":429}}
- * @apiError (错误) {String} data.message 错误原因。HTTP 状态：400 参数或 JSON 错误，401 令牌/设备无效，403 文件无权访问，404 文件/能力不存在，413 文件或请求体过大，422 图片解码失败，429 模型忙/队列满，502 推理或结果错误，503 模块/能力不可用或模型未就绪，504 超时。HTTP 超时不会强制中断底层推理。
+ * @apiError (错误) {String} data.message 错误原因。HTTP 状态：400 参数或 JSON 错误，401 令牌/设备无效，403 文件无权访问，404 文件/能力不存在，405 方法不匹配（detect 只接受 POST、capability 只接受 GET），413 文件或请求体过大，422 图片解码失败，429 模型忙/队列满，502 推理或结果错误，503 模块/能力不可用或模型未就绪，504 超时。HTTP 超时不会强制中断底层推理。
+ * @apiErrorExample {json} 方法不匹配 (HTTP 405):
+ * {"code":1,"data":{"message":"Use POST for detection"}}
  */
 
 /**
@@ -56,6 +58,12 @@
  * @apiSuccess {Number} data.availableCapacity 扣除 Python 在途请求和 Java 预留后的剩余推理容量，同一请求不重复扣除。
  * @apiSuccess {Object[]} data.providerStatuses 各连接实例的 contactId、domain、state、stage、ready、error、updatedAt 和容量详情。updatedAt 是 Java 接收状态的 Unix 毫秒时间；未知或过期时为 0。state 为 registered、initializing、ready、failed、stopping、stopped 或 unknown。
  * @apiSuccess {String[]} data.actions 支持的业务动作，当前仅 detection。Java 调用插件时显式传 option.action=detection；缺省时也执行检测，未知动作返回参数错误码 1。树冠分割暂未实现。
+ * @apiSuccess {String[]} data.formats 允许的图片格式，当前为 jpeg、png。
+ * @apiSuccess {Number} data.maxFiles 单次请求允许的文件数，固定为 1。
+ * @apiSuccess {Number} data.maxBytes 单张图片的字节上限，默认 20971520（20 MiB）。
+ * @apiSuccess {Number} data.maxPixels 单张图片的像素上限，默认 20000000（2000 万像素）。
+ * @apiSuccess {Number} data.scoreThreshold 默认树冠置信度阈值，默认 0.3。
+ * @apiSuccess {String} data.mode 推理模式，当前固定为 tile。
  * @apiSuccessExample {json} 没有提供者时:
  * {"code":0,"data":{"plugin":"OmniForest","unit":"forest-detection","online":false,"providers":0,"ready":false,"readyProviders":0,"availableCapacity":0,"providerStatuses":[],"readiness":"reported","actions":["detection"],"formats":["jpeg","png"],"maxFiles":1,"maxBytes":20971520,"maxPixels":20000000,"scoreThreshold":0.3,"mode":"tile"}}
  */

@@ -781,3 +781,111 @@
  * @apiError 401 Token 无效。
  * @apiError 403 参数错误。
  */
+
+/**
+ * @api {post} /aigc/knowledge/qa/:token QA - 基于知识库的问答（提交）
+ * @apiName 提交知识库问答
+ * @apiGroup Knowledge
+ * @apiVersion 1.0.0
+ *
+ * @apiDescription 在指定频道上提交一次基于知识库的问答。同步模式下等到应答生成后返回；异步模式下立即返回进度对象，用查询接口轮询。
+ *
+ * @apiParam {String} token 授权令牌。
+ * 
+ * @apiBody {String} channel 频道码。用于隔离会话上下文。
+ * @apiBody {String} query 提问内容。
+ * @apiBody {Boolean} [sync] 是否同步返回结果。默认值：<code>true</code>。
+ * @apiBody {String} [base] 指定参与检索的知识库分类名。不设置时使用该频道的默认知识库。
+ * 
+ * @apiParamExample {json} 请求示例
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKA",
+ *         "query": "固态电池的能量密度是多少",
+ *         "sync": true
+ *     }
+ * 
+ * @apiSuccess {Number} sn 本次问答任务的序列号。
+ * @apiSuccess {Object} channel 频道数据。
+ * @apiSuccess {Number} start 任务开始时间戳。
+ * @apiSuccess {Number} end 任务结束时间戳。
+ * @apiSuccess {Number} percent 处理进度百分比。
+ * @apiSuccess {Number} code 任务状态码。<code>0</code> 表示成功。
+ * @apiSuccess {Object} [result] 问答结果，任务完成后返回。
+ * 
+ * @apiError 400 知识库服务返回异常。
+ * @apiError 401 Token 无效。
+ * @apiError 403 参数错误。
+ */
+
+/**
+ * @api {get} /aigc/knowledge/qa/:token QA - 基于知识库的问答（查询）
+ * @apiName 查询知识库问答进度
+ * @apiGroup Knowledge
+ * @apiVersion 1.0.0
+ *
+ * @apiDescription 查询指定频道上知识库问答任务的进度与结果。
+ *
+ * @apiParam {String} token 授权令牌。
+ * 
+ * @apiQuery {String} channel 频道码。
+ * @apiQuery {String} [base] 知识库分类名。需要与提交时保持一致。
+ * 
+ * @apiSuccess {Number} sn 本次问答任务的序列号。
+ * @apiSuccess {Object} channel 频道数据。
+ * @apiSuccess {Number} start 任务开始时间戳。
+ * @apiSuccess {Number} end 任务结束时间戳。
+ * @apiSuccess {Number} percent 处理进度百分比。
+ * @apiSuccess {Number} code 任务状态码。<code>0</code> 表示成功。
+ * @apiSuccess {Object} [result] 问答结果，任务完成后返回。
+ * 
+ * @apiError 400 知识库服务返回异常。
+ * @apiError 401 Token 无效。
+ * @apiError 403 未提供 <code>channel</code> 参数。
+ */
+
+/**
+ * @api {post} /aigc/knowledge/update/:token Admin - 更新知识库设置
+ * @apiName 更新知识库设置
+ * @apiGroup Knowledge
+ * @apiVersion 1.0.0
+ *
+ * @apiDescription 更新分类知识库的设置参数。知识库以 <code>info.contactId</code> + <code>info.name</code> 为唯一键定位。<br/>
+ *                 注意：<code>info</code> 内的 <code>contactId</code>、<code>name</code>、<code>displayName</code>、<code>unitId</code>、
+ *                 <code>storeSize</code>、<code>timestamp</code> 均为必需字段，缺失任意一项将返回 <code>403</code> 。
+ *
+ * @apiParam {String} token 授权令牌。
+ * 
+ * @apiBody {Object} info 知识库信息对象。
+ * @apiBody {Number} info.contactId 知识库归属的触点ID 。
+ * @apiBody {String} info.name 知识库名称，与 <code>contactId</code> 一起定位知识库。
+ * @apiBody {String} info.displayName 知识库显示名。
+ * @apiBody {Number} info.unitId 知识库使用的模型单元 ID 。
+ * @apiBody {Number} info.storeSize 知识库存储容量。
+ * @apiBody {Number} info.timestamp 知识库数据时间戳。
+ * @apiBody {String} [info.category] 知识库分类，为空时不返回该字段。
+ * 
+ * @apiParamExample {json} 请求示例
+ *     {
+ *         "info": {
+ *             "contactId": 22003303,
+ *             "name": "产品手册",
+ *             "displayName": "产品手册（2026）",
+ *             "unitId": 1001,
+ *             "storeSize": 10485760,
+ *             "timestamp": 1741657060177,
+ *             "category": "售后"
+ *         }
+ *     }
+ * 
+ * @apiSuccess {Number} contactId 知识库归属的触点ID 。
+ * @apiSuccess {String} name 知识库名称。
+ * @apiSuccess {String} displayName 知识库显示名。
+ * @apiSuccess {Number} unitId 知识库使用的模型单元 ID 。
+ * @apiSuccess {Number} storeSize 知识库存储容量。
+ * @apiSuccess {Number} timestamp 更新时间戳。
+ * @apiSuccess {String} [category] 知识库分类。
+ * 
+ * @apiError 400 更新失败或知识库不存在。
+ * @apiError 401 Token 无效。
+ * @apiError 403 请求体解析失败，或缺少 <code>info</code> 内的必需字段。
+ */

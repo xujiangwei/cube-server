@@ -14,6 +14,9 @@
  * @apiBody {String} token 有效账号的令牌。
  * @apiBody {Number} [begin] 指定查询位置的起始索引。默认值：<code>0</code>。
  * @apiBody {Number} [end] 指定查询位置的结束索引。默认值：<code>9</code>。
+ * @apiBody {Boolean} [hierarchy] 是否按目录层级读取。默认值：<code>false</code>。<br/>
+ *                              设为 <code>true</code> 时先取该用户的根目录，再一次性返回根目录下的全部文件，
+ *                              此时 <code>begin</code> / <code>end</code> 被忽略，且响应中不含 <code>ownerId</code>、<code>domain</code>、<code>begin</code>、<code>end</code> 字段。
  * 
  * @apiParamExample {json} 请求示例
  *     {
@@ -291,4 +294,40 @@
  * @apiError 404 未找到文件。
  * @apiError 406 令牌无效。
  * @apiError 503 接收数据错误。
+ */
+
+/**
+ * @api {post} /filestorage/operation/modify/ 修改文件的上下文数据
+ * @apiName 修改文件的上下文数据
+ * @apiGroup File_Processing
+ * @apiVersion 1.0.0
+ * 
+ * @apiDescription 修改指定文件码对应文件的上下文数据（<code>context</code>），用于给已上传文件附加业务侧元数据。
+ *                 <code>fileCode</code> 与 <code>context</code> 必须同时提供，缺一返回 <code>400</code> 。
+ * 
+ * @apiHeader {String} [x-baize-api-version] 响应外壳版本。设置为 <code>v1</code> 时直接返回文件标签数据；
+ *                                          不设置或设置为其它值时返回 <code>{sn,name,data}</code> 外壳。默认：<code>v0</code>。
+ * @apiHeader {String} [x-baize-api-token] 授权令牌。请求体中未提供 <code>token</code> 时使用。
+ * 
+ * @apiBody {String} token 有效账号的令牌。
+ * @apiBody {String} fileCode 待修改文件的文件码。
+ * @apiBody {Object} context 文件的新上下文数据。整体替换原有内容。
+ * 
+ * @apiParamExample {json} 请求示例
+ *     {
+ *         "token": "UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG",
+ *         "fileCode": "pAjoxDqsuCvCHatmTRmoPMvlSKqyfJCDIgRbanuvcPZIWOevIfLLVxRmvwUUkJlm",
+ *         "context": {
+ *             "bizId": "case-2026-0417",
+ *             "stage": "archived"
+ *         }
+ *     }
+ * 
+ * @apiSuccess {Number} sn 本次请求的流水号。
+ * @apiSuccess {String} name 本次请求的名称。
+ * @apiSuccess {Object} data 修改后的文件标签数据。
+ * 
+ * @apiError 400 缺少 <code>fileCode</code> 或 <code>context</code> 。
+ * @apiError 403 未提供令牌。
+ * @apiError 404 文件不存在或修改失败。
  */

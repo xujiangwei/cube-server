@@ -11,47 +11,81 @@
 
 
 /**
- * @api {post} /aigc/nlp/sentiment/:token 文本情感分析
- * @apiName 文本情感分析
+ * @api {post} /aigc/nlp/segmentation/:token 中文分词
+ * @apiName 中文分词
  * @apiGroup Natural_Language_Processing
  * @apiVersion 1.0.0
  *
- * @apiDescription 分析处理带有情感色彩的主观性文本，判断文本观点的正负倾向性。
+ * @apiDescription 对指定文本执行分词，返回词条数组。该接口为同步接口，由 AIGC 服务的分词器直接处理，不经过大模型推理。
  *
  * @apiParam {String} token 授权令牌。
  *
- * @apiBody {String} text 文本内容。
+ * @apiBody {String} text 待分词的文本内容。
  *
  * @apiParamExample {json} 请求示例
  *     {
- *         "text": "今天心情很好呀"
+ *         "text": "时信魔方是一款面向开发者的实时协作开发框架"
  *     }
  *
- * @apiSuccess {String} label 评价标签，<code>negative</code> 负面、 <code>positive</code> 正面或<code>neutral</code> 中立（中性）。
- * @apiSuccess {Number} negative 负面评价得分。
- * @apiSuccess {Number} positive 正面评价得分。
- * @apiSuccess {Array} paragraphs 内容段落得分。
+ * @apiSuccess {Number} total 分词结果的数量。
+ * @apiSuccess {String[]} result 分词结果数组。
+ * @apiSuccess {Number} elapsed 分词耗时，单位：毫秒。
  *
  * @apiSuccessExample {json} 应答示例
  *     HTTP/1.1 200 OK
  *     {
- *         "label": "positive",
- *         "negative": 0.01948561891913414,
- *         "positive": 0.9805143475532532,
- *         "paragraphs": [
+ *         "total": 6,
+ *         "result": ["时信", "魔方", "是", "一款", "面向", "开发者"],
+ *         "elapsed": 3
+ *     }
+ *
+ * @apiError 400 分词执行失败。
+ * @apiError 401 Token 无效。
+ * @apiError 403 请求体解析失败或缺少 <code>text</code> 字段。
+ */
+
+
+/**
+ * @api {post} /aigc/nlp/semantic/:token 语义搜索
+ * @apiName 语义搜索
+ * @apiGroup Natural_Language_Processing
+ * @apiVersion 1.0.0
+ *
+ * @apiDescription 在知识库问答语料中按语义检索与查询内容相关的问答对。服务端最长等待 90 秒。
+ *
+ * @apiParam {String} token 授权令牌。
+ *
+ * @apiBody {String} query 查询内容。
+ *
+ * @apiParamExample {json} 请求示例
+ *     {
+ *         "query": "什么是固态电池"
+ *     }
+ *
+ * @apiSuccess {String} query 回显的查询内容。
+ * @apiSuccess {Object[]} result 匹配到的问答对列表。
+ * @apiSuccess {Number} result.id 问答对 ID 。
+ * @apiSuccess {String[]} result.questions 该问答对包含的问句列表。
+ * @apiSuccess {String[]} result.answers 该问答对包含的答句列表。
+ * @apiSuccess {Number} result.score 语义相似度得分。
+ *
+ * @apiSuccessExample {json} 应答示例
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "query": "什么是固态电池",
+ *         "result": [
  *             {
- *                 "label": "positive",
- *                 "negative": 0.01948561891913414,
- *                 "positive": 0.9805143475532532
+ *                 "id": 1043,
+ *                 "questions": ["什么是固态电池？", "固态电池怎么定义"],
+ *                 "answers": ["固态电池是使用固体电极和固体电解质的电池。"],
+ *                 "score": 0.9142
  *             }
  *         ]
  *     }
  *
- * @apiError 400 任务执行时发生故障。
+ * @apiError 400 检索执行失败。
  * @apiError 401 Token 无效。
- * @apiError 403 参数错误。
- * @apiError 404 任务参数不完整。
- * @apiError 406 接口拒绝请求。
+ * @apiError 403 请求体解析失败或缺少 <code>query</code> 字段。
  */
 
 
@@ -100,6 +134,7 @@
  * @apiParam {String} token 授权令牌。
  * 
  * @apiBody {String} channel 频道代码。频道代码用于识别频道，并通过该频道代码查询频道状态和异步处理时的数据。
+ *                          <p>请求体同时接受 <code>code</code> 作为该字段的别名。</p>
  * @apiBody {String} content 发送给模型的对话内容。内容长度受限于所选择模型的限制，不同模型可接收的内容长度不同。长度超限时返回错误。
  * @apiBody {String} [unit] 可选参数。指定需要使用的模型名称。支持<code>Baize</code>和<code>Baize2</code> 两个模型，默认值：<code>Baize</code>。
  * @apiBody {Object} [option] 可选参数。指定模型的工作参数。
@@ -229,8 +264,9 @@
  * 
  * @apiError 400 服务节点访问错误。
  * @apiError 401 Token 无效。
- * @apiError 403 参数错误。
+ * @apiError 403 参数格式错误。
  * @apiError 404 必填参数错误。
+ * @apiError 406 推理单元繁忙，本次请求未被受理。
  */
 
 
