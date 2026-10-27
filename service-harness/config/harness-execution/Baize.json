@@ -13,7 +13,7 @@
   },
   "id": "Baize",
   "kind": "model",
-  "maxContextTokens": 65536,
+  "maxContextTokens": 40960,
   "nativeTools": false,
   "template": {
     "id": "harness-json-template-v1",

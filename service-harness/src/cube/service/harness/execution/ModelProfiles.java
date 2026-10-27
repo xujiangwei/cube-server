@@ -69,7 +69,7 @@ public final class ModelProfiles {
         return new JSONObject().put("kind", "model").put("id", name).put("version", "2")
                 .put("backend", "java-inference").put("adapter", adapter)
                 .put("capabilities", new JSONArray().put("resource_decisions")).put("tokenizer", tokenizer()).put("template", ContextEngine.template())
-                .put("templateOverhead", 4096).put("maxContextTokens", 65536).put("certification", "offline-adapter")
+                .put("templateOverhead", 4096).put("maxContextTokens", name.equals("Baize") ? 40960 : 65536).put("certification", "offline-adapter")
                 .put("nativeTools", name.equals("Baize2"))
                 .put("generation", new JSONObject().put("temperature", 0).put("topP", 1)
                         .put("stream", true).put("maxRepairs", 1));
