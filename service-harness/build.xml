@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="cube-service-harness" default="build" basedir=".">
+<project name="cube-service-harness" default="build" basedir="." xmlns:if="ant:if" xmlns:unless="ant:unless">
   <property name="trace.test.config" value=""/>
   <property name="trace.test.output" value=""/>
   <property name="tools.test.config" value=""/>
@@ -11,12 +11,18 @@
   <property name="stage.dir" location="build/stage"/>
   <path id="cp"><pathelement location="${cell.jar}"/><pathelement location="${common.jar}"/><fileset dir="${lib.dir}" includes="*.jar"/><pathelement location="${build.dir}/classes"/></path>
   <target name="check">
-    <fail message="Harness requires an actual JDK 8 (java.version=1.8)"><condition><not><matches string="${java.version}" pattern="^1\.8\."/></not></condition></fail>
-    <available file="${common.jar}" property="common.present"/><fail unless="common.present" message="Build common with JDK 8 first, or set -Dcommon.jar to a verified cube-common-3.0.jar"/>
+    <!-- 构建期：允许 JDK 8 及以上，产物字节码恒为 1.8。
+         JDK 9+ 走 javac 的 release=8 参数，既锁字节码版本，也锁 API 面（不会误用 9+ 才有的方法）。
+         运行期仍要求 JDK 8（HarnessDoctor 会校验），因此这里只放宽构建 JVM。 -->
+    <condition property="jdk.is8" value="true" else="false"><equals arg1="${java.specification.version}" arg2="1.8"/></condition>
+    <fail message="Harness requires JDK 8 or newer, but Ant is running on java.version=${java.version} (java.home=${java.home})."><condition><not><matches string="${java.specification.version}" pattern="^(1\.8|[1-9][0-9]*)$"/></not></condition></fail>
+    <echo level="warning" message="Harness is built with JDK ${java.version}; bytecode stays 1.8 via --release 8. RUNTIME still requires JDK 8." unless:true="${jdk.is8}"/>
+    <available file="${common.jar}" property="common.present"/><fail unless="common.present" message="Build common first, or set -Dcommon.jar to a verified cube-common-3.0.jar"/>
   </target>
   <target name="compile" depends="check">
     <mkdir dir="${build.dir}/classes"/>
-    <javac srcdir="src" destdir="${build.dir}/classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
+    <javac srcdir="src" destdir="${build.dir}/classes" release="8" encoding="UTF-8" includeantruntime="false" unless:true="${jdk.is8}"><classpath refid="cp"/></javac>
+    <javac srcdir="src" destdir="${build.dir}/classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false" if:true="${jdk.is8}"><classpath refid="cp"/></javac>
     <sync todir="${build.dir}/classes/contracts"><fileset dir="contracts"/></sync>
     <copy todir="${build.dir}/classes"><fileset dir="resources"/></copy>
   </target>
@@ -59,7 +65,8 @@
   <target name="build-release" depends="build-debug"/>
   <target name="test" depends="build">
     <mkdir dir="${build.dir}/test-classes"/>
-    <javac srcdir="test" destdir="${build.dir}/test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
+    <javac srcdir="test" destdir="${build.dir}/test-classes" release="8" encoding="UTF-8" includeantruntime="false" unless:true="${jdk.is8}"><classpath refid="cp"/></javac>
+    <javac srcdir="test" destdir="${build.dir}/test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false" if:true="${jdk.is8}"><classpath refid="cp"/></javac>
     <java classname="cube.service.harness.test.ContractTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.HarnessConfigTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.HarnessIdentityTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
@@ -70,7 +77,8 @@
     <fail unless="dispatcher.present" message="Build dispatcher with JDK 8 before test-transport"/>
     <mkdir dir="${build.dir}/transport-test-classes"/>
     <path id="transport.cp"><pathelement location="../build/cube-dispatcher-3.0.jar"/><path refid="cp"/><pathelement location="${build.dir}/test-classes"/><pathelement location="${build.dir}/transport-test-classes"/></path>
-    <javac srcdir="transport-test" destdir="${build.dir}/transport-test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="transport.cp"/></javac>
+    <javac srcdir="transport-test" destdir="${build.dir}/transport-test-classes" release="8" encoding="UTF-8" includeantruntime="false" unless:true="${jdk.is8}"><classpath refid="transport.cp"/></javac>
+    <javac srcdir="transport-test" destdir="${build.dir}/transport-test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false" if:true="${jdk.is8}"><classpath refid="transport.cp"/></javac>
     <java classname="cube.dispatcher.harness.HarnessGatewayTest" fork="true" failonerror="true"><classpath refid="transport.cp"/></java>
     <java classname="cube.service.harness.test.HarnessCelletTest" fork="true" failonerror="true"><classpath refid="transport.cp"/></java>
   </target>
