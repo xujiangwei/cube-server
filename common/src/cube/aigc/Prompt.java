@@ -14,10 +14,13 @@ import org.json.JSONObject;
  */
 public class Prompt implements JSONable {
 
+    /** 角色标识，如 {@code system}、{@code user}、{@code assistant} 。 */
     public String role;
 
+    /** 提问内容。 */
     public String query;
 
+    /** 对应回答。 */
     public String answer;
 
     public Prompt(String query) {
@@ -41,6 +44,11 @@ public class Prompt implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -56,6 +64,11 @@ public class Prompt implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

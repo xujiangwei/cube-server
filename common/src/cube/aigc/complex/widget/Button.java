@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class Button extends Widget {
 
+    /** 控件名称常量。 */
     public final static String NAME = "Button";
 
     private String text;
@@ -31,14 +32,30 @@ public class Button extends Widget {
         this.context = context;
     }
 
+    /**
+     * 判断 JSON 是否描述一个按钮控件。
+     *
+     * @param json 控件 JSON 。
+     * @return 是按钮返回 {@code true} 。
+     */
     public static boolean isButton(JSONObject json) {
         return json.has("name") && json.getString("name").equals(NAME);
     }
 
+    /**
+     * 获取点击监听器。
+     *
+     * @return 监听器；未注册返回 {@code null} 。
+     */
     public ButtonListener getListener() {
         return this.listener;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

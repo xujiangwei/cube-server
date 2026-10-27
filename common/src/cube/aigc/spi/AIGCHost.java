@@ -417,7 +417,12 @@ public interface AIGCHost {
     }
 
     /**
-     * Connected providers; registration does not imply model readiness.
+     * 统计已连接的插件单元数量。
+     *
+     * <p>注册成功不代表模型已就绪，仅表示连接已建立。</p>
+     *
+     * @param unitName 单元名称。
+     * @return 数量；宿主不支持插件单元时返回 0 。
      */
     default int countPluginUnits(String unitName) {
         return 0;

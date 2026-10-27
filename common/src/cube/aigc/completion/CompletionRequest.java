@@ -14,12 +14,22 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Canonical structured messages, tools and generation options.
+ * 兼容层请求校验工具。
+ *
+ * <p>集中处理 OpenAI/Claude 协议请求的字段校验、能力匹配检查与安全取值，
+ * 所有异常统一以 {@link CompletionError} 抛出，便于上层转成协议错误体。</p>
  */
 public final class CompletionRequest {
     private CompletionRequest() {
     }
 
+    /**
+     * 校验请求的基本合法性。
+     *
+     * <p>检查必填字段、字段类型与取值范围；不合法时抛出 {@link CompletionError} 。</p>
+     *
+     * @param request 请求体。
+     */
     public static void validate(JSONObject request) {
         text(request, "model");
         bool(request, "stream");
@@ -155,6 +165,14 @@ public final class CompletionRequest {
         }
     }
 
+    /**
+     * 校验请求与模型能力是否匹配。
+     *
+     * <p>例如请求声明了工具调用而模型不支持时直接拒绝，避免把不兼容请求送到后端。</p>
+     *
+     * @param request    请求体。
+     * @param capability 模型能力描述。
+     */
     public static void checkCapabilities(JSONObject request, JSONObject capability) {
         if (!capability.optBoolean("text", false))
             throw CompletionError.invalid("Model does not support structured chat", "model");
@@ -240,6 +258,13 @@ public final class CompletionRequest {
         }
     }
 
+    /**
+     * 安全读取字符串字段。
+     *
+     * @param json 数据对象。
+     * @param key  字段名。
+     * @return 字段值；缺失或类型不符时返回 {@code null} 。
+     */
     public static String text(JSONObject json, String key) {
         Object value = json.opt(key);
         if (!(value instanceof String) || ((String) value).trim().isEmpty()) {
@@ -248,6 +273,15 @@ public final class CompletionRequest {
         return (String) value;
     }
 
+    /**
+     * 校验对象只包含允许的字段。
+     *
+     * <p>用于拒绝未知参数，防止拼写错误被静默忽略。</p>
+     *
+     * @param json  待校验对象。
+     * @param param 报错时使用的参数名。
+     * @param keys  允许出现的字段名。
+     */
     public static void only(JSONObject json, String param, String... keys) {
         Set<String> allowed = new HashSet<>(java.util.Arrays.asList(keys));
         for (String key : json.keySet())
@@ -256,6 +290,12 @@ public final class CompletionRequest {
             }
     }
 
+    /**
+     * 校验字段为布尔类型。
+     *
+     * @param json 数据对象。
+     * @param key  字段名。
+     */
     public static void bool(JSONObject json, String key) {
         if (json.has(key) && !json.isNull(key) && !(json.get(key) instanceof Boolean)) {
             throw CompletionError.invalid(key + " must be a boolean", key);

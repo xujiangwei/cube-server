@@ -14,8 +14,15 @@ import org.json.JSONObject;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+/**
+ * 评估结果。
+ *
+ * <p>引导流程收集完回答后的判定结果：结论、描述与逐项布尔检查，
+ * 可导出为 Markdown 供报告使用。</p>
+ */
 public class EvaluationResult implements JSONable {
 
+    /** 结果名称。 */
     public String name;
 
     private JSONObject result;
@@ -47,35 +54,79 @@ public class EvaluationResult implements JSONable {
         this.qaPairs = new LinkedHashMap<>();
     }
 
+    /**
+     * 判断结果是否有效。
+     *
+     * <p>未被终止且已产生结论时视为有效。</p>
+     *
+     * @return 有效返回 {@code true} 。
+     */
     public boolean isValid() {
         return (null != this.result) || (null != this.description) || !this.evaluationItems.isEmpty();
     }
 
+    /**
+     * 设置是否终止流程。
+     *
+     * @param value 为 {@code true} 表示终止。
+     */
     public void setTerminated(boolean value) {
         this.terminated = value;
     }
 
+    /**
+     * 判断是否已终止流程。
+     *
+     * @return 已终止返回 {@code true} 。
+     */
     public boolean hasTerminated() {
         return this.terminated;
     }
 
+    /**
+     * 设置结论。
+     *
+     * @param value 结论对象。
+     */
     public void setResult(Object value) {
         this.result = new JSONObject();
         this.result.put("value", value.toString());
     }
 
+    /**
+     * 设置描述。
+     *
+     * @param description 描述文本。
+     */
     public void setDescription(String description) {
         this.description = description;
     }
 
+    /**
+     * 添加一项布尔检查。
+     *
+     * @param name  检查项名称。
+     * @param value 是否通过。
+     */
     public void addItem(String name, boolean value) {
         this.evaluationItems.put(name, value);
     }
 
+    /**
+     * 获取检查项结果。
+     *
+     * @param name 检查项名称。
+     * @return 是否通过；不存在返回 {@code false} 。
+     */
     public boolean getItem(String name) {
         return this.evaluationItems.get(name);
     }
 
+    /**
+     * 导出为 Markdown 。
+     *
+     * @return Markdown 文本。
+     */
     public String toMarkdown() {
         StringBuilder buf = new StringBuilder();
         buf.append("**").append(this.name).append("**\n\n");
@@ -114,6 +165,11 @@ public class EvaluationResult implements JSONable {
         return buf.toString().trim();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -135,6 +191,11 @@ public class EvaluationResult implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

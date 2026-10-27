@@ -12,6 +12,11 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+/**
+ * 跳转路由。
+ *
+ * <p>根据回答内容决定流程的去向：命中规则时跳到指定节点，否则按默认分支继续。</p>
+ */
 public class Router {
 
     public enum Rule {
@@ -116,14 +121,30 @@ public class Router {
         }
     }
 
+    /**
+     * 获取匹配规则。
+     *
+     * @return 规则对象；未配置返回 {@code null} 。
+     */
     public Rule getRule() {
         return this.rule;
     }
 
+    /**
+     * 按编码获取导出路由。
+     *
+     * @param code 路由编码。
+     * @return 导出项；无匹配返回 {@code null} 。
+     */
     public RouteExport getRouteExport(String code) {
         return this.exportMap.get(code);
     }
 
+    /**
+     * 判断是否配置了评估导出。
+     *
+     * @return 配置了返回 {@code true} 。
+     */
     public boolean hasEvaluationExport() {
         for (String key : this.exportMap.keySet()) {
             if (key.equals(EXPORT_EVALUATION)) {
@@ -133,6 +154,11 @@ public class Router {
         return false;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("rule", this.rule.code);

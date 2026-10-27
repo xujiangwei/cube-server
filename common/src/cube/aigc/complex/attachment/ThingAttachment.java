@@ -19,8 +19,10 @@ import java.util.List;
  */
 public class ThingAttachment extends Attachment {
 
+    /** 附件类型标识。 */
     public final static String TYPE = "Thing";
 
+    /** 附件正文。 */
     public String content;
 
 //    public String avatar;
@@ -33,6 +35,7 @@ public class ThingAttachment extends Attachment {
 
 //    public String footer;
 
+    /** 附件上的操作按钮列表。 */
     public List<Button> actions;
 
     public ThingAttachment(JSONObject json) {
@@ -56,6 +59,11 @@ public class ThingAttachment extends Attachment {
         this.content = content;
     }
 
+    /**
+     * 添加操作按钮。
+     *
+     * @param button 按钮控件。
+     */
     public void addActionButton(Button button) {
         if (null == this.actions) {
             this.actions = new ArrayList<>();
@@ -64,6 +72,12 @@ public class ThingAttachment extends Attachment {
         this.actions.add(button);
     }
 
+    /**
+     * 按 ID 获取操作按钮。
+     *
+     * @param id 按钮 ID 。
+     * @return 按钮；无匹配返回 {@code null} 。
+     */
     public Button getActionButton(long id) {
         if (null == this.actions) {
             return null;
@@ -78,6 +92,11 @@ public class ThingAttachment extends Attachment {
         return null;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

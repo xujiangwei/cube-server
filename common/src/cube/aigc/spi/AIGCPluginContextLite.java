@@ -184,6 +184,12 @@ public class AIGCPluginContextLite extends PluginContext {
         return java.util.Collections.unmodifiableList(this.fileCodeList);
     }
 
+    /**
+     * 按名称读取上下文属性。
+     *
+     * @param name 属性名。
+     * @return 属性值；未知名称返回 {@code null} 。
+     */
     @Override
     public Object get(String name) {
         if ("authToken".equalsIgnoreCase(name)) {
@@ -199,6 +205,12 @@ public class AIGCPluginContextLite extends PluginContext {
         return null;
     }
 
+    /**
+     * 按名称写入上下文属性。
+     *
+     * @param name  属性名。
+     * @param value 属性值。
+     */
     @Override
     public void set(String name, Object value) {
         if ("task".equalsIgnoreCase(name) && null != value) {

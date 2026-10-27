@@ -11,11 +11,23 @@ import cube.common.entity.Chart;
 
 import java.util.*;
 
+/**
+ * 分子构建器。
+ *
+ * <p>把原子数据按标签聚合为图表：同一标签的原子合并为一个数据系列。</p>
+ */
 public class Molecule {
 
     public Molecule() {
     }
 
+    /**
+     * 构建图表。
+     *
+     * @param atomList  原子数据列表。
+     * @param labelList 需要聚合的标签列表。
+     * @return 图表对象；无可聚合数据时返回 {@code null} 。
+     */
     public Chart build(List<Atom> atomList, List<String> labelList) {
         // 从数据库里模糊匹配的词可能相关性很低，过滤规则：
         // 1. 最少2两个词命中

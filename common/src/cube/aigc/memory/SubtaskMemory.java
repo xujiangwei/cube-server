@@ -23,10 +23,20 @@ public class SubtaskMemory {
         this.records = new ArrayList<>();
     }
 
+    /**
+     * 记录一次生成结果。
+     *
+     * @param generatingRecord 生成记录。
+     */
     public void record(GeneratingRecord generatingRecord) {
         this.records.add(generatingRecord);
     }
 
+    /**
+     * 获取最近一次生成结果。
+     *
+     * @return 生成记录；无记录返回 {@code null} 。
+     */
     public GeneratingRecord getRecent() {
         if (this.records.isEmpty()) {
             return null;
@@ -34,6 +44,11 @@ public class SubtaskMemory {
         return this.records.get(this.records.size() - 1);
     }
 
+    /**
+     * 获取最近一次生成的文件。
+     *
+     * @return 文件标签；无文件返回 {@code null} 。
+     */
     public FileLabel getRecentFile() {
         for (int i = this.records.size() - 1; i >= 0; --i) {
             GeneratingRecord record = this.records.get(i);
@@ -44,6 +59,11 @@ public class SubtaskMemory {
         return null;
     }
 
+    /**
+     * 导出为 Markdown 。
+     *
+     * @return Markdown 文本。
+     */
     public String toMarkdown() {
         StringBuilder buf = new StringBuilder();
         for (GeneratingRecord record : this.records) {

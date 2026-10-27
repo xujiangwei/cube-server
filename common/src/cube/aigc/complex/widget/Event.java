@@ -17,22 +17,31 @@ import org.json.JSONObject;
  */
 public class Event implements JSONable {
 
+    /** 关联资源的序列号。 */
     public long resourceSn;
 
+    /** 附件 ID 。 */
     public long attachmentId;
 
+    /** 触发事件的控件 ID 。 */
     public long componentId;
 
+    /** 事件名。 */
     public String name;
 
+    /** 事件参数。 */
     public JSONObject parameter;
 
+    /** 事件所属的资源。 */
     public AttachmentResource resource;
 
+    /** 事件关联的附件。 */
     public Attachment attachment;
 
+    /** 事件作用的控件。 */
     public Widget target;
 
+    /** 事件处理产生的资源结果。 */
     public ComplexResource resultResource;
 
     public Event() {
@@ -48,10 +57,22 @@ public class Event implements JSONable {
         }
     }
 
+    /**
+     * 以指定资源结束事件。
+     *
+     * <p>填充结果资源后由调用方序列化下发，重复调用以最后一次为准。</p>
+     *
+     * @param resource 结果资源。
+     */
     public void finish(ComplexResource resource) {
         this.resultResource = resource;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -65,6 +86,11 @@ public class Event implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = this.toJSON();

@@ -13,12 +13,21 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Validate terminal data before accounting or committing it to HTTP.
+ * 兼容层响应校验工具。
+ *
+ * <p>检查推理结果的结构完整性并安全读取用量字段，异常统一以 {@link CompletionError} 抛出。</p>
  */
 public final class CompletionResult {
     private CompletionResult() {
     }
 
+    /**
+     * 校验响应结构。
+     *
+     * <p>检查必需字段与嵌套层级，不合法时抛出 {@link CompletionError} 。</p>
+     *
+     * @param result 响应体。
+     */
     public static void validate(JSONObject result) {
         try {
             JSONObject message = result.getJSONObject("message");
@@ -74,6 +83,13 @@ public final class CompletionResult {
         }
     }
 
+    /**
+     * 读取用量中的 token 数。
+     *
+     * @param usage 用量对象。
+     * @param name  字段名，如 {@code prompt_tokens} 。
+     * @return token 数；字段缺失返回 0 。
+     */
     public static long tokens(JSONObject usage, String name) {
         Object value = usage.get(name);
         if (!(value instanceof Integer) && !(value instanceof Long))

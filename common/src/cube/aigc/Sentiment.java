@@ -38,12 +38,19 @@ public enum Sentiment {
 
     ;
 
+    /** 情感编码。 */
     public final String code;
 
     Sentiment(String code) {
         this.code = code;
     }
 
+    /**
+     * 按编码解析情感类型。
+     *
+     * @param code 编码。
+     * @return 情感类型；未知编码返回 {@code null} 。
+     */
     public static Sentiment parse(String code) {
         for (Sentiment sentiment : Sentiment.values()) {
             if (sentiment.code.equals(code)) {

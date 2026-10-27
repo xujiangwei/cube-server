@@ -15,8 +15,10 @@ import org.json.JSONObject;
  */
 public abstract class Attachment implements JSONable {
 
+    /** 附件 ID 。 */
     protected long id;
 
+    /** 附件类型，对应各子类的 {@code TYPE} 常量。 */
     protected String type;
 
     public Attachment(String type) {
@@ -34,14 +36,29 @@ public abstract class Attachment implements JSONable {
         this.type = json.getString("type");
     }
 
+    /**
+     * 获取附件 ID 。
+     *
+     * @return 附件 ID 。
+     */
     public long getId() {
         return this.id;
     }
 
+    /**
+     * 获取附件类型。
+     *
+     * @return 类型标识。
+     */
     public String getType() {
         return this.type;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -50,6 +67,11 @@ public abstract class Attachment implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -13,28 +13,45 @@ import org.json.JSONObject;
 
 import java.util.Date;
 
+/**
+ * 应用通知。
+ *
+ * <p>下发到客户端的公告或弹窗：含标题、正文、生效状态与时间。
+ * 只有 {@code state} 为启用时才会被客户端展示。</p>
+ */
 public class Notification implements JSONable {
 
+    /** 通知类型：普通消息。 */
     public final static String TYPE_NORMAL = "normal";
 
+    /** 通知类型：弹窗。 */
     public final static String TYPE_POPUP = "popup";
 
+    /** 状态：已启用。 */
     public final static int STATE_ENABLED = 1;
 
+    /** 状态：已停用。 */
     public final static int STATE_DISABLED = 0;
 
+    /** 通知 ID 。 */
     public long id;
 
+    /** 通知类型，取值见 {@code TYPE_*} 。 */
     public String type;
 
+    /** 状态，取值见 {@code STATE_*} 。 */
     public int state;
 
+    /** 标题。 */
     public String title;
 
+    /** 正文内容。 */
     public String content;
 
+    /** 发布日期文本。 */
     public String date;
 
+    /** 发布时间戳，单位毫秒。 */
     public long timestamp;
 
     public Notification(String title, String content) {
@@ -67,6 +84,11 @@ public class Notification implements JSONable {
         this.timestamp = json.getLong("timestamp");
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -80,6 +102,11 @@ public class Notification implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

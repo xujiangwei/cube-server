@@ -2,6 +2,11 @@ package cube.aigc.text;
 
 import java.math.BigDecimal;
 
+/**
+ * 关键词。
+ *
+ * <p>携带 TF-IDF 权重，按权重降序排序，用于抽取文本主题词。</p>
+ */
 public class Keyword implements Comparable<Keyword> {
 
     private double tfidfValue;
@@ -66,6 +71,12 @@ public class Keyword implements Comparable<Keyword> {
         return result;
     }
 
+    /**
+     * 按词语判断相等。
+     *
+     * @param obj 待比较对象。
+     * @return 词语相同返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj)

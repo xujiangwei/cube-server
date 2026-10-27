@@ -35,12 +35,19 @@ public enum TextSplitter {
 
     ;
 
+    /** 切分策略名称。 */
     public final String name;
 
     TextSplitter(String name) {
         this.name = name;
     }
 
+    /**
+     * 按名称解析切分策略。
+     *
+     * @param name 策略名称。
+     * @return 策略；未知名称返回 {@code null} 。
+     */
     public static TextSplitter parse(String name) {
         for (TextSplitter splitter : TextSplitter.values()) {
             if (splitter.name.equalsIgnoreCase(name)) {

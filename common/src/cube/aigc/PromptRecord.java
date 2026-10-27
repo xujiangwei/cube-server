@@ -15,14 +15,19 @@ import org.json.JSONObject;
  */
 public class PromptRecord implements JSONable {
 
+    /** 提示词 ID 。 */
     public final long id;
 
+    /** 提示词标题。 */
     public final String title;
 
+    /** 提示词正文。 */
     public final String content;
 
+    /** 触发动作名，点击提示词时下发。 */
     public final String act;
 
+    /** 是否只读；只读项不允许用户编辑或删除。 */
     public final boolean readonly;
 
     public PromptRecord(long id, String title, String content, String act, boolean readonly) {
@@ -41,6 +46,11 @@ public class PromptRecord implements JSONable {
         this.readonly = json.getBoolean("readonly");
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -52,6 +62,11 @@ public class PromptRecord implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

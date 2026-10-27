@@ -19,12 +19,16 @@ import java.util.List;
  */
 public class Page implements JSONable {
 
+    /** 页面地址。 */
     public String url;
 
+    /** 页面标题。 */
     public String title;
 
+    /** 从页面提取的正文段落。 */
     public List<String> textList;
 
+    /** 从页面提取的图片地址。 */
     public List<String> imageList;
 
     public Page(JSONObject json) {
@@ -54,6 +58,11 @@ public class Page implements JSONable {
         }
     }
 
+    /**
+     * 过滤过短的正文段落。
+     *
+     * <p>剔除导航、版权声明等碎片，只保留可用于问答的正文。</p>
+     */
     public void filterShortText() {
         if (null == this.textList) {
             return;
@@ -68,6 +77,11 @@ public class Page implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -98,6 +112,11 @@ public class Page implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

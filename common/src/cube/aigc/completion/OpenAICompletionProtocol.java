@@ -25,6 +25,15 @@ public class OpenAICompletionProtocol {
     protected OpenAICompletionProtocol() {
     }
 
+    /**
+     * 规范化请求体。
+     *
+     * <p>把 OpenAI 与 Claude 两种协议的请求统一成内部表示，字段差异在此集中处理。</p>
+     *
+     * @param body   原始请求体。
+     * @param claude 为 {@code true} 时按 Claude 协议解析。
+     * @return 规范化后的请求体。
+     */
     public static JSONObject normalize(JSONObject body, boolean claude) {
         if (body == null) throw CompletionError.invalid("JSON object body is required", null);
         JSONObject request = new JSONObject().put("model", CompletionRequest.text(body, "model"));
@@ -242,6 +251,13 @@ public class OpenAICompletionProtocol {
         }
     }
 
+    /**
+     * 构造错误响应。
+     *
+     * @param error  错误对象。
+     * @param claude 为 {@code true} 时按 Claude 协议输出。
+     * @return 错误响应体。
+     */
     public static JSONObject error(CompletionError error, boolean claude) {
         String type = error.code;
         if (claude) {
@@ -274,6 +290,13 @@ public class OpenAICompletionProtocol {
                 .put("param", error.param == null ? JSONObject.NULL : error.param));
     }
 
+    /**
+     * 转换模型描述。
+     *
+     * @param model  内部模型描述。
+     * @param claude 为 {@code true} 时按 Claude 协议输出。
+     * @return 模型描述体。
+     */
     public static JSONObject model(JSONObject model, boolean claude) {
         if (claude) return new JSONObject().put("type", "model").put("id", model.getString("id"))
                 .put("display_name", model.optString("name", model.getString("id")))
@@ -283,6 +306,16 @@ public class OpenAICompletionProtocol {
                 .put("capabilities", model.optJSONObject("capabilities") == null ? new JSONObject() : model.getJSONObject("capabilities"));
     }
 
+    /**
+     * 构造完整响应。
+     *
+     * @param result  内部结果。
+     * @param claude  为 {@code true} 时按 Claude 协议输出。
+     * @param id      响应 ID 。
+     * @param model   模型标识。
+     * @param created 创建时间戳，单位秒。
+     * @return 响应体。
+     */
     public static JSONObject result(JSONObject result, boolean claude, String id, String model, long created) {
         CompletionResult.validate(result);
         if (!claude) {

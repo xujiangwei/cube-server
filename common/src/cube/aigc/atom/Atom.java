@@ -11,18 +11,31 @@ import org.json.JSONObject;
 
 import java.util.List;
 
+/**
+ * 原子数据。
+ *
+ * <p>图表的最小数据单元：由标签、日期与数值组成，聚合后生成位图序列。
+ * 日期拆分为年/月/日三个字符串字段，便于按维度匹配。</p>
+ */
 public class Atom implements JSONable {
 
+    /** 序列号。 */
     public final long sn;
 
+    /** 数据标签，聚合时按标签归类。 */
     public String label;
 
+    /** 年份。 */
     public String year;
+    /** 月份。 */
     public String month;
+    /** 日。 */
     public String date;
 
+    /** 数值。 */
     public int value;
 
+    /** 当前标签的匹配次数，用于计算热度。 */
     public int currentLabelMatchingNum;
 
     public Atom(long sn, String label, String year, String month, String date, int value) {
@@ -43,6 +56,11 @@ public class Atom implements JSONable {
         this.value = json.has("value") ? json.getInt("value") : 0;
     }
 
+    /**
+     * 获取年份数值。
+     *
+     * @return 年份；无法解析返回 0 。
+     */
     public int getYear() {
         try {
             return Integer.parseInt(this.year.replace("年", ""));
@@ -51,6 +69,11 @@ public class Atom implements JSONable {
         }
     }
 
+    /**
+     * 获取月份数值。
+     *
+     * @return 月份；无法解析返回 0 。
+     */
     public int getMonth() {
         try {
             return Integer.parseInt(this.month.replace("月", ""));
@@ -59,6 +82,11 @@ public class Atom implements JSONable {
         }
     }
 
+    /**
+     * 获取日数值。
+     *
+     * @return 日；无法解析返回 0 。
+     */
     public int getDate() {
         try {
             return Integer.parseInt(this.date.replace("日", "").replace("号", ""));
@@ -67,6 +95,11 @@ public class Atom implements JSONable {
         }
     }
 
+    /**
+     * 序列化日期。
+     *
+     * @return 形如 {@code 2025-08-24} 的字符串；字段缺失时按可用部分拼接。
+     */
     public String serializeDate() {
         StringBuilder buf = new StringBuilder();
         if (null != this.year) {
@@ -81,6 +114,11 @@ public class Atom implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 格式化完整日期。
+     *
+     * @return 中文日期文本，如“2025年8月24日”。
+     */
     public String formatDate() {
         StringBuilder buf = new StringBuilder();
         if (null != this.year) {
@@ -104,6 +142,13 @@ public class Atom implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 格式化简化日期。
+     *
+     * <p>省略年份为当前年时的前缀，用于图轴展示。</p>
+     *
+     * @return 简化后的日期文本。
+     */
     public String formatSimpleDate() {
         StringBuilder buf = new StringBuilder();
         if (null != this.year) {
@@ -122,9 +167,8 @@ public class Atom implements JSONable {
 
     /**
      * 计算有多少个输入词与标签匹配。
-     *
-     * @param words
-     * @return
+     * @param words 词列表。
+     * @return 计算结果。
      */
     public int numMatchingLabels(List<String> words) {
         int num = 0;
@@ -142,6 +186,12 @@ public class Atom implements JSONable {
         return num;
     }
 
+    /**
+     * 按标签与日期判断相等。
+     *
+     * @param obj 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof Atom) {
@@ -181,6 +231,11 @@ public class Atom implements JSONable {
         return false;
     }
 
+    /**
+     * 按标签与日期计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         int code = this.label.hashCode();
@@ -196,6 +251,11 @@ public class Atom implements JSONable {
         return code;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -207,11 +267,22 @@ public class Atom implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
     }
 
+    /**
+     * 校验原子数据的标签是否有效。
+     *
+     * @param atom 原子数据。
+     * @return 标签非空返回 {@code true} 。
+     */
     public static boolean checkLabel(Atom atom) {
         String[] array = atom.label.split(",");
         if (array.length < 3) {

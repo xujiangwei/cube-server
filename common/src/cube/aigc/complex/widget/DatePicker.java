@@ -14,10 +14,13 @@ import org.json.JSONObject;
  */
 public class DatePicker extends Widget {
 
+    /** 选择类型：日期。 */
     public final static String TYPE_DATE = "date";
 
+    /** 选择类型：日期时间。 */
     public final static String TYPE_DATE_TIME = "datetime";
 
+    /** 选择类型：日期区间。 */
     public final static String TYPE_DATE_RANGE = "daterange";
 
     private String type;
@@ -32,12 +35,23 @@ public class DatePicker extends Widget {
         this.clearable = false;
     }
 
+    /**
+     * 设置可选区间。
+     *
+     * @param start 起始时间戳，单位毫秒。
+     * @param end   结束时间戳，单位毫秒。
+     */
     public void setRange(long start, long end) {
         this.range = new JSONArray();
         this.range.put(start);
         this.range.put(end);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

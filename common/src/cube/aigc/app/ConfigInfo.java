@@ -22,16 +22,22 @@ import java.util.List;
  */
 public class ConfigInfo implements JSONable {
 
+    /** 可用的模型配置列表。 */
     public List<ModelConfig> models;
 
+    /** 已启用的通知列表。 */
     public List<Notification> notifications;
 
+    /** 联系人偏好设置。 */
     public ContactPreference contactPreference;
 
+    /** 请求超时时间，单位毫秒。 */
     public long timeoutMs;
 
+    /** 当前用量。 */
     public int usage;
 
+    /** 按模型拆分的用量列表。 */
     public List<Usage> usages;
 
     public ConfigInfo(List<ModelConfig> models, List<Notification> notifications, ContactPreference contactPreference) {
@@ -90,6 +96,11 @@ public class ConfigInfo implements JSONable {
         }
     }
 
+    /**
+     * 把模型配置转为数组。
+     *
+     * @return 模型 JSON 数组。
+     */
     public JSONArray getModelsAsJSONArray() {
         JSONArray array = new JSONArray();
         for (ModelConfig mc : this.models) {
@@ -98,6 +109,11 @@ public class ConfigInfo implements JSONable {
         return array;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -131,6 +147,11 @@ public class ConfigInfo implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

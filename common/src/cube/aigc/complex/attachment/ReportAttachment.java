@@ -9,8 +9,14 @@ package cube.aigc.complex.attachment;
 import cube.common.entity.FileLabel;
 import org.json.JSONObject;
 
+/**
+ * 报告附件。
+ *
+ * <p>以报告形式呈现的附件，内容为结构化报告数据。</p>
+ */
 public class ReportAttachment extends Attachment {
 
+    /** 附件类型标识。 */
     public final static String TYPE = "Report";
 
     private FileLabel fileLabel;
@@ -27,6 +33,11 @@ public class ReportAttachment extends Attachment {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -36,6 +47,11 @@ public class ReportAttachment extends Attachment {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -14,12 +14,16 @@ import org.json.JSONObject;
  */
 public class Usage implements JSONable {
 
+    /** 模型标识。 */
     public final String model;
 
+    /** 输入 token 数。 */
     public long inputTokens;
 
+    /** 输出 token 数。 */
     public long outputTokens;
 
+    /** 本次调用耗时，单位毫秒。 */
     public final long elapsed;
 
     public Usage(String model, long inputTokens, long outputTokens, long elapsed) {
@@ -51,6 +55,11 @@ public class Usage implements JSONable {
         this.elapsed = json.has("elapsed") ? Long.parseLong(json.get("elapsed").toString()) : 0;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -61,6 +70,11 @@ public class Usage implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

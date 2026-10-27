@@ -13,7 +13,9 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Strict single-choice OpenAI JSON/SSE decoder shared by Java inference backends.
+ * 流式响应累积器。
+ *
+ * <p>把逐条到达的分片拼装成完整响应，并识别结束标记。</p>
  */
 public final class OpenAIResponseAccumulator {
 
@@ -31,10 +33,21 @@ public final class OpenAIResponseAccumulator {
 
     private StringBuilder textBlock;
 
+    /**
+     * 判断是否已收到结束标记。
+     *
+     * @return 已结束返回 {@code true} 。
+     */
     public boolean terminal() {
         return java.util.Arrays.asList("stop", "length", "tool_calls", "content_filter").contains(finish);
     }
 
+    /**
+     * 追加一个分片。
+     *
+     * @param chunk 分片数据。
+     * @return 可立即下发的增量；无增量时返回 {@code null} 。
+     */
     public JSONObject add(JSONObject chunk) {
         if (chunk.has("error")) throw invalid();
         if (chunk.optJSONObject("usage") != null) {
@@ -85,6 +98,11 @@ public final class OpenAIResponseAccumulator {
         return delta;
     }
 
+    /**
+     * 组装最终响应。
+     *
+     * @return 完整响应体。
+     */
     public JSONObject result() {
         if (finish == null) throw invalid();
         JSONArray tools = new JSONArray();
@@ -111,6 +129,12 @@ public final class OpenAIResponseAccumulator {
         return result;
     }
 
+    /**
+     * 提取响应中的载荷。
+     *
+     * @param response 响应对象。
+     * @return 载荷 JSON 。
+     */
     public static JSONObject json(JSONObject response) {
         if (response.has("error")) throw invalid();
         JSONArray choices = response.getJSONArray("choices");

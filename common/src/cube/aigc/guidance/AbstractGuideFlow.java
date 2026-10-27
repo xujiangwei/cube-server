@@ -16,12 +16,21 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 引导流程抽象基类。
+ *
+ * <p>按脚本描述装配问题节点与跳转关系，子类实现 {@link #input} 决定回答如何推进流程。
+ * 流程可被中断，{@link #stop()} 负责清理当前会话状态。</p>
+ */
 public abstract class AbstractGuideFlow implements GuideFlowable {
 
+    /** 脚本文件路径。 */
     protected final String path;
 
+    /** 流程名称，用于匹配与日志。 */
     protected String name;
 
+    /** 展示名称。 */
     protected String displayName;
 
     /**
@@ -29,6 +38,7 @@ public abstract class AbstractGuideFlow implements GuideFlowable {
      */
     protected List<String> keywords;
 
+    /** 流程的开场指令，进入流程时下发给模型。 */
     protected String instruction;
 
     /**
@@ -46,8 +56,10 @@ public abstract class AbstractGuideFlow implements GuideFlowable {
      */
     protected String questionableResults;
 
+    /** 章节列表，按顺序包含各问题节点。 */
     protected List<GuidanceSection> sectionList;
 
+    /** 流程事件监听器。 */
     protected GuideListener listener;
 
     public AbstractGuideFlow(File file) {
@@ -84,34 +96,77 @@ public abstract class AbstractGuideFlow implements GuideFlowable {
         }
     }
 
+    /**
+     * 获取流程名称。
+     *
+     * @return 流程名称。
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取展示名称。
+     *
+     * @return 展示名称；未设置时返回流程名称。
+     */
     public String getDisplayName() {
         return this.displayName;
     }
 
+    /**
+     * 获取流程的全部关键词。
+     *
+     * @return 关键词列表；无关键词时为空列表。
+     */
     public List<String> getKeywords() {
         return this.keywords;
     }
 
+    /**
+     * 获取主关键词。
+     *
+     * @return 主关键词；无关键词时返回 {@code null} 。
+     */
     public String getMainKeyword() {
         return this.keywords.get(0);
     }
 
+    /**
+     * 获取开场指令。
+     *
+     * @return 指令文本。
+     */
     public String getInstruction() {
         return this.instruction;
     }
 
+    /**
+     * 获取解释前缀。
+     *
+     * @return 前缀文本；未配置时返回 {@code null} 。
+     */
     public String getExplainPrefix() {
         return this.explainPrefix;
     }
 
+    /**
+     * 设置流程监听器。
+     *
+     * @param listener 监听器。
+     */
     public void setListener(GuideListener listener) {
         this.listener = listener;
     }
 
+    /**
+     * 按编号获取问题。
+     *
+     * <p>遍历全部章节查找，编号在流程内唯一。</p>
+     *
+     * @param sn 问题编号。
+     * @return 问题；不存在返回 {@code null} 。
+     */
     public Question getQuestion(String sn) {
         for (GuidanceSection section : this.sectionList) {
             Question question = section.getQuestion(sn);
@@ -124,9 +179,8 @@ public abstract class AbstractGuideFlow implements GuideFlowable {
 
     /**
      * 设置答案。
-     *
-     * @param sn
-     * @param answerCode
+     * @param sn 序列号。
+     * @param answerCode answerCode。
      */
     public void setQuestionAnswer(String sn, String answerCode) {
         Question question = getQuestion(sn);
@@ -143,6 +197,12 @@ public abstract class AbstractGuideFlow implements GuideFlowable {
         }
     }
 
+    /**
+     * 统计命中关键词数量。
+     *
+     * @param list 待匹配的词列表。
+     * @return 命中数量。
+     */
     public int hitKeywords(List<String> list) {
         int hit = 0;
         for (String keyword : this.keywords) {
@@ -153,6 +213,11 @@ public abstract class AbstractGuideFlow implements GuideFlowable {
         return hit;
     }
 
+    /**
+     * 判断流程是否已完成。
+     *
+     * @return 全部问题已回答返回 {@code true} 。
+     */
     public boolean hasCompleted() {
         int completed = 0;
         for (GuidanceSection section : this.sectionList) {
@@ -168,10 +233,29 @@ public abstract class AbstractGuideFlow implements GuideFlowable {
         return (completed == this.sectionList.size());
     }
 
+    /**
+     * 停止流程。
+     *
+     * <p>清理当前会话状态并释放占用的资源，允许重复调用。</p>
+     */
     public abstract void stop();
 
+    /**
+     * 提交回答并推进流程。
+     *
+     * <p>子类决定该回答是否满足跳转条件、是否结束流程或需要追问。</p>
+     *
+     * @param currentQuestionAnswer 当前问题的回答文本。
+     * @param candidate             候选答案。
+     * @return 状态码；{@code AIGCStateCode.OK} 表示已被流程接受。
+     */
     public abstract AIGCStateCode input(String currentQuestionAnswer, Answer candidate);
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("path", this.path);
