@@ -28,8 +28,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * 应用侧通道管理器。
+ *
+ * <p>按访问令牌维护模型配置与通道信息，并在周期回调中回收长时间未活动的通道。
+ * 以单例存在，供 AIGC 端点共享同一份通道视图。</p>
+ */
 public final class App {
 
+    /** 全局唯一的应用管理器实例。 */
     public final static App instance = new App();
 
     /**
@@ -51,16 +58,38 @@ public final class App {
         this.tokenChannelMap = new ConcurrentHashMap<>();
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public final static App getInstance() {
         return App.instance;
     }
 
+    /**
+     * 启动管理器。
+     *
+     * <p>注册周期回调，开始回收超时通道。重复调用幂等。</p>
+     */
     public void start() {
     }
 
+    /**
+     * 停止管理器。
+     *
+     * <p>摘除周期回调并清空通道缓存。</p>
+     */
     public void stop() {
     }
 
+    /**
+     * 周期检查通道存活。
+     *
+     * <p>距上次检查超过通道超时时间时，回收所有已过期通道。</p>
+     *
+     * @param now 当前时间戳，单位毫秒。
+     */
     public void onTick(long now) {
         // 删除超时的频道
         if (now - this.lastCheckTime >= this.channelTimeout) {
@@ -77,14 +106,35 @@ public final class App {
         }
     }
 
+    /**
+     * 获取令牌绑定的模型配置。
+     *
+     * @param token 访问令牌。
+     * @return 模型配置；未绑定返回 {@code null} 。
+     */
     public ModelConfig getModelConfig(String token) {
         return this.modelConfigMap.get(token);
     }
 
+    /**
+     * 获取令牌绑定的通道信息。
+     *
+     * @param token 访问令牌。
+     * @return 通道信息；未绑定返回 {@code null} 。
+     */
     public ChannelInfo getChannel(String token) {
         return this.tokenChannelMap.get(token);
     }
 
+    /**
+     * 打开通道。
+     *
+     * <p>为令牌绑定模型配置并创建通道；已存在有效通道时直接复用。</p>
+     *
+     * @param token  访问令牌。
+     * @param config 模型配置。
+     * @return 通道信息；创建失败返回 {@code null} 。
+     */
     public ChannelInfo openChannel(String token, ModelConfig config) {
         this.modelConfigMap.put(token, config);
 
@@ -134,11 +184,29 @@ public final class App {
         return channel;
     }
 
+    /**
+     * 重建通道。
+     *
+     * <p>先丢弃已有通道再重新创建，用于切换模型或修复失效通道。</p>
+     *
+     * @param token  访问令牌。
+     * @param config 模型配置。
+     * @return 新的通道信息；创建失败返回 {@code null} 。
+     */
     public ChannelInfo reopenChannel(String token, ModelConfig config) {
         this.tokenChannelMap.remove(token);
         return this.openChannel(token, config);
     }
 
+    /**
+     * 重设模型配置。
+     *
+     * <p>只替换模型绑定，不影响已建立的通道。</p>
+     *
+     * @param token  访问令牌。
+     * @param config 新的模型配置。
+     * @return 当前通道信息；无通道时返回 {@code null} 。
+     */
     public ChannelInfo resetModel(String token, ModelConfig config) {
         this.modelConfigMap.put(token, config);
         return this.reopenChannel(token, config);

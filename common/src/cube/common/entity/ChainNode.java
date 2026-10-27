@@ -100,22 +100,35 @@ public class ChainNode extends Entity {
         this.total = 1;
     }
 
+    /** 获取节点事件名称。 */
     public String getEvent() {
         return this.event;
     }
 
+    /**
+     * 获取事件主体。
+     *
+     * <p>可能是联系人或设备，取决于事件类型。</p>
+     */
     public AbstractContact getWho() {
         return this.who;
     }
 
+    /** 获取事件关联的文件。 */
     public FileLabel getWhat() {
         return this.what;
     }
 
+    /** 获取事件发生时间。 */
     public long getWhen() {
         return this.when;
     }
 
+    /**
+     * 追加一条传播路径标记。
+     *
+     * <p>相同标记只保留一次，避免路径重复。</p>
+     */
     public void addTrack(String track) {
         if (this.tracks.contains(track)) {
             return;
@@ -124,18 +137,22 @@ public class ChainNode extends Entity {
         this.tracks.add(track);
     }
 
+    /** 获取传播路径标记列表。 */
     public List<String> getTracks() {
         return this.tracks;
     }
 
+    /** 获取传播方式。 */
     public TransmissionMethod getMethod() {
         return this.method;
     }
 
+    /** 设置传播方式。 */
     public void setMethod(TransmissionMethod method) {
         this.method = method;
     }
 
+    /** 批量追加子节点。 */
     public void addChildren(List<ChainNode> list) {
         if (null == this.children) {
             this.children = new ArrayList<>();
@@ -144,6 +161,7 @@ public class ChainNode extends Entity {
         this.children.addAll(list);
     }
 
+    /** 追加单个子节点。 */
     public void addChild(ChainNode node) {
         if (null == this.children) {
             this.children = new ArrayList<>();
@@ -152,6 +170,11 @@ public class ChainNode extends Entity {
         this.children.add(node);
     }
 
+    /**
+     * 获取子节点列表。
+     *
+     * @return 子节点列表；无子节点时返回空列表。
+     */
     public List<ChainNode> getChildren() {
         if (null == this.children) {
             this.children = new ArrayList<>();
@@ -160,14 +183,21 @@ public class ChainNode extends Entity {
         return this.children;
     }
 
+    /**
+     * 累加访问计数。
+     *
+     * @return 累加后的计数。
+     */
     public int incrementTotal() {
         return ++this.total;
     }
 
+    /** 获取访问轨迹。 */
     public VisitTrace getVisitTrace() {
         return this.visitTrace;
     }
 
+    /** 按 ID 判断节点是否相同。 */
     @Override
     public boolean equals(Object o) {
         if (o instanceof ChainNode) {
@@ -180,6 +210,7 @@ public class ChainNode extends Entity {
         return false;
     }
 
+    /** 序列化为完整 JSON 。 */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -187,6 +218,11 @@ public class ChainNode extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>只输出节点标识与关键字段，不递归子节点。</p>
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

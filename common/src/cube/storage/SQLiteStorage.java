@@ -46,6 +46,12 @@ public class SQLiteStorage extends AbstractStorage {
         super(name, StorageType.SQLite);
     }
 
+    /**
+     * 打开存储器：建立单连接并完成初始化。
+     *
+     * <p>重复调用幂等。配置文件缺 {@code file} 项或驱动加载失败时不建立连接，
+     * 后续操作统一按“连接未就绪”失败，不抛空指针。</p>
+     */
     @Override
     public void open() {
         synchronized (this.lock) {
@@ -98,6 +104,11 @@ public class SQLiteStorage extends AbstractStorage {
         }
     }
 
+    /**
+     * 关闭存储器：关闭底层连接。
+     *
+     * <p>允许重复调用；关闭后所有读写操作都会失败。</p>
+     */
     @Override
     public void close() {
         synchronized (this.lock) {
@@ -115,11 +126,23 @@ public class SQLiteStorage extends AbstractStorage {
         }
     }
 
+    /**
+     * 判断存储器是否已打开。
+     *
+     * @return 连接已建立返回 {@code true} 。
+     */
     @Override
     public boolean isOpen() {
         return null != this.connection;
     }
 
+    /**
+     * 应用配置。
+     *
+     * <p>仅记录配置对象，连接在 {@link #open()} 时才真正建立，因此可在打开前后重复调用。</p>
+     *
+     * @param config 配置对象。
+     */
     @Override
     public void configure(JSONObject config) {
         super.configure(config);
@@ -139,6 +162,14 @@ public class SQLiteStorage extends AbstractStorage {
         return true;
     }
 
+    /**
+     * 判断数据表是否存在。
+     *
+     * <p>通过 {@code SELECT * FROM <table> LIMIT 1} 探测，语句可执行即视为表存在。</p>
+     *
+     * @param table 表名。
+     * @return 表存在返回 {@code true} 。
+     */
     @Override
     public boolean exist(String table) {
         if (!this.isReady()) {
@@ -169,6 +200,15 @@ public class SQLiteStorage extends AbstractStorage {
         }
     }
 
+    /**
+     * 创建数据表。
+     *
+     * <p>字段按 SQLite 方言修正后拼装 {@code CREATE TABLE} 。连接未就绪或字段为空时返回 {@code false} 。</p>
+     *
+     * @param table  表名。
+     * @param fields 字段定义。
+     * @return 建表成功返回 {@code true} 。
+     */
     @Override
     public boolean executeCreate(String table, StorageField[] fields) {
         if (!this.isReady()) {
@@ -249,6 +289,13 @@ public class SQLiteStorage extends AbstractStorage {
         return new StorageField(field.getTableName(), field.getName(), literal, field.getValue(), constraints);
     }
 
+    /**
+     * 插入单条记录。
+     *
+     * @param table  表名。
+     * @param fields 待插入的字段与值。
+     * @return 插入成功返回 {@code true} 。
+     */
     @Override
     public boolean executeInsert(String table, StorageField[] fields) {
         if (!this.isReady()) {
@@ -285,6 +332,15 @@ public class SQLiteStorage extends AbstractStorage {
         return true;
     }
 
+    /**
+     * 批量插入记录。
+     *
+     * <p>在同一个连接上逐条执行，单条失败不中断后续，只要有一条失败即返回 {@code false} 。</p>
+     *
+     * @param table      表名。
+     * @param fieldsList 每条记录的字段与值。
+     * @return 全部成功返回 {@code true} 。
+     */
     @Override
     public boolean executeInsert(String table, List<StorageField[]> fieldsList) {
         if (!this.isReady()) {
@@ -327,6 +383,14 @@ public class SQLiteStorage extends AbstractStorage {
         return success;
     }
 
+    /**
+     * 按条件更新记录。
+     *
+     * @param table        表名。
+     * @param fields       待更新的字段与值。
+     * @param conditionals 更新条件。
+     * @return 至少更新一行返回 {@code true} 。
+     */
     @Override
     public boolean executeUpdate(String table, StorageField[] fields, Conditional[] conditionals) {
         if (!this.isReady()) {
@@ -364,6 +428,13 @@ public class SQLiteStorage extends AbstractStorage {
         return true;
     }
 
+    /**
+     * 按条件删除记录。
+     *
+     * @param table        表名。
+     * @param conditionals 删除条件。
+     * @return 语句执行成功返回 {@code true} 。
+     */
     @Override
     public boolean executeDelete(String table, Conditional[] conditionals) {
         if (!this.isReady()) {
@@ -396,11 +467,29 @@ public class SQLiteStorage extends AbstractStorage {
         return true;
     }
 
+    /**
+     * 查询全表数据。
+     *
+     * @param table  表名。
+     * @param fields 需要读取的字段；为 {@code null} 时读取全部列。
+     * @return 结果行集合，查询失败返回 {@code null} 。
+     */
     @Override
     public List<StorageField[]> executeQuery(String table, StorageField[] fields) {
         return this.executeQuery(table, fields, null);
     }
 
+    /**
+     * 按条件查询数据。
+     *
+     * <p>SQLite 使用单连接，整个查询在 {@code lock} 上串行化，避免并发读改写冲突。
+     * 查询失败返回 {@code null} ，由调用方判空。</p>
+     *
+     * @param table        表名。
+     * @param fields       需要读取的字段；为 {@code null} 时读取全部列。
+     * @param conditionals 查询条件，允许为 {@code null} 。
+     * @return 结果行集合，查询失败返回 {@code null} 。
+     */
     @Override
     public List<StorageField[]> executeQuery(String table, StorageField[] fields, Conditional[] conditionals) {
         ArrayList<StorageField[]> result = new ArrayList<>();
@@ -464,6 +553,14 @@ public class SQLiteStorage extends AbstractStorage {
         return result;
     }
 
+    /**
+     * 跨表查询数据。
+     *
+     * @param tables       参与查询的表名。
+     * @param fields       需要读取的字段。
+     * @param conditionals 查询条件，允许为 {@code null} 。
+     * @return 结果行集合，查询失败时为空集合。
+     */
     @Override
     public List<StorageField[]> executeQuery(String[] tables, StorageField[] fields, Conditional[] conditionals) {
         ArrayList<StorageField[]> result = new ArrayList<>();
@@ -527,6 +624,12 @@ public class SQLiteStorage extends AbstractStorage {
         return result;
     }
 
+    /**
+     * 执行原生查询语句。
+     *
+     * @param sql 完整查询语句。
+     * @return 结果行集合，查询失败返回 {@code null} 。
+     */
     @Override
     public List<StorageField[]> executeQuery(String sql) {
         synchronized (this.lock) {
@@ -620,6 +723,12 @@ public class SQLiteStorage extends AbstractStorage {
         }
     }
 
+    /**
+     * 执行原生 SQL 语句。
+     *
+     * @param sql 完整 SQL 语句。
+     * @return 执行成功返回 {@code true} 。
+     */
     @Override
     public boolean execute(String sql) {
         synchronized (this.lock) {

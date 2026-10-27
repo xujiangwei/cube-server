@@ -33,11 +33,11 @@ public class FormData {
     private byte[] chunk;
 
     /**
-     * 构造函数。
+     * 从原始字节构造表单数据。
      *
-     * @param content
-     * @param offset
-     * @param length
+     * @param content 请求体字节。
+     * @param offset  有效数据的起始偏移。
+     * @param length  有效数据长度。
      */
     public FormData(byte[] content, int offset, int length) {
         byte[] data = new byte[length];
@@ -48,10 +48,10 @@ public class FormData {
     }
 
     /**
-     * 构造函数。
+     * 从已落盘的表单文件构造表单数据。
      *
-     * @param formFile
-     * @param outputFile
+     * @param formFile   已写入磁盘的表单原始内容。
+     * @param outputFile 解析结果写入的目标文件。
      */
     public FormData(File formFile, File outputFile) {
         FileInputStream fis = null;
@@ -213,18 +213,39 @@ public class FormData {
         }
     }
 
+    /**
+     * 统计多部分表单的字段数量。
+     *
+     * @return 字段个数。
+     */
     public int numMultipart() {
         return this.multipart.size();
     }
 
+    /**
+     * 获取上传文件名。
+     *
+     * @return 文件名；非文件上传时返回 {@code null} 。
+     */
     public String getFileName() {
         return this.fileName;
     }
 
+    /**
+     * 获取上传文件的内容分片。
+     *
+     * @return 文件字节；非文件上传时返回 {@code null} 。
+     */
     public byte[] getFileChunk() {
         return this.chunk;
     }
 
+    /**
+     * 按字段名读取表单值。
+     *
+     * @param name 字段名。
+     * @return 字段值；不存在时返回 {@code null} 。
+     */
     public String getValue(String name) {
         return this.multipart.get(name);
     }
@@ -462,6 +483,13 @@ public class FormData {
     }
 
 
+    /**
+     * 本地自测入口。
+     *
+     * <p>构造一段随机内容并走完整的解析流程，用于快速验证解析器改动。</p>
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
         /*StringBuilder buf = new StringBuilder(Utils.randomString(32 * 1024));
         buf.append("\r\n").append(Utils.randomString(16 * 1024));

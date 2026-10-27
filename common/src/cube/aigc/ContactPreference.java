@@ -29,10 +29,17 @@ public class ContactPreference implements JSONable {
         this.models = json.getJSONArray("models");
     }
 
+    /** 获取偏好模型列表。 */
     public JSONArray getModels() {
         return this.models;
     }
 
+    /**
+     * 判断是否已偏好指定模型。
+     *
+     * @param modelName 模型名称。
+     * @return 已偏好返回 {@code true} 。
+     */
     public boolean containsModel(String modelName) {
         for (int i = 0; i < this.models.length(); ++i) {
             String name = this.models.getString(i);
@@ -43,6 +50,7 @@ public class ContactPreference implements JSONable {
         return false;
     }
 
+    /** 序列化为 JSON 。 */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();

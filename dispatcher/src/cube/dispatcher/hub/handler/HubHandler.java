@@ -38,11 +38,26 @@ public abstract class HubHandler extends CrossDomainHandler {
         this.controller = controller;
     }
 
+    /**
+     * 获取请求路径。
+     *
+     * @param request HTTP 请求。
+     * @return 去掉上下文前缀后的路径。
+     */
     protected String getRequestPath(HttpServletRequest request) {
         String path = request.getPathInfo();
         return path.substring(1).trim();
     }
 
+    /**
+     * 把信令同步转发到后端并返回事件。
+     *
+     * <p>失败时直接向响应写入错误并返回 {@code null} ，调用方无需再处理异常。</p>
+     *
+     * @param response 响应对象，失败时用于输出错误。
+     * @param signal   待转发的信令。
+     * @return 后端返回的事件；失败返回 {@code null} 。
+     */
     protected Event syncTransmit(HttpServletResponse response, Signal signal) {
         ActionDialect actionDialect = new ActionDialect(HubAction.Channel.name);
         actionDialect.addParam("signal", signal.toJSON());

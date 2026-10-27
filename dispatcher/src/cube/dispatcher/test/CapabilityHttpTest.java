@@ -25,7 +25,11 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
-/** Actual REST handlers must report capability failures as 503 after authentication. */
+/**
+ * 能力端点 HTTP 测试。
+ *
+ * <p>验证已认证的 REST 处理器在能力执行失败时返回 503 。</p>
+ */
 public final class CapabilityHttpTest {
     private static final String TOKEN = "0123456789abcdef0123456789abcdef";
     private static int assertions;

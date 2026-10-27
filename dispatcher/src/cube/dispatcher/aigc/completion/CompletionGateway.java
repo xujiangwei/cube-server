@@ -28,10 +28,22 @@ public final class CompletionGateway implements CompletionBackend {
     private volatile Performer performer;
     private final Map<String, Pending> requests = new ConcurrentHashMap<>();
 
+    /**
+     * 绑定执行机并进入可服务状态。
+     *
+     * <p>重复调用会替换绑定的执行机。</p>
+     *
+     * @param performer 执行机。
+     */
     public synchronized void start(Performer performer) {
         this.performer = performer;
     }
 
+    /**
+     * 停止网关。
+     *
+     * <p>解绑执行机并清理全部订阅，之后到来的事件会被丢弃。</p>
+     */
     public synchronized void stop() {
         this.performer = null;
         for (Pending pending : requests.values())
@@ -45,6 +57,15 @@ public final class CompletionGateway implements CompletionBackend {
         return current;
     }
 
+    /**
+     * 查询可用模型列表。
+     *
+     * <p>每次请求都重新向服务端拉取，不做缓存，保证模型上下线即时可见。</p>
+     *
+     * @param token     访问令牌。
+     * @param timeoutMs 超时时间，单位毫秒。
+     * @return 模型数组；网关未启动或失败时返回空数组。
+     */
     @Override
     public JSONArray models(String token, long timeoutMs) {
         Performer current = active();
@@ -75,6 +96,19 @@ public final class CompletionGateway implements CompletionBackend {
         return new JSONArray(models.values());
     }
 
+    /**
+     * 发起一次流式生成。
+     *
+     * <p>返回的订阅是调用方唯一可用的取消手段，必须显式取消或等待完成，
+     * 否则订阅会一直占用直到超时。</p>
+     *
+     * @param token     访问令牌。
+     * @param id        请求标识，用于关联后续事件。
+     * @param request   请求载荷。
+     * @param timeoutMs 超时时间，单位毫秒。
+     * @param listener  事件回调。
+     * @return 订阅句柄；网关未启动或参数非法时返回 {@code null} 。
+     */
     @Override
     public synchronized Subscription generate(String token, String id, JSONObject request,
                                               long timeoutMs, Listener listener) {
@@ -104,12 +138,26 @@ public final class CompletionGateway implements CompletionBackend {
         return pending;
     }
 
+    /**
+     * 接收服务端推送的完成事件。
+     *
+     * <p>按事件中的标识分发到对应订阅；找不到订阅的事件直接丢弃。</p>
+     *
+     * @param dialect 事件方言。
+     */
     public void onEvent(ActionDialect dialect) {
         JSONObject event = new Packet(dialect).data;
         Pending pending = requests.get(event.optString("requestId"));
         if (pending != null) pending.accept(event);
     }
 
+    /**
+     * 统计进行中的请求数。
+     *
+     * <p>用于监控与容量判断。</p>
+     *
+     * @return 当前未完成的订阅数量。
+     */
     public int activeRequests() {
         return requests.size();
     }

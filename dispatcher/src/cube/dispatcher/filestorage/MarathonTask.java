@@ -62,6 +62,11 @@ public class MarathonTask extends DispatcherTask {
         this.cellet.speak(this.talkContext, response);
     }
 
+    /**
+     * 执行长任务。
+     *
+     * <p>解析令牌后把请求转交后端，结束后释放并发名额——名额未释放会导致后续任务永久被拒。</p>
+     */
     @Override
     public void run() {
         String tokenCode = this.getTokenCode(this.getAction());

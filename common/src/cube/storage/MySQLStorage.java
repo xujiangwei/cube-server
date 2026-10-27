@@ -32,17 +32,29 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class MySQLStorage extends AbstractStorage {
 
+    /** 配置项：数据库主机地址。 */
     public final static String CONFIG_HOST = "host";
+    /** 配置项：数据库端口，默认 3306 。 */
     public final static String CONFIG_PORT = "port";
+    /** 配置项：库名，默认 {@code cube} 。 */
     public final static String CONFIG_SCHEMA = "schema";
+    /** 配置项：登录用户名。 */
     public final static String CONFIG_USER = "user";
+    /** 配置项：登录密码。 */
     public final static String CONFIG_PASSWORD = "password";
 
     /**
-     * Optional JDBC defaults for a dedicated transaction pool; mutate session state through JDBC.
+     * 配置项：事务隔离级别。
+     *
+     * <p>取值遵循 JDBC 常量约定，仅对显式借用连接的事务生效，会话内状态通过 JDBC 修改。</p>
      */
     public final static String CONFIG_TRANSACTION_ISOLATION = "transactionIsolation";
 
+    /**
+     * 配置项：是否自动提交，默认 {@code true} 。
+     *
+     * <p>{@link #borrowConnection()} 归还连接时会按该配置恢复会话状态。</p>
+     */
     public final static String CONFIG_AUTO_COMMIT = "autoCommit";
 
     private volatile ConnectionPool pool;
@@ -77,10 +89,23 @@ public class MySQLStorage extends AbstractStorage {
      */
     private final static long REAPER_INTERVAL_SECONDS = 60;
 
+    /**
+     * 构造 MySQL 存储器。
+     *
+     * <p>构造过程只保存名称与类型，不建立任何网络连接；连接池在 {@link #open()} 中创建。</p>
+     *
+     * @param name 存储器名称，用于日志与配置段定位。
+     */
     public MySQLStorage(String name) {
         super(name, StorageType.MySQL);
     }
 
+    /**
+     * 打开存储器：加载 JDBC 驱动并建立连接池。
+     *
+     * <p>重复调用是幂等的，池已存在时直接返回。驱动缺失时不创建连接池，只记录错误日志，
+     * 后续操作按“池未就绪”降级处理，避免把故障推迟到首次执行 SQL 才暴露。</p>
+     */
     @Override
     public synchronized void open() {
         if (null != this.pool) {
@@ -112,6 +137,11 @@ public class MySQLStorage extends AbstractStorage {
         Logger.i(this.getClass(), "#open - Storage is ready: " + describeTarget());
     }
 
+    /**
+     * 关闭存储器：停止空闲连接回收任务并关闭连接池。
+     *
+     * <p>允许重复调用，未打开时直接返回。关闭后所有读写操作都会失败。</p>
+     */
     @Override
     public synchronized void close() {
         if (null != this.reaper) {
@@ -127,6 +157,11 @@ public class MySQLStorage extends AbstractStorage {
         this.pool = null;
     }
 
+    /**
+     * 判断存储器是否已打开。
+     *
+     * @return 连接池已建立时返回 {@code true} 。
+     */
     @Override
     public boolean isOpen() {
         return null != this.pool;
@@ -350,6 +385,15 @@ public class MySQLStorage extends AbstractStorage {
         }
     }
 
+    /**
+     * 判断数据表是否存在。
+     *
+     * <p>通过 {@code SELECT * FROM <table> LIMIT 1} 探测，语句可执行即视为表存在。
+     * 池未就绪、取不到连接或执行失败都返回 {@code false} ，不抛异常。</p>
+     *
+     * @param table 表名，拼装前会经 {@code SQLUtils.correctTableName} 校正。
+     * @return 表存在返回 {@code true} 。
+     */
     @Override
     public boolean exist(String table) {
         if (null == this.pool) {
@@ -412,6 +456,16 @@ public class MySQLStorage extends AbstractStorage {
         }
     }
 
+    /**
+     * 创建数据表。
+     *
+     * <p>字段先按 MySQL 方言修正（见 {@link #fixAutoIncrement} ），再拼装 {@code CREATE TABLE} 语句。
+     * 修正作用于副本，调用方持有的字段数组不会被改写。字段为空或 SQL 执行失败返回 {@code false} 。</p>
+     *
+     * @param table  表名。
+     * @param fields 字段定义。
+     * @return 建表成功返回 {@code true} 。
+     */
     @Override
     public boolean executeCreate(String table, StorageField[] fields) {
         if (null == this.pool) {
@@ -493,6 +547,15 @@ public class MySQLStorage extends AbstractStorage {
                 field.getValue(), constraints);
     }
 
+    /**
+     * 插入单条记录。
+     *
+     * <p>所有字段值均为空时无法拼出合法语句，直接返回 {@code false} 。</p>
+     *
+     * @param table  表名。
+     * @param fields 待插入的字段与值。
+     * @return 插入成功返回 {@code true} 。
+     */
     @Override
     public boolean executeInsert(String table, StorageField[] fields) {
         if (null == this.pool) {
@@ -536,6 +599,16 @@ public class MySQLStorage extends AbstractStorage {
         return true;
     }
 
+    /**
+     * 批量插入记录。
+     *
+     * <p>逐条执行、单条失败不中断后续，只要有一条失败即返回 {@code false} 。
+     * 整批共用一个连接，结束后统一归还。</p>
+     *
+     * @param table      表名。
+     * @param fieldsList 每条记录的字段与值。
+     * @return 全部成功返回 {@code true} 。
+     */
     @Override
     public boolean executeInsert(String table, List<StorageField[]> fieldsList) {
         if (null == this.pool) {
@@ -584,6 +657,17 @@ public class MySQLStorage extends AbstractStorage {
         return success;
     }
 
+    /**
+     * 按条件更新记录。
+     *
+     * <p>没有有效赋值字段时无法拼出语句，直接返回 {@code false} ；
+     * 语句执行成功但影响行数为 0 时同样返回 {@code false} 。</p>
+     *
+     * @param table        表名。
+     * @param fields       待更新的字段与值。
+     * @param conditionals 更新条件。
+     * @return 至少更新一行返回 {@code true} 。
+     */
     @Override
     public boolean executeUpdate(String table, StorageField[] fields, Conditional[] conditionals) {
         if (null == this.pool) {
@@ -633,6 +717,15 @@ public class MySQLStorage extends AbstractStorage {
         return updated;
     }
 
+    /**
+     * 按条件删除记录。
+     *
+     * <p>语句执行成功即返回 {@code true} ，不区分实际删除行数；条件为空数组时删除全表。</p>
+     *
+     * @param table        表名。
+     * @param conditionals 删除条件。
+     * @return 语句执行成功返回 {@code true} 。
+     */
     @Override
     public boolean executeDelete(String table, Conditional[] conditionals) {
         if (null == this.pool) {
@@ -671,11 +764,29 @@ public class MySQLStorage extends AbstractStorage {
         return true;
     }
 
+    /**
+     * 查询全表数据。
+     *
+     * @param table  表名。
+     * @param fields 需要读取的字段，为 {@code null} 时读取全部列。
+     * @return 结果行集合，查询失败返回 {@code null} 。
+     */
     @Override
     public List<StorageField[]> executeQuery(String table, StorageField[] fields) {
         return this.executeQuery(table, fields, null);
     }
 
+    /**
+     * 按条件查询数据。
+     *
+     * <p>按 {@code fields} 声明的字面量类型逐列读取。池未就绪、取连接失败或 SQL 异常时，
+     * 累计失败计数并记录日志，然后返回 {@code null} ，由调用方判空。</p>
+     *
+     * @param table        表名。
+     * @param fields       需要读取的字段，为 {@code null} 时读取全部列。
+     * @param conditionals 查询条件，允许为 {@code null} 。
+     * @return 结果行集合，查询失败返回 {@code null} 。
+     */
     @Override
     public List<StorageField[]> executeQuery(String table, StorageField[] fields, Conditional[] conditionals) {
         long beginTime = System.currentTimeMillis();
@@ -748,6 +859,17 @@ public class MySQLStorage extends AbstractStorage {
         return result;
     }
 
+    /**
+     * 跨表查询数据。
+     *
+     * <p>与单表重载的差异在于失败语义：本重载返回空集合而非 {@code null} ，
+     * 因为现有调用点尚未逐点判空，契约统一后再切换。</p>
+     *
+     * @param tables       参与查询的表名。
+     * @param fields       需要读取的字段。
+     * @param conditionals 查询条件，允许为 {@code null} 。
+     * @return 结果行集合，查询失败时为空集合。
+     */
     @Override
     public List<StorageField[]> executeQuery(String[] tables, StorageField[] fields, Conditional[] conditionals) {
         ArrayList<StorageField[]> result = new ArrayList<>();
@@ -820,6 +942,15 @@ public class MySQLStorage extends AbstractStorage {
         return result;
     }
 
+    /**
+     * 执行原生查询语句。
+     *
+     * <p>绕过字段描述直接执行 SQL ，返回的每行由 {@code StorageFields.scanResultSet} 扫描得到。
+     * 查询失败会累计失败计数并返回 {@code null} 。</p>
+     *
+     * @param sql 完整查询语句。
+     * @return 结果行集合，查询失败返回 {@code null} 。
+     */
     @Override
     public List<StorageField[]> executeQuery(String sql) {
         ArrayList<StorageField[]> result = new ArrayList<>();
@@ -938,6 +1069,14 @@ public class MySQLStorage extends AbstractStorage {
         }
     }
 
+    /**
+     * 执行原生 SQL 语句。
+     *
+     * <p>用于无法用字段描述表达的语句，例如 DDL 或带子查询的更新。</p>
+     *
+     * @param sql 完整 SQL 语句。
+     * @return 执行成功返回 {@code true} 。
+     */
     @Override
     public boolean execute(String sql) {
         if (null == this.pool) {

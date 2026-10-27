@@ -17,12 +17,18 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class StorageFactory {
 
+    /** SQLite 配置项：数据库文件路径。 */
     public final static String SQLITE_FILE = SQLiteStorage.CONFIG_FILE;
 
+    /** MySQL 配置项：主机地址。 */
     public final static String MYSQL_HOST = MySQLStorage.CONFIG_HOST;
+    /** MySQL 配置项：端口。 */
     public final static String MYSQL_PORT = MySQLStorage.CONFIG_PORT;
+    /** MySQL 配置项：库名。 */
     public final static String MYSQL_SCHEMA = MySQLStorage.CONFIG_SCHEMA;
+    /** MySQL 配置项：用户名。 */
     public final static String MYSQL_USER = MySQLStorage.CONFIG_USER;
+    /** MySQL 配置项：密码。 */
     public final static String MYSQL_PASSWORD = MySQLStorage.CONFIG_PASSWORD;
 
     private final static StorageFactory instance = new StorageFactory();
@@ -33,6 +39,11 @@ public final class StorageFactory {
         this.storageMap = new ConcurrentHashMap<>();
     }
 
+    /**
+     * 获取工厂单例。
+     *
+     * @return 全局唯一的存储工厂。
+     */
     public static StorageFactory getInstance() {
         return StorageFactory.instance;
     }

@@ -58,14 +58,19 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class FileHandler extends CrossDomainHandler {
 
+    /** 端点路径。 */
     public final static String PATH = "/filestorage/file/";
 
+    /** 上传并发上限，超限直接返回 406 而不排队。 */
     protected final int maxUploadConcurrency;
 
+    /** 下载并发上限，超限直接返回 406 而不排队。 */
     protected final int maxDownloadConcurrency;
 
+    /** 当前上传并发数。处理结束必须归还名额，否则并发上限会被逐步耗尽。 */
     protected final AtomicInteger uploadConcurrency = new AtomicInteger(0);
 
+    /** 当前下载并发数。处理结束必须归还名额。 */
     protected final AtomicInteger downloadConcurrency = new AtomicInteger(0);
 
     private FileChunkStorage fileChunkStorage;
@@ -87,10 +92,12 @@ public class FileHandler extends CrossDomainHandler {
     private long uploadWaitTimeout = 30 * 1000L;
 
     /**
-     * 构造函数。
+     * 构造文件端点处理器。
      *
-     * @param fileChunkStorage
-     * @param performer
+     * <p>构造时读取上传与下载的并发上限及等待超时配置。</p>
+     *
+     * @param fileChunkStorage 文件块存储，用于分块写入与读取。
+     * @param performer        执行机，用于访问其他单元与配置。
      */
     public FileHandler(FileChunkStorage fileChunkStorage, Performer performer) {
         super();
@@ -120,10 +127,13 @@ public class FileHandler extends CrossDomainHandler {
     /**
      * 上传文件处理。
      *
-     * @param request
-     * @param response
-     * @throws IOException
-     * @throws ServletException
+     * <p>受并发上限约束：当前上传数达到上限时直接返回 406，不排队等待；
+     * 通过后占用一个上传名额，处理结束必须归还。</p>
+     *
+     * @param request  上传请求，携带文件元信息与分块数据。
+     * @param response 响应对象。
+     * @throws IOException      读取请求体或写响应失败。
+     * @throws ServletException 容器处理异常。
      */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response)
@@ -668,10 +678,13 @@ public class FileHandler extends CrossDomainHandler {
     /**
      * 下载文件处理。
      *
-     * @param request
-     * @param response
-     * @throws IOException
-     * @throws ServletException
+     * <p>受下载并发上限约束：达到上限时直接返回 406。
+     * 支持通过 {@code x-baize-api-version} 头切换响应外壳。</p>
+     *
+     * @param request  下载请求，携带文件码与分享码。
+     * @param response 响应对象。
+     * @throws IOException      读取文件或写响应失败。
+     * @throws ServletException 容器处理异常。
      */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response)

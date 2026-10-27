@@ -16,6 +16,7 @@ import org.eclipse.jetty.server.handler.ContextHandler;
  */
 public class RiskManagementCellet extends AbstractCellet {
 
+    /** 单元名称，同时作为端点注册名。 */
     public final static String NAME = "RiskMgmt";
 
     /**
@@ -27,6 +28,13 @@ public class RiskManagementCellet extends AbstractCellet {
         super(NAME);
     }
 
+    /**
+     * 装载单元：注册联系人风险端点。
+     *
+     * <p>只暴露一个 HTTP 端点，路径取自 {@code ContactRiskHandler.PATH} 。</p>
+     *
+     * @return 恒定返回 {@code true} 。
+     */
     @Override
     public boolean install() {
         this.performer = (Performer) nucleus.getParameter("performer");
@@ -42,6 +50,11 @@ public class RiskManagementCellet extends AbstractCellet {
         return true;
     }
 
+    /**
+     * 卸载单元。
+     *
+     * <p>无需释放资源：端点随 HTTP 服务器生命周期结束而失效。</p>
+     */
     @Override
     public void uninstall() {
     }

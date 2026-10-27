@@ -17,24 +17,55 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 语音分离结果。
+ *
+ * <p>承载一次语音转写与说话人分离的完整结果：原始文件、分段轨迹、
+ * 时长与发言统计，以及基于转写文本的分析与建议。</p>
+ */
 public class VoiceDiarization extends Entity {
 
+    /**
+     * 说话人默认名称池。
+     *
+     * <p>按分离出的说话人顺序依次取名，长度即为支持的最大说话人数。</p>
+     */
     public final static String[] SPEAKER_NAMES = new String[] {
             "张三", "李四", "王五", "赵六", "孙七", "周八", "吴九", "郑十", "徐大", "田二"
     };
 
+    /**
+     * 说话人默认显示名池。
+     *
+     * <p>与 {@link #SPEAKER_NAMES} 一一对应，用于界面展示。</p>
+     */
     public final static String[] SPEAKER_DISPLAY_NAMES = new String[] {
             "说话人1", "说话人2", "说话人3", "说话人4", "说话人5", "说话人6", "说话人7", "说话人8", "说话人9", "说话人10"
     };
 
+    /**
+     * 所属联系人 ID 。
+     */
     public long contactId;
 
+    /**
+     * 标题。
+     */
     public String title;
 
+    /**
+     * 备注。
+     */
     public String remark;
 
+    /**
+     * 源文件码。
+     */
     public String fileCode;
 
+    /**
+     * 源文件标签。
+     */
     public FileLabel file;
 
     /**
@@ -42,14 +73,31 @@ public class VoiceDiarization extends Entity {
      */
     public double duration;
 
+    /**
+     * 处理耗时，单位毫秒。
+     */
     public long elapsed;
 
+    /**
+     * 说话人轨迹列表。
+     *
+     * <p>每条轨迹对应一段连续发言，按时间顺序排列。</p>
+     */
     public List<VoiceTrack> tracks;
 
+    /**
+     * 语音指标，包含语速、情绪等统计。
+     */
     public VoiceIndicator indicator;
 
+    /**
+     * 基于转写文本的分析结论。
+     */
     public String analysis;
 
+    /**
+     * 基于分析结论给出的建议。
+     */
     public String suggestion;
 
     public VoiceDiarization(JSONObject json) {
@@ -109,6 +157,14 @@ public class VoiceDiarization extends Entity {
         this.tracks = new ArrayList<>();
     }
 
+    /**
+     * 重命名说话人标签。
+     *
+     * <p>把所有匹配 {@code oldLabel} 的轨迹改为 {@code newLabel} ，用于人工校正分离结果。</p>
+     *
+     * @param oldLabel 原标签。
+     * @param newLabel 新标签。
+     */
     public void setTrackLabel(String oldLabel, String newLabel) {
         for (VoiceTrack track : this.tracks) {
             if (track.label.equals(oldLabel)) {
@@ -117,6 +173,11 @@ public class VoiceDiarization extends Entity {
         }
     }
 
+    /**
+     * 提取全部说话人标签。
+     *
+     * @return 按轨迹顺序去重前的标签列表，可能包含重复项。
+     */
     public List<String> extractTrackLabels() {
         List<String> result = new ArrayList<>();
         for (VoiceTrack track : this.tracks) {
@@ -128,6 +189,14 @@ public class VoiceDiarization extends Entity {
         return result;
     }
 
+    /**
+     * 按说话人重新分配标签。
+     *
+     * <p>先按原标签聚类，再依次套用 {@link #SPEAKER_NAMES} ，同时为每条轨迹回填序号。
+     * 说话人数量超过名称池长度时会抛出下标越界异常。</p>
+     *
+     * @return 实际识别出的说话人数量。
+     */
     public int alignSpeakerLabels() {
         HashMap<String, List<VoiceTrack>> map = new HashMap<>();
         for (int i = 0; i < this.tracks.size(); ++i) {
@@ -179,6 +248,14 @@ public class VoiceDiarization extends Entity {
         }
     }
 
+    /**
+     * 拼接可读的对话文本。
+     *
+     * <p>{@code merge} 为 {@code true} 时合并同一说话人的连续发言，只保留一次说话人前缀。</p>
+     *
+     * @param merge 是否合并同一说话人的连续片段。
+     * @return 形如 {@code 说话人：内容} 的多行文本。
+     */
     public String buildSpeechText(boolean merge) {
         StringBuilder buf = new StringBuilder();
         if (merge) {
@@ -205,6 +282,11 @@ public class VoiceDiarization extends Entity {
         return buf.toString();
     }
 
+    /**
+     * 序列化为完整 JSON 。
+     *
+     * @return 语音分离结果 JSON 对象。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -250,6 +332,13 @@ public class VoiceDiarization extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>当前实现与 {@link #toJSON()} 输出一致。</p>
+     *
+     * @return 语音分离结果 JSON 对象。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

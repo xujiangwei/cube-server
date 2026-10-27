@@ -34,10 +34,20 @@ public class Manager {
         this.callbackList = new ArrayList<>();
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static Manager getInstance() {
         return Manager.instance;
     }
 
+    /**
+     * 启动管理器。
+     *
+     * <p>创建 HTTP 客户端用于回调通知。重复调用会重建客户端。</p>
+     */
     public void start() {
         this.client = new HttpClient();
 
@@ -48,6 +58,11 @@ public class Manager {
         }
     }
 
+    /**
+     * 停止管理器。
+     *
+     * <p>停止并释放 HTTP 客户端，允许重复调用。</p>
+     */
     public void stop() {
         if (null != this.client) {
             try {
@@ -58,6 +73,13 @@ public class Manager {
         }
     }
 
+    /**
+     * 注册回调地址。
+     *
+     * <p>同一地址只保留一次，重复注册不会产生重复通知。</p>
+     *
+     * @param url 回调地址。
+     */
     public void registerCallback(String url) {
         synchronized (this.callbackList) {
             if (this.callbackList.contains(url)) {
@@ -68,12 +90,25 @@ public class Manager {
         }
     }
 
+    /**
+     * 撤销回调地址。
+     *
+     * @param url 回调地址。
+     */
     public void deregisterCallback(String url) {
         synchronized (this.callbackList) {
             this.callbackList.remove(url);
         }
     }
 
+    /**
+     * 向所有已注册地址推送回调。
+     *
+     * <p>逐个地址发送，单个地址失败不影响其余地址。</p>
+     *
+     * @param name 回调名称。
+     * @param data 回调载荷。
+     */
     public void callback(String name, JSONObject data) {
         synchronized (this.callbackList) {
             for (String url : this.callbackList) {

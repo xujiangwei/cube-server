@@ -21,7 +21,11 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
-/** Real Performer dispatch and response correlation, with deterministic service connections. */
+/**
+ * 能力路由测试。
+ *
+ * <p>用确定性的服务连接验证执行机的真实调度与响应关联，不依赖外部服务。</p>
+ */
 public final class CapabilityRoutingTest {
     static int assertions;
     static void check(boolean ok, String message) { if (!ok) throw new AssertionError(message); assertions++; }

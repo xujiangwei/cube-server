@@ -14,12 +14,24 @@ import org.json.JSONObject;
  */
 public class KnowledgeArticle extends Entity {
 
+    /**
+     * 文章所属联系人 ID 。
+     */
     public long contactId;
 
+    /**
+     * 文章分类。
+     */
     public String category;
 
+    /**
+     * 文章标题。
+     */
     public String title;
 
+    /**
+     * 文章正文。
+     */
     public String content;
 
     /**
@@ -27,26 +39,63 @@ public class KnowledgeArticle extends Entity {
      */
     public int numWords;
 
+    /**
+     * 文章摘要。
+     *
+     * <p>由模型生成，用于知识库召回时快速判断相关性。</p>
+     */
     public String summarization;
 
+    /**
+     * 作者。
+     */
     public String author;
 
+    /**
+     * 发布年份。
+     */
     public int year;
 
+    /**
+     * 发布月份，取值 1 到 12 。
+     */
     public int month;
 
+    /**
+     * 发布日。
+     */
     public int date;
 
+    /**
+     * 文章所属知识库名称。
+     */
     public String baseName;
 
+    /**
+     * 可见范围，默认私有。
+     */
     public KnowledgeScope scope = KnowledgeScope.Private;
 
+    /**
+     * 抽取到的关键词数量。
+     */
     public int numKeywords;
 
+    /**
+     * 是否已激活。
+     *
+     * <p>未激活的文章不参与知识库检索。</p>
+     */
     public boolean activated;
 
+    /**
+     * 切分出的文本段数量。
+     */
     public int numSegments;
 
+    /**
+     * 文本切分策略，默认自动选择。
+     */
     public TextSplitter splitter = TextSplitter.Auto;
 
     public KnowledgeArticle(String domain, long contactId, String baseName,
@@ -114,6 +163,12 @@ public class KnowledgeArticle extends Entity {
         }
     }
 
+    /**
+     * 按 ID 与所属知识库判断相等。
+     *
+     * @param obj 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof KnowledgeArticle) {
@@ -124,11 +179,21 @@ public class KnowledgeArticle extends Entity {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 基于 ID 的哈希值。
+     */
     @Override
     public int hashCode() {
         return this.id.hashCode();
     }
 
+    /**
+     * 序列化为完整 JSON 。
+     *
+     * @return 文章 JSON 对象。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -160,6 +225,13 @@ public class KnowledgeArticle extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>不包含正文，用于列表类接口。</p>
+     *
+     * @return 文章 JSON 对象。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();

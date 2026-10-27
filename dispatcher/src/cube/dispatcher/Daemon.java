@@ -74,6 +74,12 @@ public class Daemon extends TimerTask implements LogHandle {
         this.logRecords = new ArrayList<>();
     }
 
+    /**
+     * 执行一次守护检查。
+     *
+     * <p>按各自的时间间隔分别处理：清理超时的联系人连接与传输、上报运行状态、
+     * 提交累积的日志、统计链路延迟。各类任务相互独立，某一项超时不会跳过后面的检查。</p>
+     */
     @Override
     public void run() {
         long now = System.currentTimeMillis();

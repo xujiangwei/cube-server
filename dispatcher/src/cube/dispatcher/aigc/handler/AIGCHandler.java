@@ -20,6 +20,12 @@ import java.nio.charset.StandardCharsets;
  */
 public abstract class AIGCHandler extends CrossDomainHandler {
 
+    /**
+     * 统一入口，兜底处理能力不可用。
+     *
+     * <p>把 {@code CapabilityUnavailableException} 转换为 503 响应，
+     * 避免异常向上冒泡导致连接被直接断开、客户端拿不到结构化错误。</p>
+     */
     @Override
     public void handle(String target, org.eclipse.jetty.server.Request baseRequest,
                        HttpServletRequest request, HttpServletResponse response)
@@ -31,6 +37,14 @@ public abstract class AIGCHandler extends CrossDomainHandler {
         }
     }
 
+    /**
+     * 输出能力不可用响应。
+     *
+     * <p>固定返回 503 与 {@code CAPABILITY_UNAVAILABLE} ，并带出底层异常信息便于定位。</p>
+     *
+     * @param response 响应对象。
+     * @param e        触发不可用的异常。
+     */
     protected void respondCapabilityUnavailable(HttpServletResponse response, RuntimeException e) {
         this.respond(response, 503, new org.json.JSONObject().put("error", new org.json.JSONObject()
                 .put("state", 503).put("code", cube.common.state.AIGCStateCode.UnitNoReady.code)
@@ -42,6 +56,15 @@ public abstract class AIGCHandler extends CrossDomainHandler {
         super();
     }
 
+    /**
+     * 解析访问令牌。
+     *
+     * <p>按优先级依次尝试：路径最后一段（长度不少于 32）、请求头、查询参数。
+     * 路径优先是为了兼容把令牌直接拼在 URL 里的旧客户端。</p>
+     *
+     * @param request HTTP 请求。
+     * @return 令牌；都取不到时返回 {@code null} 。
+     */
     protected String getApiToken(HttpServletRequest request) {
         String token = this.getLastRequestPath(request);
         if (null == token || token.length() < 32) {
@@ -60,6 +83,14 @@ public abstract class AIGCHandler extends CrossDomainHandler {
         return token;
     }
 
+    /**
+     * 解析设备信息。
+     *
+     * <p>从请求头读取设备名与平台，缺失时统一填 {@code Unknown} ，保证下游不为空。</p>
+     *
+     * @param request HTTP 请求。
+     * @return 设备信息。
+     */
     protected Device getDevice(HttpServletRequest request) {
         String deviceName = request.getHeader(HttpHandler.HEADER_X_BAIZE_API_DEVICE);
         String devicePlatform = request.getHeader(HttpHandler.HEADER_X_BAIZE_API_PLATFORM);
@@ -77,6 +108,12 @@ public abstract class AIGCHandler extends CrossDomainHandler {
         return device;
     }
 
+    /**
+     * 获取请求路径。
+     *
+     * @param request HTTP 请求。
+     * @return 去掉上下文前缀后的路径。
+     */
     protected String getRequestPath(HttpServletRequest request) {
         String path = request.getPathInfo();
         if (path.length() < 2) {
@@ -91,6 +128,14 @@ public abstract class AIGCHandler extends CrossDomainHandler {
         return path;
     }
 
+    /**
+     * 获取路径的最后一段。
+     *
+     * <p>常用于从形如 {@code /aigc/chat/<token>} 的地址中取出令牌。</p>
+     *
+     * @param request HTTP 请求。
+     * @return 最后一段路径；无路径信息时返回 {@code null} 。
+     */
     protected String getLastRequestPath(HttpServletRequest request) {
         String path = request.getPathInfo();
         if (path.length() < 2) {
@@ -103,6 +148,14 @@ public abstract class AIGCHandler extends CrossDomainHandler {
         return path;
     }
 
+    /**
+     * 输出自动刷新页。
+     *
+     * <p>用于浏览器直接访问接口地址的场景：返回一个提示页而不是裸 JSON，
+     * 避免用户看到无意义的报错。</p>
+     *
+     * @param response 响应对象。
+     */
     protected void responseRefreshPage(HttpServletResponse response) {
         String html = "<!DOCTYPE html>\n" +
                 "<html>" +

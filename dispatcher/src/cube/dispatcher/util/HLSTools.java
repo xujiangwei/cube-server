@@ -77,9 +77,12 @@ public final class HLSTools {
     }
 
     /**
-     * 校验工具是否可用。
+     * 校验 HLS 工具是否可用。
      *
-     * @return
+     * <p>先解析 ffmpeg 路径，再执行 {@code ffmpeg -version} 确认可运行；
+     * 任一环节失败都返回 {@code false} 并记录告警。</p>
+     *
+     * @return 可用返回 {@code true} 。
      */
     public static boolean checkEnabled() {
         String ffmpegPath = loadFFmpegPath();

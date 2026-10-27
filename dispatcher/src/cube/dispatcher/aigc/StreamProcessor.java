@@ -30,6 +30,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * 实时流处理器。
+ *
+ * <p>接收上游推送的流分片，按流类型分发到语音分离等处理链路，
+ * 并把分片结果转发给文件服务落盘。超时未活动的流会被定时清理。</p>
+ */
 public class StreamProcessor {
 
     private final Performer performer;
@@ -66,6 +72,11 @@ public class StreamProcessor {
         this.streamFileCodeMap = new ConcurrentHashMap<>();
     }
 
+    /**
+     * 停止处理器。
+     *
+     * <p>取消定时清理任务并释放缓存，允许重复调用。</p>
+     */
     public void stop() {
         this.timer.cancel();
 
@@ -79,11 +90,28 @@ public class StreamProcessor {
         }
     }
 
+    /**
+     * 登记一条流。
+     *
+     * <p>登记后才能接收该流的分片，令牌用于向文件服务写入结果时鉴权。</p>
+     *
+     * @param streamName 流名称。
+     * @param authToken  访问令牌。
+     */
     public void register(String streamName, AuthToken authToken) {
         Register register = new Register(streamName, authToken);
         this.registerMap.put(streamName, register);
     }
 
+    /**
+     * 接收一个流分片。
+     *
+     * <p>按分片类型分发：语音分离类进入累积缓冲，其余类型直接丢弃。
+     * 未登记的流不会报错，只做忽略处理。</p>
+     *
+     * @param track  分片所属轨道。
+     * @param stream 分片数据。
+     */
     public void receive(Track track, Stream stream) {
         if (stream.getType() == StreamType.SpeakerDiarization) {
             synchronized (this.speakerDiarizationCache) {
@@ -119,6 +147,13 @@ public class StreamProcessor {
         }
     }
 
+    /**
+     * 清理指定流的缓存。
+     *
+     * <p>流结束或超时后调用，释放累积的音频数据与临时状态。</p>
+     *
+     * @param register 流登记信息。
+     */
     protected void clear(Register register) {
         this.speakerDiarizationCache.remove(register.streamName);
 

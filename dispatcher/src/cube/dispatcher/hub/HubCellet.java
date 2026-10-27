@@ -54,6 +54,14 @@ public class HubCellet extends AbstractCellet {
         this.taskQueue = new ConcurrentLinkedQueue<>();
     }
 
+    /**
+     * 装载单元：创建控制器、注册端点处理器并启动守护定时器。
+     *
+     * <p>定时器首次延迟 5 秒，之后每 10 分钟执行一次 {@code onTick} ，用于周期性维护。
+     * 该定时器随单元卸载而取消，不会阻止进程退出。</p>
+     *
+     * @return 恒定返回 {@code true} 。
+     */
     @Override
     public boolean install() {
         this.performer = (Performer) this.getNucleus().getParameter("performer");
@@ -73,6 +81,11 @@ public class HubCellet extends AbstractCellet {
         return true;
     }
 
+    /**
+     * 卸载单元：取消守护定时器。
+     *
+     * <p>允许重复调用，定时器已取消时直接返回。</p>
+     */
     @Override
     public void uninstall() {
         if (null != this.daemonTimer) {
@@ -81,6 +94,11 @@ public class HubCellet extends AbstractCellet {
         }
     }
 
+    /**
+     * 收到网络消息时触发。
+     *
+     * <p>Hub 的动作依赖控制器状态，统一借出同步任务按序处理。</p>
+     */
     @Override
     public void onListened(TalkContext talkContext, Primitive primitive) {
         super.onListened(talkContext, primitive);
@@ -88,11 +106,26 @@ public class HubCellet extends AbstractCellet {
         this.performer.execute(this.borrowTask(talkContext, primitive, true));
     }
 
+    /**
+     * 收到流式消息时触发。
+     *
+     * <p>当前不处理流式消息，仅调用父类实现保持监听链路完整。</p>
+     */
     @Override
     public void onListened(TalkContext talkContext, PrimitiveInputStream primitiveStream) {
         super.onListened(talkContext, primitiveStream);
     }
 
+    /**
+     * 借出一个任务对象。
+     *
+     * <p>优先复用队列中的空闲任务，队列为空时新建；两种情况都会记录响应时间起点。</p>
+     *
+     * @param talkContext 会话上下文。
+     * @param primitive   原始消息。
+     * @param sync        是否同步等待后端响应。
+     * @return 可直接提交给执行机的任务。
+     */
     protected PassThroughTask borrowTask(TalkContext talkContext, Primitive primitive, boolean sync) {
         PassThroughTask task = this.taskQueue.poll();
         if (null == task) {
@@ -106,6 +139,13 @@ public class HubCellet extends AbstractCellet {
         return task;
     }
 
+    /**
+     * 归还任务对象。
+     *
+     * <p>归还前记录响应耗时，随后放回队列等待复用。</p>
+     *
+     * @param task 已执行完毕的任务。
+     */
     protected void returnTask(PassThroughTask task) {
         task.markResponseTime();
 

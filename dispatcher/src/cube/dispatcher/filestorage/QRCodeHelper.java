@@ -30,10 +30,14 @@ public class QRCodeHelper {
     /**
      * 获取二维码图片的 Base64 数据。
      *
-     * @param workPath
-     * @param sharingCode
-     * @param url
-     * @return
+     * <p>结果按分享码与协议前缀缓存为 {@code .base64} 文件，重复调用直接复用；
+     * 首次生成时会临时写出 PNG 文件，编码完成后立即删除。
+     * HTTPS 与 HTTP 使用不同的缓存文件（后缀 {@code _s} 与 {@code _n} ），避免两种链接互相覆盖。</p>
+     *
+     * @param workPath    工作目录，二维码资源写在此目录下。
+     * @param sharingCode 分享码，同时作为缓存文件名。
+     * @param url         二维码承载的地址。
+     * @return Base64 编码的 PNG 数据；生成或读取失败时返回 {@code null} 。
      */
     public static String getQRCodeImageBase64(Path workPath, String sharingCode, String url) {
         boolean secure = url.indexOf("https://") == 0;

@@ -370,11 +370,22 @@ public class Performer implements TalkListener, Tickable {
         return ready.get((int) Math.floorMod(cursor, (long) ready.size()));
     }
 
+    /**
+     * 获取承载指定单元的全部端点。
+     *
+     * @param celletName 单元名称。
+     * @return 端点列表；该单元未注册时为空列表。
+     */
     public List<Director> getDirectorsForCellet(String celletName) {
         List<Director> list = this.celletDirectorMap.get(celletName);
         return list == null ? Collections.emptyList() : new ArrayList<>(list);
     }
 
+    /**
+     * 获取能力路由器。
+     *
+     * @return 能力路由器实例。
+     */
     public CapabilityRouter getCapabilityRouter() {
         return this.capabilityRouter;
     }
@@ -383,6 +394,17 @@ public class Performer implements TalkListener, Tickable {
         return director != null && director.supports(celletName) && director.speaker != null && director.speaker.isReady();
     }
 
+    /**
+     * 按请求内容选择调度端点。
+     *
+     * <p>与 {@code selectDirector} 的区别：AIGC 单元优先做能力路由，按请求所需能力挑选端点；
+     * 能力路由失败或非 AIGC 单元时，回退到按会话选择。</p>
+     *
+     * @param token      访问令牌。
+     * @param celletName 目标单元名称。
+     * @param action     请求动作，能力路由据此判断所需能力。
+     * @return 可用的调度端点；无可用端点时返回 {@code null} 。
+     */
     public Director selectDirectorForRequest(String token, String celletName, ActionDialect action) {
         if (AIGCCellet.NAME.equals(celletName)) {
             Director director = this.capabilityRouter.select(action);
@@ -462,7 +484,14 @@ public class Performer implements TalkListener, Tickable {
     }
 
     /**
-     * Control/session routing only. Capability requests use selectDirectorForRequest.
+     * 选择控制类请求的调度端点。
+     *
+     * <p>只负责控制与会话路由：优先复用会话已绑定的端点，其次按单元名选取可用端点并缓存。
+     * 能力类请求请改用 {@code selectDirectorForRequest} ，两者的路由策略不同。</p>
+     *
+     * @param tokenCode  访问令牌码，允许为空。
+     * @param celletName 目标单元名称。
+     * @return 可用的调度端点；无可用端点时返回 {@code null} 。
      */
     public synchronized Director selectDirector(String tokenCode, String celletName) {
         if (tokenCode == null || tokenCode.isEmpty()) return selectDirectorForCellet(celletName);

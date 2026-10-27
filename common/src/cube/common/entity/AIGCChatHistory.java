@@ -15,34 +15,49 @@ import java.util.List;
  */
 public class AIGCChatHistory extends Entity {
 
+    /** 对话序列号。 */
     public final long sn;
 
+    /** 所属通道码。 */
     public final String channelCode;
 
+    /** 生成回答的单元名称。 */
     public String unit;
 
+    /** 提问方联系人 ID 。 */
     public long queryContactId;
 
+    /** 提问时间戳，单位毫秒。 */
     public long queryTime;
 
+    /** 提问内容。 */
     public String queryContent;
 
+    /** 提问携带的文件标签。 */
     public List<FileLabel> queryFileLabels;
 
+    /** 回答方联系人 ID 。 */
     public long answerContactId;
 
+    /** 回答时间戳，单位毫秒。 */
     public long answerTime;
 
+    /** 回答内容。 */
     public String answerContent;
 
+    /** 回答产生的文件标签。 */
     public List<FileLabel> answerFileLabels;
 
+    /** 模型的思考过程。 */
     public String thought;
 
+    /** 本轮对话的结构化上下文。 */
     public ComplexContext context;
 
+    /** 用户反馈值，0 表示未反馈，1 表示差评。 */
     public int feedback = 0;
 
+    /** 对话上下文 ID 。 */
     public long contextId = 0;
 
     public AIGCChatHistory(long sn, String channelCode, String unit, String domain) {
@@ -74,6 +89,7 @@ public class AIGCChatHistory extends Entity {
         this.contextId = json.getLong("contextId");
     }
 
+    /** 序列化为完整 JSON 。 */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -92,6 +108,7 @@ public class AIGCChatHistory extends Entity {
         return json;
     }
 
+    /** 序列化为精简 JSON 。 */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

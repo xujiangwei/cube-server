@@ -31,7 +31,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Real Jetty HTTP fixture with deterministic events; also used by official SDK tests.
+ * 完成接口 HTTP 测试。
+ *
+ * <p>使用真实 Jetty 作为夹具，事件序列确定；同一夹具也被官方 SDK 测试复用。</p>
  */
 public final class CompletionHttpTest {
     static int assertions;

@@ -24,7 +24,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Tests continuous subscriptions, node pinning, reordering and shutdown.
+ * 完成网关测试。
+ *
+ * <p>覆盖连续订阅、节点固定、乱序投递与关闭四类场景。</p>
  */
 public final class CompletionGatewayTest {
     static int assertions;

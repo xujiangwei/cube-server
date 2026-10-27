@@ -118,10 +118,26 @@ public class Manager implements Tickable, PerformerListener {
      */
     private final Map<String, FacialExpressionRecognitionFuture> facialExpressionRecognitionFutureMap = new ConcurrentHashMap<>();
 
+    /**
+     * 获取管理器单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static Manager getInstance() {
         return Manager.instance;
     }
 
+    /**
+     * 启动管理器并绑定执行机。
+     *
+     * <p>仅当 HTTP 服务器尚未在本次进程中注册过处理器时才注册，避免重复注册端点；
+     * 随后启动 App 单例、注册周期回调与响应监听器，并启动完成网关。
+     * 绑定同一个执行机时幂等返回；启动中途失败会把已注册的回调回滚后再抛出。</p>
+     *
+     * @param performer 执行机。
+     * @throws IllegalArgumentException 执行机或其 HTTP 服务器为空。
+     * @throws IllegalStateException 已绑定到另一个执行机。
+     */
     public synchronized void start(Performer performer) {
         if (null == performer || null == performer.getHttpServer()) {
             throw new IllegalArgumentException("A configured Performer is required");
@@ -154,6 +170,13 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 停止管理器。
+     *
+     * <p>未运行时直接返回。停止完成网关、摘除回调与监听器、停止 App，
+     * 并在 finally 中把所有未完成的请求置为 {@code Cancelled} 后清空各类等待表——
+     * 因此停止操作不会留下悬挂的调用方。</p>
+     */
     public synchronized void stop() {
         if (!this.running) {
             return;
@@ -184,6 +207,13 @@ public class Manager implements Tickable, PerformerListener {
         return this.running ? this.performer : null;
     }
 
+    /**
+     * 获取最近一次绑定的执行机。
+     *
+     * <p>停止后仍保留引用，因此非空不代表管理器正在运行。</p>
+     *
+     * @return 执行机；从未启动过时为 {@code null} 。
+     */
     public Performer getPerformer() {
         return this.performer;
     }
@@ -466,6 +496,17 @@ public class Manager implements Tickable, PerformerListener {
         DispatcherExtensions.registerEndpointHandlers(this.dispatcherExtensions, httpServer);
     }
 
+    /**
+     * 向 AIGC 服务发送同步请求。
+     *
+     * <p>统一超时 90 秒。响应为空、超时或状态码非 {@code Ok} 都返回 {@code null} ，
+     * 调用方拿到 {@code null} 即表示本次业务失败，不需再区分具体原因。</p>
+     *
+     * @param token  访问令牌。
+     * @param action 动作名。
+     * @param data   请求载荷。
+     * @return 响应中的数据载荷；失败返回 {@code null} 。
+     */
     public JSONObject syncRequest(String token, AIGCAction action, JSONObject data) {
         Packet packet = new Packet(action.name, data);
         ActionDialect request = packet.toDialect();
@@ -486,6 +527,13 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 校验令牌是否有效。
+     *
+     * @param token  访问令牌。
+     * @param device 设备信息，用于绑定校验。
+     * @return 有效返回 {@code true} 。
+     */
     public boolean checkToken(String token, Device device) {
         return (null != this.checkAndGetToken(token, device));
     }
@@ -506,6 +554,15 @@ public class Manager implements Tickable, PerformerListener {
         return new Packet(response);
     }
 
+    /**
+     * 校验令牌并返回归一化后的令牌码。
+     *
+     * <p>令牌可能已过期或需要按设备重新换取，返回值可直接用于后续请求。</p>
+     *
+     * @param token  访问令牌。
+     * @param device 设备信息。
+     * @return 归一化后的令牌码；校验失败返回 {@code null} 。
+     */
     public String checkAndGetToken(String token, Device device) {
         ContactToken contactToken = this.resolveContactToken(token, device);
         return null == contactToken ? null : contactToken.authToken.getCode();
@@ -575,10 +632,24 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 获取令牌对应的联系人令牌对象。
+     *
+     * @param token  访问令牌。
+     * @param device 设备信息。
+     * @return 联系人令牌；解析失败返回 {@code null} 。
+     */
     public ContactToken getContactToken(String token, Device device) {
         return this.resolveContactToken(token, device);
     }
 
+    /**
+     * 清除指定令牌的本地缓存。
+     *
+     * <p>令牌失效或主动登出后调用，避免继续使用过期信息。</p>
+     *
+     * @param token 访问令牌。
+     */
     public void removeTokenCache(String token) {
         if (null != token) {
             this.validTokenMap.remove(token);
@@ -593,6 +664,14 @@ public class Manager implements Tickable, PerformerListener {
         return now - token.timestamp >= TOKEN_CACHE_TTL || token.authToken.getExpiry() <= now;
     }
 
+    /**
+     * 获取或创建用户。
+     *
+     * <p>按载荷中的身份信息查找用户，不存在时创建；同一身份重复调用不会产生重复用户。</p>
+     *
+     * @param data 用户身份载荷。
+     * @return 用户 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getOrCreateUser(JSONObject data) {
         Packet packet = new Packet(AIGCAction.AppGetOrCreateUser.name, data);
         ActionDialect response = this.syncTransmit(AIGCCellet.NAME, packet.toDialect());
@@ -611,6 +690,13 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 修改用户资料。
+     *
+     * @param token        访问令牌。
+     * @param modification 需要修改的字段，只提交有变化的项。
+     * @return 修改后的用户 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject modifyUser(String token, JSONObject modification) {
         Packet packet = new Packet(AIGCAction.AppModifyUser.name, modification);
         ActionDialect request = packet.toDialect();
@@ -631,6 +717,16 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 用户签到。
+     *
+     * <p>地址由调用方传入并写入载荷，用于记录签到位置。</p>
+     *
+     * @param token   访问令牌。
+     * @param data    签到载荷。
+     * @param address 签到地址。
+     * @return 签到结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject checkInUser(String token, JSONObject data, String address) {
         data.put("address", address);
         Packet packet = new Packet(AIGCAction.AppCheckInUser.name, data);
@@ -662,8 +758,10 @@ public class Manager implements Tickable, PerformerListener {
     /**
      * 注销用户。
      *
-     * @param token
-     * @return
+     * <p>注销后本地令牌缓存一并清除，客户端需重新登录。</p>
+     *
+     * @param token 访问令牌。
+     * @return 注销结果 JSON ；失败返回 {@code null} 。
      */
     public JSONObject signOutUser(String token) {
         Packet packet = new Packet(AIGCAction.AppSignOutUser.name, new JSONObject());
@@ -686,6 +784,12 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 获取用户画像。
+     *
+     * @param token 访问令牌。
+     * @return 用户画像；失败返回 {@code null} 。
+     */
     public UserProfile getUserProfile(String token) {
         Packet packet = new Packet(AIGCAction.AppGetUserProfile.name, new JSONObject());
         ActionDialect request = packet.toDialect();
@@ -706,6 +810,14 @@ public class Manager implements Tickable, PerformerListener {
         return new UserProfile(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 激活会员。
+     *
+     * @param token      访问令牌。
+     * @param channel    购买渠道。
+     * @param invitation 邀请码，可为 {@code null} 。
+     * @return 会员信息；激活失败返回 {@code null} 。
+     */
     public Membership activateMembership(String token, String channel, String invitation) {
         JSONObject data = new JSONObject();
         data.put("channel", channel);
@@ -729,6 +841,12 @@ public class Manager implements Tickable, PerformerListener {
         return new Membership(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 获取 App 版本信息。
+     *
+     * @param token 访问令牌。
+     * @return 版本信息 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getAppVersion(String token) {
         Packet packet = new Packet(AIGCAction.AppVersion.name, new JSONObject());
         ActionDialect request = packet.toDialect();
@@ -749,6 +867,14 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 获取字符画。
+     *
+     * <p>用于客户端启动页等场景，内容由服务端下发。</p>
+     *
+     * @param token 访问令牌。
+     * @return 字符画 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getASCIIArt(String token) {
         Packet packet = new Packet(AIGCAction.AppASCIIArt.name, new JSONObject());
         ActionDialect request = packet.toDialect();
@@ -769,6 +895,12 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 获取词云数据。
+     *
+     * @param token 访问令牌。
+     * @return 词云 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getWordCloud(String token) {
         Packet packet = new Packet(AIGCAction.GetWordCloud.name, new JSONObject());
         ActionDialect request = packet.toDialect();
@@ -789,6 +921,16 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 按手机号校验或注入联系人令牌。
+     *
+     * <p>手机号已注册则返回已有令牌，未注册则按用户名创建联系人并签发新令牌。
+     * 返回的令牌绑定固定设备标识 {@code Unknown} ，不适用于需要设备校验的场景。</p>
+     *
+     * @param phoneNumber 手机号码。
+     * @param userName    用户名，仅在新签发时使用，可为 {@code null} 。
+     * @return 联系人令牌；失败返回 {@code null} 。
+     */
     public ContactToken checkOrInjectContactToken(String phoneNumber, String userName) {
         JSONObject data = new JSONObject();
         data.put("phone", phoneNumber);
@@ -816,6 +958,12 @@ public class Manager implements Tickable, PerformerListener {
         return new ContactToken(authToken, contact, new Device("Unknown", "Unknown"));
     }
 
+    /**
+     * 获取模型与系统配置。
+     *
+     * @param token 访问令牌。
+     * @return 配置信息；失败返回 {@code null} 。
+     */
     public ConfigInfo getConfigInfo(String token) {
         JSONObject data = new JSONObject();
         Packet packet = new Packet(AIGCAction.GetConfig.name, data);
@@ -836,6 +984,15 @@ public class Manager implements Tickable, PerformerListener {
         return new ConfigInfo(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 按模型标识查找模型配置。
+     *
+     * <p>遍历全部模型并忽略大小写比较，模型数量通常很少，无需索引。</p>
+     *
+     * @param configInfo 配置信息。
+     * @param model      模型标识。
+     * @return 匹配的配置；未找到返回 {@code null} 。
+     */
     public ModelConfig getModelConfigByModel(ConfigInfo configInfo, String model) {
         for (ModelConfig config : configInfo.models) {
             if (config.getModel().equalsIgnoreCase(model)) {
@@ -846,6 +1003,15 @@ public class Manager implements Tickable, PerformerListener {
         return null;
     }
 
+    /**
+     * 按模型名称查找模型配置。
+     *
+     * <p>与按标识查找的区别：{@code model} 匹配模型标识，这里匹配模型名称，两者都忽略大小写。</p>
+     *
+     * @param configInfo 配置信息。
+     * @param name       模型名称。
+     * @return 匹配的配置；未找到返回 {@code null} 。
+     */
     public ModelConfig getModelConfigByName(ConfigInfo configInfo, String name) {
         for (ModelConfig config : configInfo.models) {
             if (config.getName().equalsIgnoreCase(name)) {
@@ -856,6 +1022,12 @@ public class Manager implements Tickable, PerformerListener {
         return null;
     }
 
+    /**
+     * 获取知识库概要。
+     *
+     * @param token 访问令牌。
+     * @return 知识库概要；失败返回 {@code null} 。
+     */
     public KnowledgeProfile getKnowledgeProfile(String token) {
         Packet packet = new Packet(AIGCAction.GetKnowledgeProfile.name, new JSONObject());
         ActionDialect request = packet.toDialect();
@@ -875,6 +1047,19 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeProfile(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 更新知识库概要。
+     *
+     * <p>三个可选项各自支持“不修改”：{@code state} 与 {@code maxSize} 传 {@code -1} 、
+     * {@code scope} 传 {@code null} 时对应字段不会写入请求。</p>
+     *
+     * @param token     访问令牌。
+     * @param contactId 知识库归属联系人 ID 。
+     * @param state     知识库状态，{@code -1} 表示不修改。
+     * @param maxSize   容量上限，{@code -1} 表示不修改。
+     * @param scope     可见范围，{@code null} 表示不修改。
+     * @return 更新后的概要；失败返回 {@code null} 。
+     */
     public KnowledgeProfile updateKnowledgeProfile(String token, long contactId,
                                                    int state, long maxSize, KnowledgeScope scope) {
         JSONObject data = new JSONObject();
@@ -907,6 +1092,14 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeProfile(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 获取知识库框架。
+     *
+     * <p>框架描述知识库的分层分类结构，用于前端导航渲染。</p>
+     *
+     * @param token 访问令牌。
+     * @return 框架 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getKnowledgeFramework(String token) {
         Packet packet = new Packet(AIGCAction.GetKnowledgeFramework.name, new JSONObject());
         ActionDialect request = packet.toDialect();
@@ -926,6 +1119,16 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 新建知识库。
+     *
+     * @param token       访问令牌。
+     * @param baseName    知识库内部名称，需在域内唯一。
+     * @param displayName 展示名称。
+     * @param category    分类。
+     * @param scope       可见范围。
+     * @return 新建的知识库信息；失败返回 {@code null} 。
+     */
     public KnowledgeBaseInfo newKnowledgeBase(String token, String baseName, String displayName,
                                               String category, KnowledgeScope scope) {
         JSONObject payload = new JSONObject();
@@ -957,6 +1160,15 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeBaseInfo(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 删除知识库。
+     *
+     * <p>名称为空时直接返回 {@code null} ，不发请求。</p>
+     *
+     * @param token    访问令牌。
+     * @param baseName 知识库内部名称。
+     * @return 被删除的知识库信息；失败返回 {@code null} 。
+     */
     public KnowledgeBaseInfo deleteKnowledgeBase(String token, String baseName) {
         if (null == baseName) {
             return null;
@@ -984,6 +1196,15 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeBaseInfo(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 更新知识库属性。
+     *
+     * <p>整个信息对象会序列化为载荷提交，未被修改的字段同样会发送。</p>
+     *
+     * @param token 访问令牌。
+     * @param info  知识库信息。
+     * @return 更新后的信息；失败返回 {@code null} 。
+     */
     public KnowledgeBaseInfo updateKnowledgeBase(String token, KnowledgeBaseInfo info) {
         JSONObject payload = new JSONObject();
         payload.put("info", info.toJSON());
@@ -1005,6 +1226,15 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeBaseInfo(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 列出知识库中的文档。
+     *
+     * <p>超时 60 秒：文档较多时服务端需要遍历存储，比普通接口更慢。</p>
+     *
+     * @param token    访问令牌。
+     * @param baseName 知识库内部名称。
+     * @return 文档列表 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getKnowledgeDocs(String token, String baseName) {
         Logger.d(this.getClass(), "#getKnowledgeDocs - " + baseName + " - " + token);
 
@@ -1080,6 +1310,17 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 导入单个文档到知识库。
+     *
+     * <p>按指定的切分策略抽取文本并入库，返回入库后的文档描述。</p>
+     *
+     * @param token    访问令牌。
+     * @param baseName 知识库内部名称。
+     * @param fileCode 源文件码。
+     * @param splitter 文本切分策略。
+     * @return 入库后的文档；失败返回 {@code null} 。
+     */
     public KnowledgeDocument importKnowledgeDoc(String token, String baseName, String fileCode, TextSplitter splitter) {
         JSONObject payload = new JSONObject();
         payload.put("base", baseName);
@@ -1103,6 +1344,17 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeDocument(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 批量导入文档到知识库。
+     *
+     * <p>返回进度对象而非文档列表，调用方需轮询进度查询接口获取后续进展。</p>
+     *
+     * @param token         访问令牌。
+     * @param baseName      知识库内部名称。
+     * @param fileCodeArray 源文件码数组。
+     * @param splitter      文本切分策略。
+     * @return 导入进度；失败返回 {@code null} 。
+     */
     public KnowledgeProgress importKnowledgeDocs(String token, String baseName, JSONArray fileCodeArray, TextSplitter splitter) {
         Logger.d(this.getClass(), "#importKnowledgeDocs - " + baseName + " - " + token);
 
@@ -1128,6 +1380,14 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeProgress(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 从知识库移除单个文档。
+     *
+     * @param token    访问令牌。
+     * @param baseName 知识库内部名称。
+     * @param fileCode 源文件码。
+     * @return 被移除的文档；失败返回 {@code null} 。
+     */
     public KnowledgeDocument removeKnowledgeDoc(String token, String baseName, String fileCode) {
         JSONObject payload = new JSONObject();
         payload.put("base", baseName);
@@ -1151,6 +1411,16 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeDocument(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 批量移除知识库文档。
+     *
+     * <p>返回进度对象，调用方需轮询后续进展。</p>
+     *
+     * @param token         访问令牌。
+     * @param baseName      知识库内部名称。
+     * @param fileCodeArray 源文件码数组。
+     * @return 移除进度；失败返回 {@code null} 。
+     */
     public KnowledgeProgress removeKnowledgeDocs(String token, String baseName, JSONArray fileCodeArray) {
         Logger.d(this.getClass(), "#removeKnowledgeDocs - " + baseName + " - " + token);
 
@@ -1175,6 +1445,18 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeProgress(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 读取文档的文本段。
+     *
+     * <p>按段序号区间取回，用于前端分页展示与引用溯源。</p>
+     *
+     * @param token    访问令牌。
+     * @param baseName 知识库内部名称。
+     * @param docId    文档 ID 。
+     * @param start    起始段序号。
+     * @param end      结束段序号。
+     * @return 段内容 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getKnowledgeSegments(String token, String baseName, long docId, int start, int end) {
         JSONObject payload = new JSONObject();
         payload.put("base", baseName);
@@ -1200,6 +1482,16 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 查询导入或移除进度。
+     *
+     * <p>名称为空时直接返回 {@code null} 。</p>
+     *
+     * @param token    访问令牌。
+     * @param baseName 知识库内部名称。
+     * @param sn       进度序列号，来自批量操作的返回值。
+     * @return 进度对象；失败返回 {@code null} 。
+     */
     public KnowledgeProgress getKnowledgeProgress(String token, String baseName, long sn) {
         if (null == baseName) {
             return null;
@@ -1227,6 +1519,14 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeProgress(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 查询重构进度。
+     *
+     * @param token    访问令牌。
+     * @param sn       进度序列号。
+     * @param baseName 知识库内部名称。
+     * @return 重构进度；失败返回 {@code null} 。
+     */
     public ResetKnowledgeProgress getResetKnowledgeProgress(String token, long sn, String baseName) {
         if (null == baseName) {
             return null;
@@ -1254,6 +1554,16 @@ public class Manager implements Tickable, PerformerListener {
         return new ResetKnowledgeProgress(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 重构知识库存储。
+     *
+     * <p>重建索引与向量库，耗时较长，返回进度对象供轮询。</p>
+     *
+     * @param token    访问令牌。
+     * @param baseName 知识库内部名称。
+     * @param backup   为 {@code true} 时先备份现有存储再重建。
+     * @return 重构进度；失败返回 {@code null} 。
+     */
     public ResetKnowledgeProgress resetKnowledgeStore(String token, String baseName, boolean backup) {
         if (null == baseName) {
             return null;
@@ -1283,6 +1593,13 @@ public class Manager implements Tickable, PerformerListener {
         return new ResetKnowledgeProgress(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 查询知识库备份。
+     *
+     * @param token    访问令牌。
+     * @param baseName 知识库内部名称。
+     * @return 备份列表 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getBackupKnowledgeStores(String token, String baseName) {
         JSONObject payload = new JSONObject();
         payload.put("base", baseName);
@@ -1306,6 +1623,13 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 获取知识库文章。
+     *
+     * @param token     访问令牌。
+     * @param articleId 文章 ID 。
+     * @return 文章 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getKnowledgeArticle(String token, long articleId) {
         JSONObject param = new JSONObject();
         param.put("articleId", articleId);
@@ -1327,6 +1651,18 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 按条件查询知识库文章。
+     *
+     * <p>超时 60 秒，与文档列表接口一致。</p>
+     *
+     * @param token     访问令牌。
+     * @param base      知识库内部名称。
+     * @param startTime 起始时间戳，单位毫秒。
+     * @param endTime   结束时间戳，单位毫秒。
+     * @param activated 激活状态筛选，取值由服务端定义。
+     * @return 文章分页 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getKnowledgeArticles(String token, String base, long startTime, long endTime, int activated) {
         JSONObject param = new JSONObject();
         param.put("base", base);
@@ -1398,6 +1734,13 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 更新知识库文章。
+     *
+     * @param token   访问令牌。
+     * @param article 文章对象，以其中的 ID 定位。
+     * @return 更新后的文章；失败返回 {@code null} 。
+     */
     public KnowledgeArticle updateKnowledgeArticle(String token, KnowledgeArticle article) {
         Packet packet = new Packet(AIGCAction.UpdateKnowledgeArticle.name, article.toJSON());
         ActionDialect request = packet.toDialect();
@@ -1417,6 +1760,13 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeArticle(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 新增知识库文章。
+     *
+     * @param token   访问令牌。
+     * @param article 文章对象。
+     * @return 入库后的文章；失败返回 {@code null} 。
+     */
     public KnowledgeArticle appendKnowledgeArticle(String token, KnowledgeArticle article) {
         Packet packet = new Packet(AIGCAction.AppendKnowledgeArticle.name, article.toJSON());
         ActionDialect request = packet.toDialect();
@@ -1436,6 +1786,13 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeArticle(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 删除知识库文章。
+     *
+     * @param token  访问令牌。
+     * @param idList 文章 ID 数组。
+     * @return 删除结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject removeKnowledgeArticle(String token, JSONArray idList) {
         JSONObject payload = new JSONObject();
         payload.put("ids", idList);
@@ -1457,6 +1814,16 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 批量激活知识库文章。
+     *
+     * <p>激活后文章才参与检索。该操作可能触发大量索引写入，超时放宽到 2 分钟。</p>
+     *
+     * @param token    访问令牌。
+     * @param baseName 知识库内部名称。
+     * @param idList   文章 ID 数组。
+     * @return 处理后的文章列表；失败返回 {@code null} 。
+     */
     public List<KnowledgeArticle> activateKnowledgeArticle(String token, String baseName, JSONArray idList) {
         List<KnowledgeArticle> result = new ArrayList<>();
 
@@ -1487,6 +1854,16 @@ public class Manager implements Tickable, PerformerListener {
         return result;
     }
 
+    /**
+     * 批量停用知识库文章。
+     *
+     * <p>停用后文章立即退出检索，但数据仍保留，可再次激活。超时放宽到 2 分钟。</p>
+     *
+     * @param token    访问令牌。
+     * @param baseName 知识库内部名称。
+     * @param idList   文章 ID 数组。
+     * @return 处理后的文章列表；失败返回 {@code null} 。
+     */
     public List<KnowledgeArticle> deactivateKnowledgeArticle(String token, String baseName, JSONArray idList) {
         List<KnowledgeArticle> result = new ArrayList<>();
 
@@ -1517,6 +1894,12 @@ public class Manager implements Tickable, PerformerListener {
         return result;
     }
 
+    /**
+     * 查询全部文章分类。
+     *
+     * @param token 访问令牌。
+     * @return 分类 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject queryAllArticleCategories(String token) {
         Packet packet = new Packet(AIGCAction.QueryAllArticleCategories.name, new JSONObject());
         ActionDialect request = packet.toDialect();
@@ -1537,6 +1920,15 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 基于知识库生成回答。
+     *
+     * @param token    访问令牌。
+     * @param query    用户问题。
+     * @param baseName 知识库内部名称。
+     * @param topK     召回片段数量上限。
+     * @return 生成结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject generateKnowledge(String token, String query, String baseName, int topK) {
         JSONObject param = new JSONObject();
         param.put("query", query);
@@ -1562,6 +1954,16 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 为指定回答提交评价。
+     *
+     * <p>反馈值必须为非负数，负数视为非法参数直接返回 {@code false} 。</p>
+     *
+     * @param token    访问令牌。
+     * @param sn       回答的序列号。
+     * @param feedback 评价分值。
+     * @return 提交成功返回 {@code true} 。
+     */
     public boolean evaluate(String token, long sn, int feedback) {
         if (feedback < 0) {
             return false;
@@ -1588,6 +1990,13 @@ public class Manager implements Tickable, PerformerListener {
         return true;
     }
 
+    /**
+     * 上报应用事件。
+     *
+     * @param token    访问令牌。
+     * @param appEvent 应用事件。
+     * @return 上报成功返回 {@code true} 。
+     */
     public boolean addAppEvent(String token, AppEvent appEvent) {
         Packet packet = new Packet(AIGCAction.AddAppEvent.name, appEvent.toJSON());
         ActionDialect request = packet.toDialect();
@@ -1602,6 +2011,18 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractCode(responsePacket) == AIGCStateCode.Ok.code;
     }
 
+    /**
+     * 分页查询应用事件。
+     *
+     * @param token     访问令牌。
+     * @param contactId 联系人 ID 。
+     * @param event     事件名称，为空时不过滤。
+     * @param start     起始时间戳，单位毫秒。
+     * @param end       结束时间戳，单位毫秒。
+     * @param pageIndex 页码，从 0 开始。
+     * @param pageSize  每页条数。
+     * @return 事件分页 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject queryAppEvents(String token, long contactId, String event, long start, long end,
                                      int pageIndex, int pageSize) {
         JSONObject requestData = new JSONObject();
@@ -1631,6 +2052,13 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 查询用量统计。
+     *
+     * @param token     访问令牌。
+     * @param contactId 联系人 ID 。
+     * @return 用量 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject queryUsages(String token, long contactId) {
         JSONObject requestData = new JSONObject();
         requestData.put("contactId", contactId);
@@ -1654,6 +2082,17 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 查询对话历史。
+     *
+     * @param token       访问令牌。
+     * @param channelCode 通道码，为空时按联系人维度查询。
+     * @param contactId   联系人 ID 。
+     * @param feedback    反馈筛选，取值由服务端定义。
+     * @param start       起始时间戳，单位毫秒。
+     * @param end         结束时间戳，单位毫秒。
+     * @return 历史分页 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject queryChatHistory(String token, String channelCode, long contactId, int feedback, long start, long end) {
         JSONObject requestData = new JSONObject();
         if (null != channelCode) {
@@ -1683,10 +2122,27 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 申请对话通道，使用默认单元。
+     *
+     * @param token       访问令牌。
+     * @param participant 参与者标识。
+     * @return 通道对象；失败返回 {@code null} 。
+     */
     public AIGCChannel requestChannel(String token, String participant) {
         return this.requestChannel(token, participant, ModelConfig.BAIZE_UNIT);
     }
 
+    /**
+     * 申请对话通道。
+     *
+     * <p>通道承载一次连续对话的上下文与历史，相同参与者重复申请会复用已有通道。</p>
+     *
+     * @param token       访问令牌。
+     * @param participant 参与者标识。
+     * @param unit        指定处理该通道的单元。
+     * @return 通道对象；失败返回 {@code null} 。
+     */
     public AIGCChannel requestChannel(String token, String participant, String unit) {
         JSONObject data = new JSONObject();
         data.put("token", token);
@@ -1711,6 +2167,13 @@ public class Manager implements Tickable, PerformerListener {
         return channel;
     }
 
+    /**
+     * 停止通道上正在进行的生成。
+     *
+     * @param token       访问令牌。
+     * @param channelCode 通道码。
+     * @return 停止后的通道状态；失败返回 {@code null} 。
+     */
     public AIGCChannel stopProcessing(String token, String channelCode) {
         JSONObject data = new JSONObject();
         data.put("code", channelCode);
@@ -1734,6 +2197,13 @@ public class Manager implements Tickable, PerformerListener {
         return new AIGCChannel(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 查询通道信息。
+     *
+     * @param token       访问令牌。
+     * @param channelCode 通道码。
+     * @return 通道 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getChannel(String token, String channelCode) {
         JSONObject data = new JSONObject();
         data.put("code", channelCode);
@@ -1757,6 +2227,14 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 通道保活。
+     *
+     * <p>延长通道的空闲存活时间，避免长对话中途因超时被回收。该接口不校验令牌。</p>
+     *
+     * @param channelCode 通道码。
+     * @return 保活成功返回 {@code true} 。
+     */
     public boolean keepAliveChannel(String channelCode) {
         JSONObject data = new JSONObject();
         data.put("code", channelCode);
@@ -1778,6 +2256,12 @@ public class Manager implements Tickable, PerformerListener {
         return true;
     }
 
+    /**
+     * 查询处理队列数量。
+     *
+     * @param token 访问令牌。
+     * @return 队列计数 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject queryQueueCount(String token) {
         Packet packet = new Packet(AIGCAction.GetQueueCount.name, new JSONObject());
         ActionDialect dialect = packet.toDialect();
@@ -1796,20 +2280,23 @@ public class Manager implements Tickable, PerformerListener {
     }
 
     /**
-     * 互动对话。
+     * 发起互动对话。
      *
-     * @param token
-     * @param channelCode
-     * @param pattern
-     * @param content
-     * @param unit
-     * @param option
-     * @param histories
-     * @param records
-     * @param recordable
-     * @param networking
-     * @param categories
-     * @return
+     * <p>这是对话的主入口：同步返回 {@link ChatFuture} 句柄，实际的流式回答通过通道推送。
+     * {@code pattern} 决定走普通对话还是知识库问答；{@code recordable} 为 {@code true} 时本轮问答才会写入历史。</p>
+     *
+     * @param token       访问令牌。
+     * @param channelCode 通道码。
+     * @param pattern     对话模式，取值见 {@code Consts.PATTERN_*} 。
+     * @param content     用户输入内容。
+     * @param unit        指定处理该请求的单元。
+     * @param option      生成选项，控制温度、长度等采样参数。
+     * @param histories   需要携带的历史对话轮数。
+     * @param records     额外附加的记录，允许为 {@code null} 。
+     * @param recordable  是否把本轮问答写入历史。
+     * @param networking  是否允许联网检索。
+     * @param categories  知识库分类过滤，允许为 {@code null} 。
+     * @return 对话任务句柄；失败返回 {@code null} 。
      */
     public ChatFuture chat(String token, String channelCode, String pattern, String content, String unit,
                            GeneratingOption option, int histories, JSONArray records,
@@ -1881,12 +2368,14 @@ public class Manager implements Tickable, PerformerListener {
     }
 
     /**
-     * 多模态对话。
+     * 发起多模态对话。
      *
-     * @param token
-     * @param channelCode
-     * @param input
-     * @return
+     * <p>输入可同时包含文本与图像，输出可能是文本、文件或结构化结果。</p>
+     *
+     * @param token       访问令牌。
+     * @param channelCode 通道码。
+     * @param input       多模态输入。
+     * @return 多模态输出；失败返回 {@code null} 。
      */
     public MultimodalOutput executeMultimodal(String token, String channelCode, MultimodalInput input) {
         JSONObject data = new JSONObject();
@@ -1914,6 +2403,14 @@ public class Manager implements Tickable, PerformerListener {
         return new MultimodalOutput(responseData);
     }
 
+    /**
+     * 查询多模态任务的输出。
+     *
+     * @param token       访问令牌。
+     * @param channelCode 通道码。
+     * @param sn          任务序列号。
+     * @return 多模态输出；失败返回 {@code null} 。
+     */
     public MultimodalOutput queryMultimodal(String token, String channelCode, long sn) {
         JSONObject data = new JSONObject();
         data.put("token", token);
@@ -1939,6 +2436,12 @@ public class Manager implements Tickable, PerformerListener {
         return new MultimodalOutput(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 查询检索结果。
+     *
+     * @param token 访问令牌。
+     * @return 检索结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject querySearchResults(String token) {
         Packet packet = new Packet(AIGCAction.GetSearchResults.name, new JSONObject());
         ActionDialect request = packet.toDialect();
@@ -1960,6 +2463,13 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 获取上下文推理结果。
+     *
+     * @param token     访问令牌。
+     * @param contextId 上下文 ID 。
+     * @return 推理结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getContextInference(String token, long contextId) {
         JSONObject data = new JSONObject();
         data.put("id", contextId);
@@ -1983,6 +2493,18 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 执行知识库问答。
+     *
+     * <p>{@code sync} 为 {@code true} 时服务端同步等待结果再返回，否则立即返回进度对象供轮询。</p>
+     *
+     * @param token       访问令牌。
+     * @param channelCode 通道码。
+     * @param query       用户问题。
+     * @param baseName    知识库内部名称。
+     * @param sync        是否同步等待。
+     * @return 问答进度；失败返回 {@code null} 。
+     */
     public KnowledgeQAProgress performKnowledgeQA(String token, String channelCode, String query,
                                                   String baseName, boolean sync) {
         JSONObject data = new JSONObject();
@@ -2014,6 +2536,14 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeQAProgress(responseData);
     }
 
+    /**
+     * 查询知识库问答进度。
+     *
+     * @param token       访问令牌。
+     * @param channel     通道码。
+     * @param baseName    知识库内部名称。
+     * @return 问答进度；失败返回 {@code null} 。
+     */
     public KnowledgeQAProgress getKnowledgeQAProgress(String token, String channel, String baseName) {
         JSONObject data = new JSONObject();
         data.put("channel", channel);
@@ -2040,6 +2570,13 @@ public class Manager implements Tickable, PerformerListener {
         return new KnowledgeQAProgress(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 语义检索。
+     *
+     * @param token 访问令牌。
+     * @param query 检索语句。
+     * @return 检索结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject semanticSearch(String token, String query) {
         JSONObject data = new JSONObject();
         data.put("query", query);
@@ -2062,6 +2599,14 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 生成文本摘要。
+     *
+     * <p>同步接口，直接返回摘要文本而非进度对象。</p>
+     *
+     * @param text 待摘要文本。
+     * @return 摘要；失败返回 {@code null} 。
+     */
     public String generateSummarization(String text) {
         JSONObject data = new JSONObject();
         data.put("text", text);
@@ -2108,6 +2653,16 @@ public class Manager implements Tickable, PerformerListener {
         return new NLTask(Packet.extractDataPayload(responsePacket));
     }*/
 
+    /**
+     * 提交文本转文件任务。
+     *
+     * <p>参数不全时直接返回 {@code null} 且不发请求；返回的任务句柄需由调用方轮询。</p>
+     *
+     * @param token        访问令牌。
+     * @param text         待转换的文本。
+     * @param fileCodeList 需要关联的源文件码列表。
+     * @return 任务句柄；参数非法或失败返回 {@code null} 。
+     */
     public TextToFileFuture textToFile(String token, String text, JSONArray fileCodeList) {
         if (isBlank(token) || null == text || null == fileCodeList) {
             return null;
@@ -2122,10 +2677,30 @@ public class Manager implements Tickable, PerformerListener {
                 new TextToFileFuture(sn, token, text, fileCodeList), false);
     }
 
+    /**
+     * 获取文本转文件任务句柄。
+     *
+     * <p>只查本地缓存，不发起网络请求。</p>
+     *
+     * @param sn 任务序列号。
+     * @return 任务句柄；不存在返回 {@code null} 。
+     */
     public TextToFileFuture getTextToFileFuture(long sn) {
         return this.textToFileFutureMap.get(sn);
     }
 
+    /**
+     * 提交语音识别任务。
+     *
+     * <p>文件码与文件地址二选一，都为空白时直接返回 {@code null} 且不发请求。</p>
+     *
+     * @param token    访问令牌。
+     * @param fileCode 源文件码。
+     * @param fileUrl  源文件地址。
+     * @param sync     是否同步等待识别结果。
+     * @param reset    为 {@code true} 时丢弃已有结果重新识别。
+     * @return 任务句柄；失败返回 {@code null} 。
+     */
     public SpeechRecognitionFuture automaticSpeechRecognition(String token, String fileCode, String fileUrl,
                                                               boolean sync, boolean reset) {
         if (isBlank(token) || isBlank(null != fileCode ? fileCode : fileUrl)) {
@@ -2161,10 +2736,26 @@ public class Manager implements Tickable, PerformerListener {
                 new SpeechRecognitionFuture(token, fileCode, fileUrl, queryCode), reset);
     }
 
+    /**
+     * 获取语音识别任务句柄。
+     *
+     * <p>只查本地缓存，不发起网络请求。</p>
+     *
+     * @param queryCode 查询码。
+     * @return 任务句柄；不存在返回 {@code null} 。
+     */
     public SpeechRecognitionFuture getSpeechRecognitionFuture(String queryCode) {
         return null == queryCode ? null : this.speechRecognitionFutureMap.get(queryCode);
     }
 
+    /**
+     * 提交语音情绪识别任务。
+     *
+     * @param token    访问令牌。
+     * @param fileCode 源文件码。
+     * @param reset    为 {@code true} 时丢弃已有结果重新识别。
+     * @return 任务句柄；失败返回 {@code null} 。
+     */
     public SpeechEmotionRecognitionFuture speechEmotionRecognition(String token, String fileCode, boolean reset) {
         if (isBlank(token) || isBlank(fileCode)) {
             return null;
@@ -2176,10 +2767,27 @@ public class Manager implements Tickable, PerformerListener {
                 new SpeechEmotionRecognitionFuture(token, fileCode), reset);
     }
 
+    /**
+     * 获取语音情绪识别任务句柄。
+     *
+     * <p>只查本地缓存，不发起网络请求。</p>
+     *
+     * @param fileCode 源文件码。
+     * @return 任务句柄；不存在返回 {@code null} 。
+     */
     public SpeechEmotionRecognitionFuture getSpeechEmotionRecognitionFuture(String fileCode) {
         return null == fileCode ? null : this.speechEmotionRecognitionFutureMap.get(fileCode);
     }
 
+    /**
+     * 提交面部表情识别任务。
+     *
+     * @param token     访问令牌。
+     * @param fileCode  源文件码。
+     * @param visualize 是否要求返回可视化结果。
+     * @param reset     为 {@code true} 时丢弃已有结果重新识别。
+     * @return 任务句柄；失败返回 {@code null} 。
+     */
     public FacialExpressionRecognitionFuture facialExpressionRecognition(String token, String fileCode,
                                                                          boolean visualize, boolean reset) {
         if (isBlank(token) || isBlank(fileCode)) {
@@ -2193,10 +2801,30 @@ public class Manager implements Tickable, PerformerListener {
                 new FacialExpressionRecognitionFuture(token, fileCode), reset);
     }
 
+    /**
+     * 获取面部表情识别任务句柄。
+     *
+     * <p>只查本地缓存，不发起网络请求。</p>
+     *
+     * @param fileCode 源文件码。
+     * @return 任务句柄；不存在返回 {@code null} 。
+     */
     public FacialExpressionRecognitionFuture getFacialExpressionRecognitionFuture(String fileCode) {
         return null == fileCode ? null : this.facialExpressionRecognitionFutureMap.get(fileCode);
     }
 
+    /**
+     * 提交语音分离任务。
+     *
+     * <p>文件码与文件地址二选一，都为空白时直接返回 {@code null} 且不发请求。
+     * 查询码由文件码或地址的哈希生成，同一文件重复提交会命中同一任务。</p>
+     *
+     * @param token    访问令牌。
+     * @param fileCode 源文件码。
+     * @param fileUrl  源文件地址。
+     * @param reset    为 {@code true} 时丢弃已有任务重新提交。
+     * @return 任务句柄；失败返回 {@code null} 。
+     */
     public SpeechDiarizationFuture speechDiarization(String token, String fileCode, String fileUrl, boolean reset) {
         if (isBlank(token) || isBlank(null != fileCode ? fileCode : fileUrl)) {
             return null;
@@ -2209,6 +2837,16 @@ public class Manager implements Tickable, PerformerListener {
                 new SpeechDiarizationFuture(token, fileCode, fileUrl, queryCode), reset);
     }
 
+    /**
+     * 获取语音分离任务句柄。
+     *
+     * <p>先查本地缓存；未命中时向服务端查询并重建句柄，超时 60 秒。
+     * 查询码长度为 64 时按文件地址的哈希处理，否则按文件码直接查找。</p>
+     *
+     * @param token     访问令牌。
+     * @param queryCode 查询码或文件码。
+     * @return 任务句柄；查不到返回 {@code null} 。
+     */
     public SpeechDiarizationFuture getSpeechDiarization(String token, String queryCode) {
         if (isBlank(token) || isBlank(queryCode)) {
             return null;
@@ -2253,6 +2891,12 @@ public class Manager implements Tickable, PerformerListener {
         return future;
     }
 
+    /**
+     * 列出语音分离记录。
+     *
+     * @param token 访问令牌。
+     * @return 记录列表 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject listSpeechDiarizations(String token) {
         JSONObject payload = new JSONObject();
         Packet packet = new Packet(AIGCAction.ListSpeechDiarizations.name, payload);
@@ -2284,6 +2928,13 @@ public class Manager implements Tickable, PerformerListener {
         return responseData;
     }
 
+    /**
+     * 删除语音分离记录。
+     *
+     * @param token    访问令牌。
+     * @param fileCode 源文件码。
+     * @return 操作结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject deleteSpeechDiarization(String token, String fileCode) {
         JSONObject payload = new JSONObject();
         payload.put("fileCode", fileCode);
@@ -2315,6 +2966,14 @@ public class Manager implements Tickable, PerformerListener {
         return future.toJSON();
     }
 
+    /**
+     * 获取用户情绪数据。
+     *
+     * <p>聚合该用户历史对话与语音中的情绪指标，用于趋势展示。</p>
+     *
+     * @param token 访问令牌。
+     * @return 情绪数据 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getUserEmotionData(String token) {
         JSONObject result = new JSONObject();
         JSONArray data = new JSONArray();
@@ -2362,6 +3021,13 @@ public class Manager implements Tickable, PerformerListener {
         return result;
     }
 
+    /**
+     * 分词。
+     *
+     * @param token 访问令牌。
+     * @param text  待分词文本。
+     * @return 分词结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject segmentation(String token, String text) {
         JSONObject data = new JSONObject();
         data.put("text", text);
@@ -2384,6 +3050,15 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 处理图表数据。
+     *
+     * <p>载荷原样透传，由服务端按图表类型解析。</p>
+     *
+     * @param token 访问令牌。
+     * @param data  图表数据。
+     * @return 处理结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject handleChartData(String token, JSONObject data) {
         Packet packet = new Packet(AIGCAction.ChartData.name, data);
         ActionDialect request = packet.toDialect();
@@ -2404,6 +3079,12 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 获取提示词列表。
+     *
+     * @param token 访问令牌。
+     * @return 提示词 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getPrompts(String token) {
         Packet packet = new Packet(AIGCAction.GetPrompts.name, new JSONObject());
         ActionDialect request = packet.toDialect();
@@ -2424,6 +3105,16 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 批量新增提示词。
+     *
+     * <p>同一批提示词按联系人列表分发，每个联系人各得一份副本。</p>
+     *
+     * @param token            访问令牌。
+     * @param promptRecordList 待新增的提示词。
+     * @param contactIdList    目标联系人 ID 列表。
+     * @return 全部成功返回 {@code true} 。
+     */
     public boolean addPrompts(String token, List<PromptRecord> promptRecordList, List<Long> contactIdList) {
         JSONObject data = new JSONObject();
         data.put("action", "add");
@@ -2461,6 +3152,13 @@ public class Manager implements Tickable, PerformerListener {
         return true;
     }
 
+    /**
+     * 批量删除提示词。
+     *
+     * @param token        访问令牌。
+     * @param promptIdList 提示词 ID 列表。
+     * @return 全部成功返回 {@code true} 。
+     */
     public boolean removePrompts(String token, List<Long> promptIdList) {
         JSONObject data = new JSONObject();
         data.put("action", "remove");
@@ -2490,6 +3188,13 @@ public class Manager implements Tickable, PerformerListener {
         return true;
     }
 
+    /**
+     * 更新提示词。
+     *
+     * @param token        访问令牌。
+     * @param promptRecord 提示词记录，以其中的 ID 定位。
+     * @return 更新成功返回 {@code true} 。
+     */
     public boolean updatePrompt(String token, PromptRecord promptRecord) {
         JSONObject data = new JSONObject();
         data.put("action", "update");
@@ -2517,6 +3222,13 @@ public class Manager implements Tickable, PerformerListener {
         return true;
     }
 
+    /**
+     * 提交事件。
+     *
+     * @param token 访问令牌。
+     * @param event 事件对象。
+     * @return 提交结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject submitEvent(String token, Event event) {
         Packet packet = new Packet(AIGCAction.SubmitEvent.name, event.toJSON());
         ActionDialect request = packet.toDialect();
@@ -2569,17 +3281,20 @@ public class Manager implements Tickable, PerformerListener {
     }*/
 
     /**
-     * 生成心理测验报告。
+     * 生成心理测验报告（绘画分析）。
      *
-     * @param remote
-     * @param token
-     * @param attribute
-     * @param fileCode
-     * @param theme
-     * @param indicators
-     * @param adjust
-     * @param remark
-     * @return
+     * <p>以绘画文件为输入，按主题与指标数量生成分析报告。
+     * {@code remote} 原样下发给服务端，用于标识调用来源或回调地址。</p>
+     *
+     * @param remote     调用方标识。
+     * @param token      访问令牌。
+     * @param attribute  绘画属性。
+     * @param fileCode   绘画文件码。
+     * @param theme      分析主题。
+     * @param indicators 期望生成的指标数量。
+     * @param adjust     是否允许自动调整指标。
+     * @param remark     备注，允许为 {@code null} 。
+     * @return 绘画分析报告；失败返回 {@code null} 。
      */
     public PaintingReport generatePsychologyReport(String remote, String token, Attribute attribute,
                                                    String fileCode, String theme, int indicators,
@@ -2616,12 +3331,14 @@ public class Manager implements Tickable, PerformerListener {
     }
 
     /**
-     * 生成心理测验报告。
+     * 生成心理测验报告（量表分析）。
      *
-     * @param remote
-     * @param token
-     * @param scaleSn
-     * @return
+     * <p>以已提交的量表答题记录为输入，与绘画分析共用同一入口，返回类型不同。</p>
+     *
+     * @param remote  调用方标识。
+     * @param token   访问令牌。
+     * @param scaleSn 量表记录序列号。
+     * @return 量表报告；失败返回 {@code null} 。
      */
     public ScaleReport generatePsychologyReport(String remote, String token, long scaleSn) {
         JSONObject data = new JSONObject();
@@ -2649,14 +3366,14 @@ public class Manager implements Tickable, PerformerListener {
     }
 
     /**
-     * 查询心理学报告。
+     * 分页查询心理报告。
      *
-     * @param token
-     * @param type
-     * @param pageIndex
-     * @param pageSize
-     * @param descending
-     * @return
+     * @param token      访问令牌。
+     * @param type       报告类型。
+     * @param pageIndex  页码，从 0 开始。
+     * @param pageSize   每页条数。
+     * @param descending 是否按时间倒序。
+     * @return 报告分页 JSON ；失败返回 {@code null} 。
      */
     public JSONObject getPsychologyReports(String token, String type, int pageIndex, int pageSize, boolean descending) {
         if (pageSize <= 0) {
@@ -2689,6 +3406,15 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 校验绘画是否可以生成报告。
+     *
+     * <p>用于在提交分析前确认文件可用、绘画已解析完成。</p>
+     *
+     * @param token    访问令牌。
+     * @param fileCode 绘画文件码。
+     * @return 校验结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject checkPsychologyPainting(String token, String fileCode) {
         JSONObject data = new JSONObject();
         data.put("fileCode", fileCode);
@@ -2711,6 +3437,14 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 获取心理分析报告。
+     *
+     * @param token    访问令牌。
+     * @param sn       报告序列号。
+     * @param markdown 为 {@code true} 时要求返回 Markdown 文本。
+     * @return 报告对象；失败返回 {@code null} 。
+     */
     public Report getPsychologyReport(String token, long sn, boolean markdown) {
         // 第一步，获取基础数据
         JSONObject data = new JSONObject();
@@ -2793,6 +3527,22 @@ public class Manager implements Tickable, PerformerListener {
         return report;
     }
 
+    /**
+     * 获取报告的指定片段。
+     *
+     * <p>六个开关分别控制返回内容、章节、思考过程、摘要、评分与关联链接，
+     * 按需取用可显著减小响应体积。</p>
+     *
+     * @param token    访问令牌。
+     * @param sn       报告序列号。
+     * @param content  是否包含正文。
+     * @param section  是否包含章节。
+     * @param thought  是否包含思考过程。
+     * @param summary  是否包含摘要。
+     * @param rating   是否包含评分。
+     * @param link     是否包含关联链接。
+     * @return 报告片段 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getPsychologyReportPart(String token, long sn, boolean content, boolean section, boolean thought,
                                               boolean summary, boolean rating, boolean link) {
         Performer current = this.activePerformer();
@@ -2828,6 +3578,13 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 停止正在生成的报告。
+     *
+     * @param token 访问令牌。
+     * @param sn    报告序列号。
+     * @return 停止结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject stopGeneratingPsychologyReport(String token, long sn) {
         JSONObject data = new JSONObject();
         data.put("sn", sn);
@@ -2850,6 +3607,14 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 重设报告的关注重点。
+     *
+     * @param token     访问令牌。
+     * @param sn        报告序列号。
+     * @param attention 关注点配置。
+     * @return 更新结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject resetReportAttention(String token, long sn, Attention attention) {
         JSONObject data = new JSONObject();
         data.put("sn", sn);
@@ -2875,6 +3640,15 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 修改报告备注。
+     *
+     * <p>载荷原样透传，由服务端解析需要修改的字段。</p>
+     *
+     * @param token 访问令牌。
+     * @param data  备注载荷。
+     * @return 修改结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject modifyReportRemark(String token, JSONObject data) {
         Packet packet = new Packet(AIGCAction.ModifyReportRemark.name, data);
         ActionDialect request = packet.toDialect();
@@ -2894,6 +3668,12 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 列出可用量表。
+     *
+     * @param token 访问令牌。
+     * @return 量表列表 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject listPsychologyScales(String token) {
         Packet packet = new Packet(AIGCAction.ListPsychologyScales.name, new JSONObject());
         ActionDialect request = packet.toDialect();
@@ -2914,6 +3694,13 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 获取量表。
+     *
+     * @param token 访问令牌。
+     * @param sn    量表序列号。
+     * @return 量表对象；失败返回 {@code null} 。
+     */
     public Scale getPsychologyScale(String token, long sn) {
         JSONObject data = new JSONObject();
         data.put("sn", sn);
@@ -2936,6 +3723,17 @@ public class Manager implements Tickable, PerformerListener {
         return new Scale(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 按对象特征生成量表。
+     *
+     * <p>同一量表模板会按性别与年龄调整条目与常模。</p>
+     *
+     * @param token     访问令牌。
+     * @param scaleName 量表名称。
+     * @param gender    性别。
+     * @param age       年龄。
+     * @return 生成的量表；失败返回 {@code null} 。
+     */
     public Scale generatePsychologyScale(String token, String scaleName, String gender, int age) {
         JSONObject data = new JSONObject();
         data.put("name", scaleName);
@@ -2960,6 +3758,13 @@ public class Manager implements Tickable, PerformerListener {
         return new Scale(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 提交量表答题卡。
+     *
+     * @param token       访问令牌。
+     * @param answerSheet 答题卡。
+     * @return 计分结果；失败返回 {@code null} 。
+     */
     public ScaleResult submitPsychologyAnswerSheet(String token, AnswerSheet answerSheet) {
         Packet packet = new Packet(AIGCAction.SubmitPsychologyAnswerSheet.name, answerSheet.toJSON());
         ActionDialect request = packet.toDialect();
@@ -2980,6 +3785,18 @@ public class Manager implements Tickable, PerformerListener {
         return new ScaleResult(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 执行心理对话（多分支模式）。
+     *
+     * <p>把执行机的外部 HTTP/HTTPS 端点一并下发给服务端，供其回调；超时 3 分钟。
+     * 分支由 {@code relations} 数组驱动，需要单个分支时改用带 {@code relation} 的重载。</p>
+     *
+     * @param token       访问令牌。
+     * @param channelCode 通道码。
+     * @param relations   分支关系数组。
+     * @param query       用户提问。
+     * @return 对话结果 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject executePsychologyConversation(String token, String channelCode,
                                                     JSONArray relations, String query) {
         Performer current = this.activePerformer();
@@ -3015,6 +3832,20 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 执行心理对话（单分支模式）。
+     *
+     * <p>与多分支重载的区别：这里显式传入单个 {@code relation} 与可选上下文。
+     * {@code relation} 不能为 {@code null} ，否则直接返回 {@code null} 且不发请求；
+     * {@code context} 可为 {@code null} ，表示不携带上一轮上下文。超时同为 3 分钟。</p>
+     *
+     * @param token       访问令牌。
+     * @param channelCode 通道码。
+     * @param context     上下文，允许为 {@code null} 。
+     * @param relation    分支关系，不能为 {@code null} 。
+     * @param query       用户提问。
+     * @return 对话结果 JSON ；参数非法或失败返回 {@code null} 。
+     */
     public JSONObject executePsychologyConversation(String token, String channelCode,
                                                     JSONObject context, JSONObject relation, String query) {
         Performer current = this.activePerformer();
@@ -3058,6 +3889,13 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 按文件码获取绘画数据。
+     *
+     * @param token    访问令牌。
+     * @param fileCode 绘画文件码。
+     * @return 绘画数据 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getPsychologyPainting(String token, String fileCode) {
         JSONObject data = new JSONObject();
         data.put("fileCode", fileCode);
@@ -3080,6 +3918,16 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 按报告获取绘画数据。
+     *
+     * @param token    访问令牌。
+     * @param reportSn 报告序列号。
+     * @param bbox     是否返回检测框。
+     * @param vparam   是否返回可视化参数。
+     * @param prob     检测概率阈值。
+     * @return 绘画数据 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getPsychologyPainting(String token, long reportSn, boolean bbox, boolean vparam, double prob) {
         JSONObject data = new JSONObject();
         data.put("sn", reportSn);
@@ -3105,6 +3953,13 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 获取绘画的统计图表数据。
+     *
+     * @param token    访问令牌。
+     * @param reportSn 报告序列号。
+     * @return 图表数据 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getPsychologyPaintingChart(String token, long reportSn) {
         JSONObject data = new JSONObject();
         data.put("sn", reportSn);
@@ -3128,6 +3983,13 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 获取绘画标签。
+     *
+     * @param token    访问令牌。
+     * @param reportSn 报告序列号。
+     * @return 标签 JSON ；失败返回 {@code null} 。
+     */
     public JSONObject getPaintingLabels(String token, long reportSn) {
         JSONObject data = new JSONObject();
         data.put("sn", reportSn);
@@ -3150,6 +4012,14 @@ public class Manager implements Tickable, PerformerListener {
         return Packet.extractDataPayload(responsePacket);
     }
 
+    /**
+     * 提交人工修订的绘画标签。
+     *
+     * @param token  访问令牌。
+     * @param sn     报告序列号。
+     * @param labels 标签数组。
+     * @return 提交成功返回 {@code true} 。
+     */
     public boolean submitPaintingLabels(String token, long sn, JSONArray labels) {
         JSONObject data = new JSONObject();
         data.put("sn", sn);
@@ -3174,6 +4044,14 @@ public class Manager implements Tickable, PerformerListener {
         return true;
     }
 
+    /**
+     * 设置报告状态。
+     *
+     * @param token 访问令牌。
+     * @param sn    报告序列号。
+     * @param state 目标状态值，取值由服务端定义。
+     * @return 设置成功返回 {@code true} 。
+     */
     public boolean setPaintingReportState(String token, long sn, int state) {
         JSONObject data = new JSONObject();
         data.put("sn", sn);
@@ -3197,6 +4075,17 @@ public class Manager implements Tickable, PerformerListener {
         return true;
     }
 
+    /**
+     * 申请接入实时流。
+     *
+     * <p>把调用方设备与指定流绑定到当前执行机，后续分片会路由到该设备。</p>
+     *
+     * @param token      访问令牌。
+     * @param device     调用方设备。
+     * @param streamType 流类型。
+     * @param streamName 流名称。
+     * @return 接入成功返回 {@code true} 。
+     */
     public boolean applyStream(String token, Device device, String streamType, String streamName) {
         Performer current;
         long requestGeneration;
@@ -3227,6 +4116,13 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 停止实时流。
+     *
+     * @param token      访问令牌。
+     * @param streamName 流名称。
+     * @return 停止成功返回 {@code true} 。
+     */
     public boolean stopStream(String token, String streamName) {
         JSONObject data = new JSONObject();
         data.put("streamName", streamName);
@@ -3249,6 +4145,13 @@ public class Manager implements Tickable, PerformerListener {
         return true;
     }
 
+    /**
+     * 获取实时流产生的文件。
+     *
+     * @param token      访问令牌。
+     * @param streamName 流名称。
+     * @return 文件标签；尚未产生文件或失败时返回 {@code null} 。
+     */
     public FileLabel getStreamFile(String token, String streamName) {
         JSONObject data = new JSONObject();
         data.put("streamName", streamName);
@@ -3275,12 +4178,14 @@ public class Manager implements Tickable, PerformerListener {
     /**
      * 查询咨询策略。
      *
-     * @param token
-     * @param streamName
-     * @param theme
-     * @param attribute
-     * @param index
-     * @return
+     * <p>按流、主题与属性取当前应执行的咨询动作，{@code index} 用于在同一主题下顺序推进。</p>
+     *
+     * @param token      访问令牌。
+     * @param streamName 流名称。
+     * @param theme      咨询主题。
+     * @param attribute  绘画属性。
+     * @param index      策略序号。
+     * @return 咨询策略；失败返回 {@code null} 。
      */
     public CounselingStrategy queryCounselingStrategy(String token, String streamName, ConsultationTheme theme,
                                                       Attribute attribute, int index) {
@@ -3311,13 +4216,15 @@ public class Manager implements Tickable, PerformerListener {
     /**
      * 查询咨询提示性说明。
      *
-     * @param token
-     * @param streamName
-     * @param theme
-     * @param attribute
-     * @param consultingAction
-     * @param index
-     * @return
+     * <p>与策略查询的区别：这里多指定一个咨询动作，返回该动作对应的引导话术。</p>
+     *
+     * @param token            访问令牌。
+     * @param streamName       流名称。
+     * @param theme            咨询主题。
+     * @param attribute        绘画属性。
+     * @param consultingAction 咨询动作。
+     * @param index            策略序号。
+     * @return 引导话术；失败返回 {@code null} 。
      */
     public CounselingStrategy queryCounselingCaption(String token, String streamName, ConsultationTheme theme,
                                                      Attribute attribute,
@@ -3348,6 +4255,13 @@ public class Manager implements Tickable, PerformerListener {
         return new CounselingStrategy(Packet.extractDataPayload(responsePacket));
     }
 
+    /**
+     * 周期回调。
+     *
+     * <p>由执行机按固定间隔驱动，用于维护令牌缓存与清理过期句柄。未运行时直接返回。</p>
+     *
+     * @param now 当前时间戳，单位毫秒。
+     */
     @Override
     public synchronized void onTick(long now) {
         if (!this.running) {
@@ -3378,6 +4292,15 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 收到单元响应时的回调。
+     *
+     * <p>只处理本单元（{@code AIGCCellet}）的响应，其余单元与空消息直接忽略，
+     * 随后按序列号唤醒对应的等待请求。</p>
+     *
+     * @param cellet    产生响应的单元名称。
+     * @param primitive 响应消息。
+     */
     @Override
     public synchronized void onReceived(String cellet, Primitive primitive) {
         if (!this.running || !AIGCCellet.NAME.equals(cellet) || null == primitive) {

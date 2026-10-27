@@ -27,10 +27,21 @@ import java.util.concurrent.TimeoutException;
  */
 public class RobodroidCellet extends AbstractCellet implements Tickable {
 
+    /** 单元名称，同时作为端点注册名。 */
     public final static String NAME = "Robodroid";
 
+    /**
+     * Roboengine 的 API 地址，默认指向本机。
+     *
+     * <p>可由配置项 {@code robodroid.api} 覆盖。</p>
+     */
     protected static String API_URL = "http://127.0.0.1:2280/event/callback/AfKbNrmDvJQWxkMFNlYQfFHVrRZkbjNi";
 
+    /**
+     * 回调地址，供 Roboengine 反向推送事件。
+     *
+     * <p>可由配置项 {@code robodroid.callback} 覆盖，必须与对外暴露的地址一致，否则收不到事件。</p>
+     */
     protected static String CALLBACK_URL = "http://127.0.0.1:7010/robodroid/event/kLBNGSmrTbmNlBfTYcIaKqYQiDPKoTkE";
 
     /**
@@ -48,6 +59,14 @@ public class RobodroidCellet extends AbstractCellet implements Tickable {
         super(NAME);
     }
 
+    /**
+     * 装载单元：按配置决定是否启用机器人服务。
+     *
+     * <p>关闭时只打印告警并直接返回，不注册任何端点，也不启动管理器；
+     * 启用时依次启动管理器、注册端点并上报回调地址。</p>
+     *
+     * @return 恒定返回 {@code true} 。
+     */
     @Override
     public boolean install() {
         this.performer = (Performer) this.getNucleus().getParameter("performer");
@@ -78,6 +97,11 @@ public class RobodroidCellet extends AbstractCellet implements Tickable {
         return true;
     }
 
+    /**
+     * 卸载单元：停止管理器并撤销回调注册。
+     *
+     * <p>未启用时只摘除定时回调，不做其他清理。</p>
+     */
     @Override
     public void uninstall() {
         this.performer.removeTickable(this);
@@ -167,6 +191,15 @@ public class RobodroidCellet extends AbstractCellet implements Tickable {
         }
     }
 
+    /**
+     * 周期性维护。
+     *
+     * <p>未启用时直接返回。每 3 个 tick 检查一次回调是否已注册，未注册则重新注册；
+     * 每 6 个 tick 探测一次 Roboengine 是否可用，异常时把注册标记置为未注册，
+     * 下一轮会自动重新注册，形成自愈。</p>
+     *
+     * @param now 当前时间戳，单位毫秒。
+     */
     @Override
     public void onTick(long now) {
         if (!this.enabled) {

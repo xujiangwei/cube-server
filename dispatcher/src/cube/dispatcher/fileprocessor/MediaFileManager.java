@@ -76,10 +76,20 @@ public final class MediaFileManager implements Tickable {
         this.authDomainMap = new HashMap<>();
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public final static MediaFileManager getInstance() {
         return MediaFileManager.instance;
     }
 
+    /**
+     * 检查运行环境。
+     *
+     * <p>探测 HLS 工具是否可用，不可用时仍可播放已生成的流，但无法为新媒体转码。</p>
+     */
     public void check() {
         boolean enabled = HLSTools.checkEnabled();
         if (!enabled) {
@@ -90,6 +100,13 @@ public final class MediaFileManager implements Tickable {
         }
     }
 
+    /**
+     * 绑定执行机。
+     *
+     * <p>绑定后才能向文件服务查询文件标签与鉴权域信息。</p>
+     *
+     * @param performer 执行机。
+     */
     public void setPerformer(Performer performer) {
         this.performer = performer;
         this.performer.addTickable(this);
@@ -99,7 +116,7 @@ public final class MediaFileManager implements Tickable {
     /**
      * 罗列当前媒体数据的所有目录。
      *
-     * @return
+     * @return 媒体根目录下的子目录数组；根目录不存在时返回空数组。
      */
     private File[] listAllMediaPath() {
         File path = new File(this.mediaPath);
@@ -120,10 +137,12 @@ public final class MediaFileManager implements Tickable {
     /**
      * 获取指定文件码媒体文件的回放流链接。
      *
-     * @param domainName
-     * @param fileCode
-     * @param secure
-     * @return
+     * <p>域名未缓存时先向服务端请求鉴权域信息并缓存，取不到则返回 {@code null} 。</p>
+     *
+     * @param domainName 媒体文件所属域名。
+     * @param fileCode   文件码。
+     * @param secure     是否使用 HTTPS 端点。
+     * @return 回放地址；文件码为空或域名信息不可用时返回 {@code null} 。
      */
     public String getMediaSourceURL(String domainName, String fileCode, boolean secure) {
         if (null == fileCode || fileCode.length() == 0) {
@@ -162,6 +181,15 @@ public final class MediaFileManager implements Tickable {
         return buf.toString();
     }
 
+    /**
+     * 查询文件标签。
+     *
+     * <p>向文件服务发起同步请求，域名或文件码无效时返回 {@code null} 。</p>
+     *
+     * @param domainName 文件所属域名。
+     * @param fileCode   文件码。
+     * @return 文件标签；查不到返回 {@code null} 。
+     */
     public FileLabel getFile(String domainName, String fileCode) {
         ActionDialect requestDialect = new ActionDialect(ClientAction.GetFile.name);
         requestDialect.addParam("domain", domainName);
@@ -186,9 +214,12 @@ public final class MediaFileManager implements Tickable {
     /**
      * 获取对应文件的 M3U8 文件。
      *
-     * @param tokenCode
-     * @param fileCode
-     * @return
+     * <p>同一媒体目录下只保留一份 {@code media.m3u8} ，已存在时直接复用，
+     * 不存在时调用 HLS 工具切片生成。</p>
+     *
+     * @param tokenCode 访问令牌码，用于校验调用方身份。
+     * @param fileCode  文件码。
+     * @return M3U8 文件；转码失败时返回 {@code null} 。
      */
     public File getM3U8File(String tokenCode, String fileCode) {
         File mediaFile = this.checkAndLoad(tokenCode, fileCode);
@@ -212,9 +243,11 @@ public final class MediaFileManager implements Tickable {
     /**
      * 定位 TS 文件。
      *
-     * @param fileCode
-     * @param filename
-     * @return
+     * <p>只拼接路径，不校验文件是否真实存在，调用方需自行判断。</p>
+     *
+     * @param fileCode 文件码。
+     * @param filename TS 文件名。
+     * @return TS 文件对象。
      */
     public File locateTransportStream(String fileCode, String filename) {
         return Paths.get(this.mediaPath, fileCode, filename).toFile();
@@ -329,6 +362,14 @@ public final class MediaFileManager implements Tickable {
         return authToken;
     }
 
+    /**
+     * 周期扫描媒体目录。
+     *
+     * <p>按固定间隔重新索引媒体文件，识别新增与删除的目录，
+     * 使外部直接写入磁盘的文件也能被服务发现。</p>
+     *
+     * @param now 当前时间戳，单位毫秒。
+     */
     @Override
     public void onTick(long now) {
         if (now - this.lastCheckPath > this.checkPathPeriod) {

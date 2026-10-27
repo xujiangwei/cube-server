@@ -112,9 +112,12 @@ public class FileChunkStorage {
     /**
      * 添加文件数据块。
      *
-     * @param chunk
-     * @param fileCode
-     * @return
+     * <p>文件码为 {@code null} 时按联系人、域与文件名自动匹配已有文件，未命中则生成新码。
+     * 首次写入会创建块存储并提交后台任务，后续块追加到同一存储。</p>
+     *
+     * @param chunk    文件数据块。
+     * @param fileCode 目标文件码，允许为 {@code null} 。
+     * @return 实际使用的文件码。
      */
     public String append(FileChunk chunk, String fileCode) {
         // 匹配文件码
@@ -145,7 +148,9 @@ public class FileChunkStorage {
     /**
      * 关闭指定文件码的文件。
      *
-     * @param fileCode
+     * <p>结束写入并触发已缓存数据的落盘；文件码不存在时为空操作。</p>
+     *
+     * @param fileCode 文件码。
      */
     public void closeFile(String fileCode) {
         this.passingChunkInputStreams.remove(fileCode);
@@ -159,7 +164,7 @@ public class FileChunkStorage {
     /**
      * 将文件写到磁盘。
      *
-     * @param fileChunkStore
+     * @param fileChunkStore 待落盘的块存储。
      */
     public void writeToDisk(FileChunkStore fileChunkStore) {
         if (!this.writeDisk) {
@@ -200,7 +205,9 @@ public class FileChunkStorage {
     /**
      * 将收到的数据实时转发给服务节点。
      *
-     * @param fileChunkStore
+     * <p>用于边收边转的流式上传，不在本地积压完整文件。</p>
+     *
+     * @param fileChunkStore 待转发的块存储。
      */
     public synchronized void expressToService(final FileChunkStore fileChunkStore) {
         if (this.passingChunkInputStreams.containsKey(fileChunkStore.fileCode)) {
@@ -241,8 +248,8 @@ public class FileChunkStorage {
     /**
      * 标记传送给服务单元的文件流。
      *
-     * @param fileChunkStore
-     * @return
+     * @param fileChunkStore 块存储。
+     * @return 该流的文件标签。
      */
     private FileLabel markStream(final FileChunkStore fileChunkStore) {
         // 生成文件标签
@@ -278,8 +285,10 @@ public class FileChunkStorage {
     /**
      * 匹配文件区块对应的文件码。
      *
-     * @param chunk
-     * @return
+     * <p>按联系人 ID 、域与文件名三元组查找已有标签，未命中时生成新文件码并登记。</p>
+     *
+     * @param chunk 文件数据块。
+     * @return 匹配或新生成的文件码。
      */
     private String matchFileCode(FileChunk chunk) {
         FileChunkTag current = null;
@@ -396,7 +405,9 @@ public class FileChunkStorage {
         /**
          * 生成文件标签。
          *
-         * @return
+         * <p>对已缓存的完整数据计算 MD5 与 SHA1 摘要，供下游校验完整性。</p>
+         *
+         * @return 带有摘要与大小的文件标签。
          */
         protected FileLabel makeFileLabel() {
             // 计算文件散列码

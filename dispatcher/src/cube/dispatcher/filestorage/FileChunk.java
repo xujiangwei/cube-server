@@ -73,16 +73,17 @@ public class FileChunk implements Comparable<FileChunk> {
     private Path dataFile;
 
     /**
-     * 构造函数。
+     * 构造文件块。
      *
-     * @param contactId
-     * @param domain
-     * @param token
-     * @param fileName
-     * @param fileSize
-     * @param cursor
-     * @param size
-     * @param data
+     * @param contactId    所属联系人 ID 。
+     * @param domain       所属域。
+     * @param token        访问令牌。
+     * @param fileName     文件名。
+     * @param fileSize     文件总大小，单位字节。
+     * @param lastModified 文件最后修改时间戳，单位毫秒。
+     * @param cursor       本块在文件中的起始偏移。
+     * @param size         本块字节数。
+     * @param data         本块数据。
      */
     public FileChunk(long contactId, String domain, String token, String fileName,
                      long fileSize, long lastModified, long cursor, int size, byte[] data) {
@@ -111,6 +112,13 @@ public class FileChunk implements Comparable<FileChunk> {
         this.data = null;
     }
 
+    /**
+     * 获取数据块内容。
+     *
+     * <p>内存中没有数据时从临时文件延迟加载，避免大文件上传时把所有分片都留在内存。</p>
+     *
+     * @return 数据块内容；读取失败返回 {@code null} 。
+     */
     public byte[] getData() {
         if (null == this.data && null != this.dataFile) {
             try {
@@ -124,6 +132,11 @@ public class FileChunk implements Comparable<FileChunk> {
         }
     }
 
+    /**
+     * 释放数据块占用的内存与临时文件。
+     *
+     * <p>写入磁盘或转发完成后调用，可立即降低内存占用。</p>
+     */
     public void clear() {
         this.data = null;
         if (null != this.dataFile) {
@@ -135,6 +148,14 @@ public class FileChunk implements Comparable<FileChunk> {
         }
     }
 
+    /**
+     * 判断两个数据块是否相同。
+     *
+     * <p>依次比较联系人、域、文件名与偏移量，四者相同才算同一块。</p>
+     *
+     * @param object 待比较对象。
+     * @return 相同返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (null != object && object instanceof FileChunk) {
@@ -147,6 +168,14 @@ public class FileChunk implements Comparable<FileChunk> {
         return false;
     }
 
+    /**
+     * 按起始偏移量排序。
+     *
+     * <p>用于把乱序到达的分片按文件位置重新排列。</p>
+     *
+     * @param other 另一个数据块。
+     * @return 偏移量之差。
+     */
     @Override
     public int compareTo(FileChunk other) {
         return (int) (this.cursor - other.cursor);

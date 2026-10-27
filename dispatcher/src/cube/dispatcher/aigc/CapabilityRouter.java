@@ -49,6 +49,12 @@ public final class CapabilityRouter {
         this.performer = performer;
     }
 
+    /**
+     * 启动路由器。
+     *
+     * <p>创建一个 2 线程的守护线程池，队列容量 16，用于向各服务端点查询能力快照。
+     * 重复调用幂等。</p>
+     */
     public synchronized void start() {
         if (queries != null) return;
         queries = new ThreadPoolExecutor(2, 2, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(16), r -> {
@@ -58,6 +64,12 @@ public final class CapabilityRouter {
         });
     }
 
+    /**
+     * 停止路由器并清空全部状态。
+     *
+     * <p>线程池立即中断，已排队的查询被丢弃；连接、通道、待完成请求的映射一并清理。
+     * 允许重复调用。</p>
+     */
     public synchronized void stop() {
         if (queries != null) queries.shutdownNow();
         queries = null;
@@ -68,6 +80,15 @@ public final class CapabilityRouter {
         completions.clear();
     }
 
+    /**
+     * 登记端点连接。
+     *
+     * <p>同一端点重复连接时沿用已有状态并重新调度，不会产生重复状态。
+     * 路由器尚未启动时直接返回，此时的能力快照由启动扫描补齐。</p>
+     *
+     * @param director 端点。
+     * @param source   与该端点通信的会话句柄。
+     */
     public synchronized void connected(Director director, Speakable source) {
         if (queries == null) return; // Startup scan covers contacts before initialization.
         State existing = states.get(director);
@@ -80,6 +101,14 @@ public final class CapabilityRouter {
         schedule(director, state, System.currentTimeMillis());
     }
 
+    /**
+     * 处理端点断开。
+     *
+     * <p>标记状态为断开并丢弃快照，同时清理该会话持有的通道与完成订阅，
+     * 避免把后续请求路由到已失效的连接。</p>
+     *
+     * @param source 断开的会话句柄。
+     */
     public synchronized void disconnected(Speakable source) {
         for (State state : states.values())
             if (state.source == source) {
@@ -91,6 +120,14 @@ public final class CapabilityRouter {
         pendingChannels.entrySet().removeIf(e -> e.getValue().owner.source == source);
     }
 
+    /**
+     * 周期刷新端点能力。
+     *
+     * <p>遍历本单元的全部端点，跳过未就绪的连接；对新增或快照过期的端点重新发起查询。
+     * 路由器未启动时直接返回。</p>
+     *
+     * @param now 当前时间戳，单位毫秒。
+     */
     public synchronized void onTick(long now) {
         if (queries == null) return;
         for (Director director : performer.getDirectorsForCellet(AIGCCellet.NAME)) {
@@ -154,6 +191,13 @@ public final class CapabilityRouter {
         }
     }
 
+    /**
+     * 列出当前可用的候选端点。
+     *
+     * <p>只返回已连接、快照未过期且具备所需能力的端点。</p>
+     *
+     * @return 候选端点列表；无可用端点时为空列表。
+     */
     public synchronized List<Director> candidates() {
         List<Director> result = new ArrayList<>();
         long now = System.currentTimeMillis();
@@ -290,6 +334,15 @@ public final class CapabilityRouter {
         return false;
     }
 
+    /**
+     * 登记已发出的请求。
+     *
+     * <p>申请通道的请求会被单独跟踪，因为通道建立后需要维持更长的存活时间。</p>
+     *
+     * @param director 目标端点。
+     * @param source   发送方的会话句柄。
+     * @param request  已发出的请求。
+     */
     public synchronized void sent(Director director, Speakable source, ActionDialect request) {
         boolean channel = AIGCAction.RequestChannel.name.equals(request.getName());
         boolean completion = AIGCAction.ChatCompletion.name.equals(request.getName());
@@ -324,6 +377,13 @@ public final class CapabilityRouter {
         }
     }
 
+    /**
+     * 登记请求失败。
+     *
+     * <p>按序列号清理待完成记录，避免失败请求长期占用等待表。</p>
+     *
+     * @param request 失败的请求。
+     */
     public synchronized void failed(ActionDialect request) {
         long sn = new Packet(request).sn;
         pendingChannels.remove(sn);
@@ -334,6 +394,14 @@ public final class CapabilityRouter {
         }
     }
 
+    /**
+     * 处理端点响应。
+     *
+     * <p>完成事件需要按订阅归并后再回调，其余响应按序列号直接结束等待。</p>
+     *
+     * @param source   产生响应的会话句柄。
+     * @param response 响应方言。
+     */
     public synchronized void response(Speakable source, ActionDialect response) {
         if (AIGCAction.ChatCompletionEvent.name.equals(response.getName())) {
             JSONObject event = new Packet(response).data;
@@ -352,10 +420,22 @@ public final class CapabilityRouter {
         }
     }
 
+    /**
+     * 标记请求已结束。
+     *
+     * @param sn 请求序列号。
+     */
     public synchronized void finished(long sn) {
         pendingChannels.remove(sn);
     }
 
+    /**
+     * 移除完成订阅。
+     *
+     * <p>订阅方主动取消或超时后调用，后续同名事件会被丢弃。</p>
+     *
+     * @param id 订阅标识。
+     */
     public synchronized void forgetCompletion(String id) {
         completions.remove(id);
     }

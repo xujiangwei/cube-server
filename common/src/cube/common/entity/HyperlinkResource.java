@@ -14,46 +14,118 @@ import org.json.JSONObject;
  */
 public class HyperlinkResource extends ComplexResource {
 
+    /**
+     * 类型：HTML 页面。
+     */
     public final static String TYPE_PAGE = "page";
 
+    /**
+     * 类型：纯文本。
+     */
     public final static String TYPE_PLAIN = "plain";
 
+    /**
+     * 类型：图片。
+     */
     public final static String TYPE_IMAGE = "image";
 
+    /**
+     * 类型：视频。
+     */
     public final static String TYPE_VIDEO = "video";
 
+    /**
+     * 类型：音频。
+     */
     public final static String TYPE_AUDIO = "audio";
 
+    /**
+     * 类型：其他未归类的资源。
+     */
     public final static String TYPE_OTHER = "other";
 
+    /**
+     * 类型：抓取失败。
+     *
+     * <p>该类型下只有 {@link #url} 有意义，其余字段为空。</p>
+     */
     public final static String TYPE_FAILURE = "failure";
 
+    /**
+     * 资源原始地址。
+     */
     public final String url;
 
+    /**
+     * 资源的 MIME 类型，例如 {@code text/html} 。
+     */
     public String mimeType;
 
+    /**
+     * 资源的业务分类，取值见本类的 {@code TYPE_*} 常量。
+     */
     public String metaType;
 
+    /**
+     * 资源所属站点名称。
+     */
     public String site;
 
+    /**
+     * 资源正文内容。
+     *
+     * <p>页面类资源为可读文本；媒体类资源通常为空。</p>
+     */
     public String content;
 
+    /**
+     * 资源标题。
+     */
     public String title;
 
+    /**
+     * 资源配图地址。
+     */
     public String illustration;
 
+    /**
+     * 资源在本地存储中的路径。
+     */
     public String path;
 
+    /**
+     * 资源字节大小。
+     */
     public long size;
 
+    /**
+     * 正文字数。
+     *
+     * <p>抓取时未统计则为 0 ，此时由 {@link #getNumWords()} 回退为按字符数计算。</p>
+     */
     public int numWords;
 
+    /**
+     * 媒体宽度，单位像素。
+     */
     public int width;
+    /**
+     * 媒体高度，单位像素。
+     */
     public int height;
+    /**
+     * 媒体格式，例如 {@code mp4} 。
+     */
     public String format;
 
+    /**
+     * 缩略图地址。
+     */
     public String thumbnail;
 
+    /**
+     * 未经处理的原始文本。
+     */
     public String rawText;
 
     public HyperlinkResource(String url, String metaType) {
@@ -122,6 +194,13 @@ public class HyperlinkResource extends ComplexResource {
         }
     }
 
+    /**
+     * 获取正文字数。
+     *
+     * <p>抓取阶段未统计字数时，退化为按正文字符数估算，因此返回的是近似值。</p>
+     *
+     * @return 正文字数；正文为空时返回 0 。
+     */
     public int getNumWords() {
         if (this.numWords == 0 && null != this.content) {
             return this.content.length();
@@ -131,6 +210,12 @@ public class HyperlinkResource extends ComplexResource {
         }
     }
 
+    /**
+     * 规整正文内容。
+     *
+     * <p>逐行去除首尾空白、丢弃长度不足 2 的空行，并去掉末尾多余换行。
+     * 对超长抓取结果做预处理，避免无意义的空白占满存储。</p>
+     */
     public void fixContent() {
         if (null != this.content) {
             this.content = this.filterContent(this.content);
@@ -152,6 +237,11 @@ public class HyperlinkResource extends ComplexResource {
         return result.toString();
     }
 
+    /**
+     * 序列化为完整 JSON 。
+     *
+     * @return 超链接资源 JSON 对象。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -198,6 +288,11 @@ public class HyperlinkResource extends ComplexResource {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return 超链接资源 JSON 对象。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = this.toJSON();

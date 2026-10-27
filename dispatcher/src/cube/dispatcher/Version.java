@@ -21,9 +21,9 @@ public final class Version {
     }
 
     /**
-     * 转版本串。
+     * 转为 {@code 主版本.次版本.修订号} 形式的版本串。
      *
-     * @return
+     * @return 版本号字符串。
      */
     public static String toVersionString() {
         StringBuilder buf = new StringBuilder();

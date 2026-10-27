@@ -67,14 +67,23 @@ public class AppEvent implements JSONable {
      */
     public final static String DeleteKnowledgeBase = "DeleteKnowledgeBase";
 
+    /** 事件名称，取值见本类的 {@code Session} 、{@code Chat} 等常量。 */
     public final String event;
 
+    /** 事件产生时间戳，单位毫秒。 */
     public final long timestamp;
 
+    /** 事件产生时间的可读字符串。 */
     public final String time;
 
+    /** 事件关联的联系人 ID ，无关联时为 0 。 */
     public long contactId;
 
+    /**
+     * 事件载荷。
+     *
+     * <p>写入前已过滤表情字符，避免下游解析失败。</p>
+     */
     public JSONObject data;
 
     public AppEvent(String event, long timestamp, JSONObject data) {
@@ -124,18 +133,36 @@ public class AppEvent implements JSONable {
         }
     }
 
+    /**
+     * 获取事件载荷，空值安全。
+     *
+     * @return 载荷对象；无载荷时返回空 JSON 对象。
+     */
     public JSONObject getSafeData() {
         return (null != this.data) ? this.data : new JSONObject();
     }
 
+    /**
+     * 读取字符串字段，空值安全。
+     *
+     * @param key 字段名。
+     * @return 字段值；载荷为空或字段缺失时返回空字符串。
+     */
     public String getSafeString(String key) {
         return (null != this.data) ? (this.data.has(key) ? this.data.getString(key) : "") : "";
     }
     
+    /**
+     * 读取整数字段，空值安全。
+     *
+     * @param key 字段名。
+     * @return 字段值；载荷为空或字段缺失时返回 0 。
+     */
     public int getSafeInt(String key) {
         return (null != this.data) ? (this.data.has(key) ? this.data.getInt(key) : 0) : 0;
     }
 
+    /** 序列化为完整 JSON 。 */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -149,18 +176,34 @@ public class AppEvent implements JSONable {
         return json;
     }
 
+    /** 序列化为精简 JSON 。 */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
     }
 
 
+    /**
+     * 构造对话成功事件载荷。
+     *
+     * @param record 生成记录。
+     * @return 带成功状态码的载荷。
+     */
     public static JSONObject createChatSuccessfulData(GeneratingRecord record) {
         JSONObject json = record.toJSON();
         json.put("code", AIGCStateCode.Ok.code);
         return json;
     }
 
+    /**
+     * 构造对话失败事件载荷。
+     *
+     * @param sn        请求序列号。
+     * @param stateCode 失败状态码。
+     * @param query     用户原始提问。
+     * @param unit      失败发生的单元，允许为 {@code null} 。
+     * @return 失败载荷。
+     */
     public static JSONObject createChatFailedData(long sn, AIGCStateCode stateCode,
                                                   String query, String unit) {
         JSONObject json = new JSONObject();
@@ -173,6 +216,12 @@ public class AppEvent implements JSONable {
         return json;
     }
 
+    /**
+     * 构造知识库问答成功事件载荷。
+     *
+     * @param result 问答结果。
+     * @return 带成功状态码的载荷。
+     */
     public static JSONObject createKnowledgeSuccessfulData(KnowledgeQAResult result) {
         JSONObject json = result.toCompactJSON();
         json.put("sn", result.record.sn);
@@ -180,6 +229,14 @@ public class AppEvent implements JSONable {
         return json;
     }
 
+    /**
+     * 构造知识库问答失败事件载荷。
+     *
+     * @param sn        请求序列号。
+     * @param stateCode 失败状态码。
+     * @param query     用户原始提问。
+     * @return 失败载荷。
+     */
     public static JSONObject createKnowledgeFailedData(long sn, AIGCStateCode stateCode,
                                                        String query) {
         JSONObject json = new JSONObject();
@@ -189,6 +246,13 @@ public class AppEvent implements JSONable {
         return json;
     }
 
+    /**
+     * 补充知识库删除事件所需的字段。
+     *
+     * @param info 被删除的知识库信息。
+     * @param data 待填充的载荷，就地修改并返回。
+     * @return 填充后的载荷。
+     */
     public static JSONObject createDeleteKnowledgeBaseData(KnowledgeBaseInfo info, JSONObject data) {
         data.put("name", info.name);
         data.put("category", info.category);

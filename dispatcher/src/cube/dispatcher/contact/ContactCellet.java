@@ -67,6 +67,13 @@ public class ContactCellet extends AbstractCellet {
         this.disconnTaskQueue = new ConcurrentLinkedQueue<>();
     }
 
+    /**
+     * 装载单元：取得执行机并注册联系人相关的 HTTP 端点。
+     *
+     * <p>端点包括查询、存在性判断、新建、删除联系人与验证码。</p>
+     *
+     * @return 恒定返回 {@code true} 。
+     */
     @Override
     public boolean install() {
         this.performer = (Performer) this.getNucleus().getParameter("performer");
@@ -74,10 +81,21 @@ public class ContactCellet extends AbstractCellet {
         return true;
     }
 
+    /**
+     * 卸载单元。
+     *
+     * <p>无需释放资源：端点随 HTTP 服务器生命周期结束而失效，任务队列由 GC 回收。</p>
+     */
     @Override
     public void uninstall() {
     }
 
+    /**
+     * 收到网络消息时触发。
+     *
+     * <p>按动作名分派到不同的任务队列：签到与返场需要独占任务对象，
+     * 列举群组走异步，其余动作走同步。</p>
+     */
     @Override
     public void onListened(TalkContext talkContext, Primitive primitive) {
         super.onListened(talkContext, primitive);
@@ -102,6 +120,11 @@ public class ContactCellet extends AbstractCellet {
         }
     }
 
+    /**
+     * 连接断开时触发。
+     *
+     * <p>投递一个断连任务，由后端清理该会话的在线状态。</p>
+     */
     @Override
     public void onQuitted(TalkContext context, Servable server) {
         this.performer.execute(this.borrowDisconnectTask(context));
@@ -115,6 +138,15 @@ public class ContactCellet extends AbstractCellet {
         this.performer.getHttpServer().addContextHandler(new VerificationCode(this.performer));
     }
 
+    /**
+     * 借出一个签到任务。
+     *
+     * <p>签到任务持有独立的会话状态，无法与其他动作共用对象池。</p>
+     *
+     * @param talkContext 会话上下文。
+     * @param primitive   原始消息。
+     * @return 可直接提交给执行机的任务。
+     */
     protected SignInTask borrowSignInTask(TalkContext talkContext, Primitive primitive) {
         SignInTask task = this.signInTaskQueue.poll();
         if (null == task) {
@@ -128,12 +160,24 @@ public class ContactCellet extends AbstractCellet {
         return task;
     }
 
+    /**
+     * 归还签到任务。
+     *
+     * @param task 已执行完毕的任务。
+     */
     protected void returnSignInTask(SignInTask task) {
         task.markResponseTime();
 
         this.signInTaskQueue.offer(task);
     }
 
+    /**
+     * 借出一个签退任务。
+     *
+     * @param talkContext 会话上下文。
+     * @param primitive   原始消息。
+     * @return 可直接提交给执行机的任务。
+     */
     protected SignOutTask borrowSignOutTask(TalkContext talkContext, Primitive primitive) {
         SignOutTask task = this.signOutTaskQueue.poll();
         if (null == task) {
@@ -147,12 +191,24 @@ public class ContactCellet extends AbstractCellet {
         return task;
     }
 
+    /**
+     * 归还签退任务。
+     *
+     * @param task 已执行完毕的任务。
+     */
     protected void returnSignOutTask(SignOutTask task) {
         task.markResponseTime();
 
         this.signOutTaskQueue.offer(task);
     }
 
+    /**
+     * 借出一个返场任务。
+     *
+     * @param talkContext 会话上下文。
+     * @param primitive   原始消息。
+     * @return 可直接提交给执行机的任务。
+     */
     protected ComebackTask borrowComebackTask(TalkContext talkContext, Primitive primitive) {
         ComebackTask task = this.comebackTaskQueue.poll();
         if (null == task) {
@@ -166,12 +222,27 @@ public class ContactCellet extends AbstractCellet {
         return task;
     }
 
+    /**
+     * 归还返场任务。
+     *
+     * @param task 已执行完毕的任务。
+     */
     protected void returnComebackTask(ComebackTask task) {
         task.markResponseTime();
 
         this.comebackTaskQueue.offer(task);
     }
 
+    /**
+     * 借出一个透传任务。
+     *
+     * <p>用于不需要独立状态的普通动作。</p>
+     *
+     * @param talkContext 会话上下文。
+     * @param primitive   原始消息。
+     * @param sync        是否同步等待后端响应。
+     * @return 可直接提交给执行机的任务。
+     */
     protected PassThroughTask borrowPassTask(TalkContext talkContext, Primitive primitive, boolean sync) {
         PassThroughTask task = this.passTaskQueue.poll();
         if (null == task) {
@@ -185,12 +256,25 @@ public class ContactCellet extends AbstractCellet {
         return task;
     }
 
+    /**
+     * 归还透传任务。
+     *
+     * @param task 已执行完毕的任务。
+     */
     protected void returnPassTask(PassThroughTask task) {
         task.markResponseTime();
 
         this.passTaskQueue.offer(task);
     }
 
+    /**
+     * 借出一个断连任务。
+     *
+     * <p>断连任务只依赖会话上下文，没有请求消息。</p>
+     *
+     * @param talkContext 会话上下文。
+     * @return 可直接提交给执行机的任务。
+     */
     protected DisconnectTask borrowDisconnectTask(TalkContext talkContext) {
         DisconnectTask task = this.disconnTaskQueue.poll();
         if (null == task) {
@@ -201,6 +285,11 @@ public class ContactCellet extends AbstractCellet {
         return task;
     }
 
+    /**
+     * 归还断连任务。
+     *
+     * @param task 已执行完毕的任务。
+     */
     protected void returnDisconnectTask(DisconnectTask task) {
         this.disconnTaskQueue.offer(task);
     }
