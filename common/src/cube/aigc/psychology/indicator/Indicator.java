@@ -227,10 +227,13 @@ public enum Indicator implements Indicable {
 
     ;
 
+    /** 名称。 */
     public final String name;
 
+    /** 码。 */
     public final String code;
 
+    /** 优先级。 */
     public final int priority;
 
     Indicator(String name, String code, int priority) {
@@ -239,21 +242,41 @@ public enum Indicator implements Indicable {
         this.priority = priority;
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     @Override
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取码。
+     *
+     * @return 码。
+     */
     @Override
     public String getCode() {
         return this.code;
     }
 
+    /**
+     * 获取优先级。
+     *
+     * @return 优先级。
+     */
     @Override
     public int getPriority() {
         return this.priority;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("name", this.name);
@@ -261,6 +284,14 @@ public enum Indicator implements Indicable {
         return json;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param valueOrName 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static Indicator parse(String valueOrName) {
         for (Indicator indicator : Indicator.values()) {
             if (indicator.name.equalsIgnoreCase(valueOrName) || indicator.code.equalsIgnoreCase(valueOrName)) {
@@ -275,6 +306,11 @@ public enum Indicator implements Indicable {
         return Unknown;
     }
 
+    /**
+     * 按优先级排序全部指标。
+     *
+     * @return 排序后的指标列表。
+     */
     public static List<Indicator> sortByPriority() {
         List<Indicator> result = new ArrayList<>();
         result.addAll(Arrays.asList(values()));

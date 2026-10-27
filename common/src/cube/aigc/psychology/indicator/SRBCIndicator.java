@@ -74,25 +74,53 @@ public enum SRBCIndicator implements Indicable {
         this.priority = priority;
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     @Override
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取码。
+     *
+     * @return 码。
+     */
     @Override
     public String getCode() {
         return this.code;
     }
 
+    /**
+     * 获取优先级。
+     *
+     * @return 优先级。
+     */
     @Override
     public int getPriority() {
         return this.priority;
     }
 
+    /**
+     * 获取指标总数。
+     *
+     * @return 数量。
+     */
     public static int length() {
         return SRBCIndicator.values().length - 1;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param nameOrCode 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static SRBCIndicator parse(String nameOrCode) {
         for (SRBCIndicator indicator : SRBCIndicator.values()) {
             if (indicator.code.equalsIgnoreCase(nameOrCode) ||

@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
  */
 public class SendMessageSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "SendMessage";
 
     private Contact account;
@@ -78,42 +79,92 @@ public class SendMessageSignal extends Signal {
         }
     }
 
+    /**
+     * 获取账号。
+     *
+     * @return 联系人。
+     */
     public Contact getAccount() {
         return this.account;
     }
 
+    /**
+     * 设置账号。
+     *
+     * @param account 联系人。
+     */
     public void setAccount(Contact account) {
         this.account = account;
     }
 
+    /**
+     * 获取会话类型。
+     *
+     * @return 会话类型。
+     */
     public ConversationType getConversationType() {
         return this.conversationType;
     }
 
+    /**
+     * 获取对端 ID 。
+     *
+     * @return 对端标识。
+     */
     public String getPartnerId() {
         return this.partnerId;
     }
 
+    /**
+     * 获取组名称。
+     *
+     * @return 组名称。
+     */
     public String getGroupName() {
         return this.groupName;
     }
 
+    /**
+     * 设置文本。
+     *
+     * @param text 文本。
+     */
     public void setText(String text) {
         this.text = text;
     }
 
+    /**
+     * 获取文本。
+     *
+     * @return 文本。
+     */
     public String getText() {
         return this.text;
     }
 
+    /**
+     * 设置文件码。
+     *
+     * @param fileCode 文件码。
+     */
     public void setFileCode(String fileCode) {
         this.fileCode = fileCode;
     }
 
+    /**
+     * 获取文件码。
+     *
+     * @return 文件码。
+     */
     public String getFileCode() {
         return this.fileCode;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

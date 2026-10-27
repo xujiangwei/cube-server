@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class QueryChannelCodeSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "QueryChannelCode";
 
     private String accountId;
@@ -27,10 +28,20 @@ public class QueryChannelCodeSignal extends Signal {
         this.accountId = json.getString("accountId");
     }
 
+    /**
+     * 获取账号 ID 。
+     *
+     * @return 账号标识。
+     */
     public String getAccountId() {
         return this.accountId;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

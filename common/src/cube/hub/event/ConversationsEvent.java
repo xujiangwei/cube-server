@@ -19,6 +19,7 @@ import java.util.List;
  */
 public class ConversationsEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "Conversations";
 
     private List<Conversation> conversations;
@@ -38,10 +39,20 @@ public class ConversationsEvent extends WeChatEvent {
         }
     }
 
+    /**
+     * 获取会话。
+     *
+     * @return 会话。
+     */
     public List<Conversation> getConversations() {
         return this.conversations;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -53,6 +64,13 @@ public class ConversationsEvent extends WeChatEvent {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();

@@ -12,6 +12,9 @@ import java.util.Arrays;
 
 public class AudioUtils {
 
+    /**
+     * 采样比率。
+     */
     public static final int SAMPLE_RATE = 16000;
 
     public static final int SAMPLE_SIZE_IN_BITS = 16;
@@ -66,18 +69,18 @@ public class AudioUtils {
     }
 
     private static void writeInt(ByteArrayOutputStream stream, int value) throws IOException {
-        stream.write(new byte[] {
-                (byte)(value & 0xff),
-                (byte)((value >> 8) & 0xff),
-                (byte)((value >> 16) & 0xff),
-                (byte)((value >> 24) & 0xff)
+        stream.write(new byte[]{
+                (byte) (value & 0xff),
+                (byte) ((value >> 8) & 0xff),
+                (byte) ((value >> 16) & 0xff),
+                (byte) ((value >> 24) & 0xff)
         });
     }
 
     private static void writeShort(ByteArrayOutputStream stream, int value) throws IOException {
-        stream.write(new byte[] {
-                (byte)(value & 0xff),
-                (byte)((value >> 8) & 0xff)
+        stream.write(new byte[]{
+                (byte) (value & 0xff),
+                (byte) ((value >> 8) & 0xff)
         });
     }
 }

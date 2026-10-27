@@ -15,8 +15,10 @@ import org.json.JSONObject;
  */
 public class ReadySignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "Ready";
 
+    /** 会话上下文。 */
     public TalkContext talkContext;
 
     public ReadySignal(ClientDescription description) {

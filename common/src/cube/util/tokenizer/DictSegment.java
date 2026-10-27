@@ -53,8 +53,7 @@ class DictSegment implements Comparable<DictSegment> {
 
     /**
      * 匹配词段
-     * 
-     * @param charArray
+     * @param charArray charArray。
      * @return Hit
      */
     Hit match(char[] charArray) {
@@ -64,10 +63,9 @@ class DictSegment implements Comparable<DictSegment> {
 
     /**
      * 匹配词段
-     * 
-     * @param charArray
-     * @param begin
-     * @param length
+     * @param charArray charArray。
+     * @param begin begin。
+     * @param length length。
      * @return Hit
      */
     Hit match(char[] charArray, int begin, int length) {
@@ -77,11 +75,10 @@ class DictSegment implements Comparable<DictSegment> {
 
     /**
      * 匹配词段
-     * 
-     * @param charArray
-     * @param begin
-     * @param length
-     * @param searchHit
+     * @param charArray charArray。
+     * @param begin begin。
+     * @param length length。
+     * @param searchHit searchHit。
      * @return Hit
      */
     Hit match(char[] charArray, int begin, int length, Hit searchHit) {
@@ -151,8 +148,7 @@ class DictSegment implements Comparable<DictSegment> {
 
     /**
      * 加载填充词典片段
-     * 
-     * @param charArray
+     * @param charArray charArray。
      */
     void fillSegment(char[] charArray) {
         this.fillSegment(charArray, 0, charArray.length, 1);
@@ -161,8 +157,7 @@ class DictSegment implements Comparable<DictSegment> {
 
     /**
      * 屏蔽词典中的一个词
-     * 
-     * @param charArray
+     * @param charArray charArray。
      */
     void disableSegment(char[] charArray) {
         this.fillSegment(charArray, 0, charArray.length, 0);
@@ -171,11 +166,10 @@ class DictSegment implements Comparable<DictSegment> {
 
     /**
      * 加载填充词典片段
-     * 
-     * @param charArray
-     * @param begin
-     * @param length
-     * @param enabled
+     * @param charArray charArray。
+     * @param begin begin。
+     * @param length length。
+     * @param enabled enabled。
      */
     private synchronized void fillSegment(char[] charArray, int begin, int length, int enabled) {
         // 获取字典表中的汉字对象
@@ -207,11 +201,10 @@ class DictSegment implements Comparable<DictSegment> {
 
     /**
      * 查找本节点下对应的keyChar的segment *
-     * 
-     * @param keyChar
-     * @param create
-     *            =1如果没有找到，则创建新的segment ; =0如果没有找到，不创建，返回null
-     * @return
+     * @param keyChar keyChar。
+     * @param create create。
+     * =1如果没有找到，则创建新的segment ; =0如果没有找到，不创建，返回null
+     * @return 处理结果。
      */
     private DictSegment lookforSegment(Character keyChar, int create) {
 
@@ -305,8 +298,7 @@ class DictSegment implements Comparable<DictSegment> {
 
     /**
      * 将数组中的segment迁移到Map中
-     * 
-     * @param segmentArray
+     * @param segmentArray segmentArray。
      */
     private void migrate(DictSegment[] segmentArray, Map<Character, DictSegment> segmentMap) {
         for (DictSegment segment : segmentArray) {
@@ -319,8 +311,7 @@ class DictSegment implements Comparable<DictSegment> {
 
     /**
      * 实现Comparable接口
-     * 
-     * @param o
+     * @param o o。
      * @return int
      */
     public int compareTo(DictSegment o) {

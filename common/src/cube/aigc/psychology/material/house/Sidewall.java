@@ -21,6 +21,12 @@ public class Sidewall extends Thing {
         super(json);
     }
 
+    /**
+     * 获取子物件。
+     *
+     * @param label 子物件。
+     * @return 子物件。
+     */
     @Override
     public List<Thing> getSubThings(Label label) {
         return null;

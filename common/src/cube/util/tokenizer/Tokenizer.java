@@ -177,10 +177,9 @@ public class Tokenizer {
 
     /**
      * 标准分词。
-     *
-     * @param paragraph
-     * @param mode
-     * @return
+     * @param paragraph paragraph。
+     * @param mode mode。
+     * @return 处理结果。
      */
     public synchronized List<SegToken> process(String paragraph, SegMode mode) {
         WordDictionary wordDict = dict();
@@ -267,9 +266,8 @@ public class Tokenizer {
 
     /**
      * 整句分句。
-     *
-     * @param sentence
-     * @return
+     * @param sentence sentence。
+     * @return 处理结果。
      */
     public synchronized List<String> sentenceProcess(String sentence) {
         WordDictionary wordDict = dict();

@@ -79,22 +79,47 @@ public class PerceptronThing extends Thing {
         }
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 判断是否子节点。
+     *
+     * @return 子节点。
+     */
     public boolean hasChildren() {
         return (!this.children.isEmpty());
     }
 
+    /**
+     * 获取子节点。
+     *
+     * @return 子节点。
+     */
     public List<PerceptronThing> getChildren() {
         return this.children;
     }
 
+    /**
+     * 获取值。
+     *
+     * @return 值。
+     */
     public double getValue() {
         return this.value;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -108,6 +133,13 @@ public class PerceptronThing extends Thing {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();
@@ -121,36 +153,69 @@ public class PerceptronThing extends Thing {
         return json;
     }
 
+    /**
+     * 创建图画大小。
+     *
+     * @return 图画大小。
+     */
     public static PerceptronThing createPictureSize() {
         PerceptronThing result = new PerceptronThing("PictureSize");
         result.value = 1.0 + FloatUtils.random(-0.1, 0.1);
         return result;
     }
 
+    /**
+     * 创建图画布局。
+     *
+     * @return 图画布局。
+     */
     public static PerceptronThing createPictureLayout() {
         PerceptronThing result = new PerceptronThing("PictureLayout");
         result.value = 1.5 + FloatUtils.random(-0.1, 0.1);
         return result;
     }
 
+    /**
+     * 创建图画布局。
+     *
+     * @param things 图画布局。
+     * @return 图画布局。
+     */
     public static PerceptronThing createPictureLayout(Thing[] things) {
         PerceptronThing result = new PerceptronThing("PictureLayout", things);
         result.value = 1.8 + FloatUtils.random(-0.1, 0.1);
         return result;
     }
 
+    /**
+     * 创建图画观感。
+     *
+     * @return 图画观感。
+     */
     public static PerceptronThing createPictureSense() {
         PerceptronThing result = new PerceptronThing("PictureSense");
         result.value = 2.0 + FloatUtils.random(-0.1, 0.1);
         return result;
     }
 
+    /**
+     * 创建物件位置。
+     *
+     * @param things 物件位置。
+     * @return 物件位置。
+     */
     public static PerceptronThing createThingPosition(Thing[] things) {
         PerceptronThing result = new PerceptronThing("ThingPosition", things);
         result.value = 2.3 + FloatUtils.random(-0.1, 0.1);
         return result;
     }
 
+    /**
+     * 创建物件大小。
+     *
+     * @param things 物件大小。
+     * @return 物件大小。
+     */
     public static PerceptronThing createThingSize(Thing[] things) {
         PerceptronThing result = new PerceptronThing("ThingSize", things);
         result.value = 2.5 + FloatUtils.random(-0.1, 0.1);

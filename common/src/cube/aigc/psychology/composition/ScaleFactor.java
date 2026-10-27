@@ -13,14 +13,19 @@ import org.json.JSONObject;
  */
 public class ScaleFactor {
 
+    /** 名称。 */
     public String name;
 
+    /** 显示名称。 */
     public String displayName;
 
+    /** 分数。 */
     public double score;
 
+    /** 描述。 */
     public String description = "";
 
+    /** 建议。 */
     public String suggestion = "";
 
     public ScaleFactor(String name, String displayName, double score) {
@@ -37,6 +42,11 @@ public class ScaleFactor {
         this.suggestion = json.getString("suggestion");
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("name", this.name);

@@ -40,8 +40,10 @@ public enum ScaleFactorLevel {
 
     ;
 
+    /** 等级。 */
     public final int level;
 
+    /** 前缀。 */
     public final String prefix;
 
     ScaleFactorLevel(int level, String prefix) {
@@ -49,6 +51,11 @@ public enum ScaleFactorLevel {
         this.prefix = prefix;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("level", this.level);

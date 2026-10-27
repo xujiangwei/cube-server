@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class AddFriendSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "AddFriend";
 
     private Contact account;
@@ -51,34 +52,74 @@ public class AddFriendSignal extends Signal {
         }
     }
 
+    /**
+     * 获取搜索关键词。
+     *
+     * @return 关键词。
+     */
     public String getSearchKeyword() {
         return this.searchKeyword;
     }
 
+    /**
+     * 设置账号。
+     *
+     * @param account 联系人。
+     */
     public void setAccount(Contact account) {
         this.account = account;
     }
 
+    /**
+     * 获取账号。
+     *
+     * @return 联系人。
+     */
     public Contact getAccount() {
         return this.account;
     }
 
+    /**
+     * 设置附言。
+     *
+     * @param postscript 附言。
+     */
     public void setPostscript(String postscript) {
         this.postscript = postscript;
     }
 
+    /**
+     * 获取附言。
+     *
+     * @return 附言；未设置返回 {@code null} 。
+     */
     public String getPostscript() {
         return this.postscript;
     }
 
+    /**
+     * 设置备注名称。
+     *
+     * @param remarkName 备注名称。
+     */
     public void setRemarkName(String remarkName) {
         this.remarkName = remarkName;
     }
 
+    /**
+     * 获取备注名称。
+     *
+     * @return 备注名称。
+     */
     public String getRemarkName() {
         return this.remarkName;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

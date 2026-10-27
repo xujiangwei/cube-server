@@ -20,6 +20,7 @@ import java.util.Map;
  */
 public class ReportEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "Report";
 
     /**
@@ -72,22 +73,47 @@ public class ReportEvent extends WeChatEvent {
         }
     }
 
+    /**
+     * 获取应用总数。
+     *
+     * @return 数量。
+     */
     public int getTotalAppNum() {
         return this.totalAppNum;
     }
 
+    /**
+     * 获取空闲应用数。
+     *
+     * @return 数量。
+     */
     public int getIdleAppNum() {
         return this.idleAppNum;
     }
 
+    /**
+     * 获取托管账号列表。
+     *
+     * @return 账号列表；无托管时为空列表。
+     */
     public List<Contact> getManagedAccounts() {
         return this.managedAccounts;
     }
 
+    /**
+     * 添加托管账号。
+     *
+     * @param account 联系人。
+     */
     public void addManagedAccount(Contact account) {
         this.managedAccounts.add(account);
     }
 
+    /**
+     * 移除托管账号。
+     *
+     * @param account 联系人。
+     */
     public void removeManagedAccount(Contact account) {
         synchronized (this) {
             for (int i = 0; i < this.managedAccounts.size(); ++i) {
@@ -102,6 +128,12 @@ public class ReportEvent extends WeChatEvent {
         }
     }
 
+    /**
+     * 判断是否为托管账号。
+     *
+     * @param account 联系人。
+     * @return 是托管账号返回 {@code true} 。
+     */
     public boolean hasManagedAccount(Contact account) {
         synchronized (this) {
             for (int i = 0; i < this.managedAccounts.size(); ++i) {
@@ -115,26 +147,59 @@ public class ReportEvent extends WeChatEvent {
         }
     }
 
+    /**
+     * 建立通道码与账号的映射。
+     *
+     * @param channelCode 通道码。
+     * @param account     联系人。
+     */
     public void putChannelCode(String channelCode, Contact account) {
         this.channelCodeMap.put(channelCode, account);
     }
 
+    /**
+     * 移除通道码。
+     *
+     * @param channelCode 通道码。
+     */
     public Contact removeChannelCode(String channelCode) {
         return this.channelCodeMap.remove(channelCode);
     }
 
+    /**
+     * 按通道码获取账号。
+     *
+     * @param channelCode 通道码。
+     * @return 联系人；无映射返回 {@code null} 。
+     */
     public Contact getAccount(String channelCode) {
         return this.channelCodeMap.get(channelCode);
     }
 
+    /**
+     * 判断是否通道码。
+     *
+     * @param channelCode 通道码。
+     * @return 通道码。
+     */
     public boolean hasChannelCode(String channelCode) {
         return this.channelCodeMap.containsKey(channelCode);
     }
 
+    /**
+     * 获取通道码。
+     *
+     * @return 通道码。
+     */
     public Map<String, Contact> getChannelCodes() {
         return this.channelCodeMap;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -158,6 +223,13 @@ public class ReportEvent extends WeChatEvent {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();
@@ -172,6 +244,11 @@ public class ReportEvent extends WeChatEvent {
         return json;
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         StringBuilder buf = new StringBuilder();

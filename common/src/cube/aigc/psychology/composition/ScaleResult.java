@@ -11,12 +11,16 @@ import org.json.JSONObject;
 
 public class ScaleResult implements JSONable {
 
+    /** 内容。 */
     public String content;
 
+    /** 分数。 */
     public ScaleScore score;
 
+    /** 提示词。 */
     public ScalePrompt prompt;
 
+    /** 完成。 */
     public boolean complete;
 
     public ScaleResult(Scale scale) {
@@ -43,10 +47,21 @@ public class ScaleResult implements JSONable {
         }
     }
 
+    /**
+     * 匹配因子名称。
+     *
+     * @param key 因子名称。
+     * @return 因子名称。
+     */
     public String matchFactorName(String key) {
         return this.score.getItemName(key);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = this.toCompactJSON();
@@ -56,6 +71,13 @@ public class ScaleResult implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

@@ -52,8 +52,7 @@ public class WordDictionary {
 
     /**
      * Initialize the user dictionary.
-     *
-     * @param userPath
+     * @param userPath userPath。
      */
     public void init(Path userPath) {
         String absPath = userPath.toAbsolutePath().toString();
@@ -232,6 +231,12 @@ public class WordDictionary {
     }
 
 
+    /**
+     * 判断是否包含词。
+     *
+     * @param word 词。
+     * @return 词。
+     */
     public boolean containsWord(String word) {
         return freqs.containsKey(word);
     }

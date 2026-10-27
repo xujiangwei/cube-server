@@ -22,6 +22,12 @@ public class BigFiveRevolver {
     public BigFiveRevolver() {
     }
 
+    /**
+     * 生成全景。
+     *
+     * @param reports 全景。
+     * @return 全景。
+     */
     public Panorama generatePanorama(List<PaintingReport> reports) {
         Panorama panorama = new Panorama();
 

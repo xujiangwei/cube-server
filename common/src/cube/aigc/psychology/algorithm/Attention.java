@@ -38,10 +38,13 @@ public enum Attention {
 
     ;
 
+    /** 等级。 */
     public final int level;
 
+    /** 名称。 */
     public final String name;
 
+    /** 描述。 */
     public final String description;
 
     Attention(int level, String name, String description) {
@@ -50,6 +53,14 @@ public enum Attention {
         this.description = description;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param level 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static Attention parse(int level) {
         for (Attention as : Attention.values()) {
             if (as.level == level) {

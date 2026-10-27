@@ -13,6 +13,11 @@ import org.json.JSONObject;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 数据集。
+ *
+ * <p>承载问卷与关键词样本，供术语匹配与语料检索使用。</p>
+ */
 public class Dataset {
 
     private Map<String, Content> contentMap;
@@ -51,19 +56,43 @@ public class Dataset {
         }
     }
 
+    /**
+     * 判断是否已完成分析。
+     *
+     * @return 已分析返回 {@code true} 。
+     */
     public boolean hasAnalyzed() {
         return !this.questionKeywordMap.isEmpty();
     }
 
+    /**
+     * 获取问题列表。
+     *
+     * @return 问题列表。
+     */
     public Collection<String> getQuestions() {
         return this.contentMap.keySet();
     }
 
+    /**
+     * 填充问题的关键词。
+     *
+     * @param question        问题文本。
+     * @param keywords        关键词数组。
+     * @param keywordSequence 关键词序列。
+     */
     public void fillQuestionKeywords(String question, String[] keywords, String[] keywordSequence) {
         this.questionKeywordMap.put(question, keywords);
         this.questionKeywordSequenceMap.put(question, keywordSequence);
     }
 
+    /**
+     * 匹配内容。
+     *
+     * @param keywords 内容。
+     * @param length 内容。
+     * @return 内容。
+     */
     public String matchContent(String[] keywords, int length) {
         String question = null;
         Iterator<Map.Entry<String, String[]>> iter = this.questionKeywordMap.entrySet().iterator();
@@ -103,10 +132,9 @@ public class Dataset {
 
     /**
      * 根据关键词检索内容。
-     *
      * @param keywords 关键词列表。
      * @param matching 匹配数量。
-     * @return
+     * @return 字符串列表。
      */
     public List<String> searchContent(String[] keywords, int matching) {
         List<String> result = new ArrayList<>();
@@ -137,10 +165,9 @@ public class Dataset {
 
     /**
      * 根据关键词检索内容和顺序。
-     *
-     * @param keywords
-     * @param matching
-     * @return
+     * @param keywords keywords。
+     * @param matching matching。
+     * @return 字符串列表。
      */
     public List<String> searchContentInOrder(String[] keywords, int matching) {
         List<String> result = new ArrayList<>();
@@ -220,6 +247,12 @@ public class Dataset {
         return result;
     }
 
+    /**
+     * 获取内容。
+     *
+     * @param question 内容。
+     * @return 内容。
+     */
     public String getContent(String question) {
         Content content = this.contentMap.get(question);
         if (null == content) {

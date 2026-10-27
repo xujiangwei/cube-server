@@ -16,8 +16,10 @@ import java.util.List;
 
 public class PaintingLabel implements JSONable {
 
+    /** 状态正常。 */
     public final static int STATE_NORMAL = 0;
 
+    /** 标签状态：忽略。 */
     public final static int STATE_IGNORE = 1;
 
     private long sn;
@@ -60,22 +62,47 @@ public class PaintingLabel implements JSONable {
         }
     }
 
+    /**
+     * 获取序列号。
+     *
+     * @return 序列号。
+     */
     public long getSn() {
         return this.sn;
     }
 
+    /**
+     * 获取时间戳。
+     *
+     * @return 时间戳。
+     */
     public long getTimestamp() {
         return this.timestamp;
     }
 
+    /**
+     * 获取描述。
+     *
+     * @return 描述。
+     */
     public String getDescription() {
         return this.description;
     }
 
+    /**
+     * 获取评估分数列表。
+     *
+     * @return 评估分数列表。
+     */
     public List<EvaluationScore> getEvaluationScores() {
         return this.evaluationScores;
     }
 
+    /**
+     * 获取评估分数数组。
+     *
+     * @return 分数 JSON 数组。
+     */
     public JSONArray getEvaluationScoresAsJSONArray() {
         JSONArray array = new JSONArray();
         for (EvaluationScore score : this.evaluationScores) {
@@ -86,10 +113,20 @@ public class PaintingLabel implements JSONable {
         return array;
     }
 
+    /**
+     * 获取表征列表。
+     *
+     * @return 表征列表。
+     */
     public List<Representation> getRepresentations() {
         return this.representations;
     }
 
+    /**
+     * 获取表征数组。
+     *
+     * @return 表征 JSON 数组。
+     */
     public JSONArray getRepresentationsAsJSONArray() {
         if (null == this.representations) {
             return null;
@@ -101,6 +138,11 @@ public class PaintingLabel implements JSONable {
         return array;
     }
 
+    /**
+     * 设置表征列表。
+     *
+     * @param array 表征列表。
+     */
     public void setRepresentations(JSONArray array) {
         this.representations = new ArrayList<>();
         for (int i = 0; i < array.length(); ++i) {
@@ -108,6 +150,11 @@ public class PaintingLabel implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = this.toCompactJSON();
@@ -120,6 +167,13 @@ public class PaintingLabel implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

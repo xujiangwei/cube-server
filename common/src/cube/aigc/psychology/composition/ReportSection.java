@@ -14,14 +14,19 @@ import org.json.JSONObject;
 
 public class ReportSection implements JSONable {
 
+    /** 指标。 */
     public Indicator indicator;
 
+    /** 标题。 */
     public String title;
 
+    /** 报告。 */
     public String report;
 
+    /** 建议。 */
     public String suggestion;
 
+    /** 比率。 */
     public IndicatorRate rate;
 
     public ReportSection(JSONObject json) {
@@ -41,6 +46,11 @@ public class ReportSection implements JSONable {
         this.rate = rate;
     }
 
+    /**
+     * 转换为权限 JSON。
+     *
+     * @return 权限 JSON。
+     */
     public JSONObject toPermissionJSON() {
         JSONObject json = new JSONObject();
         json.put("indicator", this.indicator.name);
@@ -51,6 +61,11 @@ public class ReportSection implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -62,6 +77,13 @@ public class ReportSection implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

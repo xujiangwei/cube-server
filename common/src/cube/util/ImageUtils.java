@@ -21,6 +21,12 @@ public final class ImageUtils {
     private ImageUtils() {
     }
 
+    /**
+     * 计算图像令牌。
+     *
+     * @param file 图像令牌。
+     * @return 图像令牌。
+     */
     public static int calcImageTokens(File file) {
         Size size = getImageSize(file);
         if (null == size) {
@@ -34,6 +40,12 @@ public final class ImageUtils {
         return (int) Math.floor(Math.pow(value / 8.0, 2) + Math.pow(value / 16.0, 2) + (value / 32.0));
     }
 
+    /**
+     * 获取图像大小。
+     *
+     * @param file 图像大小。
+     * @return 图像大小。
+     */
     public static Size getImageSize(File file) {
         try {
             BufferedImage image = ImageIO.read(file);
@@ -98,6 +110,11 @@ public final class ImageUtils {
         return newImage;
     }
 
+    /**
+     * 本地自测入口。
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
         String filePath = "storage/tmp/painting_12.jpg";
         String outputPath = "storage/tmp/painting_12_output.jpg";

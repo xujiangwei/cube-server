@@ -15,7 +15,9 @@ import org.json.JSONObject;
 import java.util.*;
 
 /**
- * @deprecated
+ * 性能基准测试。
+ *
+ * @deprecated 仅用于本地压测，不参与生产流程。
  */
 public class Benchmark {
 
@@ -30,6 +32,12 @@ public class Benchmark {
         }
     }
 
+    /**
+     * 获取评估分数列表。
+     *
+     * @param age 评估分数列表。
+     * @return 评估分数列表。
+     */
     public List<EvaluationScore> getEvaluationScores(int age) {
         List<EvaluationScore> list = new ArrayList<>();
         GenerationBenchmark benchmark = this.getGenerationBenchmark(age);
@@ -55,6 +63,12 @@ public class Benchmark {
         return null;
     }
 
+    /**
+     * 转换为JSON。
+     *
+     * @param age JSON。
+     * @return JSON。
+     */
     public JSONObject toJSON(int age) {
         for (GenerationBenchmark benchmark : this.benchmarkList) {
             if (age >= benchmark.min && age <= benchmark.max) {

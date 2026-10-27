@@ -47,14 +47,30 @@ public class ScoreAccelerator implements JSONable {
         }
     }
 
+    /**
+     * 添加分数。
+     *
+     * @param score 分数。
+     */
     public void addScore(Score score) {
         this.scoreList.add(score);
     }
 
+    /**
+     * 统计分数列表。
+     *
+     * @return 数量。
+     */
     public int numScores() {
         return this.scoreList.size();
     }
 
+    /**
+     * 获取原始值。
+     *
+     * @param indicator 原始值。
+     * @return 原始值。
+     */
     public int getOriginalValue(Indicator indicator) {
         int value = 0;
         for (Score score : this.scoreList) {
@@ -65,6 +81,11 @@ public class ScoreAccelerator implements JSONable {
         return value;
     }
 
+    /**
+     * 获取按权重排序的分数。
+     *
+     * @return 按权重排序的分数。
+     */
     public List<Score> getScoresOrderByWeight() {
         List<Score> list = new ArrayList<>(this.scoreList);
 
@@ -78,6 +99,12 @@ public class ScoreAccelerator implements JSONable {
         return list;
     }
 
+    /**
+     * 获取评估分数列表。
+     *
+     * @param attribute 评估分数列表。
+     * @return 评估分数列表。
+     */
     public List<EvaluationScore> getEvaluationScores(Attribute attribute) {
         if (null != this.evaluationScoreList) {
             return this.evaluationScoreList;
@@ -114,6 +141,13 @@ public class ScoreAccelerator implements JSONable {
         return result;
     }
 
+    /**
+     * 获取评估分数。
+     *
+     * @param indicator 评估分数。
+     * @param attribute 评估分数。
+     * @return 评估分数。
+     */
     public EvaluationScore getEvaluationScore(Indicable indicator, Attribute attribute) {
         List<EvaluationScore> list = this.getEvaluationScores(attribute);
         for (EvaluationScore es : list) {
@@ -133,6 +167,11 @@ public class ScoreAccelerator implements JSONable {
         return null;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -144,6 +183,13 @@ public class ScoreAccelerator implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

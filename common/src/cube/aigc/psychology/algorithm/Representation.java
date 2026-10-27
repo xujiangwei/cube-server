@@ -20,30 +20,47 @@ import java.util.List;
  */
 public class Representation implements JSONable {
 
+    /** 高 Trick。 */
     public final static String HighTrick = "明显";
+    /** 低 Trick。 */
     public final static String LowTrick = "缺乏"; // "不足";
+    /** 常规 Trick。 */
     public final static String NormalTrick = "具有";
 
+    /** 高倾向。 */
     public final static String HighTendency = "倾向高";
+    /** 低倾向。 */
     public final static String LowTendency = "倾向低";
+    /** 正常倾向。 */
     public final static String NormalTendency = "倾向中等";
 
+    /** 强。 */
     public final static String Strong = "强";
+    /** 弱。 */
     public final static String Weak = "弱";
+    /** 正常。 */
     public final static String Normal = "一般";
+    /** 高。 */
     public final static String High = "高";
+    /** 低。 */
     public final static String Low = "低";
 
+    /** 后缀。 */
     public final static String Suffix = "的";
 
+    /** 知识策略。 */
     public KnowledgeStrategy knowledgeStrategy;
 
+    /** 正相关。 */
     public int positiveCorrelation = 0;
 
+    /** 负相关。 */
     public int negativeCorrelation = 0;
 
+    /** 描述。 */
     public String description = "";
 
+    /** 物件。 */
     public List<PerceptronThing> things;
 
     public Representation(KnowledgeStrategy knowledgeStrategy) {
@@ -73,6 +90,11 @@ public class Representation implements JSONable {
         }
     }
 
+    /**
+     * 添加物件。
+     *
+     * @param things 物件。
+     */
     public void addThings(Thing[] things) {
         if (null == things || things.length == 0) {
             return;
@@ -83,6 +105,11 @@ public class Representation implements JSONable {
         }
     }
 
+    /**
+     * 构造描述。
+     *
+     * @return 描述。
+     */
     public void makeDescription() {
         String marked = null;
 
@@ -158,6 +185,12 @@ public class Representation implements JSONable {
         this.description = marked;
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param obj 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof Representation) {
@@ -169,11 +202,21 @@ public class Representation implements JSONable {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return this.knowledgeStrategy.getTerm().hashCode();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -189,6 +232,13 @@ public class Representation implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();
@@ -204,6 +254,11 @@ public class Representation implements JSONable {
         return json;
     }
 
+    /**
+     * 转换为是否严格 JSON。
+     *
+     * @return 是否严格 JSON。
+     */
     public JSONObject toStrictJSON() {
         JSONObject json = new JSONObject();
         json.put("knowledgeStrategy", this.knowledgeStrategy.toCompactJSON());

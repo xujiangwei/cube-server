@@ -20,6 +20,12 @@ public class Classification {
     public Classification() {
     }
 
+    /**
+     * 识别并构造物件。
+     *
+     * @param json 物件的 JSON 描述。
+     * @return 物件；无法识别返回 {@code null} 。
+     */
     public Thing recognize(JSONObject json) {
         if (!json.has("label")) {
             return null;

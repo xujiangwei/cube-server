@@ -19,9 +19,8 @@ public final class IPUtils {
 
     /**
      * 判断是否是合规的 IPv4 格式字符串。
-     *
-     * @param address
-     * @return
+     * @param address address。
+     * @return 处理结果。
      */
     public static boolean isIPv4(String address) {
         if (address.length() < 7 || address.length() > 15) {

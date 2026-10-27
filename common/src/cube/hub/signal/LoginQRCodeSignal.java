@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class LoginQRCodeSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "LoginQRCode";
 
     private long timestamp;
@@ -28,6 +29,11 @@ public class LoginQRCodeSignal extends Signal {
         this.timestamp = System.currentTimeMillis();
     }
 
+    /**
+     * 获取时间戳。
+     *
+     * @return 时间戳。
+     */
     public long getTimestamp() {
         return this.timestamp;
     }

@@ -18,6 +18,11 @@ public class Mouth extends Thing {
         super(json);
     }
 
+    /**
+     * 判断是否打开。
+     *
+     * @return 打开。
+     */
     public boolean isOpen() {
         // 判断纵横比
         double ar = this.box.getAspectRatio();
@@ -26,8 +31,7 @@ public class Mouth extends Thing {
 
     /**
      * 一字型。
-     *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean isStraight() {
         // 判断纵横比

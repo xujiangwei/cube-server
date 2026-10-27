@@ -77,7 +77,7 @@ public class FileDownloader {
 
         try {
             SSLContext sslContext = SSLContext.getInstance("TLS");
-            TrustManager[] tm = new TrustManager[]{ new DefaultX509TrustManager() };
+            TrustManager[] tm = new TrustManager[]{new DefaultX509TrustManager()};
             sslContext.init(null, tm, null);
             this.trustAllSocketFactory = new TLS12SSLSocketFactory(sslContext.getSocketFactory());
         } catch (Exception e) {
@@ -96,7 +96,7 @@ public class FileDownloader {
     /**
      * 下载文件。
      *
-     * @param fileUrl 文件地址，支持 http 与 https。
+     * @param fileUrl  文件地址，支持 http 与 https。
      * @param listener 进度监听器，允许为 {@code null} 。
      * @return 下载完成的文件；失败返回 {@code null} 。
      */
@@ -352,7 +352,8 @@ public class FileDownloader {
         private final SSLSocketFactory delegate;
 
         public TLS12SSLSocketFactory(SSLSocketFactory delegate) {
-            this.delegate = delegate;}
+            this.delegate = delegate;
+        }
 
         @Override
         public String[] getDefaultCipherSuites() {
@@ -400,6 +401,11 @@ public class FileDownloader {
         }
     }
 
+    /**
+     * 本地自测入口。
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
         String fileUrl = "https://cdn.mos.cms.futurecdn.net/vChK6pTy3vN3KbYZ7UU7k3-320-80.jpg";
         FileDownloader downloader = new FileDownloader();
@@ -421,8 +427,7 @@ public class FileDownloader {
         });
         if (null != file) {
             System.out.println("Download: " + file.getName() + " - " + file.length());
-        }
-        else {
+        } else {
             System.out.println("Download failed");
         }
     }

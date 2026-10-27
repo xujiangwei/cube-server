@@ -11,12 +11,16 @@ import org.json.JSONObject;
 
 public class Answer {
 
+    /** 序列号。 */
     public final int sn;
 
+    /** 码。 */
     public final String code;
 
+    /** 内容。 */
     public final String content;
 
+    /** 选中。 */
     public boolean chosen = false;
 
     public Answer(int sn, JSONObject structure) {
@@ -37,10 +41,20 @@ public class Answer {
         }
     }
 
+    /**
+     * 判断是否数字码。
+     *
+     * @return 数字码。
+     */
     public boolean isNumericCode() {
         return TextUtils.isNumeric(this.code);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("sn", this.sn);

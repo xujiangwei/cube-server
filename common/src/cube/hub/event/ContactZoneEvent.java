@@ -16,6 +16,7 @@ import org.json.JSONObject;
  */
 public class ContactZoneEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "ContactZone";
 
     private ContactZone contactZone;
@@ -42,22 +43,47 @@ public class ContactZoneEvent extends WeChatEvent {
         this.totalSize = json.getInt("total");
     }
 
+    /**
+     * 获取联系人区域。
+     *
+     * @return 联系人区域。
+     */
     public ContactZone getContactZone() {
         return this.contactZone;
     }
 
+    /**
+     * 获取起始索引。
+     *
+     * @return 起始索引，从 0 开始。
+     */
     public int getBeginIndex() {
         return this.beginIndex;
     }
 
+    /**
+     * 获取结束索引。
+     *
+     * @return 结束索引。
+     */
     public int getEndIndex() {
         return this.endIndex;
     }
 
+    /**
+     * 获取总数大小。
+     *
+     * @return 总数大小。
+     */
     public int getTotalSize() {
         return this.totalSize;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -68,6 +94,13 @@ public class ContactZoneEvent extends WeChatEvent {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();

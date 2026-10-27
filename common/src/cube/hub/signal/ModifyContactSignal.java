@@ -11,6 +11,7 @@ package cube.hub.signal;
  */
 public class ModifyContactSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "ModifyContact";
 
     public ModifyContactSignal() {

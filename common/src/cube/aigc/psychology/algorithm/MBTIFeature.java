@@ -19,6 +19,7 @@ public class MBTIFeature implements JSONable {
 
     // 感观型
 
+    /** ISTJ 型：内倾感觉思考判断型。 */
     public final static MBTIFeature ISTJ = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Introversion,
             MyersBriggsTypeIndicator.Sensing,
@@ -26,6 +27,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Judging
     });
 
+    /** ISFJ 型：内倾感觉情感判断型。 */
     public final static MBTIFeature ISFJ = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Introversion,
             MyersBriggsTypeIndicator.Sensing,
@@ -33,6 +35,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Judging
     });
 
+    /** INFJ 型：内倾直觉情感判断型。 */
     public final static MBTIFeature INFJ = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Introversion,
             MyersBriggsTypeIndicator.Intuition,
@@ -40,6 +43,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Judging
     });
 
+    /** INTJ 型：内倾直觉思考判断型。 */
     public final static MBTIFeature INTJ = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Introversion,
             MyersBriggsTypeIndicator.Intuition,
@@ -47,6 +51,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Judging
     });
 
+    /** ISTP 型：内倾感觉思考知觉型。 */
     public final static MBTIFeature ISTP = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Introversion,
             MyersBriggsTypeIndicator.Sensing,
@@ -54,6 +59,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Perceiving
     });
 
+    /** ISFP 型：内倾感觉情感知觉型。 */
     public final static MBTIFeature ISFP = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Introversion,
             MyersBriggsTypeIndicator.Sensing,
@@ -61,6 +67,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Perceiving
     });
 
+    /** INFP 型：内倾直觉情感知觉型。 */
     public final static MBTIFeature INFP = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Introversion,
             MyersBriggsTypeIndicator.Intuition,
@@ -68,6 +75,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Perceiving
     });
 
+    /** INTP 型：内倾直觉思考知觉型。 */
     public final static MBTIFeature INTP = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Introversion,
             MyersBriggsTypeIndicator.Intuition,
@@ -78,6 +86,7 @@ public class MBTIFeature implements JSONable {
 
     // 直觉型
 
+    /** ESTP 型：外倾感觉思考知觉型。 */
     public final static MBTIFeature ESTP = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Extraversion,
             MyersBriggsTypeIndicator.Sensing,
@@ -85,6 +94,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Perceiving
     });
 
+    /** ESFP 型：外倾感觉情感知觉型。 */
     public final static MBTIFeature ESFP = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Extraversion,
             MyersBriggsTypeIndicator.Sensing,
@@ -92,6 +102,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Perceiving
     });
 
+    /** ENFP 型：外倾直觉情感知觉型。 */
     public final static MBTIFeature ENFP = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Extraversion,
             MyersBriggsTypeIndicator.Intuition,
@@ -99,6 +110,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Perceiving
     });
 
+    /** ENTP 型：外倾直觉思考知觉型。 */
     public final static MBTIFeature ENTP = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Extraversion,
             MyersBriggsTypeIndicator.Intuition,
@@ -106,6 +118,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Perceiving
     });
 
+    /** ESTJ 型：外倾感觉思考判断型。 */
     public final static MBTIFeature ESTJ = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Extraversion,
             MyersBriggsTypeIndicator.Sensing,
@@ -113,6 +126,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Judging
     });
 
+    /** ESFJ 型：外倾感觉情感判断型。 */
     public final static MBTIFeature ESFJ = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Extraversion,
             MyersBriggsTypeIndicator.Sensing,
@@ -120,6 +134,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Judging
     });
 
+    /** ENFJ 型：外倾直觉情感判断型。 */
     public final static MBTIFeature ENFJ = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Extraversion,
             MyersBriggsTypeIndicator.Intuition,
@@ -127,6 +142,7 @@ public class MBTIFeature implements JSONable {
             MyersBriggsTypeIndicator.Judging
     });
 
+    /** ENTJ 型：外倾直觉思考判断型。 */
     public final static MBTIFeature ENTJ = new MBTIFeature(new MyersBriggsTypeIndicator[] {
             MyersBriggsTypeIndicator.Extraversion,
             MyersBriggsTypeIndicator.Intuition,
@@ -259,11 +275,21 @@ public class MBTIFeature implements JSONable {
         }
     }
 
+    /**
+     * 获取码。
+     *
+     * @return 码。
+     */
     public String getCode() {
         return this.indicators[0].code + this.indicators[1].code +
                 this.indicators[2].code + this.indicators[3].code;
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         if (null == this.name) {
             this.build();
@@ -271,6 +297,11 @@ public class MBTIFeature implements JSONable {
         return this.name;
     }
 
+    /**
+     * 获取描述。
+     *
+     * @return 描述。
+     */
     public String getDescription() {
         if (null == this.description) {
             this.build();
@@ -278,18 +309,34 @@ public class MBTIFeature implements JSONable {
         return this.description;
     }
 
+    /**
+     * 构造描述提示词。
+     *
+     * @return 描述提示词。
+     */
     public String makeDescriptionPrompt() {
         StringBuilder buf = new StringBuilder();
         buf.append(this.getCode()).append("人格特点");
         return buf.toString();
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return this.indicators[0].hashCode() + this.indicators[1].hashCode() +
                 this.indicators[2].hashCode() + this.indicators[3].hashCode();
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param obj 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof MBTIFeature) {
@@ -302,6 +349,11 @@ public class MBTIFeature implements JSONable {
         return false;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = this.toCompactJSON();
@@ -312,6 +364,13 @@ public class MBTIFeature implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

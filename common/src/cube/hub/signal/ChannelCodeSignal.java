@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class ChannelCodeSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "ChannelCode";
 
     private ChannelCode channelCode;
@@ -35,10 +36,20 @@ public class ChannelCodeSignal extends Signal {
         }
     }
 
+    /**
+     * 获取通道码。
+     *
+     * @return 通道码。
+     */
     public ChannelCode getChannelCode() {
         return this.channelCode;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

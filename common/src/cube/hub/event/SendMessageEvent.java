@@ -16,6 +16,7 @@ import org.json.JSONObject;
  */
 public class SendMessageEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "SendMessage";
 
     private Contact partner;
@@ -52,24 +53,51 @@ public class SendMessageEvent extends WeChatEvent {
         }
     }
 
+    /**
+     * 获取对端联系人。
+     *
+     * @return 联系人。
+     */
     public Contact getPartner() {
         return this.partner;
     }
 
+    /**
+     * 获取组。
+     *
+     * @return 组。
+     */
     public Group getGroup() {
         return this.group;
     }
 
+    /**
+     * 获取明文消息。
+     *
+     * @return 消息对象。
+     */
     public PlainMessage getPlainMessage() {
         return this.plainMessage;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
         return make(json);
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();

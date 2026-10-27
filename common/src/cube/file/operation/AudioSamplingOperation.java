@@ -23,10 +23,13 @@ public class AudioSamplingOperation extends AudioOperation {
 
     private final static String KEY_RATE = "rate";
 
+    /** 输出类型。 */
     public FileType outputType;
 
+    /** 通道。 */
     public int channel = 1;
 
+    /** 比率。 */
     public int rate = 16000;
 
     public AudioSamplingOperation(int channel, int rate) {
@@ -55,6 +58,11 @@ public class AudioSamplingOperation extends AudioOperation {
         return AudioSamplingOperation.Operation;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

@@ -22,8 +22,10 @@ public enum PainLevel {
 
     ;
 
+    /** 显示。 */
     public final String display;
 
+    /** 描述。 */
     public final String description;
 
     PainLevel(String display, String description) {
@@ -31,11 +33,24 @@ public enum PainLevel {
         this.description = description;
     }
 
+    /**
+     * 随机取一个枚举值。
+     *
+     * @return 随机的枚举值。
+     */
     public static PainLevel random() {
         int index = Utils.randomInt(0, values().length - 2);
         return values()[index];
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param name 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static PainLevel parse(String name) {
         for (PainLevel pl : PainLevel.values()) {
             if (pl.name().equalsIgnoreCase(name) || pl.display.equalsIgnoreCase(name)) {

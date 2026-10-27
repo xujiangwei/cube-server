@@ -31,6 +31,14 @@ public class ScaleScore implements JSONable {
         }
     }
 
+    /**
+     * 添加条目。
+     *
+     * @param key 条目。
+     * @param name 条目。
+     * @param value 条目。
+     * @param level 条目。
+     */
     public void addItem(String key, String name, Object value, ScaleFactorLevel level) {
         JSONObject pair = new JSONObject();
         pair.put("name", name);
@@ -39,10 +47,22 @@ public class ScaleScore implements JSONable {
         this.items.put(key, pair);
     }
 
+    /**
+     * 获取条目。
+     *
+     * @param name 条目。
+     * @return 条目。
+     */
     public Object getItem(String name) {
         return this.items.get(name);
     }
 
+    /**
+     * 获取条目名称。
+     *
+     * @param key 条目名称。
+     * @return 条目名称。
+     */
     public String getItemName(String key) {
         JSONObject data = this.items.get(key);
         if (null == data) {
@@ -52,6 +72,11 @@ public class ScaleScore implements JSONable {
         return data.getString("name");
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -63,6 +88,13 @@ public class ScaleScore implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

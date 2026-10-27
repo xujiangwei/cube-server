@@ -15,6 +15,11 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 关键特征。
+ *
+ * <p>标记一项对结论有决定性影响的特征。</p>
+ */
 public class KeyFeature implements JSONable {
 
     private String name;
@@ -40,26 +45,57 @@ public class KeyFeature implements JSONable {
         }
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取描述。
+     *
+     * @return 描述。
+     */
     public String getDescription() {
         return this.description;
     }
 
+    /**
+     * 设置描述。
+     *
+     * @param description 描述。
+     */
     public void setDescription(String description) {
         this.description = description;
     }
 
+    /**
+     * 添加指标分数。
+     *
+     * @param score 指标分数。
+     */
     public void addIndicatorScore(Score score) {
         this.indicators.add(score);
     }
 
+    /**
+     * 获取指标分数列表。
+     *
+     * @return 指标分数列表。
+     */
     public List<Score> getIndicatorScores() {
         return this.indicators;
     }
 
+    /**
+     * 获取指标分数。
+     *
+     * @param indicator 指标分数。
+     * @return 指标分数。
+     */
     public Score getIndicatorScore(Indicable indicator) {
         for (Score score : this.indicators) {
             if (score.indicator == indicator ||
@@ -70,6 +106,13 @@ public class KeyFeature implements JSONable {
         return null;
     }
 
+    /**
+     * 构造提示词。
+     *
+     * @param theme 提示词。
+     * @param attribute 提示词。
+     * @return 提示词。
+     */
     public String makePrompt(Theme theme, Attribute attribute) {
         StringBuilder buf = new StringBuilder();
         if (attribute.language.isChinese()) {
@@ -92,6 +135,11 @@ public class KeyFeature implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -105,6 +153,13 @@ public class KeyFeature implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

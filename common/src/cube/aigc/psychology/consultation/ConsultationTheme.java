@@ -33,10 +33,13 @@ public enum ConsultationTheme {
 
     ;
 
+    /** 码。 */
     public final String code;
 
+    /** 名称（中文）。 */
     public final String nameCN;
 
+    /** 名称（英文）。 */
     public final String nameEN;
 
     ConsultationTheme(String code, String nameCN, String nameEN) {
@@ -45,6 +48,14 @@ public enum ConsultationTheme {
         this.nameEN = nameEN;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param nameOrCode 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static ConsultationTheme parse(String nameOrCode) {
         for (ConsultationTheme theme : ConsultationTheme.values()) {
             if (theme.name().equalsIgnoreCase(nameOrCode) || theme.code.equalsIgnoreCase(nameOrCode) ||

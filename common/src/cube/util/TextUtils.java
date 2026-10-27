@@ -80,8 +80,8 @@ public final class TextUtils {
 
     /**
      * 判断字符串是否全是数字。
-     * @param str
-     * @return
+     * @param str str。
+     * @return 处理结果。
      */
     public static boolean isNumeric(String str) {
         Matcher isNum = sPatternNumeric.matcher(str);
@@ -93,8 +93,8 @@ public final class TextUtils {
 
     /**
      * 判断字符串是否全是数字。
-     * @param character
-     * @return
+     * @param character character。
+     * @return 处理结果。
      */
     public static boolean isNumeric(char character) {
         return isNumeric(String.valueOf(character));
@@ -102,8 +102,8 @@ public final class TextUtils {
 
     /**
      * 解析浏览器的 User Agent 串。
-     * @param userAgent
-     * @return
+     * @param userAgent userAgent。
+     * @return 处理结果。
      */
     public static JSONObject parseUserAgent(String userAgent) {
         String browserName = "Unknown";
@@ -164,13 +164,13 @@ public final class TextUtils {
 
     /**
      * 度量文本区域面积。
-     * @param text
-     * @param constraint
-     * @param wordSpacing
-     * @param lineSpacing
-     * @param maxWidth
-     * @param maxHeight
-     * @return
+     * @param text 待处理文本。
+     * @param constraint constraint。
+     * @param wordSpacing wordSpacing。
+     * @param lineSpacing lineSpacing。
+     * @param maxWidth maxWidth。
+     * @param maxHeight maxHeight。
+     * @return 处理结果。
      */
     public static Size measureTextAreas(String text, TextConstraint constraint,
                                          int wordSpacing, int lineSpacing,
@@ -223,9 +223,8 @@ public final class TextUtils {
 
     /**
      * 是否是 URL 格式。
-     *
-     * @param string
-     * @return
+     * @param string string。
+     * @return 处理结果。
      */
     public static boolean isURL(String string) {
         Matcher matcher = sWholeURL.matcher(string);
@@ -234,9 +233,8 @@ public final class TextUtils {
 
     /**
      * 是否是 IPv4 格式。
-     *
-     * @param string
-     * @return
+     * @param string string。
+     * @return 处理结果。
      */
     public static boolean isIPv4(String string) {
         Matcher matcher = sIPv4.matcher(string);
@@ -245,9 +243,8 @@ public final class TextUtils {
 
     /**
      * 提取 URL 的域名信息。
-     *
-     * @param url
-     * @return
+     * @param url 资源地址。
+     * @return 处理结果。
      */
     public static String extractDomain(String url) {
         Pattern pattern = Pattern.compile("[^//]*?\\.(com|cn|net|org|biz|info|cc|tv|ai|io|tw|hk|mo|edu|gov|int|mil|pro|name|museum|coop|aero)");
@@ -268,9 +265,8 @@ public final class TextUtils {
 
     /**
      * 提取文本里的所有 URL 链接。
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public synchronized static List<String> extractAllURLs(String text) {
         List<String> list = new ArrayList<>();
@@ -286,10 +282,9 @@ public final class TextUtils {
 
     /**
      * 文本省略。
-     *
-     * @param text
-     * @param limit
-     * @return
+     * @param text 待处理文本。
+     * @param limit limit。
+     * @return 处理结果。
      */
     public static String ellipsis(String text, int limit) {
         if (text.length() > limit) {
@@ -318,9 +313,8 @@ public final class TextUtils {
 
     /**
      * 判断短字符串是否是日期信息字符串。
-     *
-     * @param value
-     * @return
+     * @param value value。
+     * @return 处理结果。
      */
     public static boolean isDateString(String value) {
         Matcher matcher = sDate.matcher(value);
@@ -336,14 +330,12 @@ public final class TextUtils {
 
     /**
      * 将中文的数字字符转为阿拉伯数字字符。例如："二"转为"2"。
-     *
      * <p><b>已知限制（保留既有行为，未修正）</b>：实现是逐字符替换，只特判了"十一 / 十二"。
      * 因此"二十"会得到 {@code 210}、"十五"会得到 {@code 105}。当前调用方只用于"日期 / 序号"
      * 这类 0-12 的取值，改动会影响既有识别结果，故此处仅记录，不做修改。
      * 若需要支持 20 以上的数值，应另起方法做真正的数值解析，而不是修改本方法。</p>
-     *
-     * @param value
-     * @return
+     * @param value value。
+     * @return 处理结果。
      */
     public static String convChineseToArabicNumerals(String value) {
         String result = value.replaceAll("十一", "11")
@@ -364,9 +356,8 @@ public final class TextUtils {
 
     /**
      * 判断指定文本中是否包含中文标点符号。
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static boolean containsChinesePunctuation(String text) {
         boolean result = false;
@@ -383,9 +374,8 @@ public final class TextUtils {
 
     /**
      * 判断指定文本中是否包含英文标点符号。
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static boolean containsEnglishPunctuation(String text) {
         boolean result = false;
@@ -402,9 +392,8 @@ public final class TextUtils {
 
     /**
      * 过滤所有标点符号。
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static String filterPunctuation(String text) {
         String result = text.replaceAll(sEnglishPunctuation.pattern(), "");
@@ -413,9 +402,8 @@ public final class TextUtils {
 
     /**
      * 指定字符串是否是中文内容，包括中文标点符号。
-     *
-     * @param value
-     * @return
+     * @param value value。
+     * @return 处理结果。
      */
     public static boolean containsChinese(String value) {
         boolean chinese = false;
@@ -434,9 +422,8 @@ public final class TextUtils {
 
     /**
      * 是否是中文文字。
-     *
-     * @param word
-     * @return
+     * @param word word。
+     * @return 处理结果。
      */
     public static boolean isChineseWord(String word) {
         boolean result = false;
@@ -453,9 +440,8 @@ public final class TextUtils {
 
     /**
      * 文本内容是否以英文为主。
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static boolean isTextMainlyInEnglish(String text) {
         // 按照空格进行分割
@@ -492,9 +478,8 @@ public final class TextUtils {
 
     /**
      * 修正中文字符之间的空格。
-     *
-     * @param input
-     * @return
+     * @param input input。
+     * @return 处理结果。
      */
     public static String fixChineseBlank(String input) {
         StringBuilder result = new StringBuilder();
@@ -517,9 +502,8 @@ public final class TextUtils {
 
     /**
      * 是否是日文内容。
-     *
-     * @param input
-     * @return
+     * @param input input。
+     * @return 处理结果。
      */
     public static boolean isJapanese(String input) {
         try {
@@ -535,9 +519,8 @@ public final class TextUtils {
 
     /**
      * 是否是词。
-     *
-     * @param word
-     * @return
+     * @param word word。
+     * @return 处理结果。
      */
     public static boolean isWord(String word) {
         boolean result = false;
@@ -554,9 +537,8 @@ public final class TextUtils {
 
     /**
      * 删除文本里的所有标点符号。
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static String removePunctuations(String text) {
         return text.replaceAll("\\p{P}", "");
@@ -564,9 +546,8 @@ public final class TextUtils {
 
     /**
      * 判断文本的最后一个字符是否是标点符号。
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static boolean isLastPunctuationMark(String text) {
         String last = text.substring(text.length() - 1);
@@ -581,9 +562,8 @@ public final class TextUtils {
     /**
      * 文本是否以数字符号开头。
      * 例如："1."开头的字符串。
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static boolean startsWithNumberSign(String text) {
         if (text.startsWith("1.") || text.startsWith("2.") || text.startsWith("3.") ||
@@ -599,9 +579,8 @@ public final class TextUtils {
 
     /**
      * 将长句切割为短句。
-     *
-     * @param sentence
-     * @return
+     * @param sentence sentence。
+     * @return 处理结果。
      */
     public static List<String> splitSentence(String sentence) {
         List<String> result = new ArrayList<>();
@@ -626,10 +605,9 @@ public final class TextUtils {
     /**
      * 按照指定长度限制分拆列表。
      * 每个列表里的字符串总长度不会超过指定限制。
-     *
-     * @param list
-     * @param limit
-     * @return
+     * @param list list。
+     * @param limit limit。
+     * @return 处理结果。
      */
     public static List<List<String>> splitList(List<String> list, int limit) {
         List<List<String>> result = new ArrayList<>();
@@ -663,6 +641,12 @@ public final class TextUtils {
         }
     }
 
+    /**
+     * 判断是否空白。
+     *
+     * @param source 空白。
+     * @return 空白。
+     */
     public static boolean isBlank(String source) {
         if (null == source || source.trim().length() == 0) {
             return true;
@@ -674,9 +658,8 @@ public final class TextUtils {
 
     /**
      * 提取 Markdown 格式的文本内容。
-     *
-     * @param markdown
-     * @return
+     * @param markdown markdown。
+     * @return 处理结果。
      */
     public static String extractMarkdownText(String markdown) {
         StringBuilder buf = new StringBuilder();
@@ -691,9 +674,8 @@ public final class TextUtils {
 
     /**
      * 按行提取 Markdown 格式的文本内容。
-     *
-     * @param markdown
-     * @return
+     * @param markdown markdown。
+     * @return 处理结果。
      */
     public static List<String> extractMarkdownTextAsList(String markdown) {
         List<String> result = new ArrayList<>();
@@ -729,9 +711,8 @@ public final class TextUtils {
 
     /**
      * 提取 Markdown 格式的表格。
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static String extractMarkdownTable(String text) {
         String[] lines = text.split("\n");
@@ -787,8 +768,7 @@ public final class TextUtils {
 
     /**
      * 提取文本里的第一个年份数据，如果没有找到返回 <code>0</code> 值。
-     *
-     * @param text
+     * @param text 待处理文本。
      * @return 如果提取失败返回 <code>0</code> 值。
      */
     public static int extractYear(String text) {
@@ -828,8 +808,7 @@ public final class TextUtils {
 
     /**
      * 提取文本里的第一个月份数据，如果没有找到返回 <code>0</code> 值。
-     *
-     * @param text
+     * @param text 待处理文本。
      * @return 如果提取失败返回 <code>0</code> 值。
      */
     public static int extractMonth(String text) {
@@ -872,8 +851,7 @@ public final class TextUtils {
 
     /**
      * 提取文本里的第一个日数据，如果没有找到返回 <code>0</code> 值。
-     *
-     * @param text
+     * @param text 待处理文本。
      * @return 如果提取失败返回 <code>0</code> 值。
      */
     public static int extractDay(String text) {
@@ -939,9 +917,8 @@ public final class TextUtils {
 
     /**
      * 提取文本内的可能的 SN 或 ID 数字。如果没有找到返回 <code>0</code> 值。
-     *
-     * @param sentences
-     * @return
+     * @param sentences sentences。
+     * @return 处理结果。
      */
     public static long extractSnOrId(List<String> sentences) {
         for (String word : sentences) {
@@ -954,9 +931,8 @@ public final class TextUtils {
 
     /**
      * 提取文本里描述的位置信息。如果没有找到返回 <code>0</code> 值。
-     *
-     * @param sentences
-     * @return
+     * @param sentences sentences。
+     * @return 处理结果。
      */
     public static int extractLocation(List<String> sentences) {
         String num = "0";
@@ -1013,9 +989,8 @@ public final class TextUtils {
 
     /**
      * 提取提示词模板里的标签。
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static List<String> extractPromptTemplateTag(String text) {
         List<String> result = new ArrayList<>();
@@ -1034,6 +1009,12 @@ public final class TextUtils {
         return result;
     }
 
+    /**
+     * 随机生成分割字符串。
+     *
+     * @param text 分割字符串。
+     * @return 分割字符串。
+     */
     public static List<String> randomSplitString(String text) {
         List<String> textList = new ArrayList<>();
         int length = text.length();
@@ -1071,6 +1052,11 @@ public final class TextUtils {
         return false;
     }
 
+    /**
+     * 本地自测入口。
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
 
 

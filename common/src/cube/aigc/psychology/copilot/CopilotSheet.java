@@ -33,14 +33,29 @@ public class CopilotSheet {
         }
     }
 
+    /**
+     * 获取记录列表。
+     *
+     * @return 记录列表。
+     */
     public List<Record> getRecords() {
         return this.records;
     }
 
+    /**
+     * 添加记录列表。
+     *
+     * @param sheet 记录列表。
+     */
     public void addRecords(CopilotSheet sheet) {
         this.records.addAll(sheet.getRecords());
     }
 
+    /**
+     * 获取记录的 Markdown。
+     *
+     * @return 记录的 Markdown。
+     */
     public String getRecordsAsMarkdown() {
         StringBuilder buf = new StringBuilder();
         for (Record record : this.records) {

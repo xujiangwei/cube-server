@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class ScreenshotEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "Screenshot";
 
     public ScreenshotEvent(FileLabel fileLabel) {

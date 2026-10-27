@@ -9,10 +9,17 @@ package cube.aigc.psychology;
 import cube.common.JSONable;
 import org.json.JSONObject;
 
+/**
+ * 报告权限。
+ *
+ * <p>记录某份报告是否允许查看，以及不允许时的原因。</p>
+ */
 public final class ReportPermission implements JSONable {
 
+    /** 联系人 ID。 */
     public final long contactId;
 
+    /** 报告序列号。 */
     public final long reportSn;
 
     /**
@@ -103,10 +110,20 @@ public final class ReportPermission implements JSONable {
         this.personalityFactor = json.getBoolean("personalityFactor");
     }
 
+    /**
+     * 判断是否允许查看。
+     *
+     * @return 允许返回 {@code true} 。
+     */
     public boolean isPermissionAllowed() {
         return (this.indicatorSummary && this.indicatorDetails && this.personalityDetails);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -128,11 +145,25 @@ public final class ReportPermission implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
     }
 
+    /**
+     * 创建正常权限。
+     *
+     * @param contactId 正常权限。
+     * @param reportSn 正常权限。
+     * @return 正常权限。
+     */
     public static ReportPermission createNormalPermissions(long contactId, long reportSn) {
         ReportPermission permission = new ReportPermission(contactId, reportSn);
         permission.file = true;
@@ -151,6 +182,13 @@ public final class ReportPermission implements JSONable {
         return permission;
     }
 
+    /**
+     * 创建全部权限列表。
+     *
+     * @param contactId 全部权限列表。
+     * @param reportSn 全部权限列表。
+     * @return 全部权限列表。
+     */
     public static ReportPermission createAllPermissions(long contactId, long reportSn) {
         ReportPermission permission = new ReportPermission(contactId, reportSn);
         permission.file = true;

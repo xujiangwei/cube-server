@@ -252,6 +252,11 @@ public class LunarCalendar extends GregorianCalendar {
         computeBySolarDate(get(Calendar.YEAR), get(Calendar.MONTH), get(Calendar.DATE));
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         if (this.lunarYear < LunarData.MINI_YEAR || this.lunarYear > LunarData.MAX_YEAR || this.lunarMonth < 1
@@ -263,6 +268,12 @@ public class LunarCalendar extends GregorianCalendar {
                 LunarData.getMonthName(this.lunarMonth), LunarData.getDayName(this.dayOfLunarMonth));
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param o 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -276,6 +287,11 @@ public class LunarCalendar extends GregorianCalendar {
                 leapMonth == that.leapMonth;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         int result = super.hashCode();

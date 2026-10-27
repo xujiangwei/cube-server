@@ -25,10 +25,20 @@ public class Curtain extends Thing {
         }
     }
 
+    /**
+     * 判断是否打开。
+     *
+     * @return 打开。
+     */
     public boolean isOpen() {
         return this.open;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

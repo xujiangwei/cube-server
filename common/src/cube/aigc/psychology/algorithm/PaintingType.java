@@ -16,8 +16,10 @@ public enum PaintingType {
 
     ;
 
+    /** 名称。 */
     public final String name;
 
+    /** 显示名称。 */
     public final String displayName;
 
     PaintingType(String name, String displayName) {
@@ -25,6 +27,14 @@ public enum PaintingType {
         this.displayName = displayName;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param name 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static PaintingType parse(String name) {
         for (PaintingType type : PaintingType.values()) {
             if (type.name.equalsIgnoreCase(name) ||

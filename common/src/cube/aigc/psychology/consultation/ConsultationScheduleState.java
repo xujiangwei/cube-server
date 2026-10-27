@@ -38,12 +38,21 @@ public enum ConsultationScheduleState {
 
     ;
 
+    /** 码。 */
     public final int code;
 
     ConsultationScheduleState(int code) {
         this.code = code;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param code 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static ConsultationScheduleState parse(int code) {
         for (ConsultationScheduleState state : ConsultationScheduleState.values()) {
             if (state.code == code) {

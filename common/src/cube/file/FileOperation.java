@@ -15,8 +15,7 @@ public interface FileOperation extends JSONable {
 
     /**
      * 获取操作对应的动作。
-     *
-     * @return
+     * @return 字符串结果；无值时返回 {@code null} 。
      */
     public String getProcessAction();
 }

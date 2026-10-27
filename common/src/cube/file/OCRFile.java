@@ -96,6 +96,11 @@ public class OCRFile implements JSONable {
         return this.pages;
     }
 
+    /**
+     * 转换为文本。
+     *
+     * @return 文本。
+     */
     public List<String> toText() {
         List<String> text = new ArrayList<>();
         for (Page page : this.pages) {
@@ -126,11 +131,23 @@ public class OCRFile implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         return this.toCompactJSON();
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

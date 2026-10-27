@@ -17,8 +17,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class AnswerSheet {
 
+    /** 量表序列号。 */
     public final long scaleSn;
 
+    /** 回答列表。 */
     public final List<Answer> answers;
 
     public AnswerSheet(long scaleSn) {
@@ -43,10 +45,21 @@ public class AnswerSheet {
         });
     }
 
+    /**
+     * 统计回答列表。
+     *
+     * @return 数量。
+     */
     public int numAnswers() {
         return this.answers.size();
     }
 
+    /**
+     * 记录一题的作答。
+     *
+     * @param sn     题目序号。
+     * @param choice 选项内容。
+     */
     public void submit(int sn, String choice) {
         this.answers.add(new Answer(sn, choice));
 
@@ -58,10 +71,20 @@ public class AnswerSheet {
         });
     }
 
+    /**
+     * 获取回答列表。
+     *
+     * @return 回答列表。
+     */
     public List<Answer> getAnswers() {
         return this.answers;
     }
 
+    /**
+     * 判断是否有效。
+     *
+     * @return 有效。
+     */
     public boolean isValid() {
         if (this.answers.isEmpty()) {
             return false;
@@ -85,6 +108,11 @@ public class AnswerSheet {
         return true;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("sn", this.scaleSn);

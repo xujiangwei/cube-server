@@ -14,6 +14,12 @@ public class RepresentationStrategy {
     private RepresentationStrategy() {
     }
 
+    /**
+     * 匹配指标。
+     *
+     * @param term 指标。
+     * @return 指标。
+     */
     public static Indicator matchIndicator(Term term) {
         switch (term) {
             case Extroversion:

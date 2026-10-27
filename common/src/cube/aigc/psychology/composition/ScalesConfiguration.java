@@ -23,13 +23,21 @@ import java.util.List;
  */
 public class ScalesConfiguration {
 
+    /** 分类人格。 */
     public final static String CATEGORY_PERSONALITY = "Personality";
+    /** 分类情绪。 */
     public final static String CATEGORY_EMOTION = "Emotion";
+    /** 量表分类：认知。 */
     public final static String CATEGORY_COGNITION = "Cognition";
+    /** 分类行为。 */
     public final static String CATEGORY_BEHAVIOR = "Behavior";
+    /** 量表分类：人际关系。 */
     public final static String CATEGORY_INTERPERSONAL_RELATIONSHIP = "InterpersonalRelationship";
+    /** 量表分类：自我评估。 */
     public final static String CATEGORY_SELF_ASSESSMENT = "SelfAssessment";
+    /** 量表分类：心理健康。 */
     public final static String CATEGORY_MENTAL_HEALTH = "MentalHealth";
+    /** 量表分类：能力。 */
     public final static String CATEGORY_CAPACITY = "Capacity";
 
     private File configFile =  new File("./assets/psychology/scale.json");
@@ -47,6 +55,12 @@ public class ScalesConfiguration {
         this.load();
     }
 
+    /**
+     * 获取分类。
+     *
+     * @param category 分类。
+     * @return 分类。
+     */
     public Category getCategory(String category) {
         switch (category) {
             case CATEGORY_PERSONALITY:

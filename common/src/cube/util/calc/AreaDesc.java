@@ -8,8 +8,10 @@ package cube.util.calc;
 
 public class AreaDesc {
 
+    /** 面积。 */
     public final double area;
 
+    /** 结构。 */
     public final FrameStructure structure;
 
     public AreaDesc(double area, FrameStructure structure) {

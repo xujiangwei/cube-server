@@ -50,8 +50,10 @@ public class PaintingReport extends Report {
 
     private String keyFeatureDescription = null;
 
+    /** 绘画。 */
     public Painting painting;
 
+    /** 绘画特征集。 */
     public PaintingFeatureSet paintingFeatureSet;
 
     public PaintingReport(long contactId, Attribute attribute, FileLabel fileLabel, Theme theme) {
@@ -119,44 +121,96 @@ public class PaintingReport extends Report {
         }
     }
 
+    /**
+     * 设置评估报告。
+     *
+     * @param evaluationReport 评估报告。
+     */
     public void setEvaluationReport(EvaluationReport evaluationReport) {
         this.evaluationReport = evaluationReport;
     }
 
+    /**
+     * 获取评估报告。
+     *
+     * @return 评估报告。
+     */
     public EvaluationReport getEvaluationReport() {
         return this.evaluationReport;
     }
 
+    /**
+     * 设置键特征描述。
+     *
+     * @param content 键特征描述。
+     */
     public void setKeyFeatureDescription(String content) {
         this.keyFeatureDescription = content;
     }
 
+    /**
+     * 获取键特征描述。
+     *
+     * @return 键特征描述。
+     */
     public String getKeyFeatureDescription() {
         return this.keyFeatureDescription;
     }
 
+    /**
+     * 判断是否键特征描述。
+     *
+     * @return 键特征描述。
+     */
     public boolean hasKeyFeatureDescription() {
         return (null != this.keyFeatureDescription);
     }
 
+    /**
+     * 设置维度分数。
+     *
+     * @param score     实测分数。
+     * @param normScore 常模分数。
+     */
     public void setDimensionalScore(HexagonDimensionScore score, HexagonDimensionScore normScore) {
         this.dimensionScore = score;
         this.normDimensionScore = normScore;
     }
 
+    /**
+     * 获取维度分数。
+     *
+     * @return 维度分数。
+     */
     public HexagonDimensionScore getDimensionScore() {
         return this.dimensionScore;
     }
 
+    /**
+     * 设置报告章节列表。
+     *
+     * @param sectionList 报告章节列表。
+     */
     public void setReportSectionList(List<ReportSection> sectionList) {
         this.reportSectionList = new ArrayList<>();
         this.reportSectionList.addAll(sectionList);
     }
 
+    /**
+     * 获取报告章节列表。
+     *
+     * @return 报告章节列表。
+     */
     public List<ReportSection> getReportSections() {
         return this.reportSectionList;
     }
 
+    /**
+     * 获取报告章节。
+     *
+     * @param indicator 报告章节。
+     * @return 报告章节。
+     */
     public ReportSection getReportSection(Indicator indicator) {
         if (null == this.reportSectionList) {
             return null;
@@ -170,39 +224,84 @@ public class PaintingReport extends Report {
         return null;
     }
 
+    /**
+     * 获取主题。
+     *
+     * @return 主题。
+     */
     public Theme getTheme() {
         return this.theme;
     }
 
+    /**
+     * 设置状态。
+     *
+     * @param state 状态。
+     */
     public void setState(AIGCStateCode state) {
         this.state = state;
     }
 
+    /**
+     * 获取状态。
+     *
+     * @return 状态。
+     */
     public AIGCStateCode getState() {
         return this.state;
     }
 
+    /**
+     * 设置是否完成。
+     *
+     * @param finished 是否完成。
+     */
     public void setFinished(boolean finished) {
         this.finished = finished;
         this.finishedTimestamp = System.currentTimeMillis();
     }
 
+    /**
+     * 获取是否完成时间戳。
+     *
+     * @return 是否完成时间戳。
+     */
     public long getFinishedTimestamp() {
         return this.finishedTimestamp;
     }
 
+    /**
+     * 获取文件标签。
+     *
+     * @return 文件标签。
+     */
     public FileLabel getFileLabel() {
         return this.fileLabel;
     }
 
+    /**
+     * 设置文件标签。
+     *
+     * @param fileLabel 文件标签。
+     */
     public void setFileLabel(FileLabel fileLabel) {
         this.fileLabel = fileLabel;
     }
 
+    /**
+     * 获取文件码。
+     *
+     * @return 文件码。
+     */
     public String getFileCode() {
         return (null != this.fileCode) ? this.fileCode : this.fileLabel.getFileCode();
     }
 
+    /**
+     * 判断是否空。
+     *
+     * @return 空。
+     */
     public boolean isNull() {
         if (null == this.evaluationReport) {
             Logger.d(this.getClass(), "#isNull - Data is null");
@@ -211,6 +310,11 @@ public class PaintingReport extends Report {
         return (null == this.evaluationReport);
     }
 
+    /**
+     * 构造Markdown。
+     *
+     * @return Markdown。
+     */
     public String makeMarkdown() {
         StringBuilder buf = new StringBuilder();
 
@@ -357,6 +461,13 @@ public class PaintingReport extends Report {
         return this.markdown;
     }
 
+    /**
+     * 生成自定义 Markdown 。
+     *
+     * <p>在标准报告之外追加本类型特有的章节。</p>
+     *
+     * @return Markdown 文本。
+     */
     public String customMarkdown() {
         StringBuilder buf = new StringBuilder();
 
@@ -377,6 +488,11 @@ public class PaintingReport extends Report {
         return buf.toString();
     }
 
+    /**
+     * 导出为 Markdown 结构。
+     *
+     * @return 含各章节 Markdown 的 JSON 。
+     */
     public JSONObject exportMarkdown() {
         JSONObject json = new JSONObject();
         json.put("sn", this.sn);
@@ -386,12 +502,22 @@ public class PaintingReport extends Report {
         return json;
     }
 
+    /**
+     * 扩展 Markdown 内容。
+     *
+     * @param json 待扩展的 JSON 。
+     */
     public void extendMarkdown(JSONObject json) {
         if (json.has("markdown")) {
             this.markdown = json.getString("markdown");
         }
     }
 
+    /**
+     * 导出报告章节 JSON 。
+     *
+     * @return 章节 JSON 。
+     */
     public JSONObject exportReportSectionJSON() {
         JSONObject json = new JSONObject();
         json.put("sn", this.sn);
@@ -407,6 +533,11 @@ public class PaintingReport extends Report {
         return json;
     }
 
+    /**
+     * 扩展报告章节。
+     *
+     * @param json 待扩展的 JSON 。
+     */
     public void extendReportSections(JSONObject json) {
         if (json.has("reportTextList")) {
             this.reportSectionList = new ArrayList<>();
@@ -418,6 +549,11 @@ public class PaintingReport extends Report {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = this.toCompactJSON();
@@ -441,6 +577,13 @@ public class PaintingReport extends Report {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toJSON();

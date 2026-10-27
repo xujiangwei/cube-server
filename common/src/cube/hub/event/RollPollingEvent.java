@@ -19,6 +19,7 @@ import java.util.List;
  */
 public class RollPollingEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "RollPolling";
 
     private ConversationType conversationType;
@@ -48,22 +49,47 @@ public class RollPollingEvent extends WeChatEvent {
         }
     }
 
+    /**
+     * 获取会话类型。
+     *
+     * @return 会话类型。
+     */
     public ConversationType getConversationType() {
         return this.conversationType;
     }
 
+    /**
+     * 获取会话名称。
+     *
+     * @return 会话名称。
+     */
     public String getConversationName() {
         return this.conversationName;
     }
 
+    /**
+     * 设置消息列表。
+     *
+     * @param list 消息列表。
+     */
     public void setMessageList(List<Message> list) {
         this.messageList = list;
     }
 
+    /**
+     * 获取消息列表。
+     *
+     * @return 消息列表。
+     */
     public List<Message> getMessageList() {
         return this.messageList;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -79,6 +105,13 @@ public class RollPollingEvent extends WeChatEvent {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();

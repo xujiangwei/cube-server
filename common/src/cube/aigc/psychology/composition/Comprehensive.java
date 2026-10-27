@@ -98,38 +98,83 @@ public class Comprehensive implements JSONable {
         }
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取角色。
+     *
+     * @return 角色。
+     */
     public String getRole() {
         return this.role;
     }
 
+    /**
+     * 获取属性。
+     *
+     * @return 属性。
+     */
     public Attribute getAttribute() {
         return this.attribute;
     }
 
+    /**
+     * 判断是否有效文件。
+     *
+     * @return 有效文件。
+     */
     public boolean isValidFile() {
         return (!this.fileLabels.isEmpty()) || (!this.fileCodes.isEmpty()) || (!this.fileUrls.isEmpty());
     }
 
+    /**
+     * 判断是否文件标签列表。
+     *
+     * @return 文件标签列表。
+     */
     public boolean hasFileLabels() {
         return (!this.fileLabels.isEmpty());
     }
 
+    /**
+     * 获取文件码列表。
+     *
+     * @return 文件码列表。
+     */
     public List<String> getFileCodes() {
         return this.fileCodes;
     }
 
+    /**
+     * 获取文件地址列表。
+     *
+     * @return 文件地址列表。
+     */
     public List<String> getFileUrls() {
         return this.fileUrls;
     }
 
+    /**
+     * 添加文件标签。
+     *
+     * @param fileLabel 文件标签。
+     */
     public void addFileLabel(FileLabel fileLabel) {
         this.fileLabels.add(fileLabel);
     }
 
+    /**
+     * 获取按性别区分的关键词。
+     *
+     * @return 按性别区分的关键词。
+     */
     public String getKeywordWithGender() {
         if (this.attribute.isMale()) {
             return "男方" + this.sections.get(0).title;
@@ -139,6 +184,11 @@ public class Comprehensive implements JSONable {
         }
     }
 
+    /**
+     * 获取文件标签。
+     *
+     * @return 文件标签。
+     */
     public FileLabel getFileLabel() {
         if (this.fileLabels.isEmpty()) {
             return null;
@@ -147,10 +197,20 @@ public class Comprehensive implements JSONable {
         return this.fileLabels.get(0);
     }
 
+    /**
+     * 获取选项列表。
+     *
+     * @return 选项列表。
+     */
     public List<String> getChoices() {
         return this.choices;
     }
 
+    /**
+     * 构建选项列表字符串。
+     *
+     * @return 选项列表字符串。
+     */
     public String buildChoicesString() {
         StringBuilder buf = new StringBuilder();
         for (String word : this.choices) {
@@ -161,14 +221,29 @@ public class Comprehensive implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 判断是否量表列表。
+     *
+     * @return 量表列表。
+     */
     public boolean hasScales() {
         return (!this.scales.isEmpty());
     }
 
+    /**
+     * 添加量表。
+     *
+     * @param scale 量表。
+     */
     public void addScale(Scale scale) {
         this.scales.add(scale);
     }
 
+    /**
+     * 获取量表。
+     *
+     * @return 量表。
+     */
     public Scale getScale() {
         if (this.scales.isEmpty()) {
             return null;
@@ -177,10 +252,21 @@ public class Comprehensive implements JSONable {
         return this.scales.get(0);
     }
 
+    /**
+     * 设置绘画。
+     *
+     * @param fileCode 绘画。
+     * @param painting 绘画。
+     */
     public void setPainting(String fileCode, Painting painting) {
         this.paintingMap.put(fileCode, painting);
     }
 
+    /**
+     * 添加综合章节。
+     *
+     * @param section 综合章节。
+     */
     public void addComprehensiveSection(ComprehensiveSection section) {
         if (null == this.sections) {
             this.sections = new ArrayList<>();
@@ -188,14 +274,29 @@ public class Comprehensive implements JSONable {
         this.sections.add(section);
     }
 
+    /**
+     * 获取综合章节。
+     *
+     * @return 综合章节。
+     */
     public ComprehensiveSection getComprehensiveSection() {
         return this.sections.get(0);
     }
 
+    /**
+     * 获取综合章节列表。
+     *
+     * @return 综合章节列表。
+     */
     public List<ComprehensiveSection> getComprehensiveSections() {
         return this.sections;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -239,6 +340,13 @@ public class Comprehensive implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

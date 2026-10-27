@@ -26,14 +26,14 @@ import java.util.List;
  */
 public final class FileUtils {
 
-    private final static byte[] CHAR_TABLE = new byte[] {
+    private final static byte[] CHAR_TABLE = new byte[]{
             'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
             'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
             'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
             'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
     };
 
-    private final static byte[] PADDING_TABLE = new byte[] {
+    private final static byte[] PADDING_TABLE = new byte[]{
             'Q', 'm', 'W', 'n', 'E', 'b', 'R', 'v', 'T', 'c', 'Y', 'x', 'U',
             'z', 'I', 'l', 'O', 'k', 'P', 'j', 'A', 'h', 'S', 'g', 'D', 'f',
             'F', 'd', 'G', 's', 'H', 'a', 'J', 'p', 'K', 'o', 'L', 'i', 'Z',
@@ -45,14 +45,29 @@ public final class FileUtils {
             '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
     };
 
-    private final static char HexDigits[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-            'a', 'b', 'c', 'd', 'e', 'f' };
+    private final static char HexDigits[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+            'a', 'b', 'c', 'd', 'e', 'f'};
 
+    /**
+     * KB。
+     */
     public final static long KB = 1024;
-    public final static long MB = (long)1024 * KB;
-    public final static long GB = (long)1024 * MB;
-    public final static long TB = (long)1024 * GB;
-    public final static long PB = (long)1024 * TB;
+    /**
+     * MB。
+     */
+    public final static long MB = (long) 1024 * KB;
+    /**
+     * GB。
+     */
+    public final static long GB = (long) 1024 * MB;
+    /**
+     * TB。
+     */
+    public final static long TB = (long) 1024 * GB;
+    /**
+     * PB。
+     */
+    public final static long PB = (long) 1024 * TB;
 
     private FileUtils() {
     }
@@ -60,8 +75,8 @@ public final class FileUtils {
     /**
      * 快速生成字符串 Hash 值。
      *
-     * @param string
-     * @return
+     * @param string string。
+     * @return 处理结果。
      */
     public static String fastHash(String string) {
         // 将 string 串切割
@@ -76,8 +91,8 @@ public final class FileUtils {
      * 生成文件码。
      *
      * @param contactId 联系人 ID 。
-     * @param domain 工作的域。
-     * @param fileName 文件名。
+     * @param domain    工作的域。
+     * @param fileName  文件名。
      * @return 返回文件码。
      */
     public static String makeFileCode(Long contactId, String domain, String fileName) {
@@ -106,8 +121,8 @@ public final class FileUtils {
      * 生成文件码。
      *
      * @param identification 识别码。
-     * @param domain 工作的域。
-     * @param fileName 文件名。
+     * @param domain         工作的域。
+     * @param fileName       文件名。
      * @return 返回文件码。
      */
     public static String makeFileCode(String identification, String domain, String fileName) {
@@ -152,9 +167,9 @@ public final class FileUtils {
      * 制作文件标签。
      *
      * @param domainName 域名称。
-     * @param fileCode 文件码。
-     * @param contactId 所属联系人 ID 。
-     * @param file 文件。
+     * @param fileCode   文件码。
+     * @param contactId  所属联系人 ID 。
+     * @param file       文件。
      * @return 返回 FileLabel 实例。
      */
     public static FileLabel makeFileLabel(String domainName, String fileCode, Long contactId, File file) {
@@ -212,8 +227,8 @@ public final class FileUtils {
     /**
      * 字节数组转16进制字符串。
      *
-     * @param bytes
-     * @return
+     * @param bytes bytes。
+     * @return 处理结果。
      */
     public static String bytesToHexString(byte[] bytes) {
         int len = bytes.length;
@@ -257,7 +272,7 @@ public final class FileUtils {
         StringBuilder buf = new StringBuilder(length);
         for (int code : hashCode) {
             int index = (avalanche(code) & 0x7FFFFFFF) % CHAR_TABLE.length;
-            buf.append((char)CHAR_TABLE[index]);
+            buf.append((char) CHAR_TABLE[index]);
         }
 
         return buf.toString();
@@ -266,7 +281,7 @@ public final class FileUtils {
     /**
      * 位雪崩：把输入的高低比特充分混合，避免相邻取值在取模后落到相邻槽位。
      *
-     * @param hash
+     * @param hash hash。
      * @return 返回混合后的值。
      */
     private static int avalanche(int hash) {
@@ -286,8 +301,7 @@ public final class FileUtils {
             System.arraycopy(PADDING_TABLE, 0, buf, 0, sliceLength);
             System.arraycopy(source, 0, buf, 0, source.length);
             list.add(buf);
-        }
-        else if (source.length > sliceLength) {
+        } else if (source.length > sliceLength) {
             int cursor = 0;
             int num = (int) Math.floor(source.length / sliceLength);
             for (int i = 0; i < num; ++i) {
@@ -302,8 +316,7 @@ public final class FileUtils {
             System.arraycopy(PADDING_TABLE, 0, buf, 0, sliceLength);
             System.arraycopy(source, cursor, buf, 0, mod);
             list.add(buf);
-        }
-        else {
+        } else {
             list.add(source);
         }
         return list;
@@ -388,8 +401,8 @@ public final class FileUtils {
      * 校验文件类型。
      *
      * @param fileName 指定文件名。
-     * @param data 指定文件数据。
-     * @return
+     * @param data     指定文件数据。
+     * @return 处理结果。
      */
     public static FileType verifyFileType(String fileName, byte[] data) {
         if (null != data) {
@@ -407,8 +420,8 @@ public final class FileUtils {
     /**
      * 按照文本方式读取文件数据。
      *
-     * @param filepath
-     * @return
+     * @param filepath filepath。
+     * @return 处理结果。
      */
     public static String readTextFile(String filepath) {
         try {
@@ -423,8 +436,8 @@ public final class FileUtils {
     /**
      * 缩放文件大小。
      *
-     * @param sizeInBytes
-     * @return
+     * @param sizeInBytes sizeInBytes。
+     * @return 处理结果。
      */
     public static FileSize scaleFileSize(long sizeInBytes) {
         String value;
@@ -434,16 +447,13 @@ public final class FileUtils {
         if (sizeInBytes < MB) {
             value = String.format("%.2f", (double) sizeInBytes / (double) KB);
             unit = "KB";
-        }
-        else if (sizeInBytes < GB) {
+        } else if (sizeInBytes < GB) {
             value = String.format("%.2f", (double) sizeInBytes / (double) MB);
             unit = "MB";
-        }
-        else if (sizeInBytes < TB) {
+        } else if (sizeInBytes < TB) {
             value = String.format("%.2f", (double) sizeInBytes / (double) GB);
             unit = "GB";
-        }
-        else {
+        } else {
             value = String.format("%.2f", (double) sizeInBytes / (double) TB);
             unit = "TB";
         }
@@ -534,8 +544,8 @@ public final class FileUtils {
     /**
      * 修正 Windows 系统文件路径保存到 JSON 时转义字符无法解析的问题。
      *
-     * @param path
-     * @return
+     * @param path 请求路径。
+     * @return 处理结果。
      */
     public static String fixWindowsPathForJSON(String path) {
         // 纯字面量替换，不需要正则（原实现用 replaceAll 会把参数当正则解析）
@@ -544,14 +554,12 @@ public final class FileUtils {
 
     /**
      * 清空指定路径里的内容。
-     *
      * <p>该方法只清空 {@code path} 的**内容**，不删除 {@code path} 自身，调用方需自行删除。</p>
-     *
      * <p>关于符号链接：{@link File#isDirectory()} 会跟随符号链接，若不加判断，
      * 一个指向本路径之外目录的链接会让该方法递归进去并删除链接目标里的数据。
      * 因此这里显式判断符号链接，遇到链接时只删除链接自身，绝不递归进入其指向的目录。</p>
      *
-     * @param path
+     * @param path 请求路径。
      */
     public static void emptyPath(File path) {
         if (null == path) {
@@ -571,13 +579,11 @@ public final class FileUtils {
                     if (Files.isSymbolicLink(file.toPath())) {
                         // 只删除链接自身，不递归进入链接指向的目录
                         file.delete();
-                    }
-                    else if (file.isDirectory()) {
+                    } else if (file.isDirectory()) {
                         emptyPath(file);
                         // 删除空目录
                         file.delete();
-                    }
-                    else {
+                    } else {
                         file.delete();
                     }
                 }

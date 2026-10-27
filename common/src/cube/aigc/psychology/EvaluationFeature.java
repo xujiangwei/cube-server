@@ -37,36 +37,89 @@ public class EvaluationFeature {
         this.keyFeatures = new ArrayList<>();
     }
 
+    /**
+     * 添加特征。
+     *
+     * @param description 特征。
+     * @param tendency 特征。
+     * @param thing 特征。
+     */
     public void addFeature(String description, Tendency tendency, Thing thing) {
         this.features.add(new Feature(description, Term.Other, tendency, new Thing[] { thing }));
     }
 
+    /**
+     * 添加特征。
+     *
+     * @param description 特征。
+     * @param term 特征。
+     * @param tendency 特征。
+     */
     public void addFeature(String description, Term term, Tendency tendency) {
         this.features.add(new Feature(description, term, tendency));
     }
 
+    /**
+     * 添加特征。
+     *
+     * @param description 特征。
+     * @param term 特征。
+     * @param tendency 特征。
+     * @param thing 特征。
+     */
     public void addFeature(String description, Term term, Tendency tendency, Thing thing) {
         this.features.add(new Feature(description, term, tendency, new Thing[] { thing }));
     }
 
+    /**
+     * 添加特征。
+     *
+     * @param description 特征。
+     * @param term 特征。
+     * @param tendency 特征。
+     * @param things 特征。
+     */
     public void addFeature(String description, Term term, Tendency tendency, Thing[] things) {
         this.features.add(new Feature(description, term, tendency, things));
     }
 
+    /**
+     * 获取特征列表。
+     *
+     * @return 特征列表。
+     */
     public List<Feature> getFeatures() {
         return this.features;
     }
 
+    /**
+     * 添加分数。
+     *
+     * @param indicator 分数。
+     * @param value 分数。
+     * @param weight 分数。
+     */
     public Score addScore(Indicable indicator, int value, double weight) {
         Score score = new Score(indicator, value, weight);
         this.scores.add(score);
         return score;
     }
 
+    /**
+     * 获取分数列表。
+     *
+     * @return 分数列表。
+     */
     public List<Score> getScores() {
         return this.scores;
     }
 
+    /**
+     * 获取分数。
+     *
+     * @param indicator 分数。
+     * @return 分数。
+     */
     public Score getScore(Indicator indicator) {
         Score result = new Score(indicator, 0, 0);
         for (Score score : this.scores) {
@@ -83,6 +136,12 @@ public class EvaluationFeature {
         return result;
     }
 
+    /**
+     * 获取分数列表。
+     *
+     * @param indicator 分数列表。
+     * @return 分数列表。
+     */
     public List<Score> getScores(Indicator indicator) {
         List<Score> result = new ArrayList<>();
         for (Score score : this.scores) {
@@ -93,6 +152,11 @@ public class EvaluationFeature {
         return result;
     }
 
+    /**
+     * 移除分数列表。
+     *
+     * @param indicator 分数列表。
+     */
     public void removeScores(Indicator indicator) {
         Iterator<Score> iter = this.scores.iterator();
         while (iter.hasNext()) {
@@ -103,23 +167,49 @@ public class EvaluationFeature {
         }
     }
 
+    /**
+     * 移除分数。
+     *
+     * @param score 分数。
+     */
     public void removeScore(Score score) {
         this.scores.remove(score);
     }
 
+    /**
+     * 添加大五因子。
+     *
+     * @param bigFiveFactor 大五因子。
+     * @param weight        权重。
+     */
     public void addFiveFactor(BigFiveFactor bigFiveFactor, double weight) {
         FiveFactor fiveFactor = new FiveFactor(bigFiveFactor, weight);
         this.fiveFactors.add(fiveFactor);
     }
 
+    /**
+     * 获取全部五因子。
+     *
+     * @return 因子列表；无数据时为空列表。
+     */
     public List<FiveFactor> getFiveFactors() {
         return this.fiveFactors;
     }
 
+    /**
+     * 添加键特征。
+     *
+     * @param keyFeature 键特征。
+     */
     public void addKeyFeature(KeyFeature keyFeature) {
         this.keyFeatures.add(keyFeature);
     }
 
+    /**
+     * 获取键特征列表。
+     *
+     * @return 键特征列表。
+     */
     public List<KeyFeature> getKeyFeatures() {
         return this.keyFeatures;
     }

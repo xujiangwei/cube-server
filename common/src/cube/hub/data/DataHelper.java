@@ -31,10 +31,9 @@ public class DataHelper {
 
     /**
      * 源消息转统一格式。
-     *
-     * @param group
-     * @param plainMessage
-     * @return
+     * @param group group。
+     * @param plainMessage plainMessage。
+     * @return 处理结果。
      */
     public static Message convertMessage(Group group, PlainMessage plainMessage) {
         JSONObject payload = packMessagePayload(plainMessage);
@@ -54,10 +53,9 @@ public class DataHelper {
 
     /**
      * 源消息转统一格式。
-     *
-     * @param partner
-     * @param plainMessage
-     * @return
+     * @param partner partner。
+     * @param plainMessage plainMessage。
+     * @return 处理结果。
      */
     public static Message convertMessage(Contact partner, PlainMessage plainMessage) {
         JSONObject payload = packMessagePayload(plainMessage);
@@ -100,10 +98,9 @@ public class DataHelper {
 
     /**
      * 构建联系人实例。
-     *
-     * @param name
-     * @param accountId
-     * @return
+     * @param name 名称。
+     * @param accountId accountId。
+     * @return 处理结果。
      */
     public static Contact makeContact(String name, String accountId) {
         Contact contact = new Contact(accountId);
@@ -113,8 +110,7 @@ public class DataHelper {
 
     /**
      * 过滤联系人头像数据的文件标签中的直接连接地址信息。
-     *
-     * @param contact
+     * @param contact contact。
      * @return 返回经过过滤的联系人的 JSON 数据。
      */
     public static JSONObject filterContactAvatarFileLabel(Contact contact) {
@@ -145,9 +141,8 @@ public class DataHelper {
 
     /**
      * 过滤联系人头像数据的文件标签中的直接连接地址信息。
-     *
-     * @param contactJSON
-     * @return
+     * @param contactJSON contactJSON。
+     * @return 处理结果。
      */
     public static JSONObject filterContactAvatarFileLabel(JSONObject contactJSON) {
         if (!contactJSON.has("context")) {

@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class GetConversationsSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "GetConversations";
 
     private int numConversations = 10;
@@ -34,22 +35,47 @@ public class GetConversationsSignal extends Signal {
         }
     }
 
+    /**
+     * 获取数量会话。
+     *
+     * @return 数量会话。
+     */
     public int getNumConversations() {
         return this.numConversations;
     }
 
+    /**
+     * 设置数量会话。
+     *
+     * @param value 数量会话。
+     */
     public void setNumConversations(int value) {
         this.numConversations = value;
     }
 
+    /**
+     * 获取数量最近消息列表。
+     *
+     * @return 数量最近消息列表。
+     */
     public int getNumRecentMessages() {
         return this.numRecentMessages;
     }
 
+    /**
+     * 设置数量最近消息列表。
+     *
+     * @param value 数量最近消息列表。
+     */
     public void setNumRecentMessages(int value) {
         this.numRecentMessages = value;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
          JSONObject json = super.toJSON();

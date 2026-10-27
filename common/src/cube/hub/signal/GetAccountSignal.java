@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class GetAccountSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "GetAccount";
 
     public GetAccountSignal(String channelCode) {

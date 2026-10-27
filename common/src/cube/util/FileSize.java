@@ -57,6 +57,11 @@ public class FileSize {
         return this.unit;
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         return this.value + " " + this.unit;

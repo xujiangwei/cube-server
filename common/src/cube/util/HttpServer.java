@@ -71,11 +71,22 @@ public class HttpServer {
         this.securePort = securePort;
     }
 
+    /**
+     * 设置线程。
+     *
+     * @param maxThreads 线程。
+     * @param minThreads 线程。
+     */
     public void setThreads(int maxThreads, int minThreads) {
         this.maxThreads = maxThreads > 1 ? maxThreads : 16;
         this.minThreads = minThreads > 0 ? minThreads : 4;
     }
 
+    /**
+     * 添加上下文处理器。
+     *
+     * @param handler 上下文处理器。
+     */
     public void addContextHandler(ContextHandler handler) {
         this.handlers.add(handler);
     }
@@ -95,6 +106,11 @@ public class HttpServer {
         return Collections.unmodifiableList(this.handlers);
     }
 
+    /**
+     * 设置处理器。
+     *
+     * @param handlerList 处理器。
+     */
     public void setHandler(HandlerList handlerList) {
         this.handlerList = handlerList;
     }
@@ -108,8 +124,7 @@ public class HttpServer {
 
     /**
      * 启动服务。
-     *
-     * @param joinThread
+     * @param joinThread joinThread。
      */
     public void start(boolean joinThread) {
         this.start(this.plainPort, this.securePort, joinThread);
@@ -117,8 +132,7 @@ public class HttpServer {
 
     /**
      * 启动服务器。
-     *
-     * @param plainPort
+     * @param plainPort plainPort。
      */
     public void start(int plainPort) {
         this.plainPort = plainPort;
@@ -127,9 +141,8 @@ public class HttpServer {
 
     /**
      * 启动服务器。
-     *
-     * @param plainPort
-     * @param securePort
+     * @param plainPort plainPort。
+     * @param securePort securePort。
      */
     public void start(int plainPort, int securePort) {
         this.start(plainPort, securePort, false);
@@ -137,10 +150,9 @@ public class HttpServer {
 
     /**
      * 启动服务器。
-     *
-     * @param plainPort
-     * @param securePort
-     * @param joinThread
+     * @param plainPort plainPort。
+     * @param securePort securePort。
+     * @param joinThread joinThread。
      */
     public void start(int plainPort, int securePort, boolean joinThread) {
         if (null != this.server) {

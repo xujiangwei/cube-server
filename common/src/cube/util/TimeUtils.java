@@ -39,6 +39,12 @@ public final class TimeUtils {
     private TimeUtils() {
     }
 
+    /**
+     * 计算时间时长。
+     *
+     * @param durationInMillisecond 时间时长。
+     * @return 时间时长。
+     */
     public static TimeDuration calcTimeDuration(final long durationInMillisecond) {
         int days = 0;
         int hours = 0;
@@ -74,20 +80,20 @@ public final class TimeUtils {
     }
 
     /**
-     * 格式化日期。
+     * 格式化日期为路径片段。
      *
-     * @param timestamp
-     * @return
+     * @param timestamp 时间戳，单位毫秒。
+     * @return 形如 yyyyMMdd 的路径片段。
      */
     public static String formatDateForPathSymbol(long timestamp) {
         return gsDateFormatPathSymbol.format(new Date(timestamp));
     }
 
     /**
-     * 格式化时间转时间戳。
+     * 把日期字符串还原为时间戳。
      *
-     * @param dateString
-     * @return
+     * @param dateString 日期字符串。
+     * @return 时间戳；无法解析返回 0 。
      */
     public static long unformatDate(String dateString) {
         String[] array = dateString.split(" ");
@@ -118,10 +124,11 @@ public final class TimeUtils {
     }
 
     /**
-     * 格式化输出今天日期的全部信息。<br/>
-     * 例如：2025年8月24日，星期日，农历二〇二五年七月初二 乙巳年 蛇
+     * 格式化今天的完整日期。
      *
-     * @return
+     * <p>包含公历、星期与农历信息，例如“2025年8月24日，星期日，农历二〇二五年七月初二”。</p>
+     *
+     * @return 日期描述文本。
      */
     public static String formatTodayFullDate() {
         Calendar today = Calendar.getInstance();
@@ -184,10 +191,10 @@ public final class TimeUtils {
     }
 
     /**
-     * 提取文本里的日期数据。
+     * 从文本中提取日期。
      *
-     * @param text
-     * @return
+     * @param text 待解析文本。
+     * @return 解析出的日期；无法识别返回 {@code null} 。
      */
     public static Date extractDate(String text) {
         int year = 0;

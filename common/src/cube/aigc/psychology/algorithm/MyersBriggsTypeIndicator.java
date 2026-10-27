@@ -6,6 +6,11 @@
 
 package cube.aigc.psychology.algorithm;
 
+/**
+ * MBTI 维度枚举。
+ *
+ * <p>四个维度共八极，组合成 16 型人格。</p>
+ */
 public enum MyersBriggsTypeIndicator {
 
     /**
@@ -50,8 +55,10 @@ public enum MyersBriggsTypeIndicator {
 
     ;
 
+    /** 显示名称。 */
     public final String displayName;
 
+    /** 码。 */
     public final String code;
 
     MyersBriggsTypeIndicator(String displayName, String code) {
@@ -59,6 +66,14 @@ public enum MyersBriggsTypeIndicator {
         this.code = code;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param nameOrCode 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static MyersBriggsTypeIndicator parse(String nameOrCode) {
         for (MyersBriggsTypeIndicator indicator : MyersBriggsTypeIndicator.values()) {
             if (indicator.displayName.equals(nameOrCode) || indicator.code.equalsIgnoreCase(nameOrCode)) {

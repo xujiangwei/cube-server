@@ -141,32 +141,25 @@ public class PlainMessage extends Metadata {
         if (dateText.contains("昨") || dateText.contains("天")) {
             this.datePrecision = DatePrecision.Day;
             this.date = System.currentTimeMillis() - 24L * 60 * 60 * 1000;
-        }
-        else if (dateText.indexOf("时期") == 0 || dateText.indexOf("星期") == 0 || dateText.contains("期")) {
+        } else if (dateText.indexOf("时期") == 0 || dateText.indexOf("星期") == 0 || dateText.contains("期")) {
             Calendar calendar = Calendar.getInstance();
             if (dateText.contains("一")) {
                 calendar.set(Calendar.DAY_OF_WEEK, 2);
-            }
-            else if (dateText.contains("二")) {
+            } else if (dateText.contains("二")) {
                 calendar.set(Calendar.DAY_OF_WEEK, 3);
-            }
-            else if (dateText.contains("三")) {
+            } else if (dateText.contains("三")) {
                 calendar.set(Calendar.DAY_OF_WEEK, 4);
-            }
-            else if (dateText.contains("四")) {
+            } else if (dateText.contains("四")) {
                 calendar.set(Calendar.DAY_OF_WEEK, 5);
-            }
-            else if (dateText.contains("五")) {
+            } else if (dateText.contains("五")) {
                 calendar.set(Calendar.DAY_OF_WEEK, 6);
-            }
-            else if (dateText.contains("六")) {
+            } else if (dateText.contains("六")) {
                 calendar.set(Calendar.DAY_OF_WEEK, 7);
             }
 
             this.datePrecision = DatePrecision.Day;
             this.date = calendar.getTimeInMillis();
-        }
-        else {
+        } else {
             String[] segments = dateText.split("/");
             if (segments.length == 3) {
                 Calendar calendar = Calendar.getInstance();
@@ -175,8 +168,7 @@ public class PlainMessage extends Metadata {
                 calendar.set(Calendar.DAY_OF_MONTH, Integer.parseInt(segments[2]));
                 this.datePrecision = DatePrecision.Day;
                 this.date = calendar.getTimeInMillis();
-            }
-            else if (segments.length == 2) {
+            } else if (segments.length == 2) {
                 // 处理后段
                 String md = segments[1];
                 String m = null;
@@ -184,14 +176,12 @@ public class PlainMessage extends Metadata {
                 if (md.length() == 4) {
                     m = md.substring(0, 2);
                     d = md.substring(2, 4);
-                }
-                else if (md.length() == 3) {
+                } else if (md.length() == 3) {
                     m = md.substring(0, 1);
                     d = md.substring(1, 3);
-                }
-                else if (md.length() == 2) {
+                } else if (md.length() == 2) {
                     m = md.substring(0, 1);
-                    d= md.substring(1, 2);
+                    d = md.substring(1, 2);
                 }
 
                 Calendar calendar = Calendar.getInstance();
@@ -204,8 +194,7 @@ public class PlainMessage extends Metadata {
                 }
                 this.datePrecision = DatePrecision.Day;
                 this.date = calendar.getTimeInMillis();
-            }
-            else {
+            } else {
                 segments = dateText.split(":");
                 if (segments.length == 2) {
                     Calendar calendar = Calendar.getInstance();
@@ -213,8 +202,7 @@ public class PlainMessage extends Metadata {
                     calendar.set(Calendar.MINUTE, Integer.parseInt(segments[1]));
                     this.datePrecision = DatePrecision.Minute;
                     this.date = calendar.getTimeInMillis();
-                }
-                else {
+                } else {
                     Logger.e(this.getClass(), "Error date format : " + dateText);
                 }
             }
@@ -232,8 +220,7 @@ public class PlainMessage extends Metadata {
     public String getDateDescription() {
         if (DatePrecision.Unknown == this.datePrecision) {
             return "";
-        }
-        else if (DatePrecision.Minute == this.datePrecision) {
+        } else if (DatePrecision.Minute == this.datePrecision) {
             Calendar calendar = Calendar.getInstance();
             calendar.setTimeInMillis(this.date);
             StringBuilder buf = new StringBuilder();
@@ -247,13 +234,11 @@ public class PlainMessage extends Metadata {
             buf.append(":");
             buf.append(calendar.get(Calendar.MINUTE));
             return buf.toString();
-        }
-        else {
+        } else {
             long delta = System.currentTimeMillis() - this.date;
             if (delta > 24L * 60 * 60 * 1000 && delta < 2L * 24 * 60 * 60 * 1000) {
                 return "昨天";
-            }
-            else {
+            } else {
                 Calendar calendar = Calendar.getInstance();
                 calendar.setTimeInMillis(this.date);
                 StringBuilder buf = new StringBuilder();
@@ -294,8 +279,8 @@ public class PlainMessage extends Metadata {
     /**
      * 比较消息的数据内容是否相同。
      *
-     * @param other
-     * @return
+     * @param other other。
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean equalsContent(PlainMessage other) {
         if (this.sender.getName().equals(other.sender.getName())) {
@@ -332,13 +317,11 @@ public class PlainMessage extends Metadata {
         if (null != this.text) {
             buf.append("(TEXT) ");
             buf.append(this.text);
-        }
-        else if (null != this.file) {
+        } else if (null != this.file) {
             if (isImageType()) {
                 buf.append("(IMAGE) ");
                 buf.append(this.file.getName());
-            }
-            else {
+            } else {
                 buf.append("(FILE) ");
                 buf.append(this.file.getName());
             }
@@ -432,8 +415,8 @@ public class PlainMessage extends Metadata {
     /**
      * 创建平滑消息格式。
      *
-     * @param message
-     * @return
+     * @param message 消息内容。
+     * @return 处理结果。
      */
     public static PlainMessage create(Message message) {
         return new PlainMessage(message.getPayload());
@@ -442,8 +425,8 @@ public class PlainMessage extends Metadata {
     /**
      * 提取原始的消息文本。
      *
-     * @param json
-     * @return
+     * @param json JSON 数据。
+     * @return 处理结果。
      */
     public static String extractRawText(JSONObject json) {
         if (json.has("text")) {
@@ -456,8 +439,8 @@ public class PlainMessage extends Metadata {
     /**
      * 提取文件 MD5 信息。
      *
-     * @param json
-     * @return
+     * @param json JSON 数据。
+     * @return 处理结果。
      */
     public static String extractFileMD5(JSONObject json) {
         if (json.has("fileMD5")) {
@@ -470,8 +453,8 @@ public class PlainMessage extends Metadata {
     /**
      * 提取文件码信息。
      *
-     * @param json
-     * @return
+     * @param json JSON 数据。
+     * @return 处理结果。
      */
     public static String extractFileCode(JSONObject json) {
         if (json.has("fileLabel")) {
@@ -484,8 +467,8 @@ public class PlainMessage extends Metadata {
     /**
      * 提取发件人。
      *
-     * @param json
-     * @return
+     * @param json JSON 数据。
+     * @return 处理结果。
      */
     public static Contact extractSender(JSONObject json) {
         if (json.has("sender")) {

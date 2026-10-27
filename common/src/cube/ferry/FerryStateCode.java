@@ -53,6 +53,7 @@ public enum FerryStateCode {
 
     ;
 
+    /** 码。 */
     public final int code;
 
     FerryStateCode(int code) {

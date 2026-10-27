@@ -71,6 +71,11 @@ public final class FloatUtils {
         return result;
     }
 
+    /**
+     * 本地自测入口。
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
         double[] input = new double[] {
                 -2, 1, 7, -1, 3

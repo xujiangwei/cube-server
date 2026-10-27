@@ -119,22 +119,47 @@ public class OperationWorkflow implements JSONable {
         }
     }
 
+    /**
+     * 获取序列号。
+     *
+     * @return 序列号。
+     */
     public long getSN() {
         return this.sn;
     }
 
+    /**
+     * 获取域。
+     *
+     * @return 域。
+     */
     public String getDomain() {
         return this.domain;
     }
 
+    /**
+     * 设置域。
+     *
+     * @param domain 域。
+     */
     public void setDomain(String domain) {
         this.domain = domain;
     }
 
+    /**
+     * 获取联系人 ID。
+     *
+     * @return 联系人 ID。
+     */
     public Long getContactId() {
         return this.contactId;
     }
 
+    /**
+     * 设置联系人 ID。
+     *
+     * @param contactId 联系人 ID。
+     */
     public void setContactId(Long contactId) {
         this.contactId = contactId;
     }
@@ -147,25 +172,45 @@ public class OperationWorkflow implements JSONable {
         this.clientId = clientId;
     }
 
+    /**
+     * 获取来源文件码。
+     *
+     * @return 来源文件码。
+     */
     public String getSourceFileCode() {
         return this.sourceFileCode;
     }
 
+    /**
+     * 设置来源文件码。
+     *
+     * @param fileCode 来源文件码。
+     */
     public void setSourceFileCode(String fileCode) {
         this.sourceFileCode = fileCode;
     }
 
+    /**
+     * 获取来源文件。
+     *
+     * @return 来源文件。
+     */
     public File getSourceFile() {
         return this.sourceFile;
     }
 
+    /**
+     * 设置来源文件。
+     *
+     * @param sourceFile 来源文件。
+     */
     public void setSourceFile(File sourceFile) {
         this.sourceFile = sourceFile;
     }
 
     /**
      * 添加工作节点。
-     * @param operationWork
+     * @param operationWork operationWork。
      */
     public void append(OperationWork operationWork) {
         this.workList.add(operationWork);
@@ -173,7 +218,7 @@ public class OperationWorkflow implements JSONable {
 
     /**
      * 移除工作流。
-     * @param operationWork
+     * @param operationWork operationWork。
      */
     public void remove(OperationWork operationWork) {
         this.workList.remove(operationWork);
@@ -195,10 +240,20 @@ public class OperationWorkflow implements JSONable {
         return this.resultFilename;
     }
 
+    /**
+     * 设置结果文件标签。
+     *
+     * @param fileLabel 结果文件标签。
+     */
     public void setResultFileLabel(FileLabel fileLabel) {
         this.resultFileLabel = fileLabel;
     }
 
+    /**
+     * 获取结果文件标签。
+     *
+     * @return 结果文件标签。
+     */
     public FileLabel getResultFileLabel() {
         return this.resultFileLabel;
     }
@@ -211,6 +266,11 @@ public class OperationWorkflow implements JSONable {
         this.deleteProcessedFile = value;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = this.toCompactJSON();
@@ -224,6 +284,13 @@ public class OperationWorkflow implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

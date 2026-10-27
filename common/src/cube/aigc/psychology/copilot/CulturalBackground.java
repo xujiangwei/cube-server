@@ -26,8 +26,10 @@ public enum CulturalBackground {
 
     ;
 
+    /** 显示。 */
     public final String display;
 
+    /** 描述。 */
     public final String description;
 
     CulturalBackground(String display, String description) {
@@ -35,11 +37,24 @@ public enum CulturalBackground {
         this.description = description;
     }
 
+    /**
+     * 随机取一个枚举值。
+     *
+     * @return 随机的枚举值。
+     */
     public static CulturalBackground random() {
         int index = Utils.randomInt(0, values().length - 2);
         return values()[index];
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param name 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static CulturalBackground parse(String name) {
         for (CulturalBackground cb : CulturalBackground.values()) {
             if (cb.name().equalsIgnoreCase(name) || cb.display.equalsIgnoreCase(name)) {

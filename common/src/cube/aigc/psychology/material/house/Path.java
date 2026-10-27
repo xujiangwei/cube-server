@@ -30,10 +30,20 @@ public class Path extends Thing {
         }
     }
 
+    /**
+     * 判断是否弯曲。
+     *
+     * @return 弯曲。
+     */
     public boolean isCurve() {
         return this.curve;
     }
 
+    /**
+     * 判断是否石板。
+     *
+     * @return 石板。
+     */
     public boolean isCobbled() {
         return this.cobbled;
     }

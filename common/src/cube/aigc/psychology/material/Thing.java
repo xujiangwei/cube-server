@@ -18,6 +18,7 @@ import java.util.List;
  */
 public abstract class Thing extends Material {
 
+    /** 绘画标签。 */
     protected Label paintingLabel;
 
     /**
@@ -51,26 +52,57 @@ public abstract class Thing extends Material {
         this.paintingLabel = Label.parse(this.label);
     }
 
+    /**
+     * 获取标签。
+     *
+     * @return 标签。
+     */
     public Label getLabel() {
         return this.paintingLabel;
     }
 
+    /**
+     * 判断是否反向推理。
+     *
+     * @return 反向推理。
+     */
     public boolean isBackwardReasoning() {
         return this.backwardReasoning;
     }
 
+    /**
+     * 获取宽度。
+     *
+     * @return 宽度。
+     */
     public int getWidth() {
         return this.box.width;
     }
 
+    /**
+     * 获取高度。
+     *
+     * @return 高度。
+     */
     public int getHeight() {
         return this.box.height;
     }
 
+    /**
+     * 统计组件列表。
+     *
+     * @return 数量。
+     */
     public int numComponents() {
         return 0;
     }
 
+    /**
+     * 获取最大面积物件。
+     *
+     * @param list 最大面积物件。
+     * @return 最大面积物件。
+     */
     protected <T> T getMaxAreaThing(List<T> list) {
         if (list.isEmpty()) {
             return null;
@@ -90,6 +122,12 @@ public abstract class Thing extends Material {
         return result;
     }
 
+    /**
+     * 获取子物件。
+     *
+     * @param label 子物件。
+     * @return 子物件。
+     */
     public List<Thing> getSubThings(Label label) {
         return null;
     }

@@ -25,10 +25,21 @@ public class VirtualTicket extends Ticket {
         this.domainInfo = domainInfo;
     }
 
+    /**
+     * 获取域信息。
+     *
+     * @return 域信息。
+     */
     public DomainInfo getDomainInfo() {
         return this.domainInfo;
     }
 
+    /**
+     * 获取框报告。
+     *
+     * @param module 框报告。
+     * @return 框报告。
+     */
     public BoxReport getBoxReport(AbstractModule module) {
         if (null == this.boxReport) {
             this.boxReport = this.buildReport(module);

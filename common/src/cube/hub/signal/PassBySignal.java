@@ -18,6 +18,7 @@ import java.util.List;
  */
 public class PassBySignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "PassBy";
 
     private boolean broadcast = false;
@@ -61,10 +62,20 @@ public class PassBySignal extends Signal {
         }
     }
 
+    /**
+     * 判断是否广播。
+     *
+     * @return 广播返回 {@code true} 。
+     */
     public boolean isBroadcast() {
         return this.broadcast;
     }
 
+    /**
+     * 添加目的地。
+     *
+     * @param pretenderId 目的地。
+     */
     public void addDestination(Long pretenderId) {
         if (null == this.destinations) {
             this.destinations = new ArrayList<>();
@@ -79,10 +90,20 @@ public class PassBySignal extends Signal {
         this.broadcast = false;
     }
 
+    /**
+     * 获取目的地。
+     *
+     * @return 目的地。
+     */
     public List<Long> getDestinations() {
         return this.destinations;
     }
 
+    /**
+     * 添加子信号。
+     *
+     * @param signal 信号对象。
+     */
     public void addSignal(Signal signal) {
         if (null == this.signals) {
             this.signals = new ArrayList<>();
@@ -91,16 +112,31 @@ public class PassBySignal extends Signal {
         this.signals.add(signal);
     }
 
+    /**
+     * 移除子信号。
+     *
+     * @param signal 信号对象。
+     */
     public void removeSignal(Signal signal) {
         if (null != this.signals) {
             this.signals.remove(signal);
         }
     }
 
+    /**
+     * 获取全部子信号。
+     *
+     * @return 信号列表；无子信号时为空列表。
+     */
     public List<Signal> getSignals() {
         return this.signals;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

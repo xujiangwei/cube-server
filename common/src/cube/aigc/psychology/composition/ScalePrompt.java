@@ -15,7 +15,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * 量表提示词。
  *
+ * <p>把量表条目组装为可提交给模型的提示词。</p>
  */
 public class ScalePrompt implements JSONable {
 
@@ -33,10 +35,20 @@ public class ScalePrompt implements JSONable {
         }
     }
 
+    /**
+     * 判断是否空。
+     *
+     * @return 空。
+     */
     public boolean isEmpty() {
         return this.factors.isEmpty();
     }
 
+    /**
+     * 添加提示词。
+     *
+     * @param value 提示词。
+     */
     public void addPrompt(Object value) {
         if (value instanceof ScriptObjectMirror) {
             ScriptObjectMirror som = (ScriptObjectMirror) value;
@@ -69,10 +81,21 @@ public class ScalePrompt implements JSONable {
         }
     }
 
+    /**
+     * 获取因子列表。
+     *
+     * @return 因子列表。
+     */
     public List<Factor> getFactors() {
         return this.factors;
     }
 
+    /**
+     * 获取因子。
+     *
+     * @param name 因子。
+     * @return 因子。
+     */
     public Factor getFactor(String name) {
         for (Factor factor : this.factors) {
             if (factor.factor.equals(name) || factor.name.equals(name)) {
@@ -83,6 +106,11 @@ public class ScalePrompt implements JSONable {
         return null;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -94,6 +122,13 @@ public class ScalePrompt implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

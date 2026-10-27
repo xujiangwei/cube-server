@@ -40,8 +40,10 @@ public enum BigFiveFactor {
 
     ;
 
+    /** 码。 */
     public final String code;
 
+    /** 名称。 */
     public final String name;
 
     BigFiveFactor(String code, String name) {
@@ -49,6 +51,11 @@ public enum BigFiveFactor {
         this.name = name;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("code", this.code);
@@ -56,6 +63,14 @@ public enum BigFiveFactor {
         return json;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param codeOrName 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static BigFiveFactor parse(String codeOrName) {
         for (BigFiveFactor tbf : BigFiveFactor.values()) {
             if (tbf.code.equalsIgnoreCase(codeOrName) || tbf.name.equals(codeOrName)) {

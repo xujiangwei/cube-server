@@ -17,6 +17,10 @@ public final class ResetTool {
 
     }
 
+    /**
+     * 重置联系人存储。
+     *
+     */
     public static void resetContactStorage() {
         String path = ResetTool.guessPath();
         File file = new File(path, "ContactService.db");
@@ -41,6 +45,10 @@ public final class ResetTool {
         }
     }
 
+    /**
+     * 重置存储路径。
+     *
+     */
     public static void resetStoragePath() {
         ResetTool.resetContactStorage();
         ResetTool.resetMessagingStorage();
@@ -62,6 +70,11 @@ public final class ResetTool {
         return "";
     }
 
+    /**
+     * 本地自测入口。
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
         ResetTool.resetStoragePath();
     }

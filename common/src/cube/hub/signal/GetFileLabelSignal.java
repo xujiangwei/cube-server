@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class GetFileLabelSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "GetFileLabel";
 
     private String fileCode;
@@ -28,10 +29,20 @@ public class GetFileLabelSignal extends Signal {
         this.fileCode = json.getString("fileCode");
     }
 
+    /**
+     * 获取文件码。
+     *
+     * @return 文件码。
+     */
     public String getFileCode() {
         return this.fileCode;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

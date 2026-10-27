@@ -20,8 +20,9 @@ public class EmojiFilter {
 
     /**
      * 过滤 emoji 或者其他非文字类型的字符
-     * @param source
-     * @return
+     *
+     * @param source source。
+     * @return 处理结果。
      */
     public static String filterEmoji(String source) {
         if (TextUtils.isBlank(source)) {
@@ -42,8 +43,7 @@ public class EmojiFilter {
 
         if (buf == null) {
             return source;
-        }
-        else {
+        } else {
             if (buf.length() == len) {
                 buf = null;
                 return source;
@@ -53,6 +53,11 @@ public class EmojiFilter {
         }
     }
 
+    /**
+     * 本地自测入口。
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
         String str1 = "你好👋！很高兴见到你，欢迎问我任何问题。";
         String str2 = "我没有表情符号，No EMO";

@@ -52,16 +52,31 @@ public enum KFDCharacteristicIndicator implements Indicable {
         this.priority = 0;
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     @Override
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取码。
+     *
+     * @return 码。
+     */
     @Override
     public String getCode() {
         return this.code;
     }
 
+    /**
+     * 获取优先级。
+     *
+     * @return 优先级。
+     */
     @Override
     public int getPriority() {
         return this.priority;

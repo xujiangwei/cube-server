@@ -24,8 +24,10 @@ public enum DefenseMechanism {
 
     ;
 
+    /** 显示。 */
     public final String display;
 
+    /** 描述。 */
     public final String description;
 
     DefenseMechanism(String display, String description) {
@@ -33,11 +35,24 @@ public enum DefenseMechanism {
         this.description = description;
     }
 
+    /**
+     * 随机取一个枚举值。
+     *
+     * @return 随机的枚举值。
+     */
     public static DefenseMechanism random() {
         int index = Utils.randomInt(0, values().length - 2);
         return values()[index];
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param name 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static DefenseMechanism parse(String name) {
         for (DefenseMechanism dm : DefenseMechanism.values()) {
             if (dm.name().equalsIgnoreCase(name) || dm.display.equalsIgnoreCase(name)) {

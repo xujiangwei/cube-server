@@ -19,12 +19,16 @@ import java.util.List;
 
 public class UserProfile implements JSONable {
 
+    /** 时间戳。 */
     public final long timestamp;
 
+    /** 会员信息。 */
     public Membership membership;
 
+    /** 总数点列表。 */
     public int totalPoints = 0;
 
+    /** 点列表。 */
     public List<Point> pointList = new ArrayList<>();
 
     /**
@@ -37,10 +41,13 @@ public class UserProfile implements JSONable {
      */
     public int limitPerMonth = 0;
 
+    /** 允许报告。 */
     public int permissibleReports = 0;
 
+    /** 六边形维度分数。 */
     public HexagonDimensionScore hexagonScore;
 
+    /** 人格。 */
     public BigFivePersonality personality;
 
     public UserProfile() {
@@ -73,6 +80,11 @@ public class UserProfile implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -108,6 +120,13 @@ public class UserProfile implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

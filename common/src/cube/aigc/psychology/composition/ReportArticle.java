@@ -16,14 +16,19 @@ import org.json.JSONObject;
 
 public class ReportArticle extends Article {
 
+    /** 主题。 */
     public final Theme theme;
 
+    /** 模板名称。 */
     public final String templateName;
 
+    /** 时间戳。 */
     public final long timestamp;
 
+    /** 比率。 */
     public IndicatorRate rate = IndicatorRate.Lowest;
 
+    /** 状态。 */
     public AIGCStateCode state = AIGCStateCode.Ok;
 
     public ReportArticle(String title, Theme theme, String templateName, long timestamp) {
@@ -33,6 +38,11 @@ public class ReportArticle extends Article {
         this.timestamp = timestamp;
     }
 
+    /**
+     * 转换为Markdown。
+     *
+     * @return Markdown。
+     */
     @Override
     public String toMarkdown() {
         StringBuilder buf = new StringBuilder();
@@ -55,6 +65,11 @@ public class ReportArticle extends Article {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -66,6 +81,13 @@ public class ReportArticle extends Article {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return super.toCompactJSON();

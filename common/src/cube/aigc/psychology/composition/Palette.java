@@ -16,15 +16,25 @@ import java.util.List;
 
 public class Palette implements JSONable {
 
+    /** 黑色。 */
     public final static String Black = "black";
+    /** 灰色。 */
     public final static String Gray = "gray";
+    /** 白色。 */
     public final static String White = "white";
+    /** 红色。 */
     public final static String Red = "red";
+    /** 橙色。 */
     public final static String Orange = "orange";
+    /** 黄色。 */
     public final static String Yellow = "yellow";
+    /** 绿色。 */
     public final static String Green = "green";
+    /** 青色。 */
     public final static String Cyan = "cyan";
+    /** 蓝色。 */
     public final static String Blue = "blue";
+    /** 紫色。 */
     public final static String Purple = "purple";
 
     private List<ColorScore> scores = new ArrayList<>();
@@ -75,14 +85,29 @@ public class Palette implements JSONable {
         });
     }
 
+    /**
+     * 判断是否空。
+     *
+     * @return 空。
+     */
     public boolean isEmpty() {
         return this.scores.isEmpty();
     }
     
+    /**
+     * 判断是否非空。
+     *
+     * @return 非空。
+     */
     public boolean isNotEmpty() {
         return !this.scores.isEmpty();
     }
 
+    /**
+     * 获取基础色分数。
+     *
+     * @return 基础色分数。
+     */
     public ColorScore getPrimitiveColorScore() {
         if (this.scores.isEmpty()) {
             return null;
@@ -90,6 +115,11 @@ public class Palette implements JSONable {
         return this.scores.get(0);
     }
 
+    /**
+     * 获取次要颜色分数。
+     *
+     * @return 次要颜色分数。
+     */
     public ColorScore getSecondaryColorScore() {
         if (this.scores.size() >= 2) {
             return this.scores.get(1);
@@ -97,6 +127,11 @@ public class Palette implements JSONable {
         return null;
     }
 
+    /**
+     * 获取第三颜色分数。
+     *
+     * @return 第三颜色分数。
+     */
     public ColorScore getTertiaryColorScore() {
         if (this.scores.size() >= 3) {
             return this.scores.get(2);
@@ -104,6 +139,11 @@ public class Palette implements JSONable {
         return null;
     }
 
+    /**
+     * 获取第四色分数。
+     *
+     * @return 第四色分数。
+     */
     public ColorScore getFourthColorScore() {
         if (this.scores.size() >= 4) {
             return this.scores.get(3);
@@ -111,6 +151,11 @@ public class Palette implements JSONable {
         return null;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -120,6 +165,13 @@ public class Palette implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

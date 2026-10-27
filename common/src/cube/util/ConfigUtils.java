@@ -51,8 +51,7 @@ public final class ConfigUtils {
     /**
      * 生成随机序列号。
      * 该序列号最大值是 0x0FFFFFFE 。
-     *
-     * @return
+     * @return 处理结果。
      */
     public static long generateSerialNumber() {
         long min = 10000000L;
@@ -62,8 +61,7 @@ public final class ConfigUtils {
 
     /**
      * 生成基于 MAC 地址信息的识别标识。
-     *
-     * @return
+     * @return 处理结果。
      */
     public static String makeUniqueStringWithMAC() {
         String uniqueString = null;
@@ -288,8 +286,8 @@ public final class ConfigUtils {
 
     /**
      * 获取本机的有效 MAC 地址。
-     * @return
-     * @throws Exception
+     * @return 处理结果。
+     * @throws Exception 处理失败。
      */
     private static List<String> getMACList() throws Exception {
         java.util.Enumeration<NetworkInterface> en = NetworkInterface.getNetworkInterfaces();
@@ -332,10 +330,9 @@ public final class ConfigUtils {
 
     /**
      * 读取 Properties 文件数据。
-     *
-     * @param path
-     * @return
-     * @throws IOException
+     * @param path 请求路径。
+     * @return 处理结果。
+     * @throws IOException 处理失败。
      */
     public static Properties readProperties(String path) throws IOException {
         Properties result = null;
@@ -365,8 +362,7 @@ public final class ConfigUtils {
 
     /**
      * 读取存储配置文件。
-     *
-     * @return
+     * @return 处理结果。
      */
     public static JSONObject readStorageConfig() {
         JSONObject json = new JSONObject();
@@ -386,9 +382,8 @@ public final class ConfigUtils {
 
     /**
      * 读取指定 JSON 格式的文件。
-     *
-     * @param filePath
-     * @return
+     * @param filePath filePath。
+     * @return 处理结果。
      */
     public static JSONObject readJsonFile(String filePath) {
         JSONObject json = null;
@@ -408,10 +403,9 @@ public final class ConfigUtils {
 
     /**
      * 写入 JSON 格式数据到文件。
-     *
-     * @param filePath
-     * @param json
-     * @return
+     * @param filePath filePath。
+     * @param json JSON 数据。
+     * @return 处理结果。
      */
     public static boolean writeJsonFile(String filePath, JSONObject json) {
         try {

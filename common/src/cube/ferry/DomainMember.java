@@ -14,10 +14,13 @@ import org.json.JSONObject;
  */
 public class DomainMember extends Entity {
     
+    /** 正常。 */
     public final static int NORMAL = 0;
 
+    /** 成员状态：已退出。 */
     public final static int QUIT = 1;
 
+    /** 成员状态：已禁用。 */
     public final static int DISABLED = 2;
 
     private Long contactId;
@@ -48,38 +51,83 @@ public class DomainMember extends Entity {
         this.state = json.getInt("state");
     }
 
+    /**
+     * 获取联系人 ID。
+     *
+     * @return 联系人 ID。
+     */
     public Long getContactId() {
         return this.contactId;
     }
 
+    /**
+     * 获取拼接时间。
+     *
+     * @return 拼接时间。
+     */
     public long getJoinTime() {
         return this.joinTime;
     }
 
+    /**
+     * 设置加入方式。
+     *
+     * @param joinWay 加入方式。
+     */
     public void setJoinWay(JoinWay joinWay) {
         this.joinWay = joinWay;
     }
 
+    /**
+     * 获取加入方式。
+     *
+     * @return 加入方式。
+     */
     public JoinWay getJoinWay() {
         return this.joinWay;
     }
 
+    /**
+     * 设置角色。
+     *
+     * @param role 角色。
+     */
     public void setRole(Role role) {
         this.role = role;
     }
 
+    /**
+     * 获取角色。
+     *
+     * @return 角色。
+     */
     public Role getRole() {
         return this.role;
     }
 
+    /**
+     * 设置状态。
+     *
+     * @param state 状态。
+     */
     public void setState(int state) {
         this.state = state;
     }
 
+    /**
+     * 获取状态。
+     *
+     * @return 状态。
+     */
     public int getState() {
         return this.state;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -91,6 +139,13 @@ public class DomainMember extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

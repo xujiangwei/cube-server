@@ -50,6 +50,12 @@ public class House extends Thing {
         this.backwardReasoning = true;
     }
 
+    /**
+     * 刷新检测框。
+     *
+     * @param boundingBox 检测框。
+     * @param box         包围盒。
+     */
     public void refreshBox(BoundingBox boundingBox, Box box) {
         this.boundingBox.x = Math.min(this.boundingBox.x, boundingBox.x);
         this.boundingBox.y = Math.min(this.boundingBox.y, boundingBox.y);
@@ -63,10 +69,17 @@ public class House extends Thing {
         this.area = Math.round(this.boundingBox.calculateArea() * 0.86f);
     }
 
+    /** 刷新面积。 */
     public void refreshArea() {
         this.area = Math.round(this.boundingBox.calculateArea() * 0.86f);
     }
 
+    /**
+     * 获取子物件。
+     *
+     * @param label 子物件。
+     * @return 子物件。
+     */
     @Override
     public List<Thing> getSubThings(Label label) {
         List<Thing> things = null;
@@ -132,6 +145,11 @@ public class House extends Thing {
         return things;
     }
 
+    /**
+     * 判断是否涂鸦。
+     *
+     * @return 涂鸦。
+     */
     @Override
     public boolean isDoodle() {
         // 涂鸦特征：轮廓密度高，层密度低
@@ -151,6 +169,11 @@ public class House extends Thing {
         return false;
     }
 
+    /**
+     * 判断是否深度涂鸦。
+     *
+     * @return 深度涂鸦。
+     */
     public boolean isDeepnessDoodle() {
         if (this.texture.max >= 5.0 && this.texture.avg > 3.0) {
             return true;
@@ -158,6 +181,11 @@ public class House extends Thing {
         return false;
     }
 
+    /**
+     * 添加侧墙。
+     *
+     * @param sidewall 侧墙。
+     */
     public void addSidewall(Sidewall sidewall) {
         if (null == this.sidewallList) {
             this.sidewallList = new ArrayList<>();
@@ -165,14 +193,29 @@ public class House extends Thing {
         this.sidewallList.add(sidewall);
     }
 
+    /**
+     * 获取侧墙。
+     *
+     * @return 侧墙。
+     */
     public List<Sidewall> getSidewalls() {
         return this.sidewallList;
     }
 
+    /**
+     * 判断是否侧墙。
+     *
+     * @return 侧墙。
+     */
     public boolean hasSidewall() {
         return (null != this.sidewallList);
     }
 
+    /**
+     * 添加屋顶。
+     *
+     * @param roof 屋顶。
+     */
     public void addRoof(Roof roof) {
         if (null == this.roofList) {
             this.roofList = new ArrayList<>();
@@ -180,6 +223,11 @@ public class House extends Thing {
         this.roofList.add(roof);
     }
 
+    /**
+     * 获取屋顶。
+     *
+     * @return 屋顶。
+     */
     public Roof getRoof() {
         if (null == this.roofList) {
             return null;
@@ -188,6 +236,11 @@ public class House extends Thing {
         return this.roofList.get(0);
     }
 
+    /**
+     * 判断是否屋顶。
+     *
+     * @return 屋顶。
+     */
     public boolean hasRoof() {
         return (null != this.roofList);
     }
@@ -195,8 +248,7 @@ public class House extends Thing {
     /**
      * 获取房顶相对整个房子的面积比例。
      * 例如：房顶面积30，房整体面积100，则比例为0.3
-     *
-     * @return
+     * @return 计算结果。
      */
     public double getRoofAreaRatio() {
         if (null == this.roofList) {
@@ -210,8 +262,7 @@ public class House extends Thing {
     /**
      * 获取房顶相对整个房子的高度比例。
      * 例如：房顶高20，房子高100，则比例为0.2
-     *
-     * @return
+     * @return 计算结果。
      */
     public double getRoofHeightRatio() {
         if (null == this.roofList) {
@@ -222,6 +273,11 @@ public class House extends Thing {
                 / ((double) this.box.height);
     }
 
+    /**
+     * 添加屋顶天窗。
+     *
+     * @param roofSkylight 屋顶天窗。
+     */
     public void addRoofSkylight(RoofSkylight roofSkylight) {
         if (null == this.roofSkylightList) {
             this.roofSkylightList = new ArrayList<>();
@@ -229,14 +285,29 @@ public class House extends Thing {
         this.roofSkylightList.add(roofSkylight);
     }
 
+    /**
+     * 获取屋顶天窗。
+     *
+     * @return 屋顶天窗。
+     */
     public List<RoofSkylight> getRoofSkylights() {
         return this.roofSkylightList;
     }
 
+    /**
+     * 判断是否屋顶天窗。
+     *
+     * @return 屋顶天窗。
+     */
     public boolean hasRoofSkylight() {
         return (null != this.roofSkylightList);
     }
 
+    /**
+     * 添加烟囱。
+     *
+     * @param chimney 烟囱。
+     */
     public void addChimney(Chimney chimney) {
         if (null == this.chimneyList) {
             this.chimneyList = new ArrayList<>();
@@ -244,14 +315,29 @@ public class House extends Thing {
         this.chimneyList.add(chimney);
     }
 
+    /**
+     * 获取烟囱。
+     *
+     * @return 烟囱。
+     */
     public List<Chimney> getChimneys() {
         return this.chimneyList;
     }
 
+    /**
+     * 判断是否烟囱。
+     *
+     * @return 烟囱。
+     */
     public boolean hasChimney() {
         return (null != this.chimneyList);
     }
 
+    /**
+     * 添加窗。
+     *
+     * @param window 窗。
+     */
     public void addWindow(Window window) {
         if (null == this.windowList) {
             this.windowList = new ArrayList<>();
@@ -259,14 +345,29 @@ public class House extends Thing {
         this.windowList.add(window);
     }
 
+    /**
+     * 获取窗。
+     *
+     * @return 窗。
+     */
     public List<Window> getWindows() {
         return this.windowList;
     }
 
+    /**
+     * 判断是否窗。
+     *
+     * @return 窗。
+     */
     public boolean hasWindow() {
         return (null != this.windowList);
     }
 
+    /**
+     * 获取最大窗面积比例。
+     *
+     * @return 最大窗面积比例。
+     */
     public double getMaxWindowAreaRatio() {
         double maxRatio = 0;
         for (Window window : this.windowList) {
@@ -279,6 +380,11 @@ public class House extends Thing {
         return maxRatio;
     }
 
+    /**
+     * 添加门。
+     *
+     * @param door 门。
+     */
     public void addDoor(Door door) {
         if (null == this.doorList) {
             this.doorList = new ArrayList<>();
@@ -286,14 +392,29 @@ public class House extends Thing {
         this.doorList.add(door);
     }
 
+    /**
+     * 获取门。
+     *
+     * @return 门。
+     */
     public List<Door> getDoors() {
         return this.doorList;
     }
 
+    /**
+     * 判断是否门。
+     *
+     * @return 门。
+     */
     public boolean hasDoor() {
         return (null != this.doorList);
     }
 
+    /**
+     * 判断是否打开门。
+     *
+     * @return 打开门。
+     */
     public boolean hasOpenDoor() {
         if (null == this.doorList) {
             return false;
@@ -307,6 +428,11 @@ public class House extends Thing {
         return false;
     }
 
+    /**
+     * 获取最大门面积比例。
+     *
+     * @return 最大门面积比例。
+     */
     public double getMaxDoorAreaRatio() {
         double maxRatio = 0;
         for (Door door : this.doorList) {
@@ -321,8 +447,7 @@ public class House extends Thing {
 
     /**
      * 所有门和窗总面积比例。
-     *
-     * @return
+     * @return 计算结果。
      */
     public double getAllDoorsAndWindowsAreaRatio() {
         double totalArea = 0;
@@ -339,6 +464,11 @@ public class House extends Thing {
         return totalArea / this.area;
     }
 
+    /**
+     * 添加窗帘。
+     *
+     * @param curtain 窗帘。
+     */
     public void addCurtain(Curtain curtain) {
         if (null == this.curtainList) {
             this.curtainList = new ArrayList<>();
@@ -346,14 +476,29 @@ public class House extends Thing {
         this.curtainList.add(curtain);
     }
 
+    /**
+     * 获取窗帘。
+     *
+     * @return 窗帘。
+     */
     public List<Curtain> getCurtains() {
         return this.curtainList;
     }
 
+    /**
+     * 判断是否窗帘。
+     *
+     * @return 窗帘。
+     */
     public boolean hasCurtain() {
         return (null != this.curtainList);
     }
 
+    /**
+     * 判断是否打开窗帘。
+     *
+     * @return 打开窗帘。
+     */
     public boolean hasOpenCurtain() {
         if (null == this.curtainList) {
             return false;
@@ -368,6 +513,11 @@ public class House extends Thing {
         return false;
     }
 
+    /**
+     * 添加窗栏。
+     *
+     * @param windowRailing 窗栏。
+     */
     public void addWindowRailing(WindowRailing windowRailing) {
         if (null == this.windowRailingList) {
             this.windowRailingList = new ArrayList<>();
@@ -375,10 +525,20 @@ public class House extends Thing {
         this.windowRailingList.add(windowRailing);
     }
 
+    /**
+     * 获取窗栏。
+     *
+     * @return 窗栏。
+     */
     public List<WindowRailing> getWindowRailings() {
         return this.windowRailingList;
     }
 
+    /**
+     * 添加烟。
+     *
+     * @param smoke 烟。
+     */
     public void addSmoke(Smoke smoke) {
         if (null == this.smokeList) {
             this.smokeList = new ArrayList<>();
@@ -386,10 +546,20 @@ public class House extends Thing {
         this.smokeList.add(smoke);
     }
 
+    /**
+     * 获取烟。
+     *
+     * @return 烟。
+     */
     public List<Smoke> getSmoke() {
         return this.smokeList;
     }
 
+    /**
+     * 添加栅栏。
+     *
+     * @param fence 栅栏。
+     */
     public void addFence(Fence fence) {
         if (null == this.fenceList) {
             this.fenceList = new ArrayList<>();
@@ -397,14 +567,29 @@ public class House extends Thing {
         this.fenceList.add(fence);
     }
 
+    /**
+     * 获取栅栏。
+     *
+     * @return 栅栏。
+     */
     public List<Fence> getFences() {
         return this.fenceList;
     }
 
+    /**
+     * 判断是否栅栏。
+     *
+     * @return 栅栏。
+     */
     public boolean hasFence() {
         return (null != this.fenceList);
     }
 
+    /**
+     * 添加路径。
+     *
+     * @param path 路径。
+     */
     public void addPath(Path path) {
         if (null == this.pathList) {
             this.pathList = new ArrayList<>();
@@ -412,14 +597,29 @@ public class House extends Thing {
         this.pathList.add(path);
     }
 
+    /**
+     * 获取路径列表。
+     *
+     * @return 路径列表。
+     */
     public List<Path> getPaths() {
         return this.pathList;
     }
 
+    /**
+     * 判断是否路径。
+     *
+     * @return 路径。
+     */
     public boolean hasPath() {
         return (null != this.pathList);
     }
 
+    /**
+     * 判断是否弯曲小路。
+     *
+     * @return 弯曲小路。
+     */
     public boolean hasCurvePath() {
         if (null == this.pathList) {
             return false;
@@ -434,6 +634,11 @@ public class House extends Thing {
         return false;
     }
 
+    /**
+     * 判断是否石板路。
+     *
+     * @return 石板路。
+     */
     public boolean hasCobbledPath() {
         if (null == this.pathList) {
             return false;
@@ -448,6 +653,11 @@ public class House extends Thing {
         return false;
     }
 
+    /**
+     * 统计组件列表。
+     *
+     * @return 数量。
+     */
     @Override
     public int numComponents() {
         int num = 0;
@@ -478,6 +688,11 @@ public class House extends Thing {
         return num;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

@@ -279,15 +279,34 @@ public class HexagonDimensionScore implements JSONable {
         }
     }
 
+    /**
+     * 记录维度分数。
+     *
+     * @param dim   维度。
+     * @param value 分值。
+     * @param rate  比率等级。
+     */
     public void recordScore(HexagonDimension dim, int value, IndicatorRate rate) {
         this.scores.put(dim, value);
         this.rates.put(dim, rate.value);
     }
 
+    /**
+     * 记录维度描述。
+     *
+     * @param dim         维度。
+     * @param description 描述文本。
+     */
     public void recordDescription(HexagonDimension dim, String description) {
         this.descriptions.put(dim, description);
     }
 
+    /**
+     * 获取维度分数。
+     *
+     * @param hexagonDimension 维度分数。
+     * @return 维度分数。
+     */
     public int getDimensionScore(HexagonDimension hexagonDimension) {
         if (!this.scores.containsKey(hexagonDimension)) {
             return 0;
@@ -295,6 +314,12 @@ public class HexagonDimensionScore implements JSONable {
         return this.scores.get(hexagonDimension);
     }
 
+    /**
+     * 获取维度比率。
+     *
+     * @param hexagonDimension 维度比率。
+     * @return 维度比率。
+     */
     public int getDimensionRate(HexagonDimension hexagonDimension) {
         if (!this.rates.containsKey(hexagonDimension)) {
             return 0;
@@ -302,10 +327,21 @@ public class HexagonDimensionScore implements JSONable {
         return this.rates.get(hexagonDimension);
     }
 
+    /**
+     * 获取维度描述。
+     *
+     * @param hexagonDimension 维度描述。
+     * @return 维度描述。
+     */
     public String getDimensionDescription(HexagonDimension hexagonDimension) {
         return this.descriptions.get(hexagonDimension);
     }
 
+    /**
+     * 设置因子。
+     *
+     * @param hexagonFactorJson 因子。
+     */
     public void setFactor(JSONObject hexagonFactorJson) {
         HexagonFactor hexagonFactor = new HexagonFactor(hexagonFactorJson);
         this.scores.put(hexagonFactor.hexagonDimension, hexagonFactor.score);
@@ -313,12 +349,23 @@ public class HexagonDimensionScore implements JSONable {
         this.rates.put(hexagonFactor.hexagonDimension, hexagonFactor.rate);
     }
 
+    /**
+     * 获取因子。
+     *
+     * @param hexagonDimension 因子。
+     * @return 因子。
+     */
     public HexagonFactor getFactor(HexagonDimension hexagonDimension) {
         return new HexagonFactor(hexagonDimension, this.scores.get(hexagonDimension),
                 this.descriptions.get(hexagonDimension),
                 this.rates.get(hexagonDimension));
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -361,6 +408,13 @@ public class HexagonDimensionScore implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

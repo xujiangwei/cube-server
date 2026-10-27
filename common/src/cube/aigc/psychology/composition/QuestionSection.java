@@ -14,8 +14,10 @@ import java.util.List;
 
 public class QuestionSection {
 
+    /** 标题。 */
     public final String title;
 
+    /** 内容。 */
     public final String content;
 
     private final List<Question> questions;
@@ -30,6 +32,11 @@ public class QuestionSection {
         }
     }
 
+    /**
+     * 获取问题列表。
+     *
+     * @return 问题列表。
+     */
     public List<Question> getQuestions() {
         List<Question> list = new ArrayList<>();
         for (Question question : this.questions) {
@@ -41,6 +48,11 @@ public class QuestionSection {
         return list;
     }
 
+    /**
+     * 统计问题列表。
+     *
+     * @return 数量。
+     */
     public int numQuestions() {
         int num = 0;
         for (Question question : this.questions) {
@@ -52,6 +64,11 @@ public class QuestionSection {
         return num;
     }
 
+    /**
+     * 获取隐藏题目。
+     *
+     * @return 隐藏题目。
+     */
     public List<Question> getHiddenQuestions() {
         List<Question> list = new ArrayList<>();
         for (Question question : this.questions) {
@@ -62,6 +79,11 @@ public class QuestionSection {
         return list;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("title", this.title);

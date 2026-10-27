@@ -16,12 +16,20 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 综合报告章节。
+ *
+ * <p>描述报告中的一个章节及其内容片段。</p>
+ */
 public class ComprehensiveSection implements JSONable {
 
+    /** 标题。 */
     public final String title;
 
+    /** 内容列表。 */
     public final List<String> contents;
 
+    /** 指标。 */
     public Indicable indicator;
 
     public ComprehensiveSection(String title, String content) {
@@ -45,10 +53,20 @@ public class ComprehensiveSection implements JSONable {
         }
     }
 
+    /**
+     * 获取内容。
+     *
+     * @return 内容。
+     */
     public String getContent() {
         return this.contents.get(0);
     }
 
+    /**
+     * 转换为Markdown。
+     *
+     * @return Markdown。
+     */
     public String toMarkdown() {
         StringBuilder buf = new StringBuilder();
         buf.append("**标题** ：").append(this.title).append("\n");
@@ -56,6 +74,11 @@ public class ComprehensiveSection implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -67,6 +90,13 @@ public class ComprehensiveSection implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

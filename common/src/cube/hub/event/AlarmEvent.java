@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class AlarmEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "Alarm";
 
     private String alarmName;
@@ -31,14 +32,29 @@ public class AlarmEvent extends WeChatEvent {
         this.alarmData = json.getJSONObject("alarmData");
     }
 
+    /**
+     * 获取告警名称。
+     *
+     * @return 告警名称。
+     */
     public String getAlarmName() {
         return this.alarmName;
     }
 
+    /**
+     * 获取告警数据。
+     *
+     * @return 告警 JSON 。
+     */
     public JSONObject getAlarmData() {
         return this.alarmData;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

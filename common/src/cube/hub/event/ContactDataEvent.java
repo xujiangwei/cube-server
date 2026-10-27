@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class ContactDataEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "ContactData";
 
     private Contact contact;
@@ -28,10 +29,20 @@ public class ContactDataEvent extends WeChatEvent {
         this.contact = new Contact(json.getJSONObject("contact"));
     }
 
+    /**
+     * 获取联系人。
+     *
+     * @return 联系人。
+     */
     public Contact getContact() {
         return this.contact;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

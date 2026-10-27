@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class AckEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "Ack";
 
     private String ackSignal;
@@ -35,10 +36,20 @@ public class AckEvent extends WeChatEvent {
         }
     }
 
+    /**
+     * 获取应答信号名。
+     *
+     * @return 信号名。
+     */
     public String getAckSignal() {
         return this.ackSignal;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

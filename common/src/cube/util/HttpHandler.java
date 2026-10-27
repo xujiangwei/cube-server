@@ -38,6 +38,7 @@ public abstract class HttpHandler extends AbstractHandler {
     public final static String HEADER_X_BAIZE_API_DEVICE = "x-baize-api-device";
     public final static String HEADER_X_BAIZE_API_PLATFORM = "x-baize-api-platform";
 
+    /** 目标。 */
     protected String target;
 
     protected Request baseRequest;
@@ -67,23 +68,40 @@ public abstract class HttpHandler extends AbstractHandler {
         }
     }
 
+    /**
+     * 处理 GET 请求。
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
         // Nothing
     }
 
+    /**
+     * 处理 POST 请求。
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     public void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
         // Nothing
     }
 
+    /**
+     * 处理 OPTIONS 请求。
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     public void doOptions(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
         // Nothing
     }
 
     /**
-     *
-     * @param request
+     * @param request HTTP 请求。
      * @return 如果没有数据返回 <code>null</code> 值。
-     * @throws IOException
+     * @throws IOException 处理失败。
      */
     public JSONObject readBodyAsJSONObject(HttpServletRequest request) throws IOException {
         ServletInputStream is = request.getInputStream();
@@ -210,6 +228,12 @@ public abstract class HttpHandler extends AbstractHandler {
         this.baseRequest.setHandled(true);
     }
 
+    /**
+     * 构造错误。
+     *
+     * @param stateCode 错误。
+     * @return 错误。
+     */
     protected JSONObject makeError(int stateCode) {
         JSONObject json = new JSONObject();
         JSONObject error = new JSONObject();

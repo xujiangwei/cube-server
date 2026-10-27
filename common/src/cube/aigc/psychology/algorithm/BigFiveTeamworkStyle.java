@@ -8,6 +8,11 @@ package cube.aigc.psychology.algorithm;
 
 import cube.vision.Point;
 
+/**
+ * 团队协作风格枚举。
+ *
+ * <p>由大五因子组合推导出的协作风格。</p>
+ */
 public enum BigFiveTeamworkStyle {
 
     /**
@@ -37,12 +42,21 @@ public enum BigFiveTeamworkStyle {
 
     ;
 
+    /** 名称。 */
     public final String name;
 
     BigFiveTeamworkStyle(String name) {
         this.name = name;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param coordinate 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static BigFiveTeamworkStyle parse(Point coordinate) {
         if (coordinate.x < -5.0 && coordinate.y > 5.0) {
             return Competition;

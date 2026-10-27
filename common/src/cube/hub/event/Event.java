@@ -24,14 +24,19 @@ public abstract class Event implements JSONable {
 
     private String code;
 
+    /** 所属产品。 */
     protected Product product;
 
+    /** 名称。 */
     protected String name;
 
+    /** 文件。 */
     protected File file;
 
+    /** 文件标签。 */
     protected FileLabel fileLabel;
 
+    /** 描述。 */
     protected ClientDescription description;
 
     public Event(Product product, String name) {
@@ -78,50 +83,110 @@ public abstract class Event implements JSONable {
         }
     }
 
+    /**
+     * 获取事件序列号。
+     *
+     * @return 序列号。
+     */
     public long getSerialNumber() {
         return this.sn;
     }
 
+    /**
+     * 设置码。
+     *
+     * @param code 码。
+     */
     public void setCode(String code) {
         this.code = code;
     }
 
+    /**
+     * 获取码。
+     *
+     * @return 码。
+     */
     public String getCode() {
         return this.code;
     }
 
+    /**
+     * 获取所属产品。
+     *
+     * @return 产品。
+     */
     public Product getProduct() {
         return this.product;
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取文件。
+     *
+     * @return 文件。
+     */
     public File getFile() {
         return this.file;
     }
 
+    /**
+     * 设置文件标签。
+     *
+     * @param fileLabel 文件标签。
+     */
     public void setFileLabel(FileLabel fileLabel) {
         this.fileLabel = fileLabel;
     }
 
+    /**
+     * 获取文件标签。
+     *
+     * @return 文件标签。
+     */
     public FileLabel getFileLabel() {
         return this.fileLabel;
     }
 
+    /**
+     * 设置描述。
+     *
+     * @param description 描述。
+     */
     public void setDescription(ClientDescription description) {
         this.description = description;
     }
 
+    /**
+     * 获取描述。
+     *
+     * @return 描述。
+     */
     public ClientDescription getDescription() {
         return this.description;
     }
 
+    /**
+     * 获取冒充者 ID。
+     *
+     * @return 冒充者 ID。
+     */
     public Long getPretenderId() {
         return (null != this.description) ? this.description.getPretender().getId() : null;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -144,6 +209,13 @@ public abstract class Event implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

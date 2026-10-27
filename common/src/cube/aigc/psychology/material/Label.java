@@ -300,12 +300,21 @@ public enum Label {
 
     Unknown("p_unknown");
 
+    /** 名称。 */
     public final String name;
 
     Label(String name) {
         this.name = name;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param name 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static Label parse(String name) {
         for (Label label : Label.values()) {
             if (label.name.equalsIgnoreCase(name)) {
@@ -316,6 +325,12 @@ public enum Label {
         return Label.Unknown;
     }
 
+    /**
+     * 判断是否房子。
+     *
+     * @param label 房子。
+     * @return 房子。
+     */
     public static boolean isHouse(Label label) {
         switch (label) {
             case House:
@@ -331,6 +346,12 @@ public enum Label {
         }
     }
 
+    /**
+     * 判断是否房子组件。
+     *
+     * @param label 房子组件。
+     * @return 房子组件。
+     */
     public static boolean isHouseComponent(Label label) {
         switch (label) {
             case HouseSidewall:
@@ -357,6 +378,12 @@ public enum Label {
         }
     }
 
+    /**
+     * 判断是否树。
+     *
+     * @param label 树。
+     * @return 树。
+     */
     public static boolean isTree(Label label) {
         switch (label) {
             case Tree:
@@ -372,6 +399,12 @@ public enum Label {
         }
     }
 
+    /**
+     * 判断是否树组件。
+     *
+     * @param label 树组件。
+     * @return 树组件。
+     */
     public static boolean isTreeComponent(Label label) {
         switch (label) {
             case TreeTrunk:
@@ -387,6 +420,12 @@ public enum Label {
         }
     }
 
+    /**
+     * 判断标签是否描述人物。
+     *
+     * @param label 标签。
+     * @return 是人物返回 {@code true} 。
+     */
     public static boolean isPerson(Label label) {
         switch (label) {
             case Person:
@@ -401,6 +440,12 @@ public enum Label {
         }
     }
 
+    /**
+     * 判断是否人物部件。
+     *
+     * @param label 人物部件。
+     * @return 人物部件。
+     */
     public static boolean isPersonComponent(Label label) {
         switch (label) {
             case PersonSideFace:
@@ -433,6 +478,12 @@ public enum Label {
         }
     }
 
+    /**
+     * 判断是否其他。
+     *
+     * @param label 其他。
+     * @return 其他。
+     */
     public static boolean isOther(Label label) {
         switch (label) {
             case Table:
@@ -505,6 +556,11 @@ public enum Label {
         }
     }
 
+    /**
+     * 获取其他项。
+     *
+     * @return 其他项。
+     */
     public static List<Label> getOthers() {
         List<Label> result = new ArrayList<>();
         for (Label label : Label.values()) {

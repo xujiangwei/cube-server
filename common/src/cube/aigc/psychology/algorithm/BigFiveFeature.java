@@ -161,8 +161,10 @@ public class BigFiveFeature implements JSONable {
             5.5, 5.5, 5.5));
 
 
+    /** 高分数。 */
     public final static double HighScore = 7.0;
 
+    /** 低分数。 */
     public final static double LowScore = 4.0;
 
 
@@ -588,34 +590,80 @@ public class BigFiveFeature implements JSONable {
         return feature;
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取显示名称。
+     *
+     * @return 显示名称。
+     */
     public String getDisplayName() {
         return this.displayName;
     }
 
+    /**
+     * 获取亲和。
+     *
+     * @return 亲和。
+     */
     public double getObligingness() {
         return this.obligingness;
     }
 
+    /**
+     * 获取尽责性。
+     *
+     * @return 尽责性。
+     */
     public double getConscientiousness() {
         return this.conscientiousness;
     }
 
+    /**
+     * 获取外向性。
+     *
+     * @return 外向性。
+     */
     public double getExtraversion() {
         return this.extraversion;
     }
 
+    /**
+     * 获取成就。
+     *
+     * @return 成就。
+     */
     public double getAchievement() {
         return this.achievement;
     }
 
+    /**
+     * 获取神经质。
+     *
+     * @return 神经质。
+     */
     public double getNeuroticism() {
         return this.neuroticism;
     }
 
+    /**
+     * 计算近似值。
+     *
+     * <p>按五因子取值在特征库中检索最接近的档位。</p>
+     *
+     * @param obligingness      亲和性。
+     * @param conscientiousness 尽责性。
+     * @param extraversion      外向性。
+     * @param achievement       成就性。
+     * @return 近似结果；无匹配返回 {@code null} 。
+     */
     public ApproximateValue calcApproximate(double obligingness, double conscientiousness, double extraversion,
                                             double achievement) {
         if (null == this.templateValue) {
@@ -691,18 +739,38 @@ public class BigFiveFeature implements JSONable {
         return value;
     }
 
+    /**
+     * 设置描述。
+     *
+     * @param description 描述。
+     */
     public void setDescription(String description) {
         this.description = description;
     }
 
+    /**
+     * 获取描述。
+     *
+     * @return 描述。
+     */
     public String getDescription() {
         return this.description;
     }
 
+    /**
+     * 获取亲和提示词。
+     *
+     * @return 亲和提示词。
+     */
     public String getObligingnessPrompt() {
         return "宜人性是什么意思？";
     }
 
+    /**
+     * 设置亲和改写样本。
+     *
+     * @param value 亲和改写样本。
+     */
     public void setObligingnessParaphrase(String value) {
         if (null == value) {
             return;
@@ -710,10 +778,20 @@ public class BigFiveFeature implements JSONable {
         this.obligingnessParaphrase = value;
     }
 
+    /**
+     * 获取尽责性提示词。
+     *
+     * @return 尽责性提示词。
+     */
     public String getConscientiousnessPrompt() {
         return "尽责性是什么意思？";
     }
 
+    /**
+     * 设置尽责性改写样本。
+     *
+     * @param value 尽责性改写样本。
+     */
     public void setConscientiousnessParaphrase(String value) {
         if (null == value) {
             return;
@@ -721,10 +799,20 @@ public class BigFiveFeature implements JSONable {
         this.conscientiousnessParaphrase = value;
     }
 
+    /**
+     * 获取外向性提示词。
+     *
+     * @return 外向性提示词。
+     */
     public String getExtraversionPrompt() {
         return "外向性是什么意思？";
     }
 
+    /**
+     * 设置外向性改写样本。
+     *
+     * @param value 外向性改写样本。
+     */
     public void setExtraversionParaphrase(String value) {
         if (null == value) {
             return;
@@ -732,10 +820,20 @@ public class BigFiveFeature implements JSONable {
         this.extraversionParaphrase = value;
     }
 
+    /**
+     * 获取成就提示词。
+     *
+     * @return 成就提示词。
+     */
     public String getAchievementPrompt() {
         return "进取性是什么意思？";
     }
 
+    /**
+     * 设置成就改写样本。
+     *
+     * @param value 成就改写样本。
+     */
     public void setAchievementParaphrase(String value) {
         if (null == value) {
             return;
@@ -743,10 +841,20 @@ public class BigFiveFeature implements JSONable {
         this.achievementParaphrase = value;
     }
 
+    /**
+     * 获取神经质提示词。
+     *
+     * @return 神经质提示词。
+     */
     public String getNeuroticismPrompt() {
         return "情绪性是什么意思？";
     }
 
+    /**
+     * 设置神经质改写样本。
+     *
+     * @param value 神经质改写样本。
+     */
     public void setNeuroticismParaphrase(String value) {
         if (null == value) {
             return;
@@ -754,10 +862,20 @@ public class BigFiveFeature implements JSONable {
         this.neuroticismParaphrase = value;
     }
 
+    /**
+     * 生成报告提示词。
+     *
+     * @return 报告提示词。
+     */
     public String generateReportPrompt() {
         return this.displayName + "画像报告";
     }
 
+    /**
+     * 生成亲和提示词。
+     *
+     * @return 亲和提示词。
+     */
     public String generateObligingnessPrompt() {
         if (this.obligingness >= HighScore) {
             return "高分宜人性表现";
@@ -770,10 +888,20 @@ public class BigFiveFeature implements JSONable {
         }
     }
 
+    /**
+     * 设置亲和内容。
+     *
+     * @param content 亲和内容。
+     */
     public void setObligingnessContent(String content) {
         this.obligingnessContent = content;
     }
 
+    /**
+     * 生成尽责性提示词。
+     *
+     * @return 尽责性提示词。
+     */
     public String generateConscientiousnessPrompt() {
         if (this.conscientiousness >= HighScore) {
             return "高分尽责性表现";
@@ -786,10 +914,20 @@ public class BigFiveFeature implements JSONable {
         }
     }
 
+    /**
+     * 设置尽责性内容。
+     *
+     * @param content 尽责性内容。
+     */
     public void setConscientiousnessContent(String content) {
         this.conscientiousnessContent = content;
     }
 
+    /**
+     * 生成外向性提示词。
+     *
+     * @return 外向性提示词。
+     */
     public String generateExtraversionPrompt() {
         if (this.extraversion >= HighScore) {
             return "高分外向性表现";
@@ -802,10 +940,20 @@ public class BigFiveFeature implements JSONable {
         }
     }
 
+    /**
+     * 设置外向性内容。
+     *
+     * @param content 外向性内容。
+     */
     public void setExtraversionContent(String content) {
         this.extraversionContent = content;
     }
 
+    /**
+     * 生成成就提示词。
+     *
+     * @return 成就提示词。
+     */
     public String generateAchievementPrompt() {
         if (this.achievement >= HighScore) {
             return "高分进取性表现";
@@ -818,10 +966,20 @@ public class BigFiveFeature implements JSONable {
         }
     }
 
+    /**
+     * 设置成就内容。
+     *
+     * @param content 成就内容。
+     */
     public void setAchievementContent(String content) {
         this.achievementContent = content;
     }
 
+    /**
+     * 生成神经质提示词。
+     *
+     * @return 神经质提示词。
+     */
     public String generateNeuroticismPrompt() {
         if (this.neuroticism >= HighScore) {
             return "高分情绪性表现";
@@ -834,10 +992,20 @@ public class BigFiveFeature implements JSONable {
         }
     }
 
+    /**
+     * 设置神经质内容。
+     *
+     * @param content 神经质内容。
+     */
     public void setNeuroticismContent(String content) {
         this.neuroticismContent = content;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -896,15 +1064,33 @@ public class BigFiveFeature implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
     }
 
+    /**
+     * 获取模板值。
+     *
+     * @return 模板值。
+     */
     public TemplateValue getTemplateValue() {
         return this.templateValue;
     }
 
+    /**
+     * 按名称匹配特征。
+     *
+     * @param nameOrDisplayName 名称或展示名。
+     * @return 匹配的特征；未找到返回 {@code null} 。
+     */
     public static BigFiveFeature match(String nameOrDisplayName) {
         BigFiveFeature[] features = new BigFiveFeature[] {
                 Generalist,

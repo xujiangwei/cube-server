@@ -9,14 +9,23 @@ import org.json.JSONObject;
  */
 public class FactorSet implements JSONable {
 
+    /** 躯体化。 */
     public final static String Somatization = "somatization";
+    /** 强迫。 */
     public final static String Obsession = "obsession";
+    /** 人际。 */
     public final static String Interpersonal = "interpersonal";
+    /** 抑郁。 */
     public final static String Depression = "depression";
+    /** 焦虑。 */
     public final static String Anxiety = "anxiety";
+    /** 敌对。 */
     public final static String Hostile = "hostile";
+    /** 恐怖。 */
     public final static String Horror = "horror";
+    /** 偏执。 */
     public final static String Paranoid = "paranoid";
+    /** 精神病性。 */
     public final static String Psychosis = "psychosis";
 
     public class NormRange {
@@ -37,10 +46,13 @@ public class FactorSet implements JSONable {
         }
     }
 
+    /** 症状因子。 */
     public SymptomFactor symptomFactor;
 
+    /** 人格因子。 */
     public PersonalityFactor personalityFactor;
 
+    /** 影响因子。 */
     public AffectFactor affectFactor;
 
     public FactorSet(JSONObject json) {
@@ -53,6 +65,11 @@ public class FactorSet implements JSONable {
         this.affectFactor = new AffectFactor(affectArray);
     }
 
+    /**
+     * 计算症状总数。
+     *
+     * @return 症状总数。
+     */
     public int calcSymptomTotal() {
         return (int) (this.symptomFactor.somatization * 12 +
                 this.symptomFactor.obsession * 10 +
@@ -66,42 +83,93 @@ public class FactorSet implements JSONable {
                 this.symptomFactor.sleepDiet * 7);
     }
 
+    /**
+     * 获取躯体化维度的常模范围。
+     *
+     * @return 常模范围。
+     */
     public NormRange normSomatization() {
         return new NormRange("somatization", 0.89, 1.85, this.symptomFactor.somatization);
     }
 
+    /**
+     * 获取强迫维度的常模范围。
+     *
+     * @return 常模范围。
+     */
     public NormRange normObsession() {
         return new NormRange("obsession", 1.04, 2.20, this.symptomFactor.obsession);
     }
 
+    /**
+     * 获取人际维度的常模范围。
+     *
+     * @return 常模范围。
+     */
     public NormRange normInterpersonal() {
         return new NormRange("interpersonal", 1.04, 2.26, this.symptomFactor.interpersonal);
     }
 
+    /**
+     * 获取抑郁维度的常模范围。
+     *
+     * @return 常模范围。
+     */
     public NormRange normDepression() {
         return new NormRange("depression", 0.91, 2.09, this.symptomFactor.depression);
     }
 
+    /**
+     * 获取焦虑维度的常模范围。
+     *
+     * @return 常模范围。
+     */
     public NormRange normAnxiety() {
         return new NormRange("anxiety", 0.96, 1.82, this.symptomFactor.anxiety);
     }
 
+    /**
+     * 获取敌对维度的常模范围。
+     *
+     * @return 常模范围。
+     */
     public NormRange normHostile() {
         return new NormRange("hostile", 0.91, 2.01, this.symptomFactor.hostile);
     }
 
+    /**
+     * 获取恐怖维度的常模范围。
+     *
+     * @return 常模范围。
+     */
     public NormRange normHorror() {
         return new NormRange("horror", 0.82, 1.64, this.symptomFactor.horror);
     }
 
+    /**
+     * 获取偏执维度的常模范围。
+     *
+     * @return 常模范围。
+     */
     public NormRange normParanoid() {
         return new NormRange("paranoid", 0.86, 2.00, this.symptomFactor.paranoid);
     }
 
+    /**
+     * 获取精神病性维度的常模范围。
+     *
+     * @return 常模范围。
+     */
     public NormRange normPsychosis() {
         return new NormRange("psychosis", 0.87, 1.71, this.symptomFactor.psychosis);
     }
 
+    /**
+     * 按症状名获取常模范围。
+     *
+     * @param symptom 症状名。
+     * @return 常模范围；未知症状返回 {@code null} 。
+     */
     public NormRange normSymptom(String symptom) {
         if (symptom.equalsIgnoreCase("somatization") || symptom.equals("躯体化")) {
             return normSomatization();
@@ -135,6 +203,11 @@ public class FactorSet implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -144,6 +217,13 @@ public class FactorSet implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

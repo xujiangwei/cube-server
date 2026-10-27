@@ -17,6 +17,11 @@ import cube.vision.Size;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 绘画特征加速器。
+ *
+ * <p>把绘画特征映射为可参与模型推理的参数向量，并支持导出为 CSV 供离线分析。</p>
+ */
 public class PaintingAccelerator {
 
     private final double scaleSize = 1280.0;
@@ -51,19 +56,39 @@ public class PaintingAccelerator {
         this.build();
     }
 
+    /**
+     * 获取参数。
+     *
+     * @return 参数。
+     */
     public Parameter getParameter() {
         return this.parameter;
     }
 
+    /**
+     * 判断是否有效。
+     *
+     * @return 有效。
+     */
     public boolean isValid() {
         return this.parameter.frameAreaRatio != 0;
     }
 
+    /**
+     * 获取参数向量。
+     *
+     * @return 参数数组。
+     */
     public double[] parameters() {
         double[] data = new double[1754];
         return null;
     }
 
+    /**
+     * 格式化 CSV 表头。
+     *
+     * @return 表头行。
+     */
     public String formatCSVHead() {
         StringBuilder buf = new StringBuilder();
         buf.append("frame_area_ratio");
@@ -152,6 +177,12 @@ public class PaintingAccelerator {
         return buf.toString();
     }
 
+    /**
+     * 把参数格式化为 CSV 行。
+     *
+     * @param normalization 是否归一化。
+     * @return CSV 行。
+     */
     public String formatParameterAsCSV(boolean normalization) {
         StringBuilder buf = new StringBuilder();
 

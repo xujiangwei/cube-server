@@ -64,12 +64,19 @@ public enum Subtask {
 
     private static final Pattern sPattern = Pattern.compile("\\{\\{([^}])*\\}\\}");
 
+    /** 名称。 */
     public final String name;
 
     Subtask(String name) {
         this.name = name;
     }
 
+    /**
+     * 从文本中抽取子任务。
+     *
+     * @param text 文本。
+     * @return 子任务；无法识别返回 {@code null} 。
+     */
     public static Subtask extract(String text) {
         Matcher matcher = sPattern.matcher(text);
         if (!matcher.find()) {

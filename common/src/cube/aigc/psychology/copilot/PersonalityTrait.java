@@ -28,8 +28,10 @@ public enum PersonalityTrait {
 
     ;
 
+    /** 显示。 */
     public final String display;
 
+    /** 描述。 */
     public final String description;
 
     PersonalityTrait(String display, String description) {
@@ -37,11 +39,24 @@ public enum PersonalityTrait {
         this.description = description;
     }
 
+    /**
+     * 随机取一个枚举值。
+     *
+     * @return 随机的枚举值。
+     */
     public static PersonalityTrait random() {
         int index = Utils.randomInt(0, values().length - 2);
         return values()[index];
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param name 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static PersonalityTrait parse(String name) {
         for (PersonalityTrait pt : PersonalityTrait.values()) {
             if (pt.name().equalsIgnoreCase(name) || pt.display.equalsIgnoreCase(name)) {

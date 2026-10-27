@@ -78,6 +78,7 @@ public enum FrameStructure {
 
     Normal("Normal");
 
+    /** 名称。 */
     public final String name;
 
     FrameStructure(String name) {

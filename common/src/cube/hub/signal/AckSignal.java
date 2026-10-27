@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class AckSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "Ack";
 
     public AckSignal() {

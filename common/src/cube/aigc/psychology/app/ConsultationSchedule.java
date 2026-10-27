@@ -18,32 +18,46 @@ import org.json.JSONObject;
  */
 public class ConsultationSchedule implements JSONable {
 
+    /** ID。 */
     public final long id;
 
+    /** 客户 ID。 */
     public final long customerId;
 
+    /** 预约时间。 */
     public long appointmentTime;
 
+    /** 预约时长。 */
     public long appointmentDuration;
 
+    /** 预约主题。 */
     public ConsultationTheme appointmentTheme;
 
+    /** 预约咨询。 */
     public ConsultationMethod appointmentConsultation;
 
+    /** 状态。 */
     public ConsultationScheduleState state;
 
+    /** 咨询时间。 */
     public long counselingTime;
 
+    /** 咨询时长。 */
     public long counselingDuration;
 
+    /** 咨询主题。 */
     public ConsultationTheme counselingTheme;
 
+    /** 咨询咨询。 */
     public ConsultationMethod counselingConsultation;
 
+    /** 录音名称。 */
     public String recordingName;
 
+    /** 录音文件码。 */
     public String recordingFileCode;
 
+    /** 声音语音分离 ID。 */
     public long voiceDiarizationId;
 
     public ConsultationSchedule(long id, long customerId) {
@@ -85,6 +99,11 @@ public class ConsultationSchedule implements JSONable {
         this.voiceDiarizationId = json.has("voiceDiarizationId") ? json.getLong("voiceDiarizationId") : 0;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -111,6 +130,13 @@ public class ConsultationSchedule implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

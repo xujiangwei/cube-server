@@ -17,21 +17,32 @@ import java.util.List;
  */
 public class Questionnaire {
 
+    /** 名称。 */
     public String name;
 
+    /** 显示名称。 */
     public String displayName;
 
+    /** 指令。 */
     public String instruction;
 
+    /** 打开。 */
     public boolean open = false;
 
+    /** 问题章节列表。 */
     public List<QuestionSection> questionSections;
 
+    /** 计分脚本内容。 */
     protected String scoringScript;
 
     public Questionnaire() {
     }
 
+    /**
+     * 按结构数据构建问卷。
+     *
+     * @param structure 问卷结构 JSON 。
+     */
     protected void build(JSONObject structure) {
         this.name = structure.getString("name");
         this.displayName = structure.has("displayName") ? structure.getString("displayName") : this.name;
@@ -50,6 +61,13 @@ public class Questionnaire {
         }
     }
 
+    /**
+     * 选择回答。
+     *
+     * @param sn 回答。
+     * @param code 回答。
+     * @return 回答。
+     */
     public boolean chooseAnswer(int sn, String code) {
         Question question = this.getQuestion(sn);
         if (null == question) {
@@ -78,6 +96,11 @@ public class Questionnaire {
         return true;
     }
 
+    /**
+     * 判断是否完成。
+     *
+     * @return 完成。
+     */
     public boolean isComplete() {
         int num = 0;
         int count = 0;
@@ -92,6 +115,12 @@ public class Questionnaire {
         return num == count;
     }
 
+    /**
+     * 获取回答。
+     *
+     * @param sn 回答。
+     * @return 回答。
+     */
     public Answer getAnswer(int sn) {
         Question question = getQuestion(sn);
         if (null == question) {
@@ -100,6 +129,11 @@ public class Questionnaire {
         return question.getChosenAnswer();
     }
 
+    /**
+     * 获取全部选中回答列表。
+     *
+     * @return 全部选中回答列表。
+     */
     public List<Answer> getAllChosenAnswers() {
         List<Answer> answers = new ArrayList<>();
         for (QuestionSection section : this.questionSections) {
@@ -114,6 +148,12 @@ public class Questionnaire {
         return answers;
     }
 
+    /**
+     * 获取问题。
+     *
+     * @param sn 问题。
+     * @return 问题。
+     */
     public Question getQuestion(int sn) {
         for (QuestionSection section : this.questionSections) {
             for (Question question : section.getQuestions()) {
@@ -125,6 +165,11 @@ public class Questionnaire {
         return null;
     }
 
+    /**
+     * 获取问题列表。
+     *
+     * @return 问题列表。
+     */
     public List<Question> getQuestions() {
         List<Question> result = new ArrayList<>();
         for (QuestionSection section : this.questionSections) {
@@ -133,6 +178,11 @@ public class Questionnaire {
         return result;
     }
 
+    /**
+     * 统计问题列表。
+     *
+     * @return 数量。
+     */
     public int numQuestions() {
         int num = 0;
         for (QuestionSection section : this.questionSections) {
@@ -141,6 +191,11 @@ public class Questionnaire {
         return num;
     }
 
+    /**
+     * 获取隐藏题目。
+     *
+     * @return 隐藏题目。
+     */
     public List<Question> getHiddenQuestions() {
         List<Question> result = new ArrayList<>();
         for (QuestionSection section : this.questionSections) {
@@ -149,6 +204,11 @@ public class Questionnaire {
         return result;
     }
 
+    /**
+     * 转换为Markdown。
+     *
+     * @return Markdown。
+     */
     public String toMarkdown() {
         StringBuilder buf = new StringBuilder();
         buf.append("# ").append(this.name).append("\n\n");

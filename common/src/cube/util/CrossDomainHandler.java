@@ -32,6 +32,11 @@ public class CrossDomainHandler extends HttpHandler {
         this.allowOriginList = new ArrayList<>();
     }
 
+    /**
+     * 设置HTTP 允许原始。
+     *
+     * @param origin HTTP 允许原始。
+     */
     public void setHttpAllowOrigin(String origin) {
         this.httpAllowOrigin = origin;
 
@@ -42,6 +47,11 @@ public class CrossDomainHandler extends HttpHandler {
         this.addAllowOrigin(origin);
     }
 
+    /**
+     * 设置HTTPS 允许原始。
+     *
+     * @param origin HTTPS 允许原始。
+     */
     public void setHttpsAllowOrigin(String origin) {
         this.httpsAllowOrigin = origin;
 
@@ -52,6 +62,11 @@ public class CrossDomainHandler extends HttpHandler {
         this.addAllowOrigin(origin);
     }
 
+    /**
+     * 添加允许原始。
+     *
+     * @param origin 允许原始。
+     */
     public void addAllowOrigin(String origin) {
         if (this.allowOriginList.contains(origin)) {
             return;
@@ -60,6 +75,11 @@ public class CrossDomainHandler extends HttpHandler {
         this.allowOriginList.add(origin);
     }
 
+    /**
+     * 移除允许原始。
+     *
+     * @param origin 允许原始。
+     */
     public void removeAllowOrigin(String origin) {
         this.allowOriginList.remove(origin);
     }
@@ -78,15 +98,19 @@ public class CrossDomainHandler extends HttpHandler {
         String method = request.getMethod().toUpperCase();
         if (method.equals("GET")) {
             doGet(request, response);
-        }
-        else if (method.equals("POST")) {
+        } else if (method.equals("POST")) {
             doPost(request, response);
-        }
-        else if (method.equals("OPTIONS")) {
+        } else if (method.equals("OPTIONS")) {
             doOptions(request, response);
         }
     }
 
+    /**
+     * 处理 OPTIONS 请求。
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doOptions(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
         response.setStatus(HttpStatus.OK_200);
@@ -99,17 +123,14 @@ public class CrossDomainHandler extends HttpHandler {
         if (this.allowOriginList.contains(rootURL)) {
             response.setHeader("Access-Control-Allow-Credentials", "true");
             response.setHeader("Access-Control-Allow-Origin", rootURL);
-        }
-        else {
+        } else {
             if (null != this.httpAllowOrigin && !this.isHttps()) {
                 response.setHeader("Access-Control-Allow-Credentials", "true");
                 response.setHeader("Access-Control-Allow-Origin", this.httpAllowOrigin);
-            }
-            else if (null != this.httpsAllowOrigin && this.isHttps()) {
+            } else if (null != this.httpsAllowOrigin && this.isHttps()) {
                 response.setHeader("Access-Control-Allow-Credentials", "true");
                 response.setHeader("Access-Control-Allow-Origin", this.httpsAllowOrigin);
-            }
-            else {
+            } else {
                 response.setHeader("Access-Control-Allow-Origin", "*");
             }
         }
@@ -123,6 +144,11 @@ public class CrossDomainHandler extends HttpHandler {
 //        response.setHeader("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Content-Type");
     }
 
+    /**
+     * 判断是否HTTPS。
+     *
+     * @return HTTPS。
+     */
     protected boolean isHttps() {
         return (this.baseRequest.getProtocol().toUpperCase().indexOf("HTTPS") >= 0);
     }

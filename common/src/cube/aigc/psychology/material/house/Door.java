@@ -30,14 +30,29 @@ public class Door extends Thing {
         }
     }
 
+    /**
+     * 判断是否打开。
+     *
+     * @return 打开。
+     */
     public boolean isOpen() {
         return this.open;
     }
 
+    /**
+     * 判断是否锁定。
+     *
+     * @return 锁定。
+     */
     public boolean isLock() {
         return this.lock;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

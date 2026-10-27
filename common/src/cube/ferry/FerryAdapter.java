@@ -23,18 +23,35 @@ public class FerryAdapter extends CelletAdapter {
         super("FerryAdapter", host, port, true);
     }
 
+    /**
+     * 启动适配器。
+     *
+     * <p>按配置建立与渡口服务的连接，重复调用幂等。</p>
+     */
     public void start() {
         this.setup();
     }
 
+    /** 停止适配器并释放连接。 */
     public void stop() {
         this.teardown();
     }
 
+    /**
+     * 创建适配器。
+     *
+     * @return 适配器实例。
+     */
     public static FerryAdapter create() {
         return FerryAdapter.create(null);
     }
 
+    /**
+     * 按配置文件创建适配器。
+     *
+     * @param configFile 配置文件。
+     * @return 适配器实例；配置不合法时返回 {@code null} 。
+     */
     public static FerryAdapter create(File configFile) {
         String host = "0.0.0.0";
         int port = 6900;

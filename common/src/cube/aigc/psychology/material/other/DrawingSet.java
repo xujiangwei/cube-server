@@ -166,6 +166,11 @@ public class DrawingSet {
         }
     }
 
+    /**
+     * 添加物件。
+     *
+     * @param thing 物件。
+     */
     public void add(Thing thing) {
         if (thing instanceof Table) {
             if (null == this.tableList) {
@@ -559,6 +564,12 @@ public class DrawingSet {
         }
     }
 
+    /**
+     * 按标签获取物件。
+     *
+     * @param label 标签。
+     * @return 物件；无匹配返回 {@code null} 。
+     */
     public Thing get(Label label) {
         switch (label) {
             case Table:
@@ -697,6 +708,11 @@ public class DrawingSet {
         return null;
     }
 
+    /**
+     * 获取全部。
+     *
+     * @return 全部。
+     */
     public List<Thing> getAll() {
         List<Thing> result = new ArrayList<>();
 
@@ -899,6 +915,12 @@ public class DrawingSet {
         return result;
     }
 
+    /**
+     * 获取列表。
+     *
+     * @param label 列表。
+     * @return 列表。
+     */
     public List<Thing> getList(Label label) {
         List<Thing> result = null;
         switch (label) {
@@ -1103,6 +1125,12 @@ public class DrawingSet {
         return result;
     }
 
+    /**
+     * 判断是否包含指定标签的物件。
+     *
+     * @param label 标签。
+     * @return 包含返回 {@code true} 。
+     */
     public boolean has(Label label) {
         switch (label) {
             case Table:
@@ -1241,6 +1269,11 @@ public class DrawingSet {
         return false;
     }
 
+    /**
+     * 转换为物件数组。
+     *
+     * @return 物件 JSON 数组。
+     */
     public JSONArray toJSONArray() {
         JSONArray array = new JSONArray();
         List<Thing> all = this.getAll();

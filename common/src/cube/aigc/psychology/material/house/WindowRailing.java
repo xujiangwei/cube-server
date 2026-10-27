@@ -18,6 +18,11 @@ public class WindowRailing extends Thing {
         super(json);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

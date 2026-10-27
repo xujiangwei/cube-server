@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class ReportSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "Report";
 
     public ReportSignal() {

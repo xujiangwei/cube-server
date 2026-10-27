@@ -86,54 +86,119 @@ public class DomainInfo extends Entity {
         }
     }
 
+    /**
+     * 获取起始。
+     *
+     * @return 起始。
+     */
     public long getBeginning() {
         return this.beginning;
     }
 
+    /**
+     * 设置起始。
+     *
+     * @param value 起始。
+     */
     public void setBeginning(long value) {
         this.beginning = value;
     }
 
+    /**
+     * 获取时长。
+     *
+     * @return 时长。
+     */
     public long getDuration() {
         return this.duration;
     }
 
+    /**
+     * 获取域容量上限。
+     *
+     * @return 上限值。
+     */
     public int getLimit() {
         return this.limit;
     }
 
+    /**
+     * 设置服务地址。
+     *
+     * @param address 地址。
+     */
     public void setAddress(String address) {
         this.address = address;
     }
 
+    /**
+     * 获取服务地址。
+     *
+     * @return 地址。
+     */
     public String getAddress() {
         return this.address;
     }
 
+    /**
+     * 设置邀请码。
+     *
+     * @param invitationCode 邀请码。
+     */
     public void setInvitationCode(String invitationCode) {
         this.invitationCode = invitationCode;
     }
 
+    /**
+     * 获取邀请码。
+     *
+     * @return 邀请码。
+     */
     public String getInvitationCode() {
         return this.invitationCode;
     }
 
+    /**
+     * 设置二维码文件。
+     *
+     * @param fileLabel 文件标签。
+     */
     public void setQRCodeFileLabel(FileLabel fileLabel) {
         this.qrCodeFileLabel = fileLabel;
     }
 
+    /**
+     * 获取二维码文件。
+     *
+     * @return 文件标签；未设置返回 {@code null} 。
+     */
     public FileLabel getQRCodeFileLabel() {
         return this.qrCodeFileLabel;
     }
 
+    /**
+     * 获取状态。
+     *
+     * @return 状态。
+     */
     public int getState() {
         return this.state;
     }
 
+    /**
+     * 获取域标志位。
+     *
+     * @return 标志值。
+     */
     public int getFlag() {
         return this.flag;
     }
 
+    /**
+     * 导出为授权信息。
+     *
+     * @return 授权 JSON 。
+     */
     public JSONObject toLicence() {
         JSONObject data = new JSONObject();
         data.put("domain", this.domain.getName());
@@ -143,6 +208,11 @@ public class DomainInfo extends Entity {
         return data;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

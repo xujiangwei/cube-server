@@ -57,18 +57,38 @@ public class SteganographyOperation extends ImageOperation {
         return this.recover;
     }
 
+    /**
+     * 设置隐藏文本。
+     *
+     * @param hiddenText 隐藏文本。
+     */
     public void setHiddenText(String hiddenText) {
         this.hiddenText = hiddenText;
     }
 
+    /**
+     * 获取隐藏文本。
+     *
+     * @return 隐藏文本。
+     */
     public String getHiddenText() {
         return this.hiddenText;
     }
 
+    /**
+     * 设置水印大小。
+     *
+     * @param size 水印大小。
+     */
     public void setWatermarkSize(Size size) {
         this.watermarkSize = size;
     }
 
+    /**
+     * 获取水印大小。
+     *
+     * @return 水印大小。
+     */
     public Size getWatermarkSize() {
         return this.watermarkSize;
     }
@@ -86,6 +106,11 @@ public class SteganographyOperation extends ImageOperation {
         return Operation;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

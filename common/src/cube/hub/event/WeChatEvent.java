@@ -69,18 +69,38 @@ public abstract class WeChatEvent extends Event {
         this.timestamp = System.currentTimeMillis();
     }
 
+    /**
+     * 设置时间戳。
+     *
+     * @param timestamp 时间戳。
+     */
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
     }
 
+    /**
+     * 获取时间戳。
+     *
+     * @return 时间戳。
+     */
     public long getTimestamp() {
         return this.timestamp;
     }
 
+    /**
+     * 获取账号。
+     *
+     * @return 联系人。
+     */
     public Contact getAccount() {
         return this.account;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -90,6 +110,13 @@ public abstract class WeChatEvent extends Event {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();

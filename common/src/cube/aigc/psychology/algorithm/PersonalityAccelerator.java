@@ -33,9 +33,13 @@ public class PersonalityAccelerator implements JSONable  {
      * 置信度。
      */
     public boolean obligingnessConfidence = false;
+    /** 尽责性是否已确认。 */
     public boolean conscientiousnessConfidence = false;
+    /** 外向性是否已确认。 */
     public boolean extraversionConfidence = false;
+    /** 成就性是否已确认。 */
     public boolean achievementConfidence = false;
+    /** 神经质是否已确认。 */
     public boolean neuroticismConfidence = false;
 
     public PersonalityAccelerator(JSONObject json) {
@@ -187,10 +191,24 @@ public class PersonalityAccelerator implements JSONable  {
                 achievementScore, neuroticismScore);
     }
 
+    /**
+     * 获取大五人格。
+     *
+     * @return 大五人格。
+     */
     public BigFivePersonality getBigFivePersonality() {
         return this.bigFivePersonality;
     }
 
+    /**
+     * 重设五因子取值与确认状态。
+     *
+     * @param obligingness      亲和性。
+     * @param conscientiousness 尽责性。
+     * @param extraversion      外向性。
+     * @param achievement       成就性。
+     * @param neuroticism       神经质。
+     */
     public void reset(double obligingness, double conscientiousness,
                       double extraversion, double achievement, double neuroticism) {
         this.fiveFactorList.get(0).score = obligingness;
@@ -202,6 +220,11 @@ public class PersonalityAccelerator implements JSONable  {
     }
 
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -218,6 +241,13 @@ public class PersonalityAccelerator implements JSONable  {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

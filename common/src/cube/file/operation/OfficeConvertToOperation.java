@@ -19,6 +19,7 @@ public class OfficeConvertToOperation implements FileOperation {
 
     public final static String OUTPUT_FORMAT_PNG = "png";
 
+    /** 输出格式化文本。 */
     public final static String OUTPUT_FORMAT_TEXT = "txt";
 
     private String outputFormat;
@@ -31,10 +32,20 @@ public class OfficeConvertToOperation implements FileOperation {
         this.outputFormat = json.getString("format");
     }
 
+    /**
+     * 获取输出格式化。
+     *
+     * @return 输出格式化。
+     */
     public String getOutputFormat() {
         return this.outputFormat;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -43,11 +54,23 @@ public class OfficeConvertToOperation implements FileOperation {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
     }
 
+    /**
+     * 获取处理动作。
+     *
+     * @return 处理动作。
+     */
     @Override
     public String getProcessAction() {
         return FileProcessorAction.OfficeConvertTo.name;

@@ -31,11 +31,15 @@ public abstract class ImageOperation implements FileOperation {
 
     /**
      * 获取具体的图像操作。
-     *
-     * @return
+     * @return 处理结果。
      */
     public abstract String getOperation();
 
+    /**
+     * 获取处理动作。
+     *
+     * @return 处理动作。
+     */
     @Override
     public String getProcessAction() {
         return FileProcessorAction.Image.name;
@@ -57,6 +61,11 @@ public abstract class ImageOperation implements FileOperation {
         return this.outputFilename;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -70,6 +79,13 @@ public abstract class ImageOperation implements FileOperation {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

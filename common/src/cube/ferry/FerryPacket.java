@@ -14,6 +14,7 @@ import cell.util.Utils;
  */
 public class FerryPacket {
 
+    /** 消息类数据包标识。 */
     public final static String MESSAGING = "Messaging";
 
     private long sn;
@@ -33,22 +34,47 @@ public class FerryPacket {
         this.dialect.addParam("port", portName);
     }
 
+    /**
+     * 获取序列号。
+     *
+     * @return 序列号。
+     */
     public long getSN() {
         return this.sn;
     }
 
+    /**
+     * 设置域。
+     *
+     * @param domain 域。
+     */
     public void setDomain(String domain) {
         this.domain = domain;
     }
 
+    /**
+     * 获取域。
+     *
+     * @return 域。
+     */
     public String getDomain() {
         return this.domain;
     }
 
+    /**
+     * 获取动作方言。
+     *
+     * @return 方言对象。
+     */
     public ActionDialect getDialect() {
         return this.dialect;
     }
 
+    /**
+     * 转换为动作方言。
+     *
+     * @return 方言对象。
+     */
     public ActionDialect toDialect() {
         if (!this.dialect.containsParam("sn")) {
             this.dialect.addParam("sn", this.sn);

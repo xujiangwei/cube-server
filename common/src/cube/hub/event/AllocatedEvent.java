@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class AllocatedEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "Allocated";
 
     public AllocatedEvent(String code, Contact account) {

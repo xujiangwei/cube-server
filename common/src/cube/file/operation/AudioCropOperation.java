@@ -23,10 +23,13 @@ public class AudioCropOperation extends AudioOperation {
 
     private final static String KEY_TIME = "time";
 
+    /** 输出类型。 */
     public FileType outputType;
 
+    /** 开始。 */
     public int start = 0;
 
+    /** 时间。 */
     public int time = 30;
 
     public AudioCropOperation(int start, int time) {
@@ -55,6 +58,11 @@ public class AudioCropOperation extends AudioOperation {
         return AudioCropOperation.Operation;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

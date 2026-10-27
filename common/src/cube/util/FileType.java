@@ -1049,9 +1049,7 @@ public enum FileType {
      */
     private byte[] magicNumber;
 
-    /**
-     *
-     */
+    /** 扩展名到文件类型的索引。 */
     private static HashMap<String, FileType> extensionsMap = new HashMap<>();
 
     /**
@@ -1165,9 +1163,8 @@ public enum FileType {
 
     /**
      * 根据文件魔数提取文件类型。
-     *
-     * @param data
-     * @return
+     * @param data 数据。
+     * @return 处理结果。
      */
     public static FileType extractFileType(byte[] data) {
         if (data.length < 4) {

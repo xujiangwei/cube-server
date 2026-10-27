@@ -15,12 +15,16 @@ import java.util.Calendar;
  */
 public class TimeDuration {
 
+    /** 天。 */
     public final int days;
 
+    /** 小时。 */
     public final int hours;
 
+    /** 分钟。 */
     public final int minutes;
 
+    /** 第二。 */
     public final int seconds;
 
     public final int milliseconds;
@@ -50,10 +54,9 @@ public class TimeDuration {
     }
 
     /**
-     *
-     * @param value
-     * @param unit
-     * @return
+     * @param value value。
+     * @param unit 单元名称。
+     * @return 处理结果。
      * @see java.util.Calendar
      */
     public TimeDuration increment(int value, int unit) {
@@ -108,8 +111,7 @@ public class TimeDuration {
 
     /**
      * 是否所有数据均为 0 值。
-     *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean isZero() {
         return (this.days == 0 && this.hours == 0 && this.minutes == 0
@@ -179,6 +181,11 @@ public class TimeDuration {
         return buf.toString();
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         StringBuilder buf = new StringBuilder();
@@ -190,6 +197,11 @@ public class TimeDuration {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("days", this.days);

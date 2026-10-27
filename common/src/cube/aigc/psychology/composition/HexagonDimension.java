@@ -52,9 +52,12 @@ public enum HexagonDimension {
 
     ;
 
+    /** 名称。 */
     public final String name;
 
+    /** 英文展示名称。 */
     public final String displayNameInEnglish;
+    /** 中文展示名称。 */
     public final String displayNameInChinese;
 
     HexagonDimension(String name, String displayNameInEnglish, String displayNameInChinese) {
@@ -63,6 +66,14 @@ public enum HexagonDimension {
         this.displayNameInChinese = displayNameInChinese;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param name 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static HexagonDimension parse(String name) {
         for (HexagonDimension hd : HexagonDimension.values()) {
             if (hd.name.equalsIgnoreCase(name) || hd.displayNameInEnglish.equalsIgnoreCase(name) ||

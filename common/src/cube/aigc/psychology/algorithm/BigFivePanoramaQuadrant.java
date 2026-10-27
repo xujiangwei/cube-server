@@ -9,6 +9,11 @@ package cube.aigc.psychology.algorithm;
 import cube.aigc.psychology.composition.BigFiveFactor;
 import org.json.JSONArray;
 
+/**
+ * 大五人格全景象限。
+ *
+ * <p>按亲和与进取两轴把人格划分为四个象限。</p>
+ */
 public enum BigFivePanoramaQuadrant {
 
     /**
@@ -33,10 +38,13 @@ public enum BigFivePanoramaQuadrant {
 
     ;
 
+    /** X 坐标 原始。 */
     public final int xOri;
 
+    /** Y 坐标 原始。 */
     public final int yOri;
 
+    /** 象限。 */
     public final BigFiveFactor[] quadrant;
 
     BigFivePanoramaQuadrant(int xOri, int yOri) {
@@ -56,6 +64,11 @@ public enum BigFivePanoramaQuadrant {
         }
     }
 
+    /**
+     * 转换为象限数组。
+     *
+     * @return 象限 JSON 数组。
+     */
     public JSONArray toJSONArray() {
         JSONArray quadrant = new JSONArray();
         quadrant.put(this.quadrant[0].toJSON());
@@ -63,6 +76,15 @@ public enum BigFivePanoramaQuadrant {
         return quadrant;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param x 编码值。
+     * @param y 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static BigFivePanoramaQuadrant parse(double x, double y) {
         for (BigFivePanoramaQuadrant bfp : BigFivePanoramaQuadrant.values()) {
             if (bfp.xOri < 0.0d && x < 0.0d && bfp.yOri < 0.0d && y < 0.0d) {

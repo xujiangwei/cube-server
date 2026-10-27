@@ -29,24 +29,34 @@ public class Question {
      */
     public final static String CHOICE_DESCRIPTIVE = "descriptive";
 
+    /** 序列号。 */
     public final int sn;
 
+    /** 隐藏。 */
     public final boolean hidden;
 
+    /** 内容。 */
     public final String content;
 
+    /** 提示词。 */
     public final String prompt;
 
+    /** 推断。 */
     public final String inference;
 
+    /** 回答列表。 */
     public final List<Answer> answers = new ArrayList<>();
 
+    /** 选项。 */
     public final String choice;
 
+    /** 问题内容。 */
     public String questionContent;
 
+    /** 回答内容。 */
     public String answerContent;
 
+    /** 推断结果。 */
     public String inferenceResult;
 
     public Question(JSONObject structure) {
@@ -66,34 +76,75 @@ public class Question {
         }
     }
 
+    /**
+     * 判断是否单选。
+     *
+     * @return 单选。
+     */
     public boolean isSingleChoice() {
         return this.choice.equalsIgnoreCase(CHOICE_SINGLE);
     }
 
+    /**
+     * 判断是否多选。
+     *
+     * @return 多选。
+     */
     public boolean isMultipleChoice() {
         return this.choice.equalsIgnoreCase(CHOICE_MULTIPLE);
     }
 
+    /**
+     * 判断是否描述性。
+     *
+     * @return 描述性。
+     */
     public boolean isDescriptive() {
         return this.choice.equalsIgnoreCase(CHOICE_DESCRIPTIVE);
     }
 
+    /**
+     * 提交作答内容。
+     *
+     * @param content 作答文本。
+     */
     public void submitAnswerContent(String content) {
         this.answerContent = content;
     }
 
+    /**
+     * 获取回答内容。
+     *
+     * @return 回答内容。
+     */
     public String getAnswerContent() {
         return this.answerContent;
     }
 
+    /**
+     * 构造推断提示词。
+     *
+     * @return 推断提示词。
+     */
     public String makeInferencePrompt() {
         return this.inference.replace("${content}", this.answerContent);
     }
 
+    /**
+     * 设置推断结果。
+     *
+     * @param result 推断结果。
+     */
     public void setInferenceResult(String result) {
         this.inferenceResult = result;
     }
 
+    /**
+     * 选择回答。
+     *
+     * @param code 回答。
+     * @return 回答。
+     */
     public void chooseAnswer(String code) {
         if (this.isSingleChoice()) {
             for (Answer answer : this.answers) {
@@ -115,6 +166,11 @@ public class Question {
         }
     }
 
+    /**
+     * 获取选中回答。
+     *
+     * @return 选中回答。
+     */
     public Answer getChosenAnswer() {
         for (Answer answer : this.answers) {
             if (answer.chosen) {
@@ -124,6 +180,11 @@ public class Question {
         return null;
     }
 
+    /**
+     * 获取选中回答列表。
+     *
+     * @return 选中回答列表。
+     */
     public List<Answer> getChosenAnswers() {
         List<Answer> answers = new ArrayList<>();
         for (Answer answer : this.answers) {
@@ -136,8 +197,7 @@ public class Question {
 
     /**
      * 是否已答题。
-     *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean hasAnswered() {
         for (Answer answer : this.answers) {
@@ -155,8 +215,7 @@ public class Question {
 
     /**
      * 是否已完成答案选择。
-     *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean hasChosen() {
         for (Answer answer : this.answers) {
@@ -167,6 +226,11 @@ public class Question {
         return false;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("sn", this.sn);

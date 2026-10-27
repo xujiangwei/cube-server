@@ -138,24 +138,48 @@ public class CopilotSetting implements JSONable {
         }
     }
 
+    /**
+     * 获取序列号。
+     *
+     * @return 序列号。
+     */
     public long getSn() {
         return this.sn;
     }
 
+    /**
+     * 设置策略模板。
+     *
+     * @param content 策略模板。
+     */
     public void setStrategyTemplate(String content) {
         this.strategyTemplate = content;
     }
 
+    /**
+     * 获取策略模板。
+     *
+     * @return 策略模板。
+     */
     public String getStrategyTemplate() {
         return this.strategyTemplate;
     }
 
+    /**
+     * 清空句子列表。
+     *
+     */
     public void clearSentences() {
         if (null != this.sentences) {
             this.sentences.clear();
         }
     }
 
+    /**
+     * 添加句子列表。
+     *
+     * @param sentences 句子列表。
+     */
     public void addSentences(List<String> sentences) {
         if (null == this.sentences) {
             this.sentences = new ArrayList<>();
@@ -164,11 +188,21 @@ public class CopilotSetting implements JSONable {
         this.sentences.addAll(sentences);
     }
 
+    /**
+     * 转换为Markdown。
+     *
+     * @return Markdown。
+     */
     public String toMarkdown() {
         StringBuilder buf = new StringBuilder();
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -197,6 +231,13 @@ public class CopilotSetting implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = this.toJSON();

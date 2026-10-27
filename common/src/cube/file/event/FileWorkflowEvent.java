@@ -24,6 +24,7 @@ public class FileWorkflowEvent implements JSONable {
 
     private OperationWork work;
 
+    /** 结果文件。 */
     public File resultFile;
 
     public FileWorkflowEvent(String name, OperationWorkflow workflow, OperationWork work) {
@@ -40,6 +41,11 @@ public class FileWorkflowEvent implements JSONable {
         }
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         return this.name;
     }
@@ -52,6 +58,11 @@ public class FileWorkflowEvent implements JSONable {
         return this.work;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -63,6 +74,13 @@ public class FileWorkflowEvent implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

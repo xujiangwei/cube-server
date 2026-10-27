@@ -39,6 +39,12 @@ public class FilterHandler extends CrossDomainHandler {
         super();
     }
 
+    /**
+     * 判断是否是否完成。
+     *
+     * @param request 是否完成。
+     * @return 是否完成。
+     */
     protected boolean isCompleted(HttpServletRequest request) {
         if (this.completed) {
             return this.completed;
@@ -52,10 +58,20 @@ public class FilterHandler extends CrossDomainHandler {
         return ((Boolean) value).booleanValue();
     }
 
+    /**
+     * 设置最小间隔。
+     *
+     * @param value 最小间隔。
+     */
     public void setMinInterval(int value) {
         this.minInterval = value;
     }
 
+    /**
+     * 设置单主机每秒请求数。
+     *
+     * @param value 单主机每秒请求数。
+     */
     public void setNumPerSecondForOneHost(int value) {
         if (value < 0) {
             return;
@@ -64,6 +80,12 @@ public class FilterHandler extends CrossDomainHandler {
         this.numPerSecondForOneHost = value;
     }
 
+    /**
+     * 处理 GET 请求。
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
         this.completed = false;
@@ -77,6 +99,12 @@ public class FilterHandler extends CrossDomainHandler {
         this.checkNumPerSecondForOneHost(request, response);
     }
 
+    /**
+     * 处理 POST 请求。
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
         this.completed = false;

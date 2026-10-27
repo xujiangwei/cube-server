@@ -33,10 +33,13 @@ public class FileStorageHook extends Hook {
      */
     public final static String DeleteFile = "DeleteFile";
 
+    /** 下载文件。 */
     public final static String DownloadFile = "DownloadFile";
 
+    /** 创建分享标签。 */
     public final static String CreateSharingTag = "CreateSharingTag";
 
+    /** 轨迹。 */
     public final static String Trace = "Trace";
 
     /**

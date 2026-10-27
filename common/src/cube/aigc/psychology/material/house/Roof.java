@@ -24,10 +24,20 @@ public class Roof extends Thing {
         }
     }
 
+    /**
+     * 判断是否有纹理。
+     *
+     * @return 有纹理。
+     */
     public boolean isTextured() {
         return this.textured;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

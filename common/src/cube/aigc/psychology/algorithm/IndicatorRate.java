@@ -45,8 +45,10 @@ public enum IndicatorRate {
 
     ;
 
+    /** 值。 */
     public final int value;
 
+    /** 显示名称。 */
     public final String displayName;
 
     IndicatorRate(int value, String displayName) {
@@ -54,6 +56,11 @@ public enum IndicatorRate {
         this.displayName = displayName;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("value", this.value);
@@ -61,11 +68,27 @@ public enum IndicatorRate {
         return json;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param json 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static IndicatorRate parse(JSONObject json) {
         int value = json.getInt("value");
         return parse(value);
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param value 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static IndicatorRate parse(int value) {
         for (IndicatorRate ir : IndicatorRate.values()) {
             if (ir.value == value) {

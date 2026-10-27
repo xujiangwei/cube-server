@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class GetMessagesSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "GetMessages";
 
     private String partnerId;
@@ -48,30 +49,65 @@ public class GetMessagesSignal extends Signal {
         }
     }
 
+    /**
+     * 获取起始索引。
+     *
+     * @return 起始索引，从 0 开始。
+     */
     public int getBeginIndex() {
         return this.beginIndex;
     }
 
+    /**
+     * 获取结束索引。
+     *
+     * @return 结束索引。
+     */
     public int getEndIndex() {
         return this.endIndex;
     }
 
+    /**
+     * 设置对端 ID 。
+     *
+     * @param partnerId 对端标识。
+     */
     public void setPartnerId(String partnerId) {
         this.partnerId = partnerId;
     }
 
+    /**
+     * 获取对端 ID 。
+     *
+     * @return 对端标识。
+     */
     public String getPartnerId() {
         return this.partnerId;
     }
 
+    /**
+     * 设置组名称。
+     *
+     * @param groupName 组名称。
+     */
     public void setGroupName(String groupName) {
         this.groupName = groupName;
     }
 
+    /**
+     * 获取组名称。
+     *
+     * @return 组名称。
+     */
     public String getGroupName() {
         return this.groupName;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
          JSONObject json = super.toJSON();

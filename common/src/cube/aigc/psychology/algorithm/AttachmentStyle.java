@@ -9,6 +9,11 @@ package cube.aigc.psychology.algorithm;
 import cube.aigc.psychology.indicator.Indicator;
 import cube.common.Language;
 
+/**
+ * 依恋风格枚举。
+ *
+ * <p>按成对场景描述四种依恋类型，提供中英文名称与场景文案。</p>
+ */
 public enum AttachmentStyle {
 
     /**
@@ -53,26 +58,37 @@ public enum AttachmentStyle {
 
     ;
 
+    /** 风格。 */
     public final String style;
 
+    /** 名称（中文）。 */
     public final String nameCN;
 
+    /** 名称（英文）。 */
     public final String nameEN;
 
+    /** 场景一（中文）。 */
     public final String scene1CN;
 
+    /** 场景一（英文）。 */
     public final String scene1EN;
 
+    /** 场景二（中文）。 */
     public final String scene2CN;
 
+    /** 场景二（英文）。 */
     public final String scene2EN;
 
+    /** 场景三（中文）。 */
     public final String scene3CN;
 
+    /** 场景三（英文）。 */
     public final String scene3EN;
 
+    /** 关键词列表（中文）。 */
     public final String[] keywordsCN;
 
+    /** 关键词列表（英文）。 */
     public final String[] keywordsEN;
 
     AttachmentStyle(String style, String nameCN, String nameEN,
@@ -93,25 +109,57 @@ public enum AttachmentStyle {
         this.keywordsEN = keywordsEN;
     }
 
+    /**
+     * 获取场景一标题。
+     *
+     * @param language 场景一标题。
+     * @return 场景一标题。
+     */
     public String getScene1Title(Language language) {
         return language.isChinese() ? this.nameCN + this.scene1CN + "场景" :
                 "The scene of " + this.nameEN + this.scene1EN;
     }
 
+    /**
+     * 获取场景二标题。
+     *
+     * @param language 场景二标题。
+     * @return 场景二标题。
+     */
     public String getScene2Title(Language language) {
         return language.isChinese() ? this.nameCN + this.scene2CN + "场景" :
                 "The scene of " + this.nameEN + this.scene2EN;
     }
 
+    /**
+     * 获取场景三标题。
+     *
+     * @param language 场景三标题。
+     * @return 场景三标题。
+     */
     public String getScene3Title(Language language) {
         return language.isChinese() ? this.nameCN + this.scene3CN + "场景" :
                 "The scene of " + this.nameEN + this.scene3EN;
     }
 
+    /**
+     * 获取关键词列表。
+     *
+     * @param language 关键词列表。
+     * @return 关键词列表。
+     */
     public String[] getKeywords(Language language) {
         return language.isChinese() ? this.keywordsCN : this.keywordsEN;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param indicator 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static AttachmentStyle parse(Indicator indicator) {
         switch (indicator) {
             case SecureAttachment:

@@ -16,8 +16,10 @@ import org.json.JSONObject;
  */
 public class OCROperation implements FileOperation, JSONable {
 
+    /** 语言中文。 */
     public final static String LANG_CHINESE = "chi_sim";
 
+    /** 语言英文。 */
     public final static String LANG_ENGLISH = "eng";
 
     private String language;
@@ -50,6 +52,11 @@ public class OCROperation implements FileOperation, JSONable {
         }
     }
 
+    /**
+     * 获取语言。
+     *
+     * @return 语言。
+     */
     public String getLanguage() {
         return this.language;
     }
@@ -58,11 +65,21 @@ public class OCROperation implements FileOperation, JSONable {
         return this.singleTextLine;
     }
 
+    /**
+     * 获取处理动作。
+     *
+     * @return 处理动作。
+     */
     @Override
     public String getProcessAction() {
         return FileProcessorAction.OCR.name;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -76,6 +93,13 @@ public class OCROperation implements FileOperation, JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

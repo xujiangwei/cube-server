@@ -36,6 +36,14 @@ public class FileLabels {
         return json;
     }
 
+    /**
+     * 构造文件 HTTPS 地址。
+     *
+     * @param fileLabel 文件 HTTPS 地址。
+     * @param token 文件 HTTPS 地址。
+     * @param endpoint 文件 HTTPS 地址。
+     * @return 文件 HTTPS 地址。
+     */
     public static String makeFileHttpsURL(FileLabel fileLabel, String token, Endpoint endpoint) {
         return "https://" + endpoint.toString() + "/filestorage/file/?fc=" +
                 fileLabel.getFileCode() + "&token=" + token + "&type=" +

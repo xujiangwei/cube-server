@@ -76,14 +76,29 @@ public class Resource {
         this.knowledgeStrategies = new ArrayList<>();
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static Resource getInstance() {
         return Resource.instance;
     }
 
+    /**
+     * 设置分词器。
+     *
+     * @param tokenizer 分词器实现。
+     */
     public void setTokenizer(Tokenizable tokenizer) {
         this.tokenizer = tokenizer;
     }
 
+    /**
+     * 校验文件列表。
+     *
+     * @return 文件列表。
+     */
     public boolean checkFiles() {
         if (!this.termDescriptionFile.exists()) {
             Logger.e(this.getClass(), "#checkFiles - File is NOT exists: " + this.termDescriptionFile.getName());
@@ -112,6 +127,13 @@ public class Resource {
         return true;
     }
 
+    /**
+     * 加载术语解释表。
+     *
+     * <p>按类别读取解释文本并建立索引，重复调用会重新加载。</p>
+     *
+     * @return 知识策略列表；无数据时为空列表。
+     */
     public synchronized List<KnowledgeStrategy> loadTermInterpretations() {
         if (this.termDescriptionFile.exists()) {
             if (this.termDescriptionFile.lastModified() != this.termDescriptionLastModified) {
@@ -136,6 +158,12 @@ public class Resource {
         return this.knowledgeStrategies;
     }
 
+    /**
+     * 获取术语解释。
+     *
+     * @param term 术语。
+     * @return 解释；未收录返回 {@code null} 。
+     */
     public KnowledgeStrategy getTermInterpretation(Term term) {
         this.loadTermInterpretations();
 
@@ -167,6 +195,12 @@ public class Resource {
         return this.membershipData;
     }
 
+    /**
+     * 获取会员权益清单。
+     *
+     * @param memberType 会员类型。
+     * @return 权益列表；未知类型时为空列表。
+     */
     public List<String> getMemberBenefits(String memberType) {
         JSONObject data = this.loadMembershipData();
         if (null == data) {
@@ -178,10 +212,20 @@ public class Resource {
         return JSONUtils.toStringList(list);
     }
 
+    /**
+     * 获取问卷目录。
+     *
+     * @return 问卷根目录。
+     */
     public File getQuestionnairesPath() {
         return this.questionnairesPath;
     }
 
+    /**
+     * 列出量表文件。
+     *
+     * @return 文件列表；目录不存在时为空列表。
+     */
     public List<File> listScaleFiles() {
         List<File> result = new ArrayList<>();
         File[] files = this.questionnairesPath.listFiles(new FilenameFilter() {
@@ -200,6 +244,12 @@ public class Resource {
         return result;
     }
 
+    /**
+     * 列出联系人可用的量表。
+     *
+     * @param contactId 联系人 ID 。
+     * @return 量表列表；无可用量表时为空列表。
+     */
     public List<Scale> listScales(long contactId) {
         List<Scale> result = new ArrayList<>();
         List<File> files = this.listScaleFiles();
@@ -216,6 +266,13 @@ public class Resource {
         return result;
     }
 
+    /**
+     * 按名称加载量表。
+     *
+     * @param name      量表名称。
+     * @param contactId 联系人 ID 。
+     * @return 量表；不存在返回 {@code null} 。
+     */
     public Scale loadScaleByName(String name, long contactId) {
         File file = this.scaleNameFileMap.get(name);
         if (null == file) {
@@ -237,6 +294,13 @@ public class Resource {
         return null;
     }
 
+    /**
+     * 按文件名加载量表。
+     *
+     * @param filename  文件名。
+     * @param contactId 联系人 ID 。
+     * @return 量表；不存在返回 {@code null} 。
+     */
     public Scale loadScaleByFilename(String filename, long contactId) {
         File file = new File(this.questionnairesPath, filename.endsWith(".json") ? filename : filename + ".json");
         if (!file.exists()) {
@@ -253,6 +317,11 @@ public class Resource {
         }
     }
 
+    /**
+     * 加载数据集。
+     *
+     * @return 数据集；加载失败返回 {@code null} 。
+     */
     public Dataset loadDataset() {
         if (this.datasetFile.exists()) {
             if (this.datasetFile.lastModified() != this.datasetFileModified) {
@@ -280,6 +349,11 @@ public class Resource {
         return this.dataset;
     }
 
+    /**
+     * 加载注意力脚本。
+     *
+     * @return 脚本文本；文件缺失时返回空字符串。
+     */
     public String loadAttentionScript() {
         if (this.attentionScriptFile.exists()) {
             if (this.attentionScriptFileModified != this.attentionScriptFile.lastModified()) {
@@ -296,6 +370,11 @@ public class Resource {
         return this.attentionScriptContent;
     }
 
+    /**
+     * 加载建议脚本。
+     *
+     * @return 脚本文本；文件缺失时返回空字符串。
+     */
     public String loadSuggestionScript() {
         if (this.suggestionScriptFile.exists()) {
             if (this.suggestionScriptFileModified != this.suggestionScriptFile.lastModified()) {
@@ -312,10 +391,25 @@ public class Resource {
         return this.suggestionScriptFileContent;
     }
 
+    /**
+     * 获取语料文本。
+     *
+     * @param category 类别。
+     * @param content  内容标识。
+     * @return 语料；未找到返回 {@code null} 。
+     */
     public String getCorpus(String category, String content) {
         return this.getCorpus(category, content, Language.Chinese);
     }
 
+    /**
+     * 按语言获取语料文本。
+     *
+     * @param category 类别。
+     * @param content  内容标识。
+     * @param language 语言。
+     * @return 语料；未找到返回 {@code null} 。
+     */
     public String getCorpus(String category, String content, Language language) {
         if (this.corpusFile.exists()) {
             if (this.corpusFile.lastModified() != this.corpusLastModified) {
@@ -336,6 +430,12 @@ public class Resource {
         return contentJson.getString(language.simplified);
     }
 
+    /**
+     * 获取策略内容。
+     *
+     * @param name 策略内容。
+     * @return 策略内容。
+     */
     public String getStrategyContent(String name) {
         String path = "assets/psychology/strategies/";
         String filename = name.endsWith(".md") ? name : (name + ".md");

@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class SilenceSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "Silence";
 
     private long duration;
@@ -27,10 +28,20 @@ public class SilenceSignal extends Signal {
         this.duration = json.getLong("duration");
     }
 
+    /**
+     * 获取时长。
+     *
+     * @return 时长。
+     */
     public long getDuration() {
         return this.duration;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

@@ -15,6 +15,7 @@ import java.io.File;
  */
 public class LoginQRCodeEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "LoginQRCode";
 
     private Long pretenderId;
@@ -28,10 +29,20 @@ public class LoginQRCodeEvent extends WeChatEvent {
         super(json);
     }
 
+    /**
+     * 设置冒充者 ID。
+     *
+     * @param pretenderId 冒充者 ID。
+     */
     public void setPretenderId(Long pretenderId) {
         this.pretenderId = pretenderId;
     }
 
+    /**
+     * 获取冒充者 ID。
+     *
+     * @return 冒充者 ID。
+     */
     @Override
     public Long getPretenderId() {
         return this.pretenderId;

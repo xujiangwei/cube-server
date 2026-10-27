@@ -20,10 +20,13 @@ public class SnapshotOperation extends VideoOperation {
 
     public TimeDuration offset;
 
+    /** 时长。 */
     public TimeDuration duration;
 
+    /** 比率。 */
     public double rate;
 
+    /** 输出类型。 */
     public FileType outputType;
 
     public boolean packToZip = true;
@@ -53,6 +56,11 @@ public class SnapshotOperation extends VideoOperation {
         return SnapshotOperation.Operation;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

@@ -14,27 +14,34 @@ import org.json.JSONObject;
  */
 public class Suggestion implements JSONable {
 
+    /** 无需干预。 */
     public static final Suggestion NoIntervention = new Suggestion("无需干预",
             "目前不需要采取其他针对性措施。",
             "NoIntervention");
 
+    /** 陪聊疏导。 */
     public static final Suggestion ChattingService = new Suggestion("陪聊疏导",
             "陪聊疏导能够为用户提供情感上的支持和陪伴。咨询师可以成为一个倾听者和安慰者，帮助他们缓解负面情绪，获得情感上的满足和安宁。",
             "ChattingService");
 
+    /** 咨询关怀。 */
     public static final Suggestion PsychologicalCounseling = new Suggestion("咨询关怀",
             "心理咨询通过倾听和共情，心理咨询师能够帮助个体缓解情绪压力，增强情绪管理能力。通过专业的技巧和策略，心理咨询师帮助个体克服心理障碍，恢复心理健康。",
             "PsychologicalCounseling");
 
+    /** 持续心理咨询。 */
     public static final Suggestion PsychiatryDepartment = new Suggestion("持续心理咨询",
             "心理咨询通过倾听和共情，心理咨询师能够帮助个体缓解情绪压力，增强情绪管理能力。通过专业的技巧和策略，心理咨询师帮助个体克服心理障碍，恢复心理健康。",
             //"心理疾病的种类繁多，症状各异，就医后，医生会通过详细的病史询问、心理评估和必要的身体检查，对患者进行全面的评估，从而确定患者是否患有心理疾病，以及病情的严重程度。这为后续制定个性化的治疗方案提供了科学依据。",
             "PsychiatryDepartment");
 
+    /** 标题。 */
     public final String title;
 
+    /** 描述。 */
     public final String description;
 
+    /** 动作。 */
     public final String action;
 
     public Suggestion(String title, String description, String action) {
@@ -49,6 +56,11 @@ public class Suggestion implements JSONable {
         this.action = json.getString("action");
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -58,6 +70,13 @@ public class Suggestion implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

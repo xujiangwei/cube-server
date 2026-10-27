@@ -20,16 +20,22 @@ public class FormatAttribute {
      */
     public int numStreams;
 
+    /** 格式化名称。 */
     public String formatName;
 
+    /** 格式化长名称。 */
     public String formatLongName;
 
+    /** 时长。 */
     public double duration;
 
+    /** 大小。 */
     public long size;
 
+    /** 码率。 */
     public long bitRate;
 
+    /** 标签。 */
     public JSONObject tags;
 
     public FormatAttribute(JSONObject json) {
@@ -43,6 +49,11 @@ public class FormatAttribute {
         this.tags = json.getJSONObject("tags");
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("filename", this.filename);

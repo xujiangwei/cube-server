@@ -24,10 +24,20 @@ public class Window extends Thing {
         }
     }
 
+    /**
+     * 判断是否打开。
+     *
+     * @return 打开。
+     */
     public boolean isOpen() {
         return this.open;
     }
 
+    /**
+     * 判断是否涂鸦。
+     *
+     * @return 涂鸦。
+     */
     @Override
     public boolean isDoodle() {
         if (super.isDoodle()) {
@@ -41,6 +51,11 @@ public class Window extends Thing {
         return false;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

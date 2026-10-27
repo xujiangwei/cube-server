@@ -27,22 +27,47 @@ public class MediaAttribute {
         this.formatAttribute = new FormatAttribute(json.getJSONObject("format"));
     }
 
+    /**
+     * 设置流属性。
+     *
+     * @param streamAttributes 流属性。
+     */
     public void setStreamAttributes(StreamAttribute[] streamAttributes) {
         this.streamAttributes = streamAttributes;
     }
 
+    /**
+     * 获取流属性。
+     *
+     * @return 流属性。
+     */
     public StreamAttribute[] getStreamAttributes() {
         return this.streamAttributes;
     }
 
+    /**
+     * 设置格式化属性。
+     *
+     * @param formatAttribute 格式化属性。
+     */
     public void setFormatAttribute(FormatAttribute formatAttribute) {
         this.formatAttribute = formatAttribute;
     }
 
+    /**
+     * 获取格式化属性。
+     *
+     * @return 格式化属性。
+     */
     public FormatAttribute getFormatAttribute() {
         return this.formatAttribute;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
 

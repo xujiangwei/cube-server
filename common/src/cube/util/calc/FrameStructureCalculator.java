@@ -20,6 +20,13 @@ public class FrameStructureCalculator {
     public FrameStructureCalculator() {
     }
 
+    /**
+     * 计算帧结构。
+     *
+     * @param canvasSize 帧结构。
+     * @param bbox 帧结构。
+     * @return 帧结构。
+     */
     public FrameStructureDescription calcFrameStructure(Size canvasSize, BoundingBox bbox) {
         int halfHeight = (int) (canvasSize.height * 0.5);
         int halfWidth = (int) (canvasSize.width * 0.5);

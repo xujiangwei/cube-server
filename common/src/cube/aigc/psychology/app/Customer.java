@@ -28,24 +28,34 @@ public class Customer implements JSONable {
      */
     public final static int STATE_DELETE = 1;
 
+    /** ID。 */
     public long id;
 
+    /** 名称。 */
     public String name;
 
+    /** 性别。 */
     public Gender gender;
 
+    /** 年龄。 */
     public int age;
 
+    /** 手机号。 */
     public String mobile;
 
+    /** 评论。 */
     public String comment;
 
+    /** 时间戳。 */
     public long timestamp;
 
+    /** 状态。 */
     public int state = STATE_NORMAL;
 
+    /** 六边形维度分数。 */
     public HexagonDimensionScore hexagonScore;
 
+    /** 人格。 */
     public BigFivePersonality personality;
 
     public Customer(String name, Gender gender, int age, String mobile, String comment, long timestamp) {
@@ -85,6 +95,11 @@ public class Customer implements JSONable {
                 new BigFivePersonality(json.getJSONObject("personality")) : null;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -106,6 +121,13 @@ public class Customer implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

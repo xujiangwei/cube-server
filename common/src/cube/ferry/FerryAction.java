@@ -118,6 +118,7 @@ public enum FerryAction {
 
     ;
 
+    /** 名称。 */
     public final String name;
 
     FerryAction(String name) {

@@ -118,18 +118,38 @@ public class SpaceLayout {
         this.leftMargin = Math.max(x - paddingW, 0);
     }
 
+    /**
+     * 获取绘画框。
+     *
+     * @return 绘画框。
+     */
     public BoundingBox getPaintingBox() {
         return this.paintingBox;
     }
 
+    /**
+     * 获取面积比例。
+     *
+     * @return 面积比例。
+     */
     public double getAreaRatio() {
         return this.areaRatio;
     }
 
+    /**
+     * 获取绘画面积。
+     *
+     * @return 绘画面积。
+     */
     public long getPaintingArea() {
         return Math.round((double)(this.paintingBox.width * this.paintingBox.height) * this.correctedValue);
     }
 
+    /**
+     * 获取边距。
+     *
+     * @return 边距。
+     */
     public double[] getMargin() {
         return new double[] {
                 this.topMargin,
@@ -139,18 +159,38 @@ public class SpaceLayout {
         };
     }
 
+    /**
+     * 获取上边距。
+     *
+     * @return 上边距。
+     */
     public int getTopMargin() {
         return (int) Math.round(this.topMargin);
     }
 
+    /**
+     * 获取右边距。
+     *
+     * @return 右边距。
+     */
     public int getRightMargin() {
         return (int) Math.round(this.rightMargin);
     }
 
+    /**
+     * 获取下边距。
+     *
+     * @return 下边距。
+     */
     public int getBottomMargin() {
         return (int) Math.round(this.bottomMargin);
     }
 
+    /**
+     * 获取左边距。
+     *
+     * @return 左边距。
+     */
     public int getLeftMargin() {
         return (int) Math.round(this.leftMargin);
     }

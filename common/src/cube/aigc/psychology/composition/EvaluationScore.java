@@ -20,24 +20,34 @@ import org.json.JSONObject;
  */
 public class EvaluationScore implements JSONable {
 
+    /** 指标。 */
     public final Indicable indicator;
 
+    /** 命中。 */
     public int hit = 0;
 
+    /** 值。 */
     public double value = 0;
 
+    /** 正向累计值。 */
     public double positive = 0;
 
+    /** 正向权重。 */
     public double positiveWeight = 0;
 
+    /** 负向累计值。 */
     public double negative = 0;
 
+    /** 负向权重。 */
     public double negativeWeight = 0;
 
+    /** 正向得分。 */
     public double positiveScore = 0;
 
+    /** 负向得分。 */
     public double negativeScore = 0;
 
+    /** 比率。 */
     public IndicatorRate rate;
 
     public EvaluationScore(Indicable indicator) {
@@ -79,10 +89,21 @@ public class EvaluationScore implements JSONable {
         }
     }
 
+    /**
+     * 获取指标。
+     *
+     * @return 指标。
+     */
     public Indicator getIndicator() {
         return (this.indicator instanceof Indicator) ? (Indicator) this.indicator : Indicator.Unknown;
     }
 
+    /**
+     * 获取比率。
+     *
+     * @param attribute 比率。
+     * @return 比率。
+     */
     public IndicatorRate getRate(Attribute attribute) {
         if (null == this.rate) {
             this.rate = this.getIndicatorRate(attribute);
@@ -90,14 +111,31 @@ public class EvaluationScore implements JSONable {
         return this.rate;
     }
 
+    /**
+     * 计算分数。
+     *
+     * @return 分数。
+     */
     public double calcScore() {
         return this.positiveScore - this.negativeScore;
     }
 
+    /**
+     * 获取值。
+     *
+     * @return 值。
+     */
     public double getValue() {
         return this.value;
     }
 
+    /**
+     * 按 ReLU 计算综合得分。
+     *
+     * <p>负向得分被截断为 0 ，避免负值抵消正向权重。</p>
+     *
+     * @return 得分。
+     */
     public double calcScoreReLU() {
         double value = this.positiveScore - this.negativeScore;
         if (value < 0) {
@@ -106,6 +144,11 @@ public class EvaluationScore implements JSONable {
         return value;
     }
 
+    /**
+     * 累加一次评分。
+     *
+     * @param score 评分项。
+     */
     public void scoring(Score score) {
         this.hit += 1;
         // 原始分
@@ -133,6 +176,12 @@ public class EvaluationScore implements JSONable {
         }
     }
 
+    /**
+     * 生成报告提示词。
+     *
+     * @param attribute 报告提示词。
+     * @return 报告提示词。
+     */
     public String generateReportPrompt(Attribute attribute) {
         if (this.hit == 0 || (this.positiveScore == 0 && this.negativeScore == 0)) {
             return null;
@@ -148,6 +197,12 @@ public class EvaluationScore implements JSONable {
                 ("The report content when the assessment indicator is \"" + word.toLowerCase() + "\"");
     }
 
+    /**
+     * 生成建议提示词。
+     *
+     * @param attribute 建议提示词。
+     * @return 建议提示词。
+     */
     public String generateSuggestionPrompt(Attribute attribute) {
         if (this.hit == 0 || (this.positiveScore == 0 && this.negativeScore == 0)) {
             return null;
@@ -163,6 +218,12 @@ public class EvaluationScore implements JSONable {
                 ("The suggestions when the assessment indicator is \"" + word.toLowerCase() + "\"");
     }
 
+    /**
+     * 生成词。
+     *
+     * @param attribute 词。
+     * @return 词。
+     */
     public String generateWord(Attribute attribute) {
         IndicatorRate rate = this.getIndicatorRate(attribute);
         StringBuilder buf = new StringBuilder();
@@ -409,6 +470,12 @@ public class EvaluationScore implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 获取指标比率。
+     *
+     * @param attribute 指标比率。
+     * @return 指标比率。
+     */
     public IndicatorRate getIndicatorRate(Attribute attribute) {
         double score = this.positiveScore - this.negativeScore;
 
@@ -720,6 +787,12 @@ public class EvaluationScore implements JSONable {
         return rate;
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param obj 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof EvaluationScore) {
@@ -736,11 +809,21 @@ public class EvaluationScore implements JSONable {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return this.indicator.hashCode();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -754,6 +837,13 @@ public class EvaluationScore implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

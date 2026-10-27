@@ -42,6 +42,12 @@ public class Tree extends Thing {
         this.backwardReasoning = true;
     }
 
+    /**
+     * 刷新检测框。
+     *
+     * @param boundingBox 检测框。
+     * @param box         包围盒。
+     */
     public void refreshBox(BoundingBox boundingBox, Box box) {
         this.boundingBox.x = Math.min(this.boundingBox.x, boundingBox.x);
         this.boundingBox.y = Math.min(this.boundingBox.y, boundingBox.y);
@@ -55,10 +61,17 @@ public class Tree extends Thing {
         this.area = Math.round(this.boundingBox.calculateArea() * 0.72f);
     }
 
+    /** 刷新面积。 */
     public void refreshArea() {
         this.area = Math.round(this.boundingBox.calculateArea() * 0.72f);
     }
 
+    /**
+     * 获取子物件。
+     *
+     * @param label 子物件。
+     * @return 子物件。
+     */
     @Override
     public List<Thing> getSubThings(Label label) {
         List<Thing> things = null;
@@ -104,6 +117,11 @@ public class Tree extends Thing {
         return things;
     }
 
+    /**
+     * 添加树干。
+     *
+     * @param trunk 树干。
+     */
     public void addTrunk(Trunk trunk) {
         if (null == this.trunkList) {
             this.trunkList = new ArrayList<>();
@@ -111,10 +129,20 @@ public class Tree extends Thing {
         this.trunkList.add(trunk);
     }
 
+    /**
+     * 获取树干。
+     *
+     * @return 树干。
+     */
     public List<Trunk> getTrunks() {
         return this.trunkList;
     }
 
+    /**
+     * 判断是否树干。
+     *
+     * @return 树干。
+     */
     public boolean hasTrunk() {
         return (null != this.trunkList);
     }
@@ -122,8 +150,7 @@ public class Tree extends Thing {
     /**
      * 获取树干相较于树的宽度比例。
      * 例如：树干宽30，树整体宽度100，则返回0.3
-     *
-     * @return
+     * @return 计算结果。
      */
     public double getTrunkWidthRatio() {
         if (null == this.trunkList) {
@@ -134,6 +161,11 @@ public class Tree extends Thing {
                 / ((double) this.box.width);
     }
 
+    /**
+     * 获取树干检测框。
+     *
+     * @return 树干检测框。
+     */
     public BoundingBox getTrunkBoundingBox() {
         if (null == this.trunkList) {
             return new BoundingBox((int) Math.round(this.boundingBox.x * 0.3), this.boundingBox.y,
@@ -143,6 +175,11 @@ public class Tree extends Thing {
         return this.trunkList.get(0).boundingBox;
     }
 
+    /**
+     * 添加树枝。
+     *
+     * @param branch 树枝。
+     */
     public void addBranch(Branch branch) {
         if (null == this.branchList) {
             this.branchList = new ArrayList<>();
@@ -150,10 +187,20 @@ public class Tree extends Thing {
         this.branchList.add(branch);
     }
 
+    /**
+     * 获取树枝。
+     *
+     * @return 树枝。
+     */
     public List<Branch> getBranches() {
         return this.branchList;
     }
 
+    /**
+     * 添加树冠。
+     *
+     * @param canopy 树冠。
+     */
     public void addCanopy(Canopy canopy) {
         if (null == this.canopyList) {
             this.canopyList = new ArrayList<>();
@@ -161,18 +208,27 @@ public class Tree extends Thing {
         this.canopyList.add(canopy);
     }
 
+    /**
+     * 获取树冠。
+     *
+     * @return 树冠。
+     */
     public List<Canopy> getCanopies() {
         return this.canopyList;
     }
 
+    /**
+     * 判断是否树冠。
+     *
+     * @return 树冠。
+     */
     public boolean hasCanopy() {
         return (null != this.canopyList);
     }
 
     /**
      * 计算树冠面积比例。
-     *
-     * @return
+     * @return 计算结果。
      */
     public double getCanopyAreaRatio() {
         if (null == this.canopyList) {
@@ -189,8 +245,7 @@ public class Tree extends Thing {
 
     /**
      * 计算树冠高度比例。
-     *
-     * @return
+     * @return 计算结果。
      */
     public double getCanopyHeightRatio() {
         if (null == this.canopyList) {
@@ -209,8 +264,7 @@ public class Tree extends Thing {
 
     /**
      * 树冠涂鸦
-     *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean isDoodleCanopy() {
         if (null == this.canopyList) {
@@ -230,6 +284,11 @@ public class Tree extends Thing {
         }
     }
 
+    /**
+     * 添加树根。
+     *
+     * @param root 树根。
+     */
     public void addRoot(Root root) {
         if (null == this.rootList) {
             this.rootList = new ArrayList<>();
@@ -237,14 +296,29 @@ public class Tree extends Thing {
         this.rootList.add(root);
     }
 
+    /**
+     * 获取树根。
+     *
+     * @return 树根。
+     */
     public List<Root> getRoots() {
         return this.rootList;
     }
 
+    /**
+     * 判断是否树根。
+     *
+     * @return 树根。
+     */
     public boolean hasRoot() {
         return (null != this.rootList);
     }
 
+    /**
+     * 添加果实。
+     *
+     * @param fruit 果实。
+     */
     public void addFruit(Fruit fruit) {
         if (null == this.fruitList) {
             this.fruitList = new ArrayList<>();
@@ -252,18 +326,38 @@ public class Tree extends Thing {
         this.fruitList.add(fruit);
     }
 
+    /**
+     * 获取果实。
+     *
+     * @return 果实。
+     */
     public List<Fruit> getFruits() {
         return this.fruitList;
     }
 
+    /**
+     * 判断是否果实。
+     *
+     * @return 果实。
+     */
     public boolean hasFruit() {
         return (null != this.fruitList);
     }
 
+    /**
+     * 统计果实。
+     *
+     * @return 数量。
+     */
     public int numFruits() {
         return (null != this.fruitList) ? this.fruitList.size() : 0;
     }
 
+    /**
+     * 获取果实面积比例。
+     *
+     * @return 果实面积比例。
+     */
     public double[] getFruitAreaRatios() {
         if (null == this.fruitList || null == this.canopyList) {
             return null;
@@ -285,6 +379,11 @@ public class Tree extends Thing {
 
 
 
+    /**
+     * 添加洞。
+     *
+     * @param hole 洞。
+     */
     public void addHole(Hole hole) {
         if (null == this.holeList) {
             this.holeList = new ArrayList<>();
@@ -292,14 +391,29 @@ public class Tree extends Thing {
         this.holeList.add(hole);
     }
 
+    /**
+     * 获取洞。
+     *
+     * @return 洞。
+     */
     public List<Hole> getHoles() {
         return this.holeList;
     }
 
+    /**
+     * 判断是否洞。
+     *
+     * @return 洞。
+     */
     public boolean hasHole() {
         return (null != this.holeList);
     }
 
+    /**
+     * 添加下垂。
+     *
+     * @param droopingLeaves 下垂。
+     */
     public void addDrooping(DroopingLeaves droopingLeaves) {
         if (null == this.droopingLeavesList) {
             this.droopingLeavesList = new ArrayList<>();
@@ -307,15 +421,30 @@ public class Tree extends Thing {
         this.droopingLeavesList.add(droopingLeaves);
     }
 
+    /**
+     * 获取下垂叶子。
+     *
+     * @return 下垂叶子。
+     */
     public List<DroopingLeaves> getDroopingLeaves() {
         return this.droopingLeavesList;
     }
 
+    /**
+     * 判断是否涂鸦。
+     *
+     * @return 涂鸦。
+     */
     @Override
     public boolean isDoodle() {
         return super.isDoodle();
     }
 
+    /**
+     * 统计组件列表。
+     *
+     * @return 数量。
+     */
     @Override
     public int numComponents() {
         return ((null != this.trunkList) ? this.trunkList.size() : 0) +

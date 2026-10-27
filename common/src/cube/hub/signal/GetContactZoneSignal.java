@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class GetContactZoneSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "GetContactZone";
 
     private ContactZoneParticipantType participantType;
@@ -38,18 +39,38 @@ public class GetContactZoneSignal extends Signal {
         this.endIndex = json.getInt("end");
     }
 
+    /**
+     * 获取参与者类型。
+     *
+     * @return 参与者类型。
+     */
     public ContactZoneParticipantType getParticipantType() {
         return this.participantType;
     }
 
+    /**
+     * 获取起始索引。
+     *
+     * @return 起始索引，从 0 开始。
+     */
     public int getBeginIndex() {
         return this.beginIndex;
     }
 
+    /**
+     * 获取结束索引。
+     *
+     * @return 结束索引。
+     */
     public int getEndIndex() {
         return this.endIndex;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

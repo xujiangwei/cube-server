@@ -18,6 +18,11 @@ public class Eye extends Thing {
         super(json);
     }
 
+    /**
+     * 判断是否打开。
+     *
+     * @return 打开。
+     */
     public boolean isOpen() {
         // 判断纵横比
         double ar = this.box.getAspectRatio();

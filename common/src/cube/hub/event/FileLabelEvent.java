@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class FileLabelEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "FileLabel";
 
     public FileLabelEvent(long sn, FileLabel fileLabel) {

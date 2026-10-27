@@ -62,6 +62,11 @@ public class ReplaceColorOperation extends ImageOperation {
         }
     }
 
+    /**
+     * 获取目标颜色。
+     *
+     * @return 目标颜色。
+     */
     public Color getTargetColor() {
         return this.targetColor;
     }
@@ -87,6 +92,11 @@ public class ReplaceColorOperation extends ImageOperation {
         return Operation;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

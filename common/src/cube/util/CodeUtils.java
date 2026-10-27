@@ -59,6 +59,12 @@ public class CodeUtils {
         return string.split("\\.");
     }
 
+    /**
+     * 判断是否框域。
+     *
+     * @param codeString 框域。
+     * @return 框域。
+     */
     public static boolean isBoxDomain(String codeString) {
         try {
             URL url = new URL(codeString);
@@ -94,12 +100,12 @@ public class CodeUtils {
     /**
      * 生成二维码图片。
      *
-     * @param output
-     * @param content
-     * @param imageWidth
-     * @param imageHeight
-     * @param color
-     * @return
+     * @param output      output。
+     * @param content     内容。
+     * @param imageWidth  imageWidth。
+     * @param imageHeight imageHeight。
+     * @param color       color。
+     * @return 处理结果。
      */
     public static boolean generateQRCode(File output, String content,
                                          int imageWidth, int imageHeight, Color color) {
@@ -142,11 +148,11 @@ public class CodeUtils {
     /**
      * 生成条形码图片。
      *
-     * @param output
-     * @param data
-     * @param width
-     * @param height
-     * @return
+     * @param output output。
+     * @param data   数据。
+     * @param width  width。
+     * @param height height。
+     * @return 处理结果。
      */
     public static boolean generateBarCode(File output, String data, int width, int height) {
         try {
@@ -163,13 +169,13 @@ public class CodeUtils {
     /**
      * 生成条形码。
      *
-     * @param data
-     * @param width
-     * @param height
-     * @param header
-     * @param footer
-     * @param fontSize
-     * @return
+     * @param data     数据。
+     * @param width    width。
+     * @param height   height。
+     * @param header   header。
+     * @param footer   footer。
+     * @param fontSize fontSize。
+     * @return 处理结果。
      */
     public static BufferedImage generateBarCode(String data, int width, int height, String header, String footer, int fontSize) {
         BufferedImage image = null;
@@ -191,8 +197,7 @@ public class CodeUtils {
                 for (int y = 0; y < height; ++y) {
                     if (y <= hOffset || y > bHeight) {
                         image.setRGB(x, y, 0xFFFFFF);
-                    }
-                    else {
+                    } else {
                         // 黑白条
                         image.setRGB(x, y, bitMatrix.get(x, y) ? 0 : 0xFFFFFF);
                         if (barX == 0 && bitMatrix.get(x, y)) {
@@ -218,14 +223,14 @@ public class CodeUtils {
                 g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
                 g2d.setFont(font);
                 g2d.setColor(java.awt.Color.BLACK);
-                g2d.drawString(header, barX, fontSize + (int)(fontSize * 0.4) + 5);
+                g2d.drawString(header, barX, fontSize + (int) (fontSize * 0.4) + 5);
             }
             if (null != footer) {
                 // 字体抗锯齿
                 g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
                 g2d.setFont(font);
                 g2d.setColor(java.awt.Color.BLACK);
-                g2d.drawString(footer, barX, height - (int)(fontSize * 0.5) - 5);
+                g2d.drawString(footer, barX, height - (int) (fontSize * 0.5) - 5);
             }
         } catch (Exception e) {
             Logger.e(CodeUtils.class, "#generateBarCode - Unhandled exception", e);
@@ -236,8 +241,8 @@ public class CodeUtils {
     /**
      * 扫描图中条形码数据。
      *
-     * @param input
-     * @return
+     * @param input input。
+     * @return 处理结果。
      */
     public static String scanBarCode(File input) {
         FileInputStream fis = null;
@@ -273,6 +278,11 @@ public class CodeUtils {
         return null;
     }
 
+    /**
+     * 本地自测入口。
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
 
 

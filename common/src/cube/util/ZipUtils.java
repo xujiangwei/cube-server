@@ -26,9 +26,8 @@ public class ZipUtils {
 
     /**
      * 将列表的文件添加到 ZIP 压缩包。
-     *
-     * @param fileList
-     * @param outputStream
+     * @param fileList fileList。
+     * @param outputStream outputStream。
      */
     public static void toZip(List<File> fileList, OutputStream outputStream) {
         ZipOutputStream zos = null;

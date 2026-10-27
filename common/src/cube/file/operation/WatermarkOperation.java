@@ -32,6 +32,11 @@ public class WatermarkOperation extends ImageOperation {
         this.constraint = new TextConstraint(json.getJSONObject("constraint"));
     }
 
+    /**
+     * 获取文本。
+     *
+     * @return 文本。
+     */
     public String getText() {
         return this.text;
     }
@@ -45,6 +50,11 @@ public class WatermarkOperation extends ImageOperation {
         return Operation;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

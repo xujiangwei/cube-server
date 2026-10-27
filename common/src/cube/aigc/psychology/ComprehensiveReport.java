@@ -24,18 +24,25 @@ import java.util.List;
  */
 public class ComprehensiveReport implements JSONable {
 
+    /** 序列号。 */
     public final long sn;
 
+    /** 时间戳。 */
     public final long timestamp;
 
+    /** 主题。 */
     public final Theme theme;
 
+    /** 综合列表。 */
     public final List<Comprehensive> comprehensives;
 
+    /** 状态。 */
     public AIGCStateCode state = AIGCStateCode.Processing;
 
+    /** 是否完成。 */
     public boolean finished = false;
 
+    /** 耗时。 */
     public long elapsed;
 
     private String summary;
@@ -86,10 +93,21 @@ public class ComprehensiveReport implements JSONable {
         this.sections = new ArrayList<>();
     }
 
+    /**
+     * 添加综合。
+     *
+     * @param comprehensive 综合。
+     */
     public void addComprehensive(Comprehensive comprehensive) {
         this.comprehensives.add(comprehensive);
     }
 
+    /**
+     * 按性别获取综合结果。
+     *
+     * @param gender 性别。
+     * @return 综合结果；无匹配返回 {@code null} 。
+     */
     public Comprehensive getComprehensiveByGender(Gender gender) {
         for (Comprehensive comprehensive : this.comprehensives) {
             Gender current = Gender.parse(comprehensive.getAttribute().gender);
@@ -100,18 +118,38 @@ public class ComprehensiveReport implements JSONable {
         return null;
     }
 
+    /**
+     * 设置摘要。
+     *
+     * @param text 摘要。
+     */
     public void setSummary(String text) {
         this.summary = text;
     }
 
+    /**
+     * 获取摘要。
+     *
+     * @return 摘要。
+     */
     public String getSummary() {
         return this.summary;
     }
 
+    /**
+     * 添加章节。
+     *
+     * @param section 章节。
+     */
     public void addSection(ComprehensiveSection section) {
         this.sections.add(section);
     }
 
+    /**
+     * 输出全部章节。
+     *
+     * @return 章节数组。
+     */
     public JSONArray outputSections() {
         JSONArray array = new JSONArray();
         for (ComprehensiveSection section : this.sections) {
@@ -120,6 +158,11 @@ public class ComprehensiveReport implements JSONable {
         return array;
     }
 
+    /**
+     * 转换为Markdown。
+     *
+     * @return Markdown。
+     */
     public String toMarkdown() {
         StringBuilder buf = new StringBuilder();
         buf.append("## 报告基础信息\n\n");
@@ -157,6 +200,11 @@ public class ComprehensiveReport implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -179,6 +227,13 @@ public class ComprehensiveReport implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

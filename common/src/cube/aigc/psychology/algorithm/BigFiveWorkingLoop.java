@@ -8,6 +8,11 @@ package cube.aigc.psychology.algorithm;
 
 import cube.vision.Point;
 
+/**
+ * 工作循环风格枚举。
+ *
+ * <p>描述个体在工作节奏上的偏好类型。</p>
+ */
 public enum BigFiveWorkingLoop {
 
     /**
@@ -32,6 +37,7 @@ public enum BigFiveWorkingLoop {
 
     ;
 
+    /** 名称。 */
     public final String name;
 
     BigFiveWorkingLoop(String name) {
@@ -40,9 +46,8 @@ public enum BigFiveWorkingLoop {
 
     /**
      * 通过坐标解析所处的工作环位置。
-     *
-     * @param coordinate
-     * @return
+     * @param coordinate coordinate。
+     * @return 处理结果。
      */
     public static BigFiveWorkingLoop parse(Point coordinate) {
         Point start = new Point(0, 0);

@@ -36,10 +36,13 @@ import java.util.*;
  */
 public class Painting implements JSONable {
 
+    /** 时间戳。 */
     public long timestamp;
 
+    /** 文件标签。 */
     public FileLabel fileLabel;
 
+    /** 是否已处理文件标签。 */
     public FileLabel processedFileLabel;
 
     private PaintingType type;
@@ -142,6 +145,11 @@ public class Painting implements JSONable {
         }
     }
 
+    /**
+     * 获取素材。
+     *
+     * @return 素材。
+     */
     public List<Material> getMaterials() {
         List<Material> materialList = new ArrayList<>();
         if (null != this.materials) {
@@ -153,10 +161,20 @@ public class Painting implements JSONable {
         return materialList;
     }
 
+    /**
+     * 判断是否形状。
+     *
+     * @return 形状。
+     */
     public boolean hasShapes() {
         return (null != this.shapes && this.shapes.length() > 0);
     }
 
+    /**
+     * 获取形状。
+     *
+     * @return 形状。
+     */
     public List<Box> getShapes() {
         List<Box> boxes = new ArrayList<>();
         if (null != this.shapes) {
@@ -608,10 +626,9 @@ public class Painting implements JSONable {
 
     /**
      * 从低到高。
-     *
-     * @param list
-     * @param box
-     * @return
+     * @param list list。
+     * @param box box。
+     * @return 处理结果。
      */
     private LinkedList<Thing> sortByCollisionArea(List<? extends Thing> list, BoundingBox box) {
         LinkedList<Thing> result = new LinkedList<>(list);
@@ -626,42 +643,81 @@ public class Painting implements JSONable {
         return result;
     }
 
+    /**
+     * 设置属性。
+     *
+     * @param attribute 属性。
+     */
     public void setAttribute(Attribute attribute) {
         this.attribute = attribute;
     }
 
+    /**
+     * 获取属性。
+     *
+     * @return 属性。
+     */
     public Attribute getAttribute() {
         return this.attribute;
     }
 
+    /**
+     * 获取画布大小。
+     *
+     * @return 画布大小。
+     */
     public Size getCanvasSize() {
         return this.canvasSize;
     }
 
+    /**
+     * 获取象限列表。
+     *
+     * @return 象限列表。
+     */
     public List<Texture> getQuadrants() {
         return this.quadrants;
     }
 
+    /**
+     * 获取整体。
+     *
+     * @return 整体。
+     */
     public Texture getWhole() {
         return this.whole;
     }
 
+    /**
+     * 获取线条。
+     *
+     * @return 线条。
+     */
     public Line getLine() {
         return this.line;
     }
 
+    /**
+     * 获取调色板。
+     *
+     * @return 调色板。
+     */
     public Palette getPalette() {
         return this.palette;
     }
 
+    /**
+     * 判断是否对称性。
+     *
+     * @return 对称性。
+     */
     public boolean isSymmetry() {
         return this.symmetry;
     }
 
     /**
      * 是否是有效的绘画。
-     *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean isValid() {
         if (null != this.whole) {
@@ -703,14 +759,18 @@ public class Painting implements JSONable {
         return !(null == this.houseList && null == this.treeList && null == this.personList && null == this.whole);
     }
 
+    /**
+     * 判断是否空。
+     *
+     * @return 空。
+     */
     public boolean isEmpty() {
         return (null == this.houseList && null == this.treeList && null == this.personList);
     }
 
     /**
      * 获取所有画面元素。
-     *
-     * @return
+     * @return 列表；无数据时为空列表。
      */
     public List<Thing> getAllThings() {
         List<Thing> list = new ArrayList<>();
@@ -728,6 +788,11 @@ public class Painting implements JSONable {
         return list;
     }
 
+    /**
+     * 添加房子。
+     *
+     * @param house 房子。
+     */
     public void addHouse(House house) {
         if (null == this.houseList) {
             this.houseList = new ArrayList<>();
@@ -735,6 +800,11 @@ public class Painting implements JSONable {
         this.houseList.add(house);
     }
 
+    /**
+     * 获取房子。
+     *
+     * @return 房子。
+     */
     public House getHouse() {
         if (null == this.houseList || this.houseList.isEmpty()) {
             return null;
@@ -745,14 +815,29 @@ public class Painting implements JSONable {
         return (House) house;
     }
 
+    /**
+     * 获取房子。
+     *
+     * @return 房子。
+     */
     public List<House> getHouses() {
         return this.houseList;
     }
 
+    /**
+     * 判断是否房子。
+     *
+     * @return 房子。
+     */
     public boolean hasHouse() {
         return (null != this.houseList && !this.houseList.isEmpty());
     }
 
+    /**
+     * 添加树。
+     *
+     * @param tree 树。
+     */
     public void addTree(Tree tree) {
         if (null == this.treeList) {
             this.treeList = new ArrayList<>();
@@ -760,6 +845,11 @@ public class Painting implements JSONable {
         this.treeList.add(tree);
     }
 
+    /**
+     * 获取树。
+     *
+     * @return 树。
+     */
     public Tree getTree() {
         if (null == this.treeList || this.treeList.isEmpty()) {
             return null;
@@ -770,14 +860,29 @@ public class Painting implements JSONable {
         return (Tree) tree;
     }
 
+    /**
+     * 获取树。
+     *
+     * @return 树。
+     */
     public List<Tree> getTrees() {
         return this.treeList;
     }
 
+    /**
+     * 判断是否树。
+     *
+     * @return 树。
+     */
     public boolean hasTree() {
         return (null != this.treeList && !this.treeList.isEmpty());
     }
 
+    /**
+     * 添加人物。
+     *
+     * @param person 人物对象。
+     */
     public void addPerson(Person person) {
         if (null == this.personList) {
             this.personList = new ArrayList<>();
@@ -785,6 +890,11 @@ public class Painting implements JSONable {
         this.personList.add(person);
     }
 
+    /**
+     * 获取第一个人物。
+     *
+     * @return 人物；无人像返回 {@code null} 。
+     */
     public Person getPerson() {
         if (null == this.personList || this.personList.isEmpty()) {
             return null;
@@ -795,18 +905,38 @@ public class Painting implements JSONable {
         return (Person) person;
     }
 
+    /**
+     * 获取全部人物。
+     *
+     * @return 人物列表；无人像时为空列表。
+     */
     public List<Person> getPersons() {
         return this.personList;
     }
 
+    /**
+     * 判断是否包含人物。
+     *
+     * @return 包含返回 {@code true} 。
+     */
     public boolean hasPerson() {
         return (null != this.personList && !this.personList.isEmpty());
     }
 
+    /**
+     * 获取绘画集合。
+     *
+     * @return 绘画集合。
+     */
     public DrawingSet getDrawingSet() {
         return this.drawingSet;
     }
 
+    /**
+     * 按面积排序物件。
+     *
+     * @return 排序后的物件列表；无物件时为空列表。
+     */
     public List<Thing> sortBySize() {
         List<Thing> bbdList = new ArrayList<>();
         if (!this.houseList.isEmpty()) {
@@ -823,6 +953,11 @@ public class Painting implements JSONable {
         return bbdList;
     }
 
+    /**
+     * 追加素材。
+     *
+     * @param material 素材对象。
+     */
     public void append(Material material) {
         String labelName = material.label;
         Label label = Label.parse("p_" + labelName);
@@ -863,6 +998,11 @@ public class Painting implements JSONable {
         return maxAreaThing;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -937,6 +1077,13 @@ public class Painting implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = this.toJSON();
@@ -949,6 +1096,13 @@ public class Painting implements JSONable {
         return json;
     }
 
+    /**
+     * 转换为完整 JSON 。
+     *
+     * <p>与精简序列化的区别：包含全部素材明细，体积较大。</p>
+     *
+     * @return 完整 JSON 。
+     */
     public JSONObject toFullJson() {
         JSONObject json = this.toJSON();
         if (null != this.fileLabel) {

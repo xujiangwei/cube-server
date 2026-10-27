@@ -21,9 +21,8 @@ public final class Functions {
 
     /**
      * 均值。
-     *
-     * @param data
-     * @return
+     * @param data 数据。
+     * @return 处理结果。
      */
     public static double mean(double[] data) {
         return sum(data) / (double) data.length;
@@ -31,9 +30,8 @@ public final class Functions {
 
     /**
      * 样本方差。
-     *
-     * @param data
-     * @return
+     * @param data 数据。
+     * @return 处理结果。
      */
     public static double sampleVariance(double[] data) {
         double variance = 0;
@@ -47,14 +45,18 @@ public final class Functions {
 
     /**
      * 样本标准差。
-     *
-     * @param data
-     * @return
+     * @param data 数据。
+     * @return 处理结果。
      */
     public static double sampleStandardDeviation(double[] data) {
         return Math.sqrt(sampleVariance(data));
     }
 
+    /**
+     * 本地自测入口。
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
         double[] data = new double[]{ 1000, 1200, 1300, 2000 };
         System.out.println(mean(data));

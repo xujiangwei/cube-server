@@ -391,17 +391,31 @@ public enum Term implements Terminology {
      */
     Unknown("未知");
 
+    /** 词。 */
     public final String word;
 
     Term(String word) {
         this.word = word;
     }
 
+    /**
+     * 获取词。
+     *
+     * @return 词。
+     */
     @Override
     public String getWord() {
         return this.word;
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param word 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static Term parse(String word) {
         for (Term term : Term.values()) {
             if (term.word.equals(word)) {

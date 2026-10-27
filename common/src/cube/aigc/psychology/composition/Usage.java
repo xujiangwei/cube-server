@@ -14,26 +14,37 @@ import org.json.JSONObject;
 
 public class Usage implements JSONable {
 
+    /** 查询类型绘画。 */
     public final static String QUERY_TYPE_PAINTING = "painting";
 
+    /** 查询类型量表。 */
     public final static String QUERY_TYPE_SCALE = "scale";
 
+    /** 联系人 ID。 */
     public long cid;
 
+    /** 令牌。 */
     public String token;
 
+    /** 时间戳。 */
     public long timestamp;
 
+    /** 远端主机。 */
     public String remoteHost;
 
+    /** 查询。 */
     public String query;
 
+    /** 查询类型。 */
     public String queryType;
 
+    /** 查询令牌列表。 */
     public long queryTokens;
 
+    /** 补全消耗的 token 数。 */
     public long completionTokens;
 
+    /** 补全任务序列号。 */
     public long completionSN;
 
     public Usage(AuthToken authToken, String remoteHost, PaintingReport report) {
@@ -73,6 +84,11 @@ public class Usage implements JSONable {
         this.completionSN = completionSN;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -88,6 +104,13 @@ public class Usage implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

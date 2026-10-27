@@ -11,16 +11,22 @@ import org.json.JSONObject;
 
 public class Texture implements JSONable {
 
+    /** 最大。 */
     public double max;
 
+    /** 平均。 */
     public double avg;
 
+    /** 平方偏差。 */
     public double squareDeviation;
 
+    /** 标准偏差。 */
     public double standardDeviation;
 
+    /** 层次。 */
     public double hierarchy;
 
+    /** 密度。 */
     public double density;
 
     public Texture() {
@@ -51,10 +57,20 @@ public class Texture implements JSONable {
         this.density = Double.parseDouble(json.getString("density"));
     }
 
+    /**
+     * 判断是否有效。
+     *
+     * @return 有效。
+     */
     public boolean isValid() {
         return this.max > 0 && this.avg > 0 && this.density > 0.0014d;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -67,6 +83,13 @@ public class Texture implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

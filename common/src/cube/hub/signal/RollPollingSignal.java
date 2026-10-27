@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class RollPollingSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "RollPolling";
 
     private ConversationType conversationType;
@@ -36,22 +37,47 @@ public class RollPollingSignal extends Signal {
         this.limit = json.getInt("limit");
     }
 
+    /**
+     * 获取会话类型。
+     *
+     * @return 会话类型。
+     */
     public ConversationType getConversationType() {
         return this.conversationType;
     }
 
+    /**
+     * 获取会话名称。
+     *
+     * @return 会话名称。
+     */
     public String getConversationName() {
         return this.conversationName;
     }
 
+    /**
+     * 设置拉取条数上限。
+     *
+     * @param limit 条数。
+     */
     public void setLimit(int limit) {
         this.limit = limit;
     }
 
+    /**
+     * 获取拉取条数上限。
+     *
+     * @return 条数。
+     */
     public int getLimit() {
         return this.limit;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

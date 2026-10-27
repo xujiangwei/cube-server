@@ -2,6 +2,7 @@ package cube.util.tokenizer;
 
 public class SegToken {
 
+    /** 词。 */
     public String word;
 
     public int startOffset;
@@ -14,6 +15,11 @@ public class SegToken {
         this.endOffset = endOffset;
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         return "[" + word + ", " + startOffset + ", " + endOffset + "]";

@@ -23,9 +23,8 @@ public final class JSONUtils {
 
     /**
      * Map 结构转为 JSON Object 结构。
-     *
-     * @param map
-     * @return
+     * @param map map。
+     * @return 处理结果。
      */
     public static JSONObject toJSONObjectAsLong(Map<String, Long> map) {
         JSONObject json = new JSONObject();
@@ -39,9 +38,8 @@ public final class JSONUtils {
 
     /**
      * 将 JSON Object 结构转为 Map 结构。
-     *
-     * @param json
-     * @return
+     * @param json JSON 数据。
+     * @return 处理结果。
      */
     public static Map<String, Long> toLongMap(JSONObject json) {
         Map<String, Long> map = new HashMap<>();
@@ -55,9 +53,8 @@ public final class JSONUtils {
 
     /**
      * Map 结构转为 JSON Object 结构。
-     *
-     * @param map
-     * @return
+     * @param map map。
+     * @return 处理结果。
      */
     public static JSONObject toJSONObject(Map<String, ? extends JSONable> map) {
         JSONObject json = new JSONObject();
@@ -71,9 +68,8 @@ public final class JSONUtils {
 
     /**
      * Map 结构转为 JSON Object 结构。
-     *
-     * @param map
-     * @return
+     * @param map map。
+     * @return 处理结果。
      */
     public static JSONObject toJSONObjectAsList(Map<String, List<ResponseTime>> map) {
         JSONObject json = new JSONObject();
@@ -119,9 +115,8 @@ public final class JSONUtils {
 
     /**
      * 将指定的 JSON 数组对象的数据克隆到新 JSON 数组对象里。
-     *
-     * @param src
-     * @return
+     * @param src src。
+     * @return 处理结果。
      */
     public static JSONArray clone(JSONArray src) {
         JSONArray dest = new JSONArray();
@@ -142,9 +137,8 @@ public final class JSONUtils {
 
     /**
      * 将列表转为存储字符串类型的 JSON 数组。
-     *
-     * @param list
-     * @return
+     * @param list list。
+     * @return 处理结果。
      */
     public static JSONArray toStringArray(List<String> list) {
         JSONArray array = new JSONArray();
@@ -156,9 +150,8 @@ public final class JSONUtils {
 
     /**
      * 将列表转为存储字符串类型的 JSON 数组。
-     *
-     * @param list
-     * @return
+     * @param list list。
+     * @return 处理结果。
      */
     public static JSONArray toStringArray(String[] list) {
         JSONArray array = new JSONArray();
@@ -170,9 +163,8 @@ public final class JSONUtils {
 
     /**
      * 将 JSON 数组转为存储字符串的列表。
-     *
-     * @param array
-     * @return
+     * @param array array。
+     * @return 处理结果。
      */
     public static List<String> toStringList(JSONArray array) {
         List<String> list = new ArrayList<>();
@@ -184,9 +176,8 @@ public final class JSONUtils {
 
     /**
      * 将 JSON 数组转为存储 JSONObject 的列表。
-     *
-     * @param array
-     * @return
+     * @param array array。
+     * @return 处理结果。
      */
     public static List<JSONObject> toObjectList(JSONArray array) {
         List<JSONObject> list = new ArrayList<>();
@@ -197,10 +188,8 @@ public final class JSONUtils {
     }
 
     /**
-     *
-     *
-     * @param list
-     * @return
+     * @param list list。
+     * @return 处理结果。
      */
     public static JSONArray toObjectArray(List<JSONObject> list) {
         JSONArray array = new JSONArray();
@@ -212,9 +201,8 @@ public final class JSONUtils {
 
     /**
      * 将 JSON 数组转为存储字符串数组。
-     *
-     * @param array
-     * @return
+     * @param array array。
+     * @return 处理结果。
      */
     public static String[] toStringArray(JSONArray array) {
         String[] result = new String[array.length()];
@@ -226,12 +214,10 @@ public final class JSONUtils {
 
     /**
      * 将 JSON 文本里的反斜杠加倍，用于写入 MySQL 的字符串字段。
-     *
      * <p>注意：本方法仅做字符替换，实现已被 {@code cube.service.util.JSONStorageUtils#encode(String)}
      * 取代，新代码请直接使用 {@code JSONStorageUtils}。本方法保留仅为兼容旧调用。</p>
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static String serializeEscape(String text) {
         return text.replaceAll("\\\\", "\\\\\\\\");
@@ -239,14 +225,12 @@ public final class JSONUtils {
 
     /**
      * 将真实换行符替换为 {@code \n} 两个字符。
-     *
      * <p>注意：本方法名为 serialize 却曾被用在读取路径上，语义混乱。
      * 读取侧请直接使用 {@code cube.service.util.JSONStorageUtils#decodeObject(String)} /
      * {@code decodeArray(String)}，它们已经内置了历史脏数据的修复逻辑。
      * 本方法保留仅为兼容旧调用。</p>
-     *
-     * @param text
-     * @return
+     * @param text 待处理文本。
+     * @return 处理结果。
      */
     public static String serializeLineFeed(String text) {
         return text.replaceAll("\\n", "\\\\n");

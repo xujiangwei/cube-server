@@ -18,6 +18,7 @@ public class LunarData {
      */
     public final static int MAX_YEAR = 2150;
     public final static int MAX_MONTH = 11;
+    /** 最大日期。 */
     public final static int MAX_DATE = 31;
     /**
      * 10天干

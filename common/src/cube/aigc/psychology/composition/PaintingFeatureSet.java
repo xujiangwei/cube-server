@@ -88,14 +88,30 @@ public class PaintingFeatureSet implements JSONable {
         }
     }
 
+    /**
+     * 设置序列号。
+     *
+     * @param sn 序列号。
+     */
     public void setSN(long sn) {
         this.sn = sn;
     }
 
+    /**
+     * 获取序列号。
+     *
+     * @return 序列号。
+     */
     public long getSN() {
         return this.sn;
     }
 
+    /**
+     * 构造Markdown。
+     *
+     * @param knowledgeStrategy Markdown。
+     * @return Markdown。
+     */
     public String makeMarkdown(boolean knowledgeStrategy) {
         StringBuilder buf = new StringBuilder();
 
@@ -146,6 +162,11 @@ public class PaintingFeatureSet implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -175,6 +196,13 @@ public class PaintingFeatureSet implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

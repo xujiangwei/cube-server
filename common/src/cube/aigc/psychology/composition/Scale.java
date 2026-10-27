@@ -75,48 +75,104 @@ public class Scale extends Questionnaire implements JSONable {
         }
     }
 
+    /**
+     * 获取序列号。
+     *
+     * @return 序列号。
+     */
     public long getSN() {
         return this.sn;
     }
 
+    /**
+     * 获取联系人 ID。
+     *
+     * @return 联系人 ID。
+     */
     public long getContactId() {
         return this.contactId;
     }
 
+    /**
+     * 获取时间戳。
+     *
+     * @return 时间戳。
+     */
     public long getTimestamp() {
         return this.timestamp;
     }
 
+    /**
+     * 获取结束时间戳。
+     *
+     * @return 结束时间戳。
+     */
     public long getEndTimestamp() {
         return this.endTimestamp;
     }
 
+    /**
+     * 设置结束时间戳。
+     *
+     * @param value 结束时间戳。
+     */
     public void setEndTimestamp(long value) {
         this.endTimestamp = value;
     }
 
+    /**
+     * 设置属性。
+     *
+     * @param attribute 属性。
+     */
     public void setAttribute(Attribute attribute) {
         this.attribute = attribute;
     }
 
+    /**
+     * 获取属性。
+     *
+     * @return 属性。
+     */
     public Attribute getAttribute() {
         return this.attribute;
     }
 
+    /**
+     * 提交答题卡。
+     *
+     * @param sheet 答题卡。
+     */
     public void submitAnswer(AnswerSheet sheet) {
         for (AnswerSheet.Answer answer : sheet.answers) {
             this.chooseAnswer(answer.sn, answer.choice);
         }
     }
 
+    /**
+     * 获取结果。
+     *
+     * @return 结果。
+     */
     public ScaleResult getResult() {
         return this.result;
     }
 
+    /**
+     * 计算量表结果。
+     *
+     * @return 计分结果。
+     */
     public ScaleResult scoring() {
         return this.scoring(this.structureFile.getParentFile());
     }
 
+    /**
+     * 按指定文件计算量表结果。
+     *
+     * @param path 计分脚本文件。
+     * @return 计分结果。
+     */
     public ScaleResult scoring(File path) {
         Path scoringScriptFile = Paths.get(path.getAbsolutePath(), this.scoringScript);
         if (!Files.exists(scoringScriptFile)) {
@@ -172,9 +228,8 @@ public class Scale extends Questionnaire implements JSONable {
 
     /**
      * 读取指定 JSON 格式的文件。
-     *
-     * @param file
-     * @return
+     * @param file file。
+     * @return JSON 对象。
      */
     private JSONObject readJsonFile(File file) {
         JSONObject json = null;
@@ -187,6 +242,12 @@ public class Scale extends Questionnaire implements JSONable {
         return json;
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param object 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (object instanceof Scale) {
@@ -199,11 +260,21 @@ public class Scale extends Questionnaire implements JSONable {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return this.name.hashCode();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = this.toCompactJSON();
@@ -220,6 +291,13 @@ public class Scale extends Questionnaire implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

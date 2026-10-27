@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class LogoutSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "Logout";
 
     private Contact account;
@@ -36,10 +37,20 @@ public class LogoutSignal extends Signal {
         }
     }
 
+    /**
+     * 获取账号。
+     *
+     * @return 联系人。
+     */
     public Contact getAccount() {
         return this.account;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

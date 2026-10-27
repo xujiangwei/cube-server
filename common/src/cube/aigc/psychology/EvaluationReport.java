@@ -149,70 +149,157 @@ public class EvaluationReport implements JSONable {
         }
     }
 
+    /**
+     * 获取版本。
+     *
+     * @return 版本。
+     */
     public String getVersion() {
         return this.version;
     }
 
+    /**
+     * 获取联系人 ID。
+     *
+     * @return 联系人 ID。
+     */
     public long getContactId() {
         return this.contactId;
     }
 
+    /**
+     * 判断报告是否为未知类型。
+     *
+     * @return 未知返回 {@code true} 。
+     */
     public boolean isUnknown() {
         return this.unknown;
     }
 
+    /**
+     * 判断是否空。
+     *
+     * @return 空。
+     */
     public boolean isEmpty() {
         return this.representationList.isEmpty() && this.keyFeatures.isEmpty();
     }
 
+    /**
+     * 获取属性。
+     *
+     * @return 属性。
+     */
     public Attribute getAttribute() {
         return this.attribute;
     }
 
+    /**
+     * 获取参考信息。
+     *
+     * @return 参考信息；未设置返回 {@code null} 。
+     */
     public Reference getReference() {
         return this.reference;
     }
 
+    /**
+     * 获取键特征列表。
+     *
+     * @return 键特征列表。
+     */
     public List<KeyFeature> getKeyFeatures() {
         return keyFeatures;
     }
 
+    /**
+     * 获取分数加速器。
+     *
+     * @return 分数加速器。
+     */
     public ScoreAccelerator getScoreAccelerator() {
         return this.scoreAccelerator;
     }
 
+    /**
+     * 获取人格加速器。
+     *
+     * @return 人格加速器；未设置返回 {@code null} 。
+     */
     public PersonalityAccelerator getPersonalityAccelerator() {
         return this.personalityAccelerator;
     }
 
+    /**
+     * 设置人格加速器。
+     *
+     * @param personality 人格加速器。
+     */
     public void setPersonalityAccelerator(PersonalityAccelerator personality) {
         this.personalityAccelerator = personality;
     }
 
+    /**
+     * 设置因子集。
+     *
+     * @param factorSet 因子集。
+     */
     public void setFactorSet(FactorSet factorSet) {
         this.factorSet = factorSet;
     }
 
+    /**
+     * 获取因子集。
+     *
+     * @return 因子集；未设置返回 {@code null} 。
+     */
     public FactorSet getFactorSet() {
         return this.factorSet;
     }
 
+    /**
+     * 获取注意力记录。
+     *
+     * @return 注意力记录；无记录返回 {@code null} 。
+     */
     public Attention getAttention() {
         return this.attention;
     }
 
+    /**
+     * 设置注意力记录。
+     *
+     * @param attention 注意力记录。
+     */
     public void setAttention(Attention attention) {
         this.attention = attention;
     }
 
+    /**
+     * 获取建议。
+     *
+     * @return 建议；未生成返回 {@code null} 。
+     */
     public Suggestion getSuggestion() {
         return this.suggestion;
     }
 
+    /**
+     * 获取绘画置信度。
+     *
+     * @return 置信度；未计算返回 {@code null} 。
+     */
     public PaintingConfidence getPaintingConfidence() {
         return this.paintingConfidence;
     }
 
+    /**
+     * 判断是否处于犹豫状态。
+     *
+     * <p>用于在咨询中识别反复修改答案的受测人。</p>
+     *
+     * @return 犹豫返回 {@code true} 。
+     */
     public boolean isHesitating() {
         return this.hesitating;
     }
@@ -313,8 +400,7 @@ public class EvaluationReport implements JSONable {
 
     /**
      * 覆盖关注度。
-     *
-     * @param attention
+     * @param attention attention。
      */
     public void overlayAttentionSuggestion(Attention attention) {
         this.attention = attention;
@@ -700,6 +786,12 @@ public class EvaluationReport implements JSONable {
         }
     }
 
+    /**
+     * 按术语获取表征。
+     *
+     * @param term 术语。
+     * @return 表征；无匹配返回 {@code null} 。
+     */
     public Representation getRepresentation(Term term) {
         for (Representation representation : this.representationList) {
             if (representation.knowledgeStrategy.getTerm() == term) {
@@ -709,18 +801,27 @@ public class EvaluationReport implements JSONable {
         return null;
     }
 
+    /**
+     * 统计表征数量。
+     *
+     * @return 表征数量。
+     */
     public int numRepresentations() {
         return this.representationList.size();
     }
 
+    /**
+     * 获取表征列表。
+     *
+     * @return 表征列表；无数据时为空列表。
+     */
     public List<Representation> getRepresentationList() {
         return this.representationList;
     }
 
     /**
      * 通过和评分结果进行对比排序，返回表征列表。
-     *
-     * @return
+     * @return 列表；无数据时为空列表。
      */
     public List<Representation> getRepresentationListByEvaluationScore(int topNum) {
         List<Representation> result = new ArrayList<>();
@@ -769,8 +870,7 @@ public class EvaluationReport implements JSONable {
 
     /**
      * 返回特征列表，删除与评估分重叠的数据。
-     *
-     * @return
+     * @return 列表；无数据时为空列表。
      */
     public List<Representation> getRepresentationListWithoutEvaluationScore() {
         List<Representation> result = new ArrayList<>();
@@ -797,8 +897,7 @@ public class EvaluationReport implements JSONable {
 
     /**
      * 通过和表征对比、排序，返回评估得分。
-     *
-     * @return
+     * @return 列表；无数据时为空列表。
      */
     public List<EvaluationScore> getEvaluationScoresByRepresentation(int maxNum) {
         List<Indicator> indicators = new ArrayList<>();
@@ -879,6 +978,11 @@ public class EvaluationReport implements JSONable {
         return result;
     }
 
+    /**
+     * 获取评估分数列表。
+     *
+     * @return 评估分数列表。
+     */
     public List<EvaluationScore> getEvaluationScores() {
         List<EvaluationScore> result = new ArrayList<>(this.scoreAccelerator.getEvaluationScores(this.attribute));
         // 排序
@@ -893,8 +997,7 @@ public class EvaluationReport implements JSONable {
 
     /**
      * 获取所有指标值，如果催化剂里没有该指标，则自动填充指标值，且 hit 和 value 都是 0 值。
-     *
-     * @return
+     * @return 列表；无数据时为空列表。
      */
     public List<EvaluationScore> getFullEvaluationScores() {
         List<EvaluationScore> list = new ArrayList<>();
@@ -917,10 +1020,20 @@ public class EvaluationReport implements JSONable {
         return list;
     }
 
+    /**
+     * 统计评估分数列表。
+     *
+     * @return 数量。
+     */
     public int numEvaluationScores() {
         return this.scoreAccelerator.getEvaluationScores(this.attribute).size();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -972,6 +1085,13 @@ public class EvaluationReport implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();
@@ -1023,6 +1143,11 @@ public class EvaluationReport implements JSONable {
         return json;
     }
 
+    /**
+     * 转换为是否严格 JSON。
+     *
+     * @return 是否严格 JSON。
+     */
     public JSONObject toStrictJSON() {
         JSONObject json = new JSONObject();
         json.put("version", this.version);

@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class LogoutEvent extends WeChatEvent {
 
+    /** 名称。 */
     public final static String NAME = "Logout";
 
     public LogoutEvent(long sn, String channelCode, Contact account) {

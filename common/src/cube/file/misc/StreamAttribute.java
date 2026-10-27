@@ -13,126 +13,138 @@ import org.json.JSONObject;
  */
 public class StreamAttribute {
 
+    /** 索引。 */
     public int index;
 
+    /** 编解码器名称。 */
     public String codecName;
 
+    /** 编解码器长名称。 */
     public String codecLongName;
 
-    // video/audio
+    /** 音视频参数：侧写。 */
     public String profile;
 
+    /** 编解码器类型。 */
     public String codecType;
 
+    /** 编解码器标签字符串。 */
     public String codecTagString;
 
+    /** 编解码器标签。 */
     public String codecTag;
 
-    // video
+    /** 视频参数：宽度。 */
     public int width;
 
-    // video
+    /** 视频参数：高度。 */
     public int height;
 
-    // video
+    /** 视频参数：编码宽度。 */
     public int codedWidth;
 
-    // video
+    /** 视频参数：编码高度。 */
     public int codedHeight;
 
-    // video
+    /** 视频参数：隐藏字幕。 */
     public int closedCaptions;
 
-    // video
+    /** 视频参数：胶片颗粒。 */
     public int filmGrain;
 
-    // video
+    /** 视频参数：采样宽高比。 */
     public String sampleAspectRatio;
 
-    // video
+    /** 视频参数：显示宽高比。 */
     public String displayAspectRatio;
 
-    // video
+    /** 视频参数：像素格式。 */
     public String pixFmt;
 
-    // video
+    /** 视频参数：编码级别。 */
     public int level;
 
-    // video
+    /** 视频参数：色彩范围。 */
     public String colorRange;
 
-    // video
+    /** 视频参数：色彩空间。 */
     public String colorSpace;
 
-    // video
+    /** 视频参数：色彩传递特性。 */
     public String colorTransfer;
 
-    // video
+    /** 视频参数：色彩原色。 */
     public String colorPrimaries;
 
-    // video
+    /** 视频参数：色度位置。 */
     public String chromaLocation;
 
-    // video
+    /** 视频参数：场序。 */
     public String fieldOrder;
 
-    // video
+    /** 视频参数：参考帧数。 */
     public int refs;
 
     // video
     public boolean isAvc;
 
-    // video
+    /** 视频参数：NAL 长度字段大小。 */
     public int nalLengthSize;
 
-    // video
+    /** 视频参数：标识。 */
     public String id;
 
-    // audio
+    /** 音频参数：采样格式。 */
     public String sampleFmt;
 
-    // audio
+    /** 音频参数：采样率。 */
     public int sampleRate;
 
-    // audio
+    /** 音频参数：声道数。 */
     public int channels;
 
-    // audio
+    /** 音频参数：声道布局。 */
     public String channelLayout;
 
-    // audio
+    /** 音频参数：位深。 */
     public int bitsPerSample;
 
     public String rFrameRate;
 
+    /** 平均帧率。 */
     public String avgFrameRate;
 
+    /** 时间基。 */
     public String timeBase;
 
-    // video/audio
+    /** 音视频参数：起始显示时间戳。 */
     public int startPts = -1;
 
-    // video/audio
+    /** 音视频参数：起始时间。 */
     public double startTime = -1;
 
+    /** 时长（时间基）。 */
     public long durationTS;
 
+    /** 时长。 */
     public double duration;
 
+    /** 码率。 */
     public long bitRate;
 
-    // video
+    /** 视频参数：原始采样位深。 */
     public int bitsPerRawSample;
 
     // video/audio
     public int numFrames = 0;
 
-    // video/audio
+    /** 音视频参数：附加数据大小。 */
     public int extradataSize = 0;
 
+    /** 处置标志。 */
     public JSONObject disposition;
 
-    // only audio
+    /** 仅音频具有的标签集合。 */
     public JSONObject tags;
 
     public StreamAttribute(JSONObject json) {
@@ -259,6 +271,11 @@ public class StreamAttribute {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("index", this.index);

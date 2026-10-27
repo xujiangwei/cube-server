@@ -31,10 +31,13 @@ public enum Theme {
 
     ;
 
+    /** 名称。 */
     public final String name;
 
+    /** 码。 */
     public final String code;
 
+    /** 指令。 */
     public final String instruction;
 
     Theme(String name, String code, String instruction) {
@@ -43,6 +46,11 @@ public enum Theme {
         this.instruction = instruction;
     }
 
+    /**
+     * 判断是否综合。
+     *
+     * @return 综合。
+     */
     public boolean isComprehensive() {
         if (this.code.equalsIgnoreCase(SubconsciousRelationshipBetweenCouple.code) ||
             this.code.equalsIgnoreCase(KineticFamilyDrawing.code)) {
@@ -53,6 +61,14 @@ public enum Theme {
         }
     }
 
+    /**
+     * 解析为枚举值。
+     *
+     * <p>遍历全部枚举值逐个匹配，未识别时返回 {@code null} 。</p>
+     *
+     * @param nameOrCode 编码值。
+     * @return 解析结果；无法识别时返回 {@code null} 。
+     */
     public static Theme parse(String nameOrCode) {
         for (Theme th : Theme.values()) {
             if (th.name.equalsIgnoreCase(nameOrCode) || th.code.equalsIgnoreCase(nameOrCode)) {

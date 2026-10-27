@@ -78,14 +78,29 @@ public class ScaleReport extends Report {
         }
     }
 
+    /**
+     * 获取结果。
+     *
+     * @return 结果。
+     */
     public ScaleResult getResult() {
         return this.scale.getResult();
     }
 
+    /**
+     * 获取因子列表。
+     *
+     * @return 因子列表。
+     */
     public List<ScaleFactor> getFactors() {
         return this.factors;
     }
 
+    /**
+     * 把因子转为数组。
+     *
+     * @return 因子数组。
+     */
     public JSONArray getFactorsAsJSONArray() {
         JSONArray array = new JSONArray();
         for (ScaleFactor factor : this.factors) {
@@ -94,37 +109,77 @@ public class ScaleReport extends Report {
         return array;
     }
 
+    /**
+     * 设置因子列表。
+     *
+     * @param array 因子列表。
+     */
     public void setFactors(JSONArray array) {
         for (int i = 0; i < array.length(); ++i) {
             this.factors.add(new ScaleFactor(array.getJSONObject(i)));
         }
     }
 
+    /**
+     * 设置是否完成。
+     *
+     * @param value 是否完成。
+     */
     public void setFinished(boolean value) {
         this.finished = value;
         this.finishedTimestamp = System.currentTimeMillis();
     }
 
+    /**
+     * 判断是否是否完成。
+     *
+     * @return 是否完成。
+     */
     public boolean isFinished() {
         return this.finished;
     }
 
+    /**
+     * 设置状态。
+     *
+     * @param state 状态。
+     */
     public void setState(AIGCStateCode state) {
         this.state = state;
     }
 
+    /**
+     * 获取状态。
+     *
+     * @return 状态。
+     */
     public AIGCStateCode getState() {
         return this.state;
     }
 
+    /**
+     * 获取量表。
+     *
+     * @return 量表。
+     */
     public Scale getScale() {
         return this.scale;
     }
 
+    /**
+     * 设置量表。
+     *
+     * @param scale 量表。
+     */
     public void setScale(Scale scale) {
         this.scale = scale;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -138,6 +193,13 @@ public class ScaleReport extends Report {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();

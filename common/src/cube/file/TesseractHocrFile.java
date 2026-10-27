@@ -22,7 +22,9 @@ import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 
 /**
+ * Tesseract HOCR 结果文件。
  *
+ * <p>封装 OCR 引擎输出的 HOCR（HTML 形式）结果，可解析为文本与识别框。</p>
  */
 public class TesseractHocrFile extends OCRFile {
 
@@ -48,6 +50,11 @@ public class TesseractHocrFile extends OCRFile {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

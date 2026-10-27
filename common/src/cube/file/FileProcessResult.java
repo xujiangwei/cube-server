@@ -22,8 +22,10 @@ import java.util.List;
  */
 public class FileProcessResult {
 
+    /** 处理。 */
     public final String process;
 
+    /** 成功。 */
     public final boolean success;
 
     private SubmitWorkflowResult submitWorkflowResult;
@@ -81,14 +83,29 @@ public class FileProcessResult {
         }
     }
 
+    /**
+     * 获取日志列表。
+     *
+     * @return 日志列表。
+     */
     public List<String> getLogs() {
         return this.logs;
     }
 
+    /**
+     * 判断是否结果。
+     *
+     * @return 结果。
+     */
     public boolean hasResult() {
         return (null != this.resultList);
     }
 
+    /**
+     * 获取结果列表。
+     *
+     * @return 结果列表。
+     */
     public List<FileResult> getResultList() {
         return this.resultList;
     }
@@ -97,14 +114,29 @@ public class FileProcessResult {
         return this.submitWorkflowResult;
     }
 
+    /**
+     * 获取图像结果。
+     *
+     * @return 图像结果。
+     */
     public ImageProcessResult getImageResult() {
         return this.imageResult;
     }
 
+    /**
+     * 获取视频结果。
+     *
+     * @return 视频结果。
+     */
     public VideoProcessResult getVideoResult() {
         return this.videoResult;
     }
 
+    /**
+     * 获取音频结果。
+     *
+     * @return 音频结果。
+     */
     public AudioProcessResult getAudioResult() {
         return this.audioResult;
     }

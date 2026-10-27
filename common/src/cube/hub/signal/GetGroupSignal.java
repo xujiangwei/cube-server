@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class GetGroupSignal extends Signal {
 
+    /** 名称。 */
     public final static String NAME = "GetGroup";
 
     private String groupName;
@@ -28,10 +29,20 @@ public class GetGroupSignal extends Signal {
         this.groupName = json.getString("groupName");
     }
 
+    /**
+     * 获取组名称。
+     *
+     * @return 组名称。
+     */
     public String getGroupName() {
         return this.groupName;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

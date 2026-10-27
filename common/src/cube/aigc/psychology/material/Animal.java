@@ -47,10 +47,20 @@ public class Animal extends Thing {
         }
     }
 
+    /**
+     * 获取类别列表。
+     *
+     * @return 类别列表。
+     */
     public Classes getClasses() {
         return this.classes;
     }
 
+    /**
+     * 统计组件列表。
+     *
+     * @return 数量。
+     */
     public int numComponents() {
         return 0;
     }

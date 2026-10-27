@@ -29,6 +29,11 @@ public class GrayscaleOperation extends ImageOperation {
         return Operation;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
