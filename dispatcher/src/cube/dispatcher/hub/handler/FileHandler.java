@@ -40,6 +40,7 @@ import java.io.*;
  */
 public class FileHandler extends FileLabelHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/hub/file/";
 
     /**
@@ -57,6 +58,16 @@ public class FileHandler extends FileLabelHandler {
         this.controller = controller;
     }
 
+    /**
+     * 上传文件。
+     *
+     * <p>受并发上限约束，超限直接返回 406；上传完成后把文件标签转发给消息服务。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     * @throws IOException      读取上传内容或写响应失败。
+     * @throws ServletException 容器处理异常。
+     */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response)
             throws IOException, ServletException {
@@ -184,6 +195,14 @@ public class FileHandler extends FileLabelHandler {
         }
     }
 
+    /**
+     * 下载文件。
+     *
+     * <p>按文件码取回标签后转交父类完成实际的字节转发。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) {
         String pathInfo = request.getPathInfo();

@@ -10,6 +10,11 @@ import cube.aigc.complex.widget.Builders;
 import cube.aigc.complex.widget.Widget;
 import org.json.JSONObject;
 
+/**
+ * 控件资源。
+ *
+ * <p>以控件形式呈现的复合资源。</p>
+ */
 public class WidgetResource extends ComplexResource {
 
     private Widget widget;
@@ -24,6 +29,11 @@ public class WidgetResource extends ComplexResource {
         this.widget = Builders.buildWidget(json.getJSONObject("payload"));
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

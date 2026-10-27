@@ -19,6 +19,11 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * 字符画资源库。
+ *
+ * <p>从资源目录加载字符画并在内存中缓存，对外提供随机取用与列举能力。</p>
+ */
 public class ASCIIArts {
 
     private long fileTimestamp;
@@ -55,6 +60,13 @@ public class ASCIIArts {
         }
     }
 
+    /**
+     * 随机取一幅字符画。
+     *
+     * <p>首次调用时惰性加载资源。</p>
+     *
+     * @return 字符画；资源为空时返回 {@code null} 。
+     */
     public static ASCIIArt randomArt() {
         ASCIIArts.instance.load();
         if (ASCIIArts.instance.asciiArtList.isEmpty()) {
@@ -65,6 +77,13 @@ public class ASCIIArts {
                 Utils.randomInt(0, ASCIIArts.instance.asciiArtList.size() - 1));
     }
 
+    /**
+     * 列出全部字符画。
+     *
+     * <p>首次调用时惰性加载资源。</p>
+     *
+     * @return 字符画列表；资源为空时为空列表。
+     */
     public static List<ASCIIArt> listArts() {
         ASCIIArts.instance.load();
         return new ArrayList<>(ASCIIArts.instance.asciiArtList);
@@ -88,6 +107,13 @@ public class ASCIIArts {
     }
 
 
+    /**
+     * 本地自测入口。
+     *
+     * <p>随机输出若干幅字符画，用于检查资源加载是否正常。</p>
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
         for (int i = 0; i < 5; ++i) {
             System.out.println(ASCIIArts.randomArt().data);

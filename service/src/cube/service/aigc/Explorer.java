@@ -93,6 +93,11 @@ public class Explorer {
 
     private final int maxPageReaders = 5;
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public final static Explorer getInstance() {
         return Explorer.instance;
     }
@@ -105,6 +110,12 @@ public class Explorer {
         this.pageReaderTaskCount = new AtomicInteger(0);
     }
 
+    /**
+     * 初始化探索器。
+     *
+     * @param service   AIGC 服务实例。
+     * @param tokenizer 分词器。
+     */
     public void setup(AIGCService service, Tokenizer tokenizer) {
         this.service = service;
         this.tokenizer = tokenizer;
@@ -120,10 +131,20 @@ public class Explorer {
         }).start();
     }
 
+    /**
+     * 释放探索器。
+     *
+     * <p>停止全部已注册模块并清理缓存，允许重复调用。</p>
+     */
     public void teardown() {
         ModuleManager.getInstance().stop();
     }
 
+    /**
+     * 配置搜索引擎。
+     *
+     * @param searcherName 引擎名称，如 {@code baidu} 。
+     */
     public void config(String searcherName) {
         this.searcherName = searcherName;
     }
@@ -156,15 +177,19 @@ public class Explorer {
         }
     }
 
+    /**
+     * 获取当前搜索引擎名称。
+     *
+     * @return 引擎名称。
+     */
     public String getSearcherName() {
         return this.searcherName;
     }
 
     /**
      * 是否是可被忽略的 URL 。
-     *
-     * @param url
-     * @return
+     * @param url 资源地址。
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean isIgnorableUrl(String url) {
         for (String u : this.ignorableUrls) {
@@ -175,20 +200,32 @@ public class Explorer {
         return false;
     }
 
+    /**
+     * 缓存结构化上下文。
+     *
+     * <p>按上下文 ID 存放，供后续请求按 ID 取回；超时未访问的条目由定时任务清理。</p>
+     *
+     * @param context 上下文对象。
+     */
     public void cacheComplexContext(ComplexContext context) {
         this.complexContextMap.put(context.getId(), context);
     }
 
+    /**
+     * 按 ID 获取缓存的上下文。
+     *
+     * @param id 上下文 ID 。
+     * @return 上下文；不存在或已过期返回 {@code null} 。
+     */
     public ComplexContext getComplexContext(long id) {
         return this.complexContextMap.get(id);
     }
 
     /**
      * 使用爬虫节点进行搜索。
-     *
-     * @param query
-     * @param authToken
-     * @return
+     * @param query 用户提问。
+     * @param authToken authToken。
+     * @return 处理结果。
      */
     public SearchResult search(String query, AuthToken authToken) {
         final SearchResult result = new SearchResult(query);
@@ -283,6 +320,12 @@ public class Explorer {
         }
     }
 
+    /**
+     * 查询该令牌名下的检索结果。
+     *
+     * @param token 访问令牌。
+     * @return 检索结果列表；无结果时为空列表。
+     */
     public List<SearchResult> querySearchResults(AuthToken token) {
         LinkedList<SearchResult> result = new LinkedList<>();
         synchronized (this.contactSearchResults) {
@@ -301,9 +344,8 @@ public class Explorer {
 
     /**
      * 读取指定页面内容。
-     *
-     * @param url
-     * @param listener
+     * @param url 资源地址。
+     * @param listener 进度监听器。
      */
     public void readPageContent(String url, ReadPageListener listener) {
         this.pageReaderTaskQueue.offer(new PageReaderTask(url, listener));
@@ -422,6 +464,14 @@ public class Explorer {
         return collider.chartList.get(0);
     }*/
 
+    /**
+     * 触发事件。
+     *
+     * <p>按事件关联的资源找到对应处理链路并执行，未知资源返回空结果。</p>
+     *
+     * @param event 事件对象。
+     * @return 事件处理结果。
+     */
     public EventResult fireEvent(Event event) {
         AttachmentResource resource = this.attachmentResourceMap.get(event.resourceSn);
         if (null == resource) {
@@ -477,6 +527,13 @@ public class Explorer {
         return null;
     }
 
+    /**
+     * 周期清理过期上下文。
+     *
+     * <p>移除超过缓存存活时间未访问的上下文，避免内存持续增长。</p>
+     *
+     * @param now 当前时间戳，单位毫秒。
+     */
     public void onTick(long now) {
         this.complexContextMap.entrySet().removeIf(e -> now - e.getValue().getTimestamp() > this.cacheTimeout);
 

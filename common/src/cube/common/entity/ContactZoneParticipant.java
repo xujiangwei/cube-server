@@ -15,18 +15,25 @@ import org.json.JSONObject;
  */
 public class ContactZoneParticipant implements JSONable {
 
+    /** ID。 */
     public final Long id;
 
+    /** 时间戳。 */
     public long timestamp;
 
+    /** 类型。 */
     public final ContactZoneParticipantType type;
 
+    /** 邀请者 ID。 */
     public final Long inviterId;
 
+    /** 附言。 */
     public final String postscript;
 
+    /** 状态。 */
     public ContactZoneParticipantState state;
 
+    /** 关联联系人。 */
     public AbstractContact linkedContact;
 
     public ContactZoneParticipant(JSONObject json) {
@@ -58,8 +65,7 @@ public class ContactZoneParticipant implements JSONable {
 
     /**
      * 构造函数。
-     *
-     * @param linkedContact
+     * @param linkedContact linkedContact。
      */
     public ContactZoneParticipant(AbstractContact linkedContact) {
         this(Utils.generateSerialNumber(),
@@ -74,17 +80,27 @@ public class ContactZoneParticipant implements JSONable {
 
     /**
      * 设置连接的联系人实例。
-     *
-     * @param linkedContact
+     * @param linkedContact linkedContact。
      */
     public void setLinkedContact(AbstractContact linkedContact) {
         this.linkedContact = linkedContact;
     }
 
+    /**
+     * 获取关联联系人。
+     *
+     * @return 关联联系人。
+     */
     public AbstractContact getLinkedContact() {
         return this.linkedContact;
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param object 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (this == object) {
@@ -101,6 +117,11 @@ public class ContactZoneParticipant implements JSONable {
         return false;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = this.toCompactJSON();
@@ -113,6 +134,13 @@ public class ContactZoneParticipant implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

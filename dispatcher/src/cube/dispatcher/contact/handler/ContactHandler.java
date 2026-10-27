@@ -18,6 +18,7 @@ import javax.servlet.http.HttpServletRequest;
  */
 public abstract class ContactHandler extends CrossDomainHandler {
 
+    /** 执行机，用于把请求转发给联系人单元。 */
     protected final Performer performer;
 
     public ContactHandler(Performer performer) {

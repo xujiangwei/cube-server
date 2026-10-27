@@ -18,6 +18,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+/**
+ * 接口文档端点。
+ *
+ * <p>输出随包分发的静态接口文档页面，供联调时查阅。</p>
+ */
 public class InterfaceDocument extends ContextHandler {
 
     private final String root = "assets/doc/";

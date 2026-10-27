@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
  */
 public class FriendHandler extends HubHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/hub/friend/";
 
     private final long coolingTime = 1000;
@@ -35,6 +36,14 @@ public class FriendHandler extends HubHandler {
         super(performer, controller);
     }
 
+    /**
+     * 好友关系操作。
+     *
+     * <p>按路径后缀区分添加、删除与查询，载荷为 JSON。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response) {
         String path = this.getRequestPath(request);

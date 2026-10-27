@@ -27,10 +27,9 @@ public final class HierarchyNodes {
 
     /**
      * 从缓存里加载指定节点。
-     *
-     * @param cache
-     * @param nodeUniqueKey
-     * @return
+     * @param cache cache。
+     * @param nodeUniqueKey nodeUniqueKey。
+     * @return 处理结果。
      */
     public static HierarchyNode load(Cache cache, String nodeUniqueKey) {
         CacheValue value = cache.get(new CacheKey(nodeUniqueKey));
@@ -71,9 +70,8 @@ public final class HierarchyNodes {
 
     /**
      * 保存节点。
-     *
-     * @param cache
-     * @param node
+     * @param cache cache。
+     * @param node node。
      */
     public static void save(Cache cache, HierarchyNode node) {
         cache.put(new CacheKey(node.getUniqueKey()), new CacheValue(node.toJSON()));
@@ -81,9 +79,8 @@ public final class HierarchyNodes {
 
     /**
      * 删除节点。
-     *
-     * @param cache
-     * @param node
+     * @param cache cache。
+     * @param node node。
      */
     public static void delete(Cache cache, HierarchyNode node) {
         cache.remove(new CacheKey(node.getUniqueKey()));
@@ -91,10 +88,9 @@ public final class HierarchyNodes {
 
     /**
      * 向上遍历。
-     *
-     * @param node
-     * @param hierarchy
-     * @return
+     * @param node node。
+     * @param hierarchy hierarchy。
+     * @return 处理结果。
      */
     public static HierarchyNode traversalUp(HierarchyNode node, int hierarchy) {
         int count = hierarchy > 0 ? hierarchy : 512;
@@ -118,10 +114,9 @@ public final class HierarchyNodes {
 
     /**
      * 遍历所有的子节点。
-     *
-     * @param cache
-     * @param node
-     * @return
+     * @param cache cache。
+     * @param node node。
+     * @return 处理结果。
      */
     public static List<HierarchyNode> traversalChildren(Cache cache, HierarchyNode node) {
         if (null != node.unloadChildrenKeys && !node.unloadChildrenKeys.isEmpty()) {

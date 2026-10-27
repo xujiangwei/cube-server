@@ -76,10 +76,21 @@ public class FileThumbnail extends Entity {
         }
     }
 
+    /**
+     * 获取文件标签。
+     *
+     * @return 文件标签。
+     */
     public FileLabel getFileLabel() {
         return this.fileLabel;
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param object 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (this == object) {
@@ -96,6 +107,11 @@ public class FileThumbnail extends Entity {
         return false;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -115,6 +131,13 @@ public class FileThumbnail extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -14,14 +14,19 @@ import org.json.JSONObject;
  */
 public class SpeechEmotion implements JSONable {
 
+    /** 文件。 */
     public FileLabel file;
 
+    /** 耗时。 */
     public long elapsed;
 
+    /** 情绪。 */
     public Emotion emotion;
 
+    /** 分数。 */
     public double score = 0.0;
 
+    /** 时长。 */
     public double duration = 0.0;
 
     public SpeechEmotion(JSONObject json) {
@@ -44,6 +49,11 @@ public class SpeechEmotion implements JSONable {
         this.duration = json.getDouble("duration");
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         StringBuilder buf = new StringBuilder();
@@ -57,6 +67,11 @@ public class SpeechEmotion implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -70,6 +85,13 @@ public class SpeechEmotion implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -45,6 +45,11 @@ public class Trace implements JSONable {
         }
     }
 
+    /**
+     * 获取联系人 ID。
+     *
+     * @return 联系人 ID。
+     */
     public long getContactId() {
         if (null != this.contact) {
             return this.contact.getId();
@@ -54,6 +59,11 @@ public class Trace implements JSONable {
         }
     }
 
+    /**
+     * 添加子节点。
+     *
+     * @param traces 子节点。
+     */
     public void addChildren(List<Trace> traces) {
         synchronized (this) {
             if (null == this.children) {
@@ -64,10 +74,20 @@ public class Trace implements JSONable {
         }
     }
 
+    /**
+     * 获取子节点。
+     *
+     * @return 子节点。
+     */
     public List<Trace> getChildren() {
         return this.children;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -81,11 +101,23 @@ public class Trace implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         String string = null;
@@ -130,6 +162,13 @@ public class Trace implements JSONable {
         return string;
     }
 
+    /**
+     * 解析轨迹字符串。
+     *
+     * @param string 轨迹文本。
+     * @return 解析出的时间戳。
+     * @throws Exception 格式不合法。
+     */
     public static long parseString(String string) throws Exception {
         // 取后两位加数
         String dstr = string.substring(string.length() - 3);
@@ -166,6 +205,11 @@ public class Trace implements JSONable {
         return Long.parseLong(buf.toString());
     }
 
+    /**
+     * 本地自测入口。
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
         Contact contact = new Contact(1841514683, "domain");
         Trace trace = new Trace(contact);

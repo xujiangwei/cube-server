@@ -13,10 +13,17 @@ import org.json.JSONObject;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 语音指标。
+ *
+ * <p>聚合各说话人的语音统计，供报告展示。</p>
+ */
 public class VoiceIndicator implements JSONable {
 
+    /** 提示情感。 */
     protected final static String sPromptSentiment = "已知内容：\n\n%s。\n\n判断以上内容的情绪倾向属于以下哪种：\n\n* 积极的\n* 消极的\n* 中立的\n* 积极和消极均有\n\n仅回答属于以上那种情绪倾向。";
 
+    /** 情绪。 */
     protected static final Map<Emotion, Double> sEmotionWeight = new HashMap<>();
 
     static {
@@ -35,12 +42,16 @@ public class VoiceIndicator implements JSONable {
         Past
     }
 
+    /** ID。 */
     public long id;
 
+    /** 时间戳。 */
     public long timestamp;
 
+    /** 静音时长。 */
     public double silenceDuration = 0;
 
+    /** 按说话人索引的指标映射。 */
     public Map<String, SpeakerIndicator> speakerIndicators = new HashMap<>();
 
     public VoiceIndicator(long id) {
@@ -66,6 +77,11 @@ public class VoiceIndicator implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -82,6 +98,13 @@ public class VoiceIndicator implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

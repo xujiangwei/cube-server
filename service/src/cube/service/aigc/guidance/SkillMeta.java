@@ -41,8 +41,10 @@ import java.util.List;
  */
 public class SkillMeta {
 
+    /** 来源标记：来自数据库。 */
     public final static String SOURCE_DATABASE = "db";
 
+    /** 来源标记：来自文件。 */
     public final static String SOURCE_FILE = "file";
 
     /**
@@ -55,18 +57,25 @@ public class SkillMeta {
      */
     private final static int MAX_DESCRIPTION_LENGTH = 200;
 
+    /** 技能名称，唯一标识。 */
     public String name;
 
+    /** 展示名称。 */
     public String displayName;
 
+    /** 技能描述，用于向模型说明能力范围。 */
     public String description;
 
+    /** 触发关键词，用于把用户提问匹配到该技能。 */
     public List<String> keywords = new ArrayList<>();
 
+    /** 适用场景说明，用于在提示词中引导模型选择。 */
     public String whenToUse;
 
+    /** 版本号。 */
     public String version;
 
+    /** 是否启用，默认启用。 */
     public boolean enabled = true;
 
     /**
@@ -84,10 +93,13 @@ public class SkillMeta {
      */
     public String path;
 
+    /** 技能正文，即拼进提示词的指令内容。 */
     public String content;
 
+    /** 创建时间戳，单位毫秒。 */
     public long created = 0L;
 
+    /** 最后修改时间戳，单位毫秒。 */
     public long modified = 0L;
 
     public SkillMeta(String name) {
@@ -134,6 +146,13 @@ public class SkillMeta {
         return normalizeName(this.name);
     }
 
+    /**
+     * 判断是否为全局技能。
+     *
+     * <p>作用域为空即视为全局，对全部联系人生效。</p>
+     *
+     * @return 全局技能返回 {@code true} 。
+     */
     public boolean isGlobal() {
         return null == this.scope || this.scope.trim().isEmpty()
                 || SCOPE_GLOBAL.equalsIgnoreCase(this.scope.trim());
@@ -149,6 +168,11 @@ public class SkillMeta {
         return null != domain && this.scope.trim().equalsIgnoreCase(domain);
     }
 
+    /**
+     * 统计正文长度。
+     *
+     * @return 字符数；正文为空时返回 0 。
+     */
     public int charLength() {
         return (null == this.content) ? 0 : this.content.length();
     }
@@ -170,12 +194,22 @@ public class SkillMeta {
         return buf.toString();
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 含名称、来源与长度的字符串。
+     */
     @Override
     public String toString() {
         return "Skill[" + this.name + ", source=" + this.source + ", chars=" + this.charLength()
                 + ", enabled=" + this.enabled + "]";
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return 技能元数据 JSON 。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("name", this.name);

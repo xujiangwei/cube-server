@@ -35,14 +35,19 @@ import java.util.*;
  */
 public class AudioUnitMeta extends UnitMeta {
 
+    /** 任务创建时间戳，单位毫秒。 */
     public final long timestamp;
 
+    /** 访问令牌，决定音频文件与结果的归属域。 */
     protected AuthToken authToken;
 
+    /** 待处理的音频文件。 */
     protected FileLabel file;
 
+    /** 是否在分析前做预处理（重采样、降噪）。 */
     protected boolean preprocess;
 
+    /** 是否把处理结果落盘保存。 */
     protected boolean storage;
 
     /**
@@ -53,8 +58,10 @@ public class AudioUnitMeta extends UnitMeta {
      */
     protected boolean sentiment;
 
+    /** 本任务对应的动作，决定走识别、情绪还是分离链路。 */
     protected AIGCAction action;
 
+    /** 语音分离结果监听器，可替换以承接自定义处理。 */
     public VoiceDiarizationListener voiceDiarizationListener;
 
     public AudioUnitMeta(AIGCService service, AIGCUnit unit, AuthToken authToken, AIGCAction action,
@@ -69,10 +76,20 @@ public class AudioUnitMeta extends UnitMeta {
         this.sentiment = sentiment;
     }
 
+    /**
+     * 获取待处理文件。
+     *
+     * @return 音频文件标签。
+     */
     public FileLabel getFile() {
         return this.file;
     }
 
+    /**
+     * 执行音频处理。
+     *
+     * <p>未设置监听器时直接返回，不做任何计算；否则按动作类型分发并回调结果。</p>
+     */
     @Override
     public void process() {
         if (null == this.voiceDiarizationListener) {

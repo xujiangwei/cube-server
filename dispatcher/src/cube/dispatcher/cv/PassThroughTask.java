@@ -32,6 +32,12 @@ public class PassThroughTask extends DispatcherTask {
         this.waitResponse = sync;
     }
 
+    /**
+     * 执行任务。
+     *
+     * <p>同步模式下把请求转发到服务层并把结果回写客户端，转发失败时返回网关错误；
+     * 单向模式下只透传不等待结果。结束后把任务对象归还对象池。</p>
+     */
     @Override
     public void run() {
         if (this.waitResponse) {

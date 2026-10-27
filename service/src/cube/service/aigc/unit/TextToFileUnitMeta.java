@@ -34,6 +34,11 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 文本转文件单元任务。
+ *
+ * <p>把文本渲染为文件产物，完成后登记文件标签并回调结果。</p>
+ */
 public class TextToFileUnitMeta extends UnitMeta {
 
     private final long sn;
@@ -56,6 +61,11 @@ public class TextToFileUnitMeta extends UnitMeta {
         this.listener = listener;
     }
 
+    /**
+     * 执行转换。
+     *
+     * <p>实际转换在独立线程完成，避免阻塞调度线程。</p>
+     */
     @Override
     public void process() {
         this.service.getExecutor().execute(new Runnable() {

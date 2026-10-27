@@ -34,14 +34,29 @@ public class TargetContext implements JSONable {
         }
     }
 
+    /**
+     * 获取联系人。
+     *
+     * @return 联系人。
+     */
     public Contact getContact() {
         return this.contact;
     }
 
+    /**
+     * 获取设备。
+     *
+     * @return 设备。
+     */
     public Device getDevice() {
         return this.device;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -54,6 +69,13 @@ public class TargetContext implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

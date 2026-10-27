@@ -15,12 +15,24 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 
+/**
+ * 音频处理器。
+ *
+ * <p>基于 ffmpeg 完成音频格式转换，当前只处理 wav 转 mp3 。</p>
+ */
 public class AudioProcessor extends FFmpeg {
 
     public AudioProcessor(Path workPath) {
         super(workPath);
     }
 
+    /**
+     * 执行转换。
+     *
+     * <p>按上下文类型分派；不支持的类型直接返回，不做任何处理。</p>
+     *
+     * @param context 处理上下文。
+     */
     @Override
     public void go(ProcessorContext context) {
         if (context instanceof WavToMp3Context) {

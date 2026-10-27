@@ -8,7 +8,8 @@ package cube.service.aigc.command;
 
 /**
  * 命令执行监听器。
- * @deprecated
+ *
+ * @deprecated 命令体系已不再维护。
  */
 public interface CommandListener {
 

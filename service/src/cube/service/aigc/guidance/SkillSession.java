@@ -33,10 +33,13 @@ public class SkillSession {
      */
     public final static String DIRECTIVE_UNBIND_PREFIX = "-";
 
+    /** 所属通道码。 */
     public final String channelCode;
 
+    /** 所属域。 */
     public String domain;
 
+    /** 所属联系人 ID 。 */
     public long contactId;
 
     /**
@@ -44,6 +47,7 @@ public class SkillSession {
      */
     public final List<String> skills = new ArrayList<>();
 
+    /** 最后更新时间戳，单位毫秒。 */
     public long updated;
 
     public SkillSession(String channelCode) {
@@ -62,6 +66,11 @@ public class SkillSession {
         }
     }
 
+    /**
+     * 判断会话是否未绑定任何技能。
+     *
+     * @return 无技能返回 {@code true} 。
+     */
     public boolean isEmpty() {
         return this.skills.isEmpty();
     }
@@ -159,6 +168,11 @@ public class SkillSession {
         return plain;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return 会话 JSON 。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("channel", this.channelCode);
@@ -184,6 +198,11 @@ public class SkillSession {
         return new ArrayList<>(this.skills);
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 含通道码与技能名的字符串。
+     */
     @Override
     public String toString() {
         return "SkillSession[" + this.channelCode + ", skills=" + this.skills + "]";

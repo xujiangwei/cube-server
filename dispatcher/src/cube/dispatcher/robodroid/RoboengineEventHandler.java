@@ -22,6 +22,7 @@ import java.io.IOException;
  */
 public class RoboengineEventHandler extends CrossDomainHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/robodroid/event/";
 
     private String token = "kLBNGSmrTbmNlBfTYcIaKqYQiDPKoTkE";
@@ -32,6 +33,14 @@ public class RoboengineEventHandler extends CrossDomainHandler {
         this.performer = performer;
     }
 
+    /**
+     * 接收 Roboengine 的事件推送。
+     *
+     * <p>校验令牌后把事件转交机器人管理器分发；事件格式错误时返回 403。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response) {
         String token = extractToken(request);

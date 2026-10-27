@@ -32,6 +32,7 @@ import java.util.List;
  */
 public class SteganographicHandler extends CrossDomainHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/file/steganographic/";
 
     private Performer performer;
@@ -43,6 +44,14 @@ public class SteganographicHandler extends CrossDomainHandler {
         this.performer = performer;
     }
 
+    /**
+     * 提交隐写任务。
+     *
+     * <p>请求体为 JSON ，校验后把任务转交文件处理单元；格式错误返回 403。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response) {
         // 进行隐写编码
@@ -96,6 +105,14 @@ public class SteganographicHandler extends CrossDomainHandler {
         }
     }
 
+    /**
+     * 查询隐写结果或日志。
+     *
+     * <p>带 {@code logs} 参数时返回处理日志，否则返回结果摘要。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) {
         // 进行隐写解码

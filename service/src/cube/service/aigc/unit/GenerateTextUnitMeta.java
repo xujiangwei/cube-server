@@ -38,34 +38,54 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * 文本生成单元任务。
+ *
+ * <p>承载一次文本生成的完整输入：通道、参与者、提问、采样选项与历史，
+ * 并负责组装提示词、调用单元、回写流式结果与落库。</p>
+ */
 public class GenerateTextUnitMeta extends UnitMeta {
 
+    /** 任务序列号，用于关联请求与结果。 */
     public final long sn;
 
+    /** 所属对话通道。 */
     public final AIGCChannel channel;
 
+    /** 发起请求的联系人。 */
     protected Contact participant;
 
+    /** 本轮实际提交给模型的内容。 */
     protected String content;
 
+    /** 用户原始提问，用于记录与溯源。 */
     protected String originalQuery;
 
+    /** 采样选项，控制温度、长度等生成参数。 */
     protected GeneratingOption option;
 
+    /** 知识库分类过滤条件。 */
     protected List<String> categories;
 
+    /** 需要携带的历史问答。 */
     protected List<GeneratingRecord> histories;
 
+    /** 历史问答的最大轮数。 */
     protected int maxHistories;
 
+    /** 提问附带的多模态附件。 */
     protected List<Attachment> attachments;
 
+    /** 生成过程监听器，用于推送流式分片与最终结果。 */
     protected GenerateTextListener listener;
 
+    /** 待写入的对话历史记录。 */
     protected AIGCChatHistory history;
 
+    /** 是否把本轮问答写入历史，默认启用。 */
     protected boolean recordHistoryEnabled = true;
 
+    /** 是否允许联网检索，默认关闭。 */
     protected boolean networkingEnabled = false;
 
     /**
@@ -119,14 +139,31 @@ public class GenerateTextUnitMeta extends UnitMeta {
         this.history.queryContent = content;
     }
 
+    /**
+     * 设置是否允许联网检索。
+     *
+     * @param value 为 {@code true} 表示允许联网。
+     */
     public void setNetworkingEnabled(boolean value) {
         this.networkingEnabled = value;
     }
 
+    /**
+     * 设置是否记录本轮问答。
+     *
+     * @param value 为 {@code true} 表示写入历史。
+     */
     public void setRecordHistoryEnabled(boolean value) {
         this.recordHistoryEnabled = value;
     }
 
+    /**
+     * 设置原始提问。
+     *
+     * <p>入参为空时忽略，保留原有值。</p>
+     *
+     * @param originalQuery 用户原始提问。
+     */
     public void setOriginalQuery(String originalQuery) {
         if (null == originalQuery) {
             return;
@@ -136,10 +173,21 @@ public class GenerateTextUnitMeta extends UnitMeta {
         this.history.queryContent = originalQuery;
     }
 
+    /**
+     * 设置历史轮数上限。
+     *
+     * @param max 最大轮数。
+     */
     public void setMaxHistories(int max) {
         this.maxHistories = max;
     }
 
+    /**
+     * 执行文本生成。
+     *
+     * <p>组装提示词并调用单元，过程中把分片推给监听器；
+     * 结束后按需写入对话历史并释放单元占用。</p>
+     */
     @Override
     public void process() {
         // 实时并发计数：与执行起止严格配对，异常路径同样释放。
@@ -420,6 +468,15 @@ public class GenerateTextUnitMeta extends UnitMeta {
         });
     }
 
+    /**
+     * 按单元要求过滤非中文内容。
+     *
+     * <p>仅对中文专用单元生效，其余单元原样返回。</p>
+     *
+     * @param unit 目标单元。
+     * @param text 原始文本。
+     * @return 过滤后的文本。
+     */
     protected String filterChinese(AIGCUnit unit, String text) {
         if (unit.getCapability().getName().equalsIgnoreCase(ModelConfig.BAIZE_UNIT)) {
             if (TextUtils.containsChinese(text)) {
@@ -432,6 +489,17 @@ public class GenerateTextUnitMeta extends UnitMeta {
         }
     }
 
+    /**
+     * 基于检索到的页面内容继续问答。
+     *
+     * <p>把页面正文截断后拼进上下文，再发起一次生成；用于联网检索后的二次加工。</p>
+     *
+     * @param query        用户提问。
+     * @param unitName     执行生成的单元名。
+     * @param searchResult 检索结果。
+     * @param context      结构化上下文。
+     * @param maxPages     最多使用的页面数。
+     */
     protected void performSearchPageQA(String query, String unitName, SearchResult searchResult,
                                        ComplexContext context, int maxPages) {
         Object mutex = new Object();

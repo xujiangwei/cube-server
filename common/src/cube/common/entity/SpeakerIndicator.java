@@ -13,14 +13,23 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 说话人指标。
+ *
+ * <p>单个说话人的发言时长、占比与语速等统计。</p>
+ */
 public class SpeakerIndicator implements JSONable {
 
+    /** 说话人。 */
     public String speaker;
 
+    /** 标签。 */
     public String label;
 
+    /** 总时长。 */
     public double totalDuration = 0;
 
+    /** 总词数。 */
     public int totalWords = 0;
 
     /**
@@ -48,8 +57,11 @@ public class SpeakerIndicator implements JSONable {
      */
     public List<SpeakerSegmentIndicator> segmentIndicators;
 
+    /** 正向分段占比。 */
     public int positiveSegmentRatio;
+    /** 负向分段占比。 */
     public int negativeSegmentRatio;
+    /** 中性分段占比。 */
     public int neutralSegmentRatio;
 
     public SpeakerIndicator(String speaker, String label) {
@@ -87,10 +99,20 @@ public class SpeakerIndicator implements JSONable {
         this.neutralSegmentRatio = json.getInt("neutralSegmentRatio");
     }
 
+    /**
+     * 添加分段指标。
+     *
+     * @param segmentIndicator 分段指标。
+     */
     public void addSegmentIndicator(SpeakerSegmentIndicator segmentIndicator) {
         this.segmentIndicators.add(segmentIndicator);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -123,6 +145,13 @@ public class SpeakerIndicator implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

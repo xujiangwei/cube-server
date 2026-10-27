@@ -32,11 +32,26 @@ public class PassThroughTask extends DispatcherTask {
         this.waitResponse = sync;
     }
 
+    /**
+     * 重置任务以复用。
+     *
+     * <p>同时更新同步/单向标记，避免把上一次的等待模式带到下一次请求。</p>
+     *
+     * @param talkContext 新的会话上下文。
+     * @param primitive   新的原始消息。
+     * @param sync        是否同步等待结果。
+     */
     protected void reset(TalkContext talkContext, Primitive primitive, boolean sync) {
         super.reset(talkContext, primitive);
         this.waitResponse = sync;
     }
 
+    /**
+     * 执行任务。
+     *
+     * <p>同步模式下把请求转发到服务层并把结果回写客户端，转发失败时返回网关错误；
+     * 单向模式下只透传不等待结果。结束后把任务对象归还对象池。</p>
+     */
     @Override
     public void run() {
         String tokenCode = this.getTokenCode(this.getAction());

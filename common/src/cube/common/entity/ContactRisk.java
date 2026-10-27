@@ -15,46 +15,87 @@ import org.json.JSONObject;
  */
 public final class ContactRisk {
 
+    /** 禁止全部操作。 */
     public final static int FORBID_ALL = 1;
 
+    /** 禁止登录。 */
     public final static int FORBID_SIGN_IN = 1 << 1;
 
+    /** 禁止保存文件。 */
     public final static int FORBID_SAVE_FILE = 1 << 2;
 
+    /** 禁止销毁文件。 */
     public final static int FORBID_DESTROY_FILE = 1 << 3;
 
     public ContactRisk() {
     }
 
+    /**
+     * 叠加风险位。
+     *
+     * @param mask 当前风险位。
+     * @param risk 待叠加的风险位。
+     * @return 叠加后的风险位。
+     */
     public static int mask(int mask, int risk) {
         return mask | risk;
     }
 
+    /**
+     * 清除风险位。
+     *
+     * @param mask 当前风险位。
+     * @param risk 待清除的风险位。
+     * @return 清除后的风险位。
+     */
     public static int unmask(int mask, int risk) {
         return mask & (65535 - risk);
     }
 
+    /**
+     * 判断是否全部禁止。
+     *
+     * @param mask 全部禁止。
+     * @return 全部禁止。
+     */
     public static boolean hasForbiddenAll(int mask) {
         return  (mask & FORBID_ALL) != 0;
     }
 
+    /**
+     * 判断是否禁止登录。
+     *
+     * @param mask 禁止登录。
+     * @return 禁止登录。
+     */
     public static boolean hasForbiddenSignIn(int mask) {
         return (mask & FORBID_SIGN_IN) != 0;
     }
 
+    /**
+     * 判断是否禁止保存文件。
+     *
+     * @param mask 禁止保存文件。
+     * @return 禁止保存文件。
+     */
     public static boolean hasForbiddenSaveFile(int mask) {
         return (mask & FORBID_SAVE_FILE) != 0;
     }
 
+    /**
+     * 判断是否禁止销毁文件。
+     *
+     * @param mask 禁止销毁文件。
+     * @return 禁止销毁文件。
+     */
     public static boolean hasForbiddenDestroyFile(int mask) {
         return (mask & FORBID_DESTROY_FILE) != 0;
     }
 
     /**
      * 解释为 JSON 结构描述。
-     *
-     * @param mask
-     * @return
+     * @param mask mask。
+     * @return 处理结果。
      */
     public static JSONObject toJSON(int mask) {
         JSONObject json = new JSONObject();
@@ -67,10 +108,9 @@ public final class ContactRisk {
 
     /**
      * 通过 JSON 结果解释为掩码。
-     *
-     * @param mask
-     * @param json
-     * @return
+     * @param mask mask。
+     * @param json JSON 数据。
+     * @return 处理结果。
      */
     public static int toMask(int mask, JSONObject json) {
         int resultMask = mask;
@@ -114,6 +154,13 @@ public final class ContactRisk {
     }
 
 
+    /**
+     * 本地自测入口。
+     *
+     * <p>验证风险位的叠加与清除结果。</p>
+     *
+     * @param args 未使用。
+     */
     public static void main(String[] args) {
         int mask = 0;
         System.out.println("SignIn - E:false - A:" + ContactRisk.hasForbiddenSignIn(mask));

@@ -44,6 +44,11 @@ public class SkillSessionStore {
 
     private static final SkillSessionStore sInstance = new SkillSessionStore();
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static SkillSessionStore getInstance() {
         return sInstance;
     }
@@ -101,14 +106,31 @@ public class SkillSessionStore {
         this.cache.clear();
     }
 
+    /**
+     * 判断会话存储是否启用。
+     *
+     * <p>关闭时技能绑定只存在于单次请求内，不跨轮次保持。</p>
+     *
+     * @return 启用返回 {@code true} 。
+     */
     public boolean isEnabled() {
         return this.enabled;
     }
 
+    /**
+     * 获取会话存活时间。
+     *
+     * @return 存活时间，单位毫秒。
+     */
     public long getTtl() {
         return this.ttl;
     }
 
+    /**
+     * 统计当前缓存的会话数量。
+     *
+     * @return 会话条数。
+     */
     public int size() {
         return this.cache.size();
     }

@@ -19,6 +19,12 @@ public abstract class RiskManagementHandler extends CrossDomainHandler {
         super();
     }
 
+    /**
+     * 获取请求路径。
+     *
+     * @param request HTTP 请求。
+     * @return 去掉上下文前缀后的路径。
+     */
     protected String getRequestPath(HttpServletRequest request) {
         String path = request.getPathInfo();
         if (path.length() < 2) {
@@ -33,6 +39,12 @@ public abstract class RiskManagementHandler extends CrossDomainHandler {
         return path;
     }
 
+    /**
+     * 获取路径的最后一段。
+     *
+     * @param request HTTP 请求。
+     * @return 最后一段路径；无路径信息时返回 {@code null} 。
+     */
     protected String getLastRequestPath(HttpServletRequest request) {
         String path = request.getPathInfo();
         if (path.length() < 2) {

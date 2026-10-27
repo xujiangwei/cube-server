@@ -164,10 +164,21 @@ public class SharingTag extends Entity {
         return this.config;
     }
 
+    /**
+     * 重置联系人。
+     *
+     * @param contact 联系人。
+     */
     public void resetContact(Contact contact) {
         this.config.setContact(contact);
     }
 
+    /**
+     * 设置双协议访问地址。
+     *
+     * @param http  HTTP 端点。
+     * @param https HTTPS 端点。
+     */
     public void setURLs(Endpoint http, Endpoint https) {
         this.httpHostInfo = http.getHost() + ":" + http.getPort();
         this.httpsHostInfo = https.getHost() + ":" + https.getPort();
@@ -181,10 +192,20 @@ public class SharingTag extends Entity {
                 "/sharing/" + this.code + parameter;
     }
 
+    /**
+     * 获取HTTP 地址。
+     *
+     * @return HTTP 地址。
+     */
     public String getHttpURL() {
         return this.httpURL;
     }
 
+    /**
+     * 获取HTTPS 地址。
+     *
+     * @return HTTPS 地址。
+     */
     public String getHttpsURL() {
         return this.httpsURL;
     }
@@ -207,14 +228,29 @@ public class SharingTag extends Entity {
         this.previewList.addAll(list);
     }
 
+    /**
+     * 获取预览列表。
+     *
+     * @return 预览列表。
+     */
     public List<FileLabel> getPreviewList() {
         return this.previewList;
     }
 
+    /**
+     * 获取状态。
+     *
+     * @return 状态。
+     */
     public int getState() {
         return this.state;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -255,6 +291,13 @@ public class SharingTag extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();
@@ -295,6 +338,13 @@ public class SharingTag extends Entity {
         return json;
     }
 
+    /**
+     * 转换为面向客户端的 JSON。
+     *
+     * <p>裁剪掉仅服务端使用的字段，减小下发体积。</p>
+     *
+     * @return 客户端 JSON 。
+     */
     public JSONObject toJSONForClient() {
         JSONObject json = this.toCompactJSON();
         JSONObject config = json.getJSONObject("config");
@@ -308,6 +358,13 @@ public class SharingTag extends Entity {
         return json;
     }
 
+    /**
+     * 生成访问地址数组。
+     *
+     * @param tag    分享标签。
+     * @param sharer 分享者标识。
+     * @return 访问地址数组。
+     */
     public static String[] makeURLs(SharingTag tag, String sharer) {
         String parameter = "?s=" + sharer + "&p=" + tag.sharer.toString() + "&e=x";
 

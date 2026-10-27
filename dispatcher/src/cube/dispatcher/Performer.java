@@ -52,8 +52,10 @@ public class Performer implements TalkListener, Tickable {
 
     private final String directorKey = "_director";
 
+    /** 会话服务，负责与各单元建立长连接并收发消息。 */
     protected TalkService talkService;
 
+    /** 单元服务，用于查询已注册单元与端点信息。 */
     protected CelletService celletService;
 
     private Properties properties;

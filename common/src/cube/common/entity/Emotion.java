@@ -8,6 +8,11 @@ package cube.common.entity;
 
 import org.json.JSONObject;
 
+/**
+ * 情绪枚举。
+ *
+ * <p>定义可识别的情绪类型，提供常用子集与按词解析。</p>
+ */
 public enum Emotion {
 
     Angry("愤怒", "生气"),
@@ -32,8 +37,10 @@ public enum Emotion {
 
     ;
 
+    /** 主要词。 */
     public final String primaryWord;
 
+    /** 次要词。 */
     public final String secondaryWord;
 
     Emotion(String primaryWord, String secondaryWord) {
@@ -41,6 +48,11 @@ public enum Emotion {
         this.secondaryWord = secondaryWord;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("name", this.name());
@@ -49,6 +61,11 @@ public enum Emotion {
         return json;
     }
 
+    /**
+     * 获取常用情绪集合。
+     *
+     * @return 常用情绪数组。
+     */
     public static Emotion[] commonEmotions() {
         return new Emotion[]{
                 Emotion.Angry,
@@ -60,6 +77,14 @@ public enum Emotion {
         };
     }
 
+    /**
+     * 按编码解析。
+     *
+     * <p>遍历全部枚举值逐个匹配，未命中时返回 {@code null} 。</p>
+     *
+     * @param word 编码值。
+     * @return 对应枚举；未命中返回 {@code null} 。
+     */
     public static Emotion parse(String word) {
         for (Emotion emotion : Emotion.values()) {
             if (emotion.name().equalsIgnoreCase(word) ||

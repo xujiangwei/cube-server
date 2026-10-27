@@ -30,12 +30,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class FileOperationHandler extends CrossDomainHandler {
 
+    /** 端点路径，实际动作由路径后缀决定。 */
     public final static String PATH = "/filestorage/operation/";
 
     private Performer performer;
 
+    /** 并发上限，超限直接返回 406 而不排队。 */
     protected final int maxConcurrency;
 
+    /** 当前并发数。处理结束必须归还名额，否则上限会被逐步耗尽。 */
     protected final AtomicInteger concurrency = new AtomicInteger(0);
 
     public FileOperationHandler(Performer performer) {
@@ -44,6 +47,17 @@ public class FileOperationHandler extends CrossDomainHandler {
         this.maxConcurrency = performer.getConcurrentFileOperationLimit();
     }
 
+    /**
+     * 处理文件操作请求。
+     *
+     * <p>按路径后缀分派：{@code /find} 查询、{@code /list} 列举、{@code /delete} 删除、
+     * {@code /modify} 修改，其余后缀返回 400。请求体不是合法 JSON 时返回 403。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     * @throws IOException      读取请求体或写响应失败。
+     * @throws ServletException 容器处理异常。
+     */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response)
             throws IOException, ServletException {

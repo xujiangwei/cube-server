@@ -84,6 +84,16 @@ public class QRCodeHelper {
         return base64;
     }
 
+    /**
+     * 获取二维码图片的字节内容。
+     *
+     * <p>复用 {@link #getQRCodeImageBase64} 的缓存结果并解码，避免重复生成图片。</p>
+     *
+     * @param workPath    工作目录。
+     * @param sharingCode 分享码。
+     * @param url         二维码承载的地址。
+     * @return PNG 字节；生成失败返回 {@code null} 。
+     */
     public static byte[] getQRCodeImageData(Path workPath, String sharingCode, String url) {
         String base64 = QRCodeHelper.getQRCodeImageBase64(workPath, sharingCode, url);
         byte[] data = null;

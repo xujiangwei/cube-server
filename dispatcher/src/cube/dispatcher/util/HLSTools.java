@@ -102,6 +102,17 @@ public final class HLSTools {
         return true;
     }
 
+    /**
+     * 把媒体文件切片为 HLS。
+     *
+     * <p>调用 ffmpeg 生成 M3U8 与 TS 分片，输出到指定目录；
+     * 命令通过受控子进程执行并带超时，失败只返回 {@code false} 不抛异常。</p>
+     *
+     * @param workPath   切片输出目录。
+     * @param inputFile  源媒体文件。
+     * @param outputFile 期望生成的 M3U8 文件。
+     * @return 转码成功返回 {@code true} 。
+     */
     public static boolean toHLS(File workPath, File inputFile, File outputFile) {
         List<String> commandLine = new ArrayList<>();
         commandLine.add(null != ffmpeg ? ffmpeg : "ffmpeg");

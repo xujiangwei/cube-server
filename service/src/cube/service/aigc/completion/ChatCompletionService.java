@@ -117,6 +117,17 @@ public class ChatCompletionService {
         throw unsupported;
     }
 
+    /**
+     * 查询指定模型的容量。
+     *
+     * <p>先校验令牌，再返回该模型的上下文窗口、并发上限等能力描述。
+     * {@code nativeTools} 决定是否按原生工具调用能力计算可用窗口。</p>
+     *
+     * @param code        访问令牌。
+     * @param modelId     模型标识。
+     * @param nativeTools 是否按原生工具调用计算。
+     * @return 容量 JSON ；鉴权或模型无效时返回错误结构。
+     */
     public JSONObject capacity(String code, String modelId, boolean nativeTools) {
         AuthToken token = authenticate(code);
         int registered = 0, available = 0;
@@ -175,6 +186,14 @@ public class ChatCompletionService {
         return null;
     }
 
+    /**
+     * 列出可用模型。
+     *
+     * <p>按令牌所属域返回模型清单，字段格式对齐 OpenAI 的 {@code /v1/models} 。</p>
+     *
+     * @param code 访问令牌。
+     * @return 模型列表 JSON 。
+     */
     public JSONObject models(String code) {
         AuthToken token = authenticate(code);
         JSONArray data = new JSONArray();
@@ -196,12 +215,31 @@ public class ChatCompletionService {
         return new JSONObject().put("models", data);
     }
 
+    /**
+     * 发起一次生成。
+     *
+     * <p>按协议格式解析请求并转交后端单元，结果以流式事件回写。
+     * 同一请求重复提交会被拒绝；参数非法时直接返回错误。</p>
+     *
+     * @param code    访问令牌。
+     * @param origin  发起请求的会话上下文。
+     * @param dialect 请求方言。
+     */
     public void generate(String code, TalkContext origin, ActionDialect dialect) {
         generate(code, origin, dialect, null);
     }
 
     /**
-     * Same authorization, queue, capability checks and accounting as REST, without a fake TalkContext.
+     * 内部生成入口。
+     *
+     * <p>与 REST 入口共用鉴权、排队、能力校验与计量口径，但不需要伪造会话上下文。
+     * 供服务内部与插件直接调用。</p>
+     *
+     * @param code     访问令牌。
+     * @param id       请求 ID 。
+     * @param request  请求载荷。
+     * @param timeout  超时时间，单位毫秒。
+     * @param listener 事件回调。
      */
     public void generateInternal(String code, String id, JSONObject request, long timeout, CompletionProvider.Listener listener) {
         if (listener == null) throw new IllegalArgumentException("Listener required");
@@ -264,6 +302,15 @@ public class ChatCompletionService {
         }
     }
 
+    /**
+     * 取消生成。
+     *
+     * <p>按请求 ID 找到未完成的生成并中断；找不到时为空操作。</p>
+     *
+     * @param code   访问令牌。
+     * @param id     请求 ID 。
+     * @param origin 发起取消的会话上下文。
+     */
     public void cancel(String code, String id, TalkContext origin) {
         Pending pending;
         synchronized (this) {
@@ -289,6 +336,14 @@ public class ChatCompletionService {
         }
     }
 
+    /**
+     * 处理单元推送的生成事件。
+     *
+     * <p>按事件中的请求 ID 找到对应的等待记录并转发给订阅方；找不到则丢弃。</p>
+     *
+     * @param context 单元会话上下文。
+     * @param dialect 事件方言。
+     */
     public void onUnitEvent(TalkContext context, ActionDialect dialect) {
         Pending pending = null;
         try {
@@ -302,6 +357,11 @@ public class ChatCompletionService {
         }
     }
 
+    /**
+     * 停止服务。
+     *
+     * <p>标记停止并释放全部等待记录，之后到达的生成请求会被直接拒绝。</p>
+     */
     public synchronized void stop() {
         stopped = true;
         for (Pending pending : requests.values()) {
@@ -313,6 +373,13 @@ public class ChatCompletionService {
         earlyCancellations.clear();
     }
 
+    /**
+     * 统计进行中的生成数。
+     *
+     * <p>用于监控与容量判断。</p>
+     *
+     * @return 当前未完成的请求数量。
+     */
     public int activeRequests() {
         return requests.size();
     }

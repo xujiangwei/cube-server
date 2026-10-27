@@ -39,10 +39,29 @@ public class FileLabelHandler extends CrossDomainHandler {
         super();
     }
 
+    /**
+     * 获取转发缓冲区大小。
+     *
+     * @return 缓冲区字节数。
+     */
     protected int getBufferSize() {
         return this.bufferSize;
     }
 
+    /**
+     * 阻塞式转发文件。
+     *
+     * <p>先把整个文件拉取到内存再一次性写出，实现简单但会占用与文件同等的内存；
+     * 大文件应改用非阻塞方式。</p>
+     *
+     * @param request   HTTP 请求。
+     * @param response  响应对象。
+     * @param fileLabel 文件标签。
+     * @param type      期望的响应类型。
+     * @param file       本地文件，可能为 {@code null} 。
+     * @throws IOException      读取或写出失败。
+     * @throws ServletException 容器处理异常。
+     */
     protected void processByBlocking(HttpServletRequest request, HttpServletResponse response,
                                    FileLabel fileLabel, FileType type, File file)
             throws IOException, ServletException {
@@ -110,6 +129,20 @@ public class FileLabelHandler extends CrossDomainHandler {
         this.complete();
     }
 
+    /**
+     * 非阻塞式转发文件。
+     *
+     * <p>以流的方式边拉边写，内存占用与文件大小无关；
+     * 连接与读取分别设 5 秒与 10 秒超时，避免慢节点长时间占用线程。</p>
+     *
+     * @param request   HTTP 请求。
+     * @param response  响应对象。
+     * @param fileLabel 文件标签。
+     * @param type      期望的响应类型。
+     * @param file       本地文件，可能为 {@code null} 。
+     * @throws IOException      读取或写出失败。
+     * @throws ServletException 容器处理异常。
+     */
     protected void processByNonBlocking(HttpServletRequest request, HttpServletResponse response,
                                       FileLabel fileLabel, FileType type, File file)
             throws IOException, ServletException {
@@ -180,6 +213,17 @@ public class FileLabelHandler extends CrossDomainHandler {
         }
     }
 
+    /**
+     * 按文件类型填充响应头。
+     *
+     * <p>下载场景写入 {@code Content-Disposition} 并编码文件名，避免中文名乱码；
+     * 预览场景只设置 {@code Content-Type} 。</p>
+     *
+     * @param response  响应对象。
+     * @param fileLabel 文件标签。
+     * @param length    内容长度，单位字节。
+     * @param type      响应类型。
+     */
     protected void fillHeaders(HttpServletResponse response, FileLabel fileLabel, long length, FileType type) {
         if (FileType.FILE == type) {
             try {

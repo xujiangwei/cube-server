@@ -15,6 +15,11 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * 通道保活端点。
+ *
+ * <p>延长对话通道的空闲存活时间，避免长对话中途因超时被回收。</p>
+ */
 public class KeepAlive extends ContextHandler {
 
     public KeepAlive() {

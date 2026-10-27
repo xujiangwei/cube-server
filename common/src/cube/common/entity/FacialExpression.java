@@ -14,10 +14,13 @@ import org.json.JSONObject;
  */
 public class FacialExpression implements JSONable {
 
+    /** 文件。 */
     public final FileLabel file;
 
+    /** 表情。 */
     public final Expression expression;
 
+    /** 检测框。 */
     public final BoundingBox boundingBox;
 
     public FacialExpression(JSONObject json) {
@@ -26,6 +29,11 @@ public class FacialExpression implements JSONable {
         this.boundingBox = new BoundingBox(json.getJSONObject("bbox"));
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -35,6 +43,13 @@ public class FacialExpression implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -9,10 +9,17 @@ package cube.common.entity;
 import cube.common.JSONable;
 import org.json.JSONObject;
 
+/**
+ * 用户修改项。
+ *
+ * <p>描述对用户资料的字段级修改。</p>
+ */
 public class UserModification implements JSONable {
 
+    /** ID。 */
     public final long id;
 
+    /** 显示名称。 */
     public String displayName;
 
     public UserModification(long id) {
@@ -26,6 +33,11 @@ public class UserModification implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -36,6 +48,13 @@ public class UserModification implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

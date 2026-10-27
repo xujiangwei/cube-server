@@ -447,8 +447,7 @@ public class AIGCChannel extends Entity {
 
     /**
      * 统计向 AI 提问的总字数。
-     *
-     * @return
+     * @return 计算结果。
      */
     public int totalQueryWords() {
         return this.totalQueryWords;
@@ -456,8 +455,7 @@ public class AIGCChannel extends Entity {
 
     /**
      * 统计 AI 回答的总字数。
-     *
-     * @return
+     * @return 计算结果。
      */
     public int totalAnswerWords() {
         return this.totalAnswerWords;

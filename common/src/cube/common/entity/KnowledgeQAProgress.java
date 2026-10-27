@@ -51,15 +51,30 @@ public class KnowledgeQAProgress implements JSONable {
         }
     }
 
+    /**
+     * 获取开始。
+     *
+     * @return 开始。
+     */
     public long getStart() {
         return this.start;
     }
 
+    /**
+     * 定义总数进度。
+     *
+     * @param value 总数进度。
+     */
     public void defineTotalProgress(int value) {
         this.progress = 0;
         this.totalProgress = value;
     }
 
+    /**
+     * 更新进度。
+     *
+     * @param value 进度。
+     */
     public int updateProgress(int value) {
         if (this.totalProgress == 0) {
             return 100;
@@ -70,6 +85,11 @@ public class KnowledgeQAProgress implements JSONable {
         return this.percent;
     }
 
+    /**
+     * 获取进度百分比。
+     *
+     * @return 进度百分比。
+     */
     public int getProgressPercent() {
         if (this.totalProgress == 0) {
             return 0;
@@ -78,19 +98,39 @@ public class KnowledgeQAProgress implements JSONable {
         return (int) Math.floor(((float) this.progress / (float) this.totalProgress) * 100.0);
     }
 
+    /**
+     * 设置码。
+     *
+     * @param code 码。
+     */
     public void setCode(int code) {
         this.code = code;
     }
 
+    /**
+     * 设置结果。
+     *
+     * @param result 结果。
+     */
     public void setResult(KnowledgeQAResult result) {
         this.result = result;
         this.end = System.currentTimeMillis();
     }
 
+    /**
+     * 获取结果。
+     *
+     * @return 结果。
+     */
     public KnowledgeQAResult getResult() {
         return this.result;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -106,6 +146,13 @@ public class KnowledgeQAProgress implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

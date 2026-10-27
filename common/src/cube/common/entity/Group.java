@@ -226,6 +226,11 @@ public class Group extends AbstractContact implements Comparable<Group> {
         return this.memberIdList.contains(contactId);
     }
 
+    /**
+     * 添加成员 ID。
+     *
+     * @param memberId 成员 ID。
+     */
     public void addMemberId(Long memberId) {
         if (this.memberIdList.contains(memberId)) {
             return;
@@ -273,6 +278,11 @@ public class Group extends AbstractContact implements Comparable<Group> {
         return new ArrayList<>(this.memberIdList);
     }
 
+    /**
+     * 添加成员。
+     *
+     * @param contact 成员。
+     */
     public void addMember(Contact contact) {
         if (null == this.memberContactList) {
             this.memberContactList = new ArrayList<>();
@@ -281,6 +291,11 @@ public class Group extends AbstractContact implements Comparable<Group> {
         this.memberContactList.add(contact);
     }
 
+    /**
+     * 移除成员。
+     *
+     * @param contact 成员。
+     */
     public void removeMember(Contact contact) {
         if (null == this.memberContactList) {
             return;
@@ -289,6 +304,11 @@ public class Group extends AbstractContact implements Comparable<Group> {
         this.memberContactList.remove(contact);
     }
 
+    /**
+     * 获取成员列表。
+     *
+     * @return 成员列表。
+     */
     public List<Contact> getMemberList() {
         return this.memberContactList;
     }

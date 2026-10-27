@@ -28,8 +28,10 @@ import javax.servlet.http.HttpServletResponse;
  */
 public abstract class HubHandler extends CrossDomainHandler {
 
+    /** 执行机，用于把请求转发给 Hub 单元。 */
     protected Performer performer;
 
+    /** Hub 控制器，提供通道与会话状态。 */
     protected Controller controller;
 
     public HubHandler(Performer performer, Controller controller) {

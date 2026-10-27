@@ -20,6 +20,11 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * 新建联系人端点。
+ *
+ * <p>按提交的资料创建联系人，并返回包含联系人 ID 与初始令牌的结果。</p>
+ */
 public class NewContact extends ContextHandler {
 
     public NewContact(Performer performer) {

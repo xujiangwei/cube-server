@@ -21,6 +21,11 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 语义检索单元任务。
+ *
+ * <p>把查询向量化后在知识库中做相似度检索，返回匹配片段。</p>
+ */
 public class SemanticSearchUnitMeta extends UnitMeta {
 
     private String query;
@@ -33,6 +38,11 @@ public class SemanticSearchUnitMeta extends UnitMeta {
         this.listener = listener;
     }
 
+    /**
+     * 执行语义检索。
+     *
+     * <p>组装检索载荷并调用单元，结果按通道回写。</p>
+     */
     @Override
     public void process() {
         JSONObject data = new JSONObject();

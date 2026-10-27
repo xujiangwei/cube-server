@@ -13,7 +13,13 @@ import cube.service.aigc.AIGCCellet;
 import cube.service.aigc.completion.ChatCompletionService;
 import org.json.JSONObject;
 
+/**
+ * 兼容层生成任务。
+ *
+ * <p>把单元的生成事件转发给兼容层服务，由后者按 OpenAI/Claude 协议转换后推送给客户端。</p>
+ */
 public class ChatCompletionTask extends ServiceTask {
+    /** 构造任务实例，参数由单元统一注入。 */
     public ChatCompletionTask(Cellet cellet, TalkContext context, Primitive primitive, ResponseTime time) {
         super(cellet, context, primitive, time);
     }

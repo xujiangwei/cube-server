@@ -13,6 +13,11 @@ import cube.service.aigc.unit.MultimodalUnitMeta;
 import cube.service.aigc.unit.UnitMeta;
 import org.json.JSONObject;
 
+/**
+ * 多模态事件处理器。
+ *
+ * <p>接收分段事件并驱动多模态单元完成一次推理，结果通过单元回写。</p>
+ */
 public class MultimodalHandler implements EventListener {
 
     private final AIGCService service;
@@ -21,6 +26,14 @@ public class MultimodalHandler implements EventListener {
         this.service = service;
     }
 
+    /**
+     * 处理事件。
+     *
+     * <p>只处理分段事件；找不到对应单元或处理失败时记录日志，不影响其他监听器。</p>
+     *
+     * @param center 事件中心。
+     * @param event  事件对象。
+     */
     @Override
     public void onEvent(EventCenter center, Event event) {
         try {

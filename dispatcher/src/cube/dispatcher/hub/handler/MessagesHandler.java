@@ -29,6 +29,7 @@ import java.net.URLDecoder;
  */
 public class MessagesHandler extends HubHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/hub/messages/";
 
     private final long coolingTime = 10;
@@ -37,6 +38,14 @@ public class MessagesHandler extends HubHandler {
         super(performer, controller);
     }
 
+    /**
+     * 查询消息列表。
+     *
+     * <p>按会话与时间范围分页返回。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) {
         String code = this.getRequestPath(request);

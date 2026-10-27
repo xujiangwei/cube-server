@@ -16,20 +16,28 @@ import org.json.JSONObject;
  */
 public class MultimodalOutput implements JSONable {
 
+    /** 序列号。 */
     public final long sn;
 
+    /** 单元。 */
     public final String unit;
 
+    /** 回答。 */
     public String answer;
 
+    /** 思考过程。 */
     public String thought;
 
+    /** 结果载荷。 */
     public JSONObject resultPayload;
 
+    /** 用量。 */
     public Usage usage;
 
+    /** 时间戳。 */
     public long timestamp;
 
+    /** 上下文。 */
     public ComplexContext context;
 
     public MultimodalOutput(long sn, String unit, String answer, String thought, JSONObject resultPayload) {
@@ -100,12 +108,22 @@ public class MultimodalOutput implements JSONable {
         this.timestamp = record.timestamp;
     }
 
+    /**
+     * 转换为对话记录。
+     *
+     * @return 生成记录；无文本内容时返回 {@code null} 。
+     */
     public GeneratingRecord toRecord() {
         return new GeneratingRecord(this.sn,
                 this.unit, "", this.answer, this.thought, this.resultPayload,
                 this.timestamp, this.context);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -129,6 +147,13 @@ public class MultimodalOutput implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = this.toJSON();

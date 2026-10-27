@@ -84,8 +84,11 @@ public class SharingReport extends Entity {
      */
     public Map<String, List<JSONObject>> eventTimeMap;
 
+    /** IP 统计。 */
     public List<JSONObject> ipTotalStatistics;
+    /** 操作系统统计。 */
     public List<JSONObject> osTotalStatistics;
+    /** 软件统计。 */
     public List<JSONObject> swTotalStatistics;
 
     /**
@@ -109,10 +112,21 @@ public class SharingReport extends Entity {
         this.sharingTagMap = new ConcurrentHashMap<>();
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 添加顶端浏览记录。
+     *
+     * @param records 顶端浏览记录。
+     * @param topNum 顶端浏览记录。
+     */
     public void addTopViewRecords(Map<String, Integer> records, int topNum) {
         if (null == this.topViewList) {
             this.topViewList = new ArrayList<>();
@@ -136,6 +150,12 @@ public class SharingReport extends Entity {
         }
     }
 
+    /**
+     * 添加顶端抽取记录。
+     *
+     * @param records 顶端抽取记录。
+     * @param topNum 顶端抽取记录。
+     */
     public void addTopExtractRecords(Map<String, Integer> records, int topNum) {
         if (null == this.topExtractList) {
             this.topExtractList = new ArrayList<>();
@@ -159,6 +179,13 @@ public class SharingReport extends Entity {
         }
     }
 
+    /**
+     * 添加时间线事件。
+     *
+     * @param time 时间线事件。
+     * @param event 时间线事件。
+     * @param total 时间线事件。
+     */
     public void addEventToTimeline(long time, String event, int total) {
         if (null == this.eventTimeMap) {
             this.eventTimeMap = new HashMap<>();
@@ -175,6 +202,12 @@ public class SharingReport extends Entity {
         list.add(data);
     }
 
+    /**
+     * 累加 IP 访问次数。
+     *
+     * @param ipAddress IP 地址。
+     * @param total     本次新增次数。
+     */
     public void addIPTotal(String ipAddress, int total) {
         if (null == this.ipTotalStatistics) {
             this.ipTotalStatistics = new ArrayList<>();
@@ -186,6 +219,12 @@ public class SharingReport extends Entity {
         this.ipTotalStatistics.add(data);
     }
 
+    /**
+     * 累加操作系统访问次数。
+     *
+     * @param osName 操作系统名称。
+     * @param total  本次新增次数。
+     */
     public void addOSTotal(String osName, int total) {
         if (null == this.osTotalStatistics) {
             this.osTotalStatistics = new ArrayList<>();
@@ -197,6 +236,12 @@ public class SharingReport extends Entity {
         this.osTotalStatistics.add(data);
     }
 
+    /**
+     * 累加软件访问次数。
+     *
+     * @param swName 软件名称。
+     * @param total  本次新增次数。
+     */
     public void addSWTotal(String swName, int total) {
         if (null == this.swTotalStatistics) {
             this.swTotalStatistics = new ArrayList<>();
@@ -210,10 +255,10 @@ public class SharingReport extends Entity {
 
     /**
      * 追加访问数据。
-     * @param contactId
-     * @param sharingCode
-     * @param event
-     * @param increment
+     * @param contactId 联系人 ID 。
+     * @param sharingCode sharingCode。
+     * @param event 事件。
+     * @param increment increment。
      */
     public void appendVisitorEvent(Long contactId, String sharingCode, String event, int increment) {
         if (null == this.visitorEventMap) {
@@ -229,6 +274,12 @@ public class SharingReport extends Entity {
         visitorEvent.appendEvent(sharingCode, event, increment);
     }
 
+    /**
+     * 添加有效文件类型。
+     *
+     * @param fileType 有效文件类型。
+     * @param total 有效文件类型。
+     */
     public void addValidFileType(String fileType, int total) {
         if (null == this.validFileTypeList) {
             this.validFileTypeList = new ArrayList<>();
@@ -240,6 +291,12 @@ public class SharingReport extends Entity {
         this.validFileTypeList.add(json);
     }
 
+    /**
+     * 添加过期文件类型。
+     *
+     * @param fileType 过期文件类型。
+     * @param total 过期文件类型。
+     */
     public void addExpiredFileType(String fileType, int total) {
         if (null == this.expiredFileTypeList) {
             this.expiredFileTypeList = new ArrayList<>();
@@ -251,6 +308,14 @@ public class SharingReport extends Entity {
         this.expiredFileTypeList.add(json);
     }
 
+    /**
+     * 合并另一份报告。
+     *
+     * <p>各分项计数相加，用于把多次统计结果合并为一份。</p>
+     *
+     * @param other 待合并的报告。
+     * @return 合并后的报告。
+     */
     public SharingReport merge(SharingReport other) {
         if (other.totalSharingTag != -1) {
             this.totalSharingTag = other.totalSharingTag;
@@ -275,6 +340,11 @@ public class SharingReport extends Entity {
         return this;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();

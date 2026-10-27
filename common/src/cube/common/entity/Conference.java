@@ -90,9 +90,8 @@ public class Conference extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param id
-     * @param domainName
+     * @param id id。
+     * @param domainName 域名。
      */
     public Conference(Long id, String domainName, Contact founder) {
         super(id, domainName);
@@ -108,20 +107,19 @@ public class Conference extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param id
-     * @param domainName
-     * @param code
-     * @param subject
-     * @param password
-     * @param summary
-     * @param founderId
-     * @param presenterId
-     * @param creation
-     * @param scheduleTime
-     * @param expireTime
-     * @param participantGroupId
-     * @param commFieldId
+     * @param id id。
+     * @param domainName 域名。
+     * @param code 访问令牌。
+     * @param subject subject。
+     * @param password password。
+     * @param summary summary。
+     * @param founderId founderId。
+     * @param presenterId presenterId。
+     * @param creation creation。
+     * @param scheduleTime scheduleTime。
+     * @param expireTime expireTime。
+     * @param participantGroupId participantGroupId。
+     * @param commFieldId commFieldId。
      */
     public Conference(Long id, String domainName, String code, String subject, String password, String summary,
         Long founderId, Long presenterId, long creation, long scheduleTime, long expireTime,
@@ -142,8 +140,7 @@ public class Conference extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param json
+     * @param json JSON 数据。
      */
     public Conference(JSONObject json) {
         super(json.getLong("id"), json.getString("domain"));

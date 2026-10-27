@@ -25,10 +25,16 @@ import org.json.JSONObject;
  */
 public class AppASCIIArtTask extends ServiceTask {
 
+    /** 构造任务实例，参数由单元统一注入。 */
     public AppASCIIArtTask(Cellet cellet, TalkContext talkContext, Primitive primitive, ResponseTime responseTime) {
         super(cellet, talkContext, primitive, responseTime);
     }
 
+    /**
+     * 执行任务。
+     *
+     * <p>解析请求载荷后转交服务层处理，并把结果回写客户端。</p>
+     */
     @Override
     public void run() {
         ActionDialect dialect = new ActionDialect(this.primitive);

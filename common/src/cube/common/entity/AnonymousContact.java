@@ -26,10 +26,20 @@ public class AnonymousContact extends AbstractContact {
         this.device = new Device(json.getJSONObject("device"));
     }
 
+    /**
+     * 获取设备。
+     *
+     * @return 设备。
+     */
     public Device getDevice() {
         return this.device;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -38,6 +48,13 @@ public class AnonymousContact extends AbstractContact {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
@@ -45,9 +62,8 @@ public class AnonymousContact extends AbstractContact {
 
     /**
      * 判断 JSON 数据结构是否是匿名联系人格式。
-     *
-     * @param json
-     * @return
+     * @param json JSON 数据。
+     * @return 处理结果。
      */
     public static boolean isAnonymous(JSONObject json) {
         return (json.has("type") && json.getString("type").equals("anonymous"));

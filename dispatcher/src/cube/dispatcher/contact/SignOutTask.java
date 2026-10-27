@@ -25,6 +25,11 @@ public class SignOutTask extends DispatcherTask {
         super(cellet, talkContext, primitive, performer);
     }
 
+    /**
+     * 执行签退任务。
+     *
+     * <p>解析令牌后把签退请求转发给联系人单元，并把结果回写客户端。</p>
+     */
     @Override
     public void run() {
         String tokenCode = this.getTokenCode(this.getAction());

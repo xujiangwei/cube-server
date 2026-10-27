@@ -29,22 +29,47 @@ public class BoundingBox implements JSONable {
         this.height = json.getDouble("height");
     }
 
+    /**
+     * 获取左上角 X 坐标。
+     *
+     * @return X 坐标。
+     */
     public double getX() {
         return this.x;
     }
 
+    /**
+     * 获取左上角 Y 坐标。
+     *
+     * @return Y 坐标。
+     */
     public double getY() {
         return this.y;
     }
 
+    /**
+     * 获取宽度。
+     *
+     * @return 宽度。
+     */
     public double getWidth() {
         return this.width;
     }
 
+    /**
+     * 获取高度。
+     *
+     * @return 高度。
+     */
     public double getHeight() {
         return this.height;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -55,6 +80,13 @@ public class BoundingBox implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

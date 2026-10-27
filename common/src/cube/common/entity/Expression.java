@@ -8,6 +8,11 @@ package cube.common.entity;
 
 import org.json.JSONObject;
 
+/**
+ * 表情枚举。
+ *
+ * <p>定义面部表情的类别。</p>
+ */
 public enum Expression {
 
     Angry("愤怒", "生气"),
@@ -28,8 +33,10 @@ public enum Expression {
 
     ;
 
+    /** 主要词。 */
     public final String primaryWord;
 
+    /** 次要词。 */
     public final String secondaryWord;
 
     Expression(String primaryWord, String secondaryWord) {
@@ -37,6 +44,11 @@ public enum Expression {
         this.secondaryWord = secondaryWord;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("name", this.name());
@@ -45,6 +57,14 @@ public enum Expression {
         return json;
     }
 
+    /**
+     * 按编码解析。
+     *
+     * <p>遍历全部枚举值逐个匹配，未命中时返回 {@code null} 。</p>
+     *
+     * @param word 编码值。
+     * @return 对应枚举；未命中返回 {@code null} 。
+     */
     public static Expression parse(String word) {
         for (Expression expression : Expression.values()) {
             if (expression.name().equalsIgnoreCase(word) ||

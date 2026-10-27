@@ -14,16 +14,22 @@ import org.json.JSONObject;
  */
 public class GeneratingOption implements JSONable {
 
+    /** 温度。 */
     public double temperature = 0.3;
 
+    /** topP。 */
     public double topP = 0.85;
 
+    /** 重复惩罚。 */
     public double repetitionPenalty = 1.05;
 
+    /** topK。 */
     public int topK = 5;
 
+    /** 最大新 token 数。 */
     public int maxNewTokens = 2048;
 
+    /** 是否启用上下文识别，默认关闭。 */
     public boolean recognizeContext = false;
 
     public GeneratingOption() {
@@ -67,6 +73,11 @@ public class GeneratingOption implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -79,6 +90,13 @@ public class GeneratingOption implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

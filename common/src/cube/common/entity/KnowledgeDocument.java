@@ -18,8 +18,10 @@ import java.util.List;
  */
 public class KnowledgeDocument extends Entity {
 
+    /** 联系人 ID。 */
     public final long contactId;
 
+    /** 文件码。 */
     public final String fileCode;
 
     /**
@@ -27,8 +29,10 @@ public class KnowledgeDocument extends Entity {
      */
     public String baseName = "document";
 
+    /** 文件名。 */
     public String fileName;
 
+    /** 是否激活。 */
     public boolean activated;
 
     private FileLabel fileLabel;
@@ -94,15 +98,31 @@ public class KnowledgeDocument extends Entity {
         }
     }
 
+    /**
+     * 获取文件标签。
+     *
+     * @return 文件标签。
+     */
     public FileLabel getFileLabel() {
         return this.fileLabel;
     }
 
+    /**
+     * 设置文件标签。
+     *
+     * @param fileLabel 文件标签。
+     */
     public void setFileLabel(FileLabel fileLabel) {
         this.fileLabel = fileLabel;
         this.fileName = fileLabel.getFileName();
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param object 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (object instanceof KnowledgeDocument) {
@@ -113,11 +133,21 @@ public class KnowledgeDocument extends Entity {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return this.fileCode.hashCode();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -141,6 +171,13 @@ public class KnowledgeDocument extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = this.toJSON();

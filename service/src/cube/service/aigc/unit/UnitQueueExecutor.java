@@ -125,6 +125,13 @@ public class UnitQueueExecutor {
         this.unitExecutor = CachedQueueExecutor.newCachedQueueThreadPool(Math.max(1, maxThreads));
     }
 
+    /**
+     * 设置后台执行器。
+     *
+     * <p>用于替换默认的执行器，便于测试或接入统一线程池。</p>
+     *
+     * @param executor 执行器。
+     */
     public void setBackgroundExecutor(ExecutorService executor) {
         this.backgroundExecutor = executor;
     }

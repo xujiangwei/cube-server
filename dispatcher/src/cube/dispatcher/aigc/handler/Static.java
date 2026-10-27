@@ -19,6 +19,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+/**
+ * 静态资源端点。
+ *
+ * <p>下发头像、图标等随服务打包的资源文件，带缓存头以减轻重复请求。</p>
+ */
 public class Static extends ContextHandler {
 
     private final String root = "assets/static/";

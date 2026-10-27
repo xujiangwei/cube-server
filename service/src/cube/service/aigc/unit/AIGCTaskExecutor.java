@@ -196,6 +196,13 @@ public class AIGCTaskExecutor {
         this.unitQueueExecutor.submit(this.generateTextQueueMap, meta);
     }
 
+    /**
+     * 从文本生成队列中移除指定单元的任务。
+     *
+     * <p>单元下线或能力变更时调用，避免已失效的任务继续排队。</p>
+     *
+     * @param meta 单元元数据。
+     */
     public void removeQueuedGenerateText(UnitMeta meta) {
         Queue<UnitMeta> queue = this.generateTextQueueMap.get(meta.unit.getQueryKey());
         if (queue != null) synchronized (queue) { queue.remove(meta); }

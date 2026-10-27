@@ -25,6 +25,14 @@ public class ResourceAnswer {
         this.complexContext = complexContext;
     }
 
+    /**
+     * 生成资源应答文案。
+     *
+     * <p>按资源类型选择模板：单个资源直接描述该资源，多个资源则汇总数量与来源。</p>
+     *
+     * @param addition 追加说明，允许为 {@code null} 。
+     * @return 面向用户的应答文案。
+     */
     public String answer(String addition) {
         String result = "";
 
@@ -145,6 +153,15 @@ public class ResourceAnswer {
         return result;
     }
 
+    /**
+     * 抽取网页资源的正文要点。
+     *
+     * <p>只处理网页类资源：截取正文前后有效片段，调用模型抽取要点并按上下文长度上限截断。</p>
+     *
+     * @param service   AIGC 服务。
+     * @param authToken 访问令牌。
+     * @return 抽取到的内容；无可用资源时返回空字符串。
+     */
     public String extractContent(AIGCService service, AuthToken authToken) {
         StringBuilder result = new StringBuilder();
 
@@ -180,6 +197,14 @@ public class ResourceAnswer {
         return result.toString();
     }
 
+    /**
+     * 拼装带上下文的提问。
+     *
+     * <p>当前上下文数据来源尚未接入，只把提问套入问答模板。</p>
+     *
+     * @param query 用户提问。
+     * @return 拼装后的提问文本。
+     */
     public String ask(String query) {
         StringBuilder data = new StringBuilder();
 

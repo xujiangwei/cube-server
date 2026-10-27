@@ -66,8 +66,10 @@ public abstract class ComplexResource implements JSONable {
         }
     }
 
+    /** 主题。 */
     protected final Subject subject;
 
+    /** 序列号。 */
     public final long sn;
 
     protected ComplexResource(Subject subject) {
@@ -80,10 +82,20 @@ public abstract class ComplexResource implements JSONable {
         this.sn = data.has("sn") ? data.getLong("sn") : Utils.generateSerialNumber();
     }
 
+    /**
+     * 获取主题。
+     *
+     * @return 主题。
+     */
     public Subject getSubject() {
         return this.subject;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -92,6 +104,13 @@ public abstract class ComplexResource implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

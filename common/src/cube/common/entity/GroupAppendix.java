@@ -70,8 +70,7 @@ public class GroupAppendix extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param group
+     * @param group group。
      */
     public GroupAppendix(Group group) {
         super();
@@ -91,9 +90,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param group
-     * @param json
+     * @param group group。
+     * @param json JSON 数据。
      */
     public GroupAppendix(Group group, JSONObject json) {
         super();
@@ -202,9 +200,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 获取指定成员的备注。
-     *
-     * @param memberId
-     * @return
+     * @param memberId memberId。
+     * @return 字符串结果；无值时返回 {@code null} 。
      */
     public String getMemberRemarkName(Long memberId) {
         return this.memberRemarks.get(memberId);
@@ -212,9 +209,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 设置成员的备注。
-     *
-     * @param memberId
-     * @param name
+     * @param memberId memberId。
+     * @param name 名称。
      */
     public void setMemberRemarkName(Long memberId, String name) {
         this.memberRemarks.put(memberId, name);
@@ -223,9 +219,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 指定成员备注该群组的信息。
-     *
-     * @param member
-     * @param content
+     * @param member member。
+     * @param content 内容。
      */
     public void remarkGroup(Contact member, String content) {
         this.remarkMap.put(member.getId(), content);
@@ -234,9 +229,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 获取指定成员对该群组的备注信息。
-     *
-     * @param member
-     * @return
+     * @param member member。
+     * @return 字符串结果；无值时返回 {@code null} 。
      */
     public String getRemark(Contact member) {
         return this.remarkMap.get(member.getId());
@@ -244,9 +238,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 指定成员是否关注该群组。
-     *
-     * @param member
-     * @param following
+     * @param member member。
+     * @param following following。
      */
     public void setFollowing(Contact member, boolean following) {
         this.followingMap.put(member.getId(), following);
@@ -255,9 +248,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 获取指定成员是否关注了该群组。
-     *
-     * @param member
-     * @return
+     * @param member member。
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean getFollowing(Contact member) {
         Boolean following = this.followingMap.get(member.getId());
@@ -266,9 +258,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 指定成员是否要显示群组里的成员名。
-     *
-     * @param member
-     * @param display
+     * @param member member。
+     * @param display display。
      */
     public void setMemberNameDisplayed(Contact member, boolean display) {
         this.memberNameDisplayedMap.put(member.getId(), display);
@@ -277,9 +268,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 添加申请人。
-     *
-     * @param contactId
-     * @param postscript
+     * @param contactId 联系人 ID 。
+     * @param postscript postscript。
      */
     public void addApplicant(long contactId, String postscript) {
         for (JSONObject data : this.applicants) {
@@ -303,9 +293,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 更新申请人。
-     *
-     * @param contactId
-     * @param agreed
+     * @param contactId 联系人 ID 。
+     * @param agreed agreed。
      */
     public void updateApplicant(long contactId, boolean agreed) {
         for (JSONObject data : this.applicants) {
@@ -321,8 +310,7 @@ public class GroupAppendix extends Entity {
 
     /**
      * 设置通讯 ID 。
-     *
-     * @param commId
+     * @param commId commId。
      */
     public void setCommId(Long commId) {
         this.commId = commId;
@@ -331,8 +319,7 @@ public class GroupAppendix extends Entity {
 
     /**
      * 返回通讯 ID 。
-     *
-     * @return
+     * @return 处理结果。
      */
     public Long getCommId() {
         return this.commId;
@@ -340,9 +327,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 按照指定成员类型返回数据。
-     *
-     * @param memberId
-     * @return
+     * @param memberId memberId。
+     * @return JSON 对象。
      */
     public JSONObject packJSON(Long memberId) {
         JSONObject json = new JSONObject();
@@ -404,6 +390,11 @@ public class GroupAppendix extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -454,6 +445,13 @@ public class GroupAppendix extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
@@ -461,9 +459,8 @@ public class GroupAppendix extends Entity {
 
     /**
      * 生成附录的唯一键。
-     *
-     * @param group
-     * @return
+     * @param group group。
+     * @return 处理结果。
      */
     public static String makeUniqueKey(Group group) {
         return group.getUniqueKey() + "_appendix";

@@ -13,10 +13,13 @@ import cube.util.FileType;
  */
 public class Image {
 
+    /** 类型。 */
     public final FileType type;
 
+    /** 宽度。 */
     public final int width;
 
+    /** 高度。 */
     public final int height;
 
     public Image(FileType type, int width, int height) {
@@ -25,6 +28,11 @@ public class Image {
         this.height = height;
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         return this.type.getPreferredExtension() + " " + this.width + "x" + this.height;

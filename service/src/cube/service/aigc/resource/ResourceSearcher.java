@@ -18,6 +18,7 @@ import java.util.List;
  */
 public abstract class ResourceSearcher {
 
+    /** AIGC 服务实例，供检索实现调用存储与模型能力。 */
     protected final AIGCService service;
 
     public ResourceSearcher(AIGCService service) {
@@ -26,24 +27,21 @@ public abstract class ResourceSearcher {
 
     /**
      * 执行搜索。
-     *
-     * @param words
+     * @param words 词列表。
      * @return 返回是否执行成功。
      */
     public abstract boolean search(List<String> words);
 
     /**
      * 填充搜索结果。
-     *
-     * @param searchResult
+     * @param searchResult searchResult。
      */
     public abstract void fillSearchResult(SearchResult searchResult);
 
     /**
      * 创建搜索链接。
-     *
-     * @param words
-     * @return
+     * @param words 词列表。
+     * @return 处理结果。
      */
     protected abstract String makeURL(List<String> words);
 }

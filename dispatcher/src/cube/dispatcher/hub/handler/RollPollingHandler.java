@@ -34,6 +34,7 @@ import java.net.URLDecoder;
  */
 public class RollPollingHandler extends HubHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/hub/polling/";
 
     private final long coolingTime = 200;
@@ -42,6 +43,14 @@ public class RollPollingHandler extends HubHandler {
         super(performer, controller);
     }
 
+    /**
+     * 长轮询拉取消息。
+     *
+     * <p>无消息时挂起等待，直到有新消息或超时才返回，用于降低空轮询开销。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) {
         String code = this.getRequestPath(request);

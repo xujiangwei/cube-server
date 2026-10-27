@@ -22,6 +22,12 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * Gnosis 端点。
+ *
+ * <p>对外暴露 {@code /ferry/gnosis/} ，把请求转交 Ferry 单元的 {@code GnosisAgent} 处理，
+ * 并把 Agent 的结果包装成 HTTP 响应。</p>
+ */
 public class Gnosis extends ContextHandler {
 
     private Performer performer;

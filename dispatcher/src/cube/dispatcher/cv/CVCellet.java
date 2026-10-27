@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class CVCellet extends AbstractCellet {
 
+    /** 单元名称，同时作为端点注册名。 */
     public final static String NAME = "CV";
 
     /**

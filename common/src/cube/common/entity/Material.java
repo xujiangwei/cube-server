@@ -19,24 +19,34 @@ import org.json.JSONObject;
  */
 public class Material implements JSONable {
 
+    /** 序列号。 */
     public long sn;
 
+    /** 标签。 */
     public String label;
 
+    /** 概率。 */
     public double prob;
 
+    /** 检测框。 */
     public BoundingBox boundingBox;
 
+    /** 框。 */
     public Box box;
 
+    /** 面积。 */
     public int area;
 
+    /** 颜色。 */
     public String color;
 
+    /** 纹理。 */
     public Texture texture;
 
+    /** 调色板。 */
     public Palette palette;
 
+    /** 对称性。 */
     public boolean symmetry;
 
     public Material(String label) {
@@ -113,6 +123,11 @@ public class Material implements JSONable {
         }
     }
 
+    /**
+     * 判断是否涂鸦。
+     *
+     * @return 涂鸦。
+     */
     public boolean isDoodle() {
         // 涂鸦特征：轮廓密度高，层密度低
         if (this.texture.max > 0 && this.texture.hierarchy > 0) {
@@ -137,8 +152,7 @@ public class Material implements JSONable {
 
     /**
      * 返回两个 Material 间的最短距离。
-     *
-     * @param other
+     * @param other other。
      * @return 如果返回负数表示与指定的 Material 发生碰撞，没有间距，返回的值是碰撞面积。
      */
     public int distance(Material other) {
@@ -178,6 +192,11 @@ public class Material implements JSONable {
         return minDist;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -194,6 +213,13 @@ public class Material implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

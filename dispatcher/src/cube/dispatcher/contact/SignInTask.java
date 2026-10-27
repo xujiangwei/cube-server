@@ -29,6 +29,11 @@ public class SignInTask extends DispatcherTask {
         super(cellet, talkContext, primitive, performer);
     }
 
+    /**
+     * 执行签到任务。
+     *
+     * <p>解析令牌后把签到请求转发给联系人单元，并把结果回写客户端。</p>
+     */
     @Override
     public void run() {
         String tokenCode = this.getTokenCode(this.getAction());

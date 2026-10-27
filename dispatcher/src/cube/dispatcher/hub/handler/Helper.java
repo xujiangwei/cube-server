@@ -29,6 +29,16 @@ public class Helper {
     private Helper() {
     }
 
+    /**
+     * 校验通道码。
+     *
+     * <p>码为空或通道不存在时直接写出错误响应并返回 {@code null} ，调用方据此提前返回即可。</p>
+     *
+     * @param code     通道码。
+     * @param response 响应对象，校验失败时用于输出错误。
+     * @param performer 执行机。
+     * @return 通道码对象；校验失败返回 {@code null} 。
+     */
     public static ChannelCode checkChannelCode(String code, HttpServletResponse response,
                                                Performer performer) {
         if (null == code || code.length() == 0) {

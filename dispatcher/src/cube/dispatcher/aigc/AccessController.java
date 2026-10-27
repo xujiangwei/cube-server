@@ -29,10 +29,25 @@ public class AccessController {
         this.lastRequestTimeMap = new ConcurrentHashMap<>();
     }
 
+    /**
+     * 设置单 IP 的最小访问间隔。
+     *
+     * <p>设为 0 表示不限流。</p>
+     *
+     * @param value 间隔毫秒数。
+     */
     public void setEachIPInterval(long value) {
         this.eachIPInterval = value;
     }
 
+    /**
+     * 按 IP 做访问限流。
+     *
+     * <p>同一 IP 在间隔内重复请求会被拒绝；不限流时直接放行。</p>
+     *
+     * @param request HTTP 请求。
+     * @return 允许放行返回 {@code true} 。
+     */
     public boolean filter(HttpServletRequest request) {
         this.lastTimestamp = System.currentTimeMillis();
 

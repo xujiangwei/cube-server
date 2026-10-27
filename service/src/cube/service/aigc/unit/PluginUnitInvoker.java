@@ -13,7 +13,12 @@ import java.util.*;
 import java.util.function.LongSupplier;
 import java.util.regex.Pattern;
 
-/** Exact-name plugin dispatch. Reservations survive caller timeouts. */
+/**
+ * 插件单元调用器。
+ *
+ * <p>按精确名称分发到对应插件单元；预留的调用名额在调用方超时后仍然保留，
+ * 避免超时请求与后续请求争抢同一单元。</p>
+ */
 public final class PluginUnitInvoker {
     private static final Pattern NAME = Pattern.compile("[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*");
     private static final Pattern ACTION = Pattern.compile("[a-z][a-z0-9]*(?:-[a-z0-9]+)*");
@@ -26,6 +31,13 @@ public final class PluginUnitInvoker {
     public PluginUnitInvoker(AIGCService service) { this(service, System::currentTimeMillis); }
     public PluginUnitInvoker(AIGCService service, LongSupplier clock) { this.service = service; this.clock = clock; }
 
+    /**
+     * 校验插件单元名称。
+     *
+     * <p>名称需符合约定格式且不超过 64 字符，不合法时抛出 {@link IllegalArgumentException} 。</p>
+     *
+     * @param name 单元名称。
+     */
     public static void validateName(String name) {
         if (name == null || name.length() > 64 || !NAME.matcher(name).matches())
             throw new PluginCallException(AIGCStateCode.InvalidParameter, 400, "Invalid plugin unit name");
@@ -135,6 +147,12 @@ public final class PluginUnitInvoker {
         return Math.max(0, status.capacity - occupied.size());
     }
 
+    /**
+     * 查询插件单元状态。
+     *
+     * @param name 单元名称。
+     * @return 状态 JSON ；单元不存在时返回空对象。
+     */
     public synchronized JSONObject status(String name) {
         validateName(name);
         clean();
@@ -159,6 +177,12 @@ public final class PluginUnitInvoker {
                 .put("readiness", "reported");
     }
 
+    /**
+     * 统计插件单元的并发占用数。
+     *
+     * @param name 单元名称。
+     * @return 当前占用数量。
+     */
     public synchronized int count(String name) {
         validateName(name);
         int count = 0;
@@ -191,6 +215,16 @@ public final class PluginUnitInvoker {
                 !known ? "Plugin unit not registered" : ready ? "All plugin providers are busy" : "Plugin provider is not ready");
     }
 
+    /**
+     * 调用插件单元。
+     *
+     * <p>按名称找到单元后同步调用，超时或失败返回带错误码的响应。</p>
+     *
+     * @param name      单元名称。
+     * @param input     输入载荷。
+     * @param timeoutMs 超时时间，单位毫秒。
+     * @return 单元响应。
+     */
     public ActionDialect invoke(String name, JSONObject input, long timeoutMs) {
         validateName(name);
         if (input == null || timeoutMs <= 0 || timeoutMs > 3600000)

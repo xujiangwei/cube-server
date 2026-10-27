@@ -33,8 +33,7 @@ public class ContactAppendix extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param contact
+     * @param contact contact。
      */
     public ContactAppendix(Contact contact) {
         super(contact.id, contact.getDomain().getName());
@@ -46,9 +45,8 @@ public class ContactAppendix extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param contact
-     * @param json
+     * @param contact contact。
+     * @param json JSON 数据。
      */
     public ContactAppendix(Contact contact, JSONObject json) {
         super(json);
@@ -87,9 +85,8 @@ public class ContactAppendix extends Entity {
     /**
      * 指定联系人备注在该联系人的名称。
      * 即 marker 把 this 备注为 name 。
-     *
-     * @param marker
-     * @param name
+     * @param marker marker。
+     * @param name 名称。
      */
     public void remarkName(Contact marker, String name) {
         this.remarkNames.put(marker.getId(), name);
@@ -98,9 +95,8 @@ public class ContactAppendix extends Entity {
 
     /**
      * 获取联系人在该联系上备注的名称。
-     *
-     * @param contact
-     * @return
+     * @param contact contact。
+     * @return 字符串结果；无值时返回 {@code null} 。
      */
     public String getRemarkName(Contact contact) {
         return this.remarkNames.get(contact.getId());
@@ -108,9 +104,8 @@ public class ContactAppendix extends Entity {
 
     /**
      * 设置已配置的数据。
-     *
-     * @param key
-     * @param value
+     * @param key key。
+     * @param value value。
      */
     public void setAssignedData(String key, JSONObject value) {
         this.assignedData.put(key, value);
@@ -118,9 +113,8 @@ public class ContactAppendix extends Entity {
 
     /**
      * 获取配置数据。
-     *
-     * @param key
-     * @return
+     * @param key key。
+     * @return JSON 对象。
      */
     public JSONObject getAssignedData(String key) {
         return this.assignedData.get(key);
@@ -128,9 +122,8 @@ public class ContactAppendix extends Entity {
 
     /**
      * 对指定联系人打包附录数据。
-     *
-     * @param contact
-     * @return
+     * @param contact contact。
+     * @return JSON 对象。
      */
     public JSONObject packJSON(Contact contact) {
         JSONObject json = new JSONObject();
@@ -154,6 +147,11 @@ public class ContactAppendix extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -179,6 +177,13 @@ public class ContactAppendix extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

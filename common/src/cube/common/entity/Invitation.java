@@ -41,10 +41,9 @@ public class Invitation implements JSONable {
 
     /**
      * 构造函数。
-     *
-     * @param id
-     * @param invitee
-     * @param displayName
+     * @param id id。
+     * @param invitee invitee。
+     * @param displayName displayName。
      */
     public Invitation(Long id, String invitee, String displayName, boolean accepted, long acceptionTime) {
         this.id = id;
@@ -62,31 +61,66 @@ public class Invitation implements JSONable {
         this.acceptionTime = json.getLong("acceptionTime");
     }
 
+    /**
+     * 获取ID。
+     *
+     * @return ID。
+     */
     public Long getId() {
         return this.id;
     }
 
+    /**
+     * 获取被邀请者。
+     *
+     * @return 被邀请者。
+     */
     public String getInvitee() {
         return this.invitee;
     }
 
+    /**
+     * 获取显示名称。
+     *
+     * @return 显示名称。
+     */
     public String getDisplayName() {
         return this.displayName;
     }
 
+    /**
+     * 获取已接受。
+     *
+     * @return 已接受。
+     */
     public boolean getAccepted() {
         return this.accepted;
     }
 
+    /**
+     * 设置已接受。
+     *
+     * @param value 已接受。
+     */
     public void setAccepted(boolean value) {
         this.accepted = value;
         this.acceptionTime = System.currentTimeMillis();
     }
 
+    /**
+     * 获取受理时间。
+     *
+     * @return 受理时间。
+     */
     public long getAcceptionTime() {
         return this.acceptionTime;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -98,6 +132,13 @@ public class Invitation implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

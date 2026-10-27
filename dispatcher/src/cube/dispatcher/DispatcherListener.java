@@ -41,6 +41,14 @@ public class DispatcherListener implements CellListener {
         Logger.i(this.getClass(), "--------------------------------");
     }
 
+    /**
+     * 容器预初始化。
+     *
+     * <p>创建执行机并放入容器参数，随后创建守护任务、注册日志句柄并加载配置。
+     * 此时网络服务尚未启动，因此只做本地准备工作。</p>
+     *
+     * @param nucleus 容器内核。
+     */
     @Override
     public void cellPreinitialize(Nucleus nucleus) {
         Performer performer = new Performer(nucleus);
@@ -53,6 +61,14 @@ public class DispatcherListener implements CellListener {
         this.config(performer);
     }
 
+    /**
+     * 容器初始化完成。
+     *
+     * <p>启动执行机并清空待装载单元列表，随后启动守护定时器（首次延迟 30 秒、周期 10 秒），
+     * 最后初始化管理端点。</p>
+     *
+     * @param nucleus 容器内核。
+     */
     @Override
     public void cellInitialized(Nucleus nucleus) {
         Performer performer = (Performer) nucleus.getParameter("performer");
@@ -67,11 +83,26 @@ public class DispatcherListener implements CellListener {
         this.initManagement(performer, nucleus);
     }
 
+    /**
+     * 容器销毁前回调。
+     *
+     * <p>当前无事可做：资源统一在 {@link #cellDestroyed(Nucleus)} 中释放。</p>
+     *
+     * @param nucleus 容器内核。
+     */
     @Override
     public void cellPredestroy(Nucleus nucleus) {
         // Nothing
     }
 
+    /**
+     * 容器已销毁。
+     *
+     * <p>先取消守护定时器再停止执行机，顺序不能颠倒——
+     * 否则定时器可能在执行机停止后仍触发上报。</p>
+     *
+     * @param nucleus 容器内核。
+     */
     @Override
     public void cellDestroyed(Nucleus nucleus) {
         if (null != this.timer) {

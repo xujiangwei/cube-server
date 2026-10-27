@@ -35,6 +35,15 @@ public class ContentTools {
     private ContentTools() {
     }
 
+    /**
+     * 填充六边形评分维度的文字描述。
+     *
+     * <p>用 TF-IDF 从语料中抽取关键词，为每个维度生成一段可读描述。</p>
+     *
+     * @param tokenizer 分词器。
+     * @param hds       六边形评分数据。
+     * @param language  输出语言。
+     */
     public static void fillHexagonScoreDescription(Tokenizer tokenizer, HexagonDimensionScore hds, Language language) {
         TFIDFAnalyzer analyzer = new TFIDFAnalyzer(tokenizer);
         for (HexagonDimension dim : HexagonDimension.values()) {
@@ -65,6 +74,15 @@ public class ContentTools {
         }
     }
 
+    /**
+     * 从提问中抽取关键内容。
+     *
+     * <p>先加载语料数据集，再按分词结果匹配并返回最相关的内容片段。</p>
+     *
+     * @param query     用户提问。
+     * @param tokenizer 分词器。
+     * @return 抽取到的内容；无匹配时返回空字符串。
+     */
     public static String extract(String query, Tokenizer tokenizer) {
         Dataset dataset = Resource.getInstance().loadDataset();
         if (null == dataset) {

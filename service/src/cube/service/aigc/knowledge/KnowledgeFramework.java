@@ -27,8 +27,10 @@ import java.util.Map;
  */
 public class KnowledgeFramework {
 
+    /** 默认知识库的内部名称。 */
     public final static String DefaultName = "document";
 
+    /** 默认知识库的展示名称。 */
     public final static String DefaultDisplayName = "默认文档库";
 
     private AIGCService service;
@@ -49,6 +51,13 @@ public class KnowledgeFramework {
         this.frameworks = new HashMap<>();
     }
 
+    /**
+     * 周期维护。
+     *
+     * <p>清理长时间未访问的框架缓存，避免按联系人累积占用内存。</p>
+     *
+     * @param now 当前时间戳，单位毫秒。
+     */
     public void onTick(long now) {
         synchronized (this) {
             Iterator<FrameworkWrapper> iter = this.frameworks.values().iterator();
@@ -61,6 +70,12 @@ public class KnowledgeFramework {
         }
     }
 
+    /**
+     * 获取联系人的全部知识库概要。
+     *
+     * @param contactId 联系人 ID 。
+     * @return 概要列表；无知识库时为空列表。
+     */
     public List<KnowledgeBaseInfo> getKnowledgeBaseInfos(long contactId) {
         FrameworkWrapper framework = null;
 
@@ -75,6 +90,13 @@ public class KnowledgeFramework {
         return framework.getBaseInfos();
     }
 
+    /**
+     * 获取指定知识库。
+     *
+     * @param contactId 联系人 ID 。
+     * @param baseName  知识库名称。
+     * @return 知识库；不存在返回 {@code null} 。
+     */
     public KnowledgeBase getKnowledgeBase(long contactId, String baseName) {
         FrameworkWrapper framework = null;
 
@@ -119,6 +141,13 @@ public class KnowledgeFramework {
         }
     }
 
+    /**
+     * 按分类获取联系人的知识库。
+     *
+     * @param contactId 联系人 ID 。
+     * @param category  分类。
+     * @return 知识库列表；无匹配时为空列表。
+     */
     public List<KnowledgeBase> getKnowledgeBaseByCategory(long contactId, String category) {
         FrameworkWrapper framework = null;
         synchronized (this) {
@@ -146,6 +175,18 @@ public class KnowledgeFramework {
         }
     }
 
+    /**
+     * 新建知识库。
+     *
+     * <p>名称需在域内唯一；创建后同时登记到框架并写入存储。</p>
+     *
+     * @param token       访问令牌。
+     * @param name        知识库内部名称。
+     * @param displayName 展示名称。
+     * @param category    分类。
+     * @param scope       可见范围。
+     * @return 新建的知识库概要；失败返回 {@code null} 。
+     */
     public KnowledgeBaseInfo newKnowledgeBase(String token, String name, String displayName,
                                               String category, KnowledgeScope scope) {
         if (TextUtils.isChineseWord(name)) {
@@ -191,6 +232,15 @@ public class KnowledgeFramework {
         return null;
     }
 
+    /**
+     * 按令牌删除知识库。
+     *
+     * <p>默认知识库不允许删除。</p>
+     *
+     * @param token 访问令牌。
+     * @param name  知识库名称。
+     * @return 被删除的概要；不允许删除或失败时返回 {@code null} 。
+     */
     public KnowledgeBaseInfo deleteKnowledgeBase(String token, String name) {
         AuthToken authToken = this.service.getToken(token);
         if (null == authToken) {
@@ -201,6 +251,15 @@ public class KnowledgeFramework {
         return this.deleteKnowledgeBase(authToken.getContactId(), name);
     }
 
+    /**
+     * 按联系人删除知识库。
+     *
+     * <p>默认知识库不允许删除。</p>
+     *
+     * @param contactId 联系人 ID 。
+     * @param name      知识库名称。
+     * @return 被删除的概要；不允许删除或失败时返回 {@code null} 。
+     */
     public KnowledgeBaseInfo deleteKnowledgeBase(long contactId, String name) {
         if (DefaultName.equals(name)) {
             Logger.w(this.getClass(), "#deleteKnowledgeBase - Default knowledge base can NOT delete: " + name);
@@ -230,6 +289,15 @@ public class KnowledgeFramework {
         }
     }
 
+    /**
+     * 更新知识库信息。
+     *
+     * <p>默认知识库的名称与分类不允许修改，只同步其余字段。</p>
+     *
+     * @param token 访问令牌。
+     * @param info  知识库概要。
+     * @return 更新后的概要；失败返回 {@code null} 。
+     */
     public KnowledgeBaseInfo updateKnowledgeBase(String token, KnowledgeBaseInfo info) {
         if (DefaultName.equals(info.name)) {
             Logger.w(this.getClass(), "#updateKnowledgeBase - Default knowledge base can NOT update: " + info.name);
@@ -260,6 +328,14 @@ public class KnowledgeFramework {
         return null;
     }
 
+    /**
+     * 释放联系人名下的知识库缓存。
+     *
+     * <p>只清理内存中的框架与实例，不删除存储数据。</p>
+     *
+     * @param domain    域。
+     * @param contactId 联系人 ID 。
+     */
     public void freeBase(String domain, Long contactId) {
         synchronized (this) {
             FrameworkWrapper framework = this.frameworks.get(contactId);

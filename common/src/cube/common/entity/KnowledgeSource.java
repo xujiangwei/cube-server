@@ -45,18 +45,38 @@ public class KnowledgeSource implements JSONable {
         }
     }
 
+    /**
+     * 获取文档。
+     *
+     * @return 文档。
+     */
     public KnowledgeDocument getDocument() {
         return this.document;
     }
 
+    /**
+     * 获取文章。
+     *
+     * @return 文章。
+     */
     public KnowledgeArticle getArticle() {
         return this.article;
     }
 
+    /**
+     * 获取分段。
+     *
+     * @return 分段。
+     */
     public String getSegment() {
         return this.segment;
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         if (null != this.document) {
@@ -73,6 +93,11 @@ public class KnowledgeSource implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -88,6 +113,13 @@ public class KnowledgeSource implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

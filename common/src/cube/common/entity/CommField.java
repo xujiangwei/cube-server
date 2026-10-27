@@ -77,10 +77,9 @@ public class CommField extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param id
-     * @param domainName
-     * @param founder
+     * @param id id。
+     * @param domainName 域名。
+     * @param founder founder。
      */
     public CommField(Long id, String domainName, Contact founder) {
         super(id, domainName);
@@ -93,8 +92,7 @@ public class CommField extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param json
+     * @param json JSON 数据。
      */
     public CommField(JSONObject json) {
         super(json);
@@ -129,8 +127,7 @@ public class CommField extends Entity {
 
     /**
      * 获取名称。
-     *
-     * @return
+     * @return 字符串结果；无值时返回 {@code null} 。
      */
     public String getName() {
         return this.name;
@@ -138,8 +135,7 @@ public class CommField extends Entity {
 
     /**
      * 是否是私有场域。
-     *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean isPrivate() {
         return (this.id.longValue() == this.founder.getId().longValue());
@@ -147,8 +143,7 @@ public class CommField extends Entity {
 
     /**
      * 返回创建人。
-     *
-     * @return
+     * @return 联系人。
      */
     public Contact getFounder() {
         return this.founder;
@@ -156,8 +151,7 @@ public class CommField extends Entity {
 
     /**
      * 获取媒体约束。
-     *
-     * @return
+     * @return 处理结果。
      */
     public MediaConstraint getMediaConstraint() {
         return this.mediaConstraint;
@@ -181,9 +175,8 @@ public class CommField extends Entity {
 
     /**
      * 判断指定联系人是否是主叫。
-     *
-     * @param contact
-     * @return
+     * @param contact contact。
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean isCaller(Contact contact) {
         if (null != this.boundCalling) {
@@ -195,9 +188,8 @@ public class CommField extends Entity {
 
     /**
      * 判断指定联系人是否是被叫。
-     *
-     * @param contact
-     * @return
+     * @param contact contact。
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean isCallee(Contact contact) {
         if (null != this.boundCalling) {
@@ -209,8 +201,7 @@ public class CommField extends Entity {
 
     /**
      * 复制私域数据。
-     *
-     * @param source
+     * @param source source。
      */
     public void markSingleCalling(CommField source) {
         this.tryTiming();
@@ -220,9 +211,8 @@ public class CommField extends Entity {
 
     /**
      * 指定联系人是否正在场域内进行呼叫操作。
-     *
-     * @param contact
-     * @return
+     * @param contact contact。
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean isSingleCalling(Contact contact) {
         if (null == this.boundCalling) {
@@ -242,8 +232,7 @@ public class CommField extends Entity {
     /**
      * 获取主叫
      * 仅用于私域下。
-     *
-     * @return
+     * @return 联系人。
      */
     public Contact getCaller() {
         return (null != this.boundCalling) ? this.boundCalling.caller : null;
@@ -252,8 +241,7 @@ public class CommField extends Entity {
     /**
      * 获取被叫。
      * 仅用于私域下。
-     *
-     * @return
+     * @return 联系人。
      */
     public Contact getCallee() {
         return (null != this.boundCalling) ? this.boundCalling.callee : null;
@@ -268,16 +256,14 @@ public class CommField extends Entity {
 
     /**
      * 获取群组。
-     *
-     * @return
+     * @return 处理结果。
      */
     public Group getGroup() {
         return this.group;
     }
 
     /**
-     *
-     * @return
+     * @return 计算结果。
      */
     public int numEndpoints() {
         return this.endpoints.size();
@@ -285,8 +271,7 @@ public class CommField extends Entity {
 
     /**
      * 添加终端节点。
-     *
-     * @param endpoint
+     * @param endpoint endpoint。
      */
     public void addEndpoint(CommFieldEndpoint endpoint) {
         this.endpoints.put(endpoint.getId(), endpoint);
@@ -294,8 +279,7 @@ public class CommField extends Entity {
 
     /**
      * 移除终端节点。
-     *
-     * @param endpoint
+     * @param endpoint endpoint。
      */
     public void removeEndpoint(CommFieldEndpoint endpoint) {
         this.endpoints.remove(endpoint.getId());
@@ -310,8 +294,7 @@ public class CommField extends Entity {
 
     /**
      * 获取所有终端节点。
-     *
-     * @return
+     * @return 列表；无数据时为空列表。
      */
     public List<CommFieldEndpoint> getEndpoints() {
         return new ArrayList<>(this.endpoints.values());
@@ -320,9 +303,8 @@ public class CommField extends Entity {
     /**
      * 获取联系人对应的场域节点。
      * 仅用于私域下。
-     *
-     * @param contact
-     * @return
+     * @param contact contact。
+     * @return 处理结果。
      */
     public CommFieldEndpoint getEndpoint(Contact contact) {
         for (CommFieldEndpoint endpoint : this.endpoints.values()) {
@@ -336,10 +318,9 @@ public class CommField extends Entity {
 
     /**
      * 获取指定联系人及其设备的场域节点。
-     *
-     * @param contact
-     * @param device
-     * @return
+     * @param contact contact。
+     * @param device 设备信息。
+     * @return 处理结果。
      */
     public CommFieldEndpoint getEndpoint(Contact contact, Device device) {
         for (CommFieldEndpoint endpoint : this.endpoints.values()) {
@@ -353,10 +334,9 @@ public class CommField extends Entity {
 
     /**
      * 追踪指定终端的呼叫。
-     *
-     * @param scheduledExecutor
-     * @param endpoint
-     * @param timeoutCallback
+     * @param scheduledExecutor scheduledExecutor。
+     * @param endpoint endpoint。
+     * @param timeoutCallback timeoutCallback。
      */
     public void startTrace(ScheduledExecutorService scheduledExecutor, CommFieldEndpoint endpoint,
                            Runnable timeoutCallback) {
@@ -377,8 +357,7 @@ public class CommField extends Entity {
 
     /**
      * 停止超时追踪。
-     *
-     * @param endpoint
+     * @param endpoint endpoint。
      */
     public void stopTrace(CommFieldEndpoint endpoint) {
         if (null == this.timeoutFutureMap) {
@@ -391,6 +370,10 @@ public class CommField extends Entity {
         }
     }
 
+    /**
+     * 清空轨迹列表。
+     *
+     */
     public void clearTraces() {
         if (null == this.timeoutFutureMap) {
             return;
@@ -411,6 +394,12 @@ public class CommField extends Entity {
         this.clearEndpoints();
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param object 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (null != object && object instanceof CommField) {
@@ -423,11 +412,21 @@ public class CommField extends Entity {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return this.getUniqueKey().hashCode();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -456,6 +455,13 @@ public class CommField extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();

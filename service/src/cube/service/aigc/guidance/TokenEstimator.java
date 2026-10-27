@@ -29,8 +29,10 @@ public class TokenEstimator {
      */
     public final static double DEFAULT_CHARS_PER_TOKEN = 1.8;
 
+    /** 每 token 最少字符数，用于估算上界。 */
     public final static double MIN_CHARS_PER_TOKEN = 0.5;
 
+    /** 每 token 最多字符数，用于估算下界。 */
     public final static double MAX_CHARS_PER_TOKEN = 8.0;
 
     /**
@@ -40,6 +42,11 @@ public class TokenEstimator {
 
     private static final TokenEstimator sInstance = new TokenEstimator();
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static TokenEstimator getInstance() {
         return sInstance;
     }
@@ -147,14 +154,31 @@ public class TokenEstimator {
         this.lastActualRatio = 0.0;
     }
 
+    /**
+     * 获取当前每 token 字符数估计值。
+     *
+     * <p>该值随实际用量反馈动态调整。</p>
+     *
+     * @return 每 token 字符数。
+     */
     public double getCharsPerToken() {
         return this.charsPerToken;
     }
 
+    /**
+     * 获取已累计的观测次数。
+     *
+     * @return 观测次数。
+     */
     public long getObservations() {
         return this.observations;
     }
 
+    /**
+     * 获取最近一次实测的字符 token 比。
+     *
+     * @return 实测比例；尚无观测时为 0 。
+     */
     public double getLastActualRatio() {
         return this.lastActualRatio;
     }

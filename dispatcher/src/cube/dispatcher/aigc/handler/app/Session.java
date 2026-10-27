@@ -21,8 +21,15 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * 应用会话端点。
+ *
+ * <p>建立或查询应用侧会话，按请求头中的 API 版本决定响应外壳。
+ * 支持的模型名见 {@link #MODELS} 。</p>
+ */
 public class Session extends ContextHandler {
 
+    /** 应用侧支持的模型名列表，用于会话建立时的校验与下发。 */
     public final static String[] MODELS = new String[]{
             "Baize", "BaizeX", "BaizeNext",
     };

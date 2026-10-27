@@ -20,6 +20,11 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * 验证码端点。
+ *
+ * <p>负责发送与校验联系人验证码，校验通过后由调用方继续完成登录流程。</p>
+ */
 public class VerificationCode extends ContextHandler {
 
     public VerificationCode(Performer performer) {

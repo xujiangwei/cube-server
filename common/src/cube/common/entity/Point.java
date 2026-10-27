@@ -8,6 +8,11 @@ package cube.common.entity;
 
 import org.json.JSONObject;
 
+/**
+ * 坐标点。
+ *
+ * <p>二维平面上的一个点。</p>
+ */
 public class Point extends Entity {
 
     private long contactId;
@@ -42,22 +47,47 @@ public class Point extends Entity {
         this.comment = json.getString("comment");
     }
 
+    /**
+     * 获取联系人 ID。
+     *
+     * @return 联系人 ID。
+     */
     public long getContactId() {
         return this.contactId;
     }
 
+    /**
+     * 获取点。
+     *
+     * @return 点。
+     */
     public int getPoint() {
         return this.point;
     }
 
+    /**
+     * 获取来源。
+     *
+     * @return 来源。
+     */
     public String getSource() {
         return this.source;
     }
 
+    /**
+     * 获取评论。
+     *
+     * @return 评论。
+     */
     public String getComment() {
         return this.comment;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -68,6 +98,13 @@ public class Point extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

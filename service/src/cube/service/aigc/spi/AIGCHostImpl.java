@@ -106,6 +106,12 @@ public final class AIGCHostImpl implements AIGCHost {
      */
     private final ModuleRegistry registry;
 
+    /**
+     * 按 ID 获取用户。
+     *
+     * @param uid 用户 ID 。
+     * @return 用户；不存在返回 {@code null} 。
+     */
     @Override
     public User getUserById(long uid) {
         return this.service.getUser(uid);
@@ -119,6 +125,12 @@ public final class AIGCHostImpl implements AIGCHost {
      */
     private volatile TFIDFAnalyzer analyzer;
 
+    /**
+     * 按令牌获取用户。
+     *
+     * @param tokenCode 令牌码。
+     * @return 用户；令牌为空或无效返回 {@code null} 。
+     */
     @Override
     public User getUser(String tokenCode) {
         if (null == tokenCode) {
@@ -128,6 +140,15 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.getUser(tokenCode);
     }
 
+    /**
+     * 为指定联系人选择服务单元。
+     *
+     * <p>优先返回该联系人已绑定的单元，其次按能力挑一个空闲单元。</p>
+     *
+     * @param capabilityName 能力名称。
+     * @param contactId      联系人 ID 。
+     * @return 可用单元；无可用单元返回 {@code null} 。
+     */
     @Override
     public AIGCUnit selectUnitForContact(String capabilityName, long contactId) {
         if (null == capabilityName) {
@@ -137,6 +158,17 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.selectUnitByName(capabilityName, contactId);
     }
 
+    /**
+     * 按通道码创建通道。
+     *
+     * <p>通道码已存在时直接复用，不重复创建。</p>
+     *
+     * @param tokenCode   令牌码。
+     * @param participant 参与者标识。
+     * @param channelCode 通道码。
+     * @param language    语言。
+     * @return 通道对象；创建失败返回 {@code null} 。
+     */
     @Override
     public AIGCChannel createChannelByCode(String tokenCode, String participant, String channelCode,
                                            Language language) {
@@ -147,6 +179,13 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.createChannel(tokenCode, participant, channelCode, language);
     }
 
+    /**
+     * 抽取带权重的关键词。
+     *
+     * @param content 待分析内容。
+     * @param topN    返回数量上限。
+     * @return 关键词列表；内容为空或 topN 非正时返回空列表。
+     */
     @Override
     public List<Keyword> extractWeightedKeywords(String content, int topN) {
         if (null == content || content.isEmpty() || topN <= 0) {
@@ -180,6 +219,12 @@ public final class AIGCHostImpl implements AIGCHost {
 
     // ───────── 身份与文本 ─────────
 
+    /**
+     * 解析令牌。
+     *
+     * @param tokenCode 令牌码。
+     * @return 访问令牌；无效返回 {@code null} 。
+     */
     @Override
     public AuthToken resolveToken(String tokenCode) {
         if (null == tokenCode) {
@@ -189,6 +234,12 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.getToken(tokenCode);
     }
 
+    /**
+     * 判断令牌是否已注册。
+     *
+     * @param tokenCode 令牌码。
+     * @return 已注册返回 {@code true} 。
+     */
     @Override
     public boolean isRegistered(String tokenCode) {
         if (null == tokenCode) {
@@ -200,11 +251,22 @@ public final class AIGCHostImpl implements AIGCHost {
         return null != user && user.isRegistered();
     }
 
+    /**
+     * 判断宿主是否就绪。
+     *
+     * @return 服务已启动返回 {@code true} 。
+     */
     @Override
     public boolean isReady() {
         return this.service.isStarted();
     }
 
+    /**
+     * 按令牌获取联系人。
+     *
+     * @param tokenCode 令牌码。
+     * @return 联系人；无效令牌返回 {@code null} 。
+     */
     @Override
     public Contact getContact(String tokenCode) {
         if (null == tokenCode) {
@@ -214,6 +276,14 @@ public final class AIGCHostImpl implements AIGCHost {
         return ContactManager.getInstance().getContact(tokenCode);
     }
 
+    /**
+     * 获取会员信息。
+     *
+     * @param domain    域。
+     * @param contactId 联系人 ID 。
+     * @param state     会员状态筛选。
+     * @return 会员信息；不存在返回 {@code null} 。
+     */
     @Override
     public Membership getMembership(String domain, long contactId, int state) {
         if (null == domain) {
@@ -224,6 +294,13 @@ public final class AIGCHostImpl implements AIGCHost {
                 .getMembership(domain, contactId, state);
     }
 
+    /**
+     * 计算剩余可用次数。
+     *
+     * @param user       用户。
+     * @param membership 会员信息。
+     * @return 剩余次数；用户为空时返回 0 。
+     */
     @Override
     public int getRemainingUsages(User user, Membership membership) {
         if (null == user) {
@@ -233,6 +310,14 @@ public final class AIGCHostImpl implements AIGCHost {
         return MemberCenter.getInstance().getRemainingUsages(user, membership);
     }
 
+    /**
+     * 判定绘画报告权限。
+     *
+     * @param domain   域。
+     * @param user     用户。
+     * @param reportSn 报告序列号。
+     * @return 权限判定结果；用户为空时返回拒绝。
+     */
     @Override
     public ReportPermission allowPredictPainting(String domain, User user, long reportSn) {
         if (null == user) {
@@ -242,6 +327,12 @@ public final class AIGCHostImpl implements AIGCHost {
         return MemberCenter.getInstance().allowPredictPainting(domain, user, reportSn);
     }
 
+    /**
+     * 分词。
+     *
+     * @param text 待分词文本。
+     * @return 词序列；文本为空时返回空列表。
+     */
     @Override
     public List<String> tokenize(String text) {
         if (null == text || text.isEmpty()) {
@@ -270,6 +361,12 @@ public final class AIGCHostImpl implements AIGCHost {
         return words;
     }
 
+    /**
+     * 按句切分。
+     *
+     * @param text 待切分文本。
+     * @return 句子列表；文本为空时返回空列表。
+     */
     @Override
     public List<String> segmentWords(String text) {
         if (null == text || text.isEmpty()) {
@@ -287,6 +384,13 @@ public final class AIGCHostImpl implements AIGCHost {
         return tokenizer.sentenceProcess(text);
     }
 
+    /**
+     * 抽取关键词。
+     *
+     * @param content 待分析内容。
+     * @param topN    返回数量上限。
+     * @return 关键词列表；内容为空时返回空列表。
+     */
     @Override
     public List<String> extractKeywords(String content, int topN) {
         if (null == content || content.isEmpty() || topN <= 0) {
@@ -307,6 +411,14 @@ public final class AIGCHostImpl implements AIGCHost {
         }
     }
 
+    /**
+     * 选择空闲单元。
+     *
+     * <p>按负载挑选一个空闲单元；全部繁忙时按权重回退。</p>
+     *
+     * @param capabilityName 能力名称。
+     * @return 可用单元；无可用单元返回 {@code null} 。
+     */
     @Override
     public AIGCUnit selectIdleUnit(String capabilityName) {
         if (null == capabilityName) {
@@ -352,6 +464,12 @@ public final class AIGCHostImpl implements AIGCHost {
 
     // ───────── 频道 ─────────
 
+    /**
+     * 按令牌获取通道。
+     *
+     * @param tokenCode 令牌码。
+     * @return 通道；不存在返回 {@code null} 。
+     */
     @Override
     public AIGCChannel getChannelByToken(String tokenCode) {
         if (null == tokenCode) {
@@ -361,6 +479,15 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.getChannelByToken(tokenCode);
     }
 
+    /**
+     * 获取或创建通道。
+     *
+     * @param token        访问令牌。
+     * @param participant  参与者标识。
+     * @param channelCode  通道码。
+     * @param language     语言。
+     * @return 通道对象；失败返回 {@code null} 。
+     */
     @Override
     public AIGCChannel acquireChannel(AuthToken token, String participant, String channelCode,
                                       Language language) {
@@ -371,6 +498,13 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.createChannel(token, participant, channelCode, language);
     }
 
+    /**
+     * 申请通道。
+     *
+     * @param tokenCode   令牌码。
+     * @param participant 参与者标识。
+     * @return 通道对象；失败返回 {@code null} 。
+     */
     @Override
     public AIGCChannel requestChannel(String tokenCode, String participant) {
         if (null == tokenCode) {
@@ -380,6 +514,12 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.requestChannel(tokenCode, participant);
     }
 
+    /**
+     * 停止通道。
+     *
+     * @param channelCode 通道码。
+     * @return 停止后的通道；不存在返回 {@code null} 。
+     */
     @Override
     public AIGCChannel stopChannel(String channelCode) {
         if (null == channelCode) {
@@ -391,6 +531,12 @@ public final class AIGCHostImpl implements AIGCHost {
 
     // ───────── 模型单元 ─────────
 
+    /**
+     * 按能力选择单元。
+     *
+     * @param capabilityName 能力名称。
+     * @return 单元；无可用单元返回 {@code null} 。
+     */
     @Override
     public AIGCUnit selectUnit(String capabilityName) {
         if (null == capabilityName) {
@@ -400,6 +546,12 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.selectUnitByName(capabilityName);
     }
 
+    /**
+     * 按子任务选择单元。
+     *
+     * @param subtask 子任务名称。
+     * @return 单元；无匹配返回 {@code null} 。
+     */
     @Override
     public AIGCUnit selectUnitBySubtask(String subtask) {
         if (null == subtask) {
@@ -409,6 +561,12 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.selectUnitBySubtask(subtask);
     }
 
+    /**
+     * 统计具备指定能力的单元数量。
+     *
+     * @param capabilityName 能力名称。
+     * @return 单元数量。
+     */
     @Override
     public int countUnits(String capabilityName) {
         if (null == capabilityName) {
@@ -418,6 +576,12 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.numUnitsByName(capabilityName);
     }
 
+    /**
+     * 判断是否存在具备指定能力的单元。
+     *
+     * @param capabilityName 能力名称。
+     * @return 存在返回 {@code true} 。
+     */
     @Override
     public boolean hasUnit(String capabilityName) {
         if (null == capabilityName) {
@@ -427,6 +591,12 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.hasUnit(capabilityName);
     }
 
+    /**
+     * 递增单元的调用计数。
+     *
+     * @param unitName 单元名称。
+     * @return 计数器的当前引用；单元不存在返回 {@code null} 。
+     */
     @Override
     public AtomicInteger increaseUnitCounter(String unitName) {
         if (null == unitName) {
@@ -437,6 +607,16 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.increaseUnitCounter(unitName);
     }
 
+    /**
+     * 使用指定单元同步生成文本。
+     *
+     * @param unit               目标单元。
+     * @param prompt             提示词。
+     * @param option             生成选项。
+     * @param history            历史问答。
+     * @param participantContact 参与者联系人。
+     * @return 生成记录；失败返回 {@code null} 。
+     */
     @Override
     public GeneratingRecord syncGenerateText(AIGCUnit unit, String prompt, GeneratingOption option,
                                              List<GeneratingRecord> history, Contact participantContact) {
@@ -448,6 +628,19 @@ public final class AIGCHostImpl implements AIGCHost {
         return this.service.syncGenerateText(unit, prompt, option, history, participantContact);
     }
 
+    /**
+     * 按能力同步生成文本。
+     *
+     * <p>内部先选单元再生成，是插件侧最常用的入口。</p>
+     *
+     * @param token              访问令牌。
+     * @param capabilityName     能力名称。
+     * @param prompt             提示词。
+     * @param option             生成选项。
+     * @param history            历史问答。
+     * @param participantContact 参与者联系人。
+     * @return 生成记录；无可用单元或失败返回 {@code null} 。
+     */
     @Override
     public GeneratingRecord syncGenerateText(AuthToken token, String capabilityName, String prompt,
                                              GeneratingOption option, List<GeneratingRecord> history, Contact participantContact) {
@@ -1008,7 +1201,6 @@ public final class AIGCHostImpl implements AIGCHost {
     }
 
     /**
-     * /**
      * 获取宿主服务，供派生能力按需使用。
      *
      * <p>仅供宿主内部桥接类使用，<b>不得</b>暴露给模块——否则插件可经此拿到

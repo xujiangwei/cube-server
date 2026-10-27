@@ -12,6 +12,11 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 重排结果。
+ *
+ * <p>检索片段经过二次排序后的结果。</p>
+ */
 public class RetrieveReRankResult extends Entity {
 
     private String query;
@@ -33,22 +38,47 @@ public class RetrieveReRankResult extends Entity {
         }
     }
 
+    /**
+     * 获取查询。
+     *
+     * @return 查询。
+     */
     public String getQuery() {
         return this.query;
     }
 
+    /**
+     * 获取回答列表。
+     *
+     * @return 回答列表。
+     */
     public List<Answer> getAnswerList() {
         return this.answerList;
     }
 
+    /**
+     * 判断是否回答。
+     *
+     * @return 回答。
+     */
     public boolean hasAnswer() {
         return !this.answerList.isEmpty();
     }
 
+    /**
+     * 获取来源。
+     *
+     * @return 来源。
+     */
     public RetrieveReRankResultSource getSource() {
         return this.source;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

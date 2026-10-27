@@ -28,12 +28,21 @@ public enum KnowledgeScope {
 
     ;
 
+    /** 名称。 */
     public final String name;
 
     KnowledgeScope(String name) {
         this.name = name;
     }
 
+    /**
+     * 按编码解析。
+     *
+     * <p>遍历全部枚举值逐个匹配，未命中时返回 {@code null} 。</p>
+     *
+     * @param name 编码值。
+     * @return 对应枚举；未命中返回 {@code null} 。
+     */
     public static KnowledgeScope parse(String name) {
         for (KnowledgeScope scope : KnowledgeScope.values()) {
             if (scope.name.equalsIgnoreCase(name)) {

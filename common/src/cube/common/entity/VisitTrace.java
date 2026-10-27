@@ -22,8 +22,10 @@ import java.util.List;
  */
 public class VisitTrace implements JSONable {
 
+    /** 平台：浏览器。 */
     public final static String PLATFORM_BROWSER = "Browser";
 
+    /** 平台：微信小程序。 */
     public final static String PLATFORM_APPLET_WECHAT = "AppletWeChat";
 
     /**
@@ -232,10 +234,20 @@ public class VisitTrace implements JSONable {
         }
     }
 
+    /**
+     * 获取码。
+     *
+     * @return 码。
+     */
     public String getCode() {
         return this.code;
     }
 
+    /**
+     * 获取屏幕 JSON。
+     *
+     * @return 屏幕 JSON。
+     */
     public JSONObject getScreenJSON() {
         JSONObject json = new JSONObject();
         json.put("width", this.screenSize.width);
@@ -245,6 +257,11 @@ public class VisitTrace implements JSONable {
         return json;
     }
 
+    /**
+     * 获取分享者 ID。
+     *
+     * @return 分享者 ID。
+     */
     public long getSharerId() {
         if (0 != this.sharerId) {
             return this.sharerId;
@@ -286,6 +303,11 @@ public class VisitTrace implements JSONable {
         return this.sharerId;
     }
 
+    /**
+     * 获取父节点 ID。
+     *
+     * @return 父节点 ID。
+     */
     public long getParentId() {
         if (0 != this.parentId) {
             return this.parentId;
@@ -331,6 +353,11 @@ public class VisitTrace implements JSONable {
         return this.parentId;
     }
 
+    /**
+     * 添加子层级。
+     *
+     * @param traces 子层级。
+     */
     public void addSublevel(List<VisitTrace> traces) {
         synchronized (this) {
             if (null == this.sublevelNodes) {
@@ -341,10 +368,20 @@ public class VisitTrace implements JSONable {
         }
     }
 
+    /**
+     * 获取子层级节点。
+     *
+     * @return 子层级节点。
+     */
     public List<VisitTrace> getSublevelNodes() {
         return this.sublevelNodes;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -394,11 +431,25 @@ public class VisitTrace implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
     }
 
+    /**
+     * 转换为精简 JSON 。
+     *
+     * <p>只保留统计所需字段，用于上报链路。</p>
+     *
+     * @return 精简后的 JSON 。
+     */
     public JSONObject toMiniJSON() {
         JSONObject json = new JSONObject();
         json.put("platform", this.platform);

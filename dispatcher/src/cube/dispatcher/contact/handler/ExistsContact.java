@@ -20,6 +20,11 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * 联系人存在性判断端点。
+ *
+ * <p>只返回布尔结果，不返回联系人详情，用于注册前的重复校验。</p>
+ */
 public class ExistsContact extends ContextHandler {
 
     public ExistsContact(Performer performer) {

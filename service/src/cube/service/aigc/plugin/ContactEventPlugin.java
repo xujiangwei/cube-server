@@ -18,6 +18,11 @@ import cube.service.contact.ContactPluginContext;
 
 import java.util.List;
 
+/**
+ * 联系人事件插件。
+ *
+ * <p>在联系人状态变更时被唤起，用于同步相关的业务数据。</p>
+ */
 public class ContactEventPlugin implements Plugin {
 
     private final AIGCService service;
@@ -26,16 +31,34 @@ public class ContactEventPlugin implements Plugin {
         this.service = service;
     }
 
+    /**
+     * 初始化插件。
+     *
+     * <p>当前无需初始化。</p>
+     */
     @Override
     public void setup() {
         // Nothing
     }
 
+    /**
+     * 释放插件。
+     *
+     * <p>当前无需清理。</p>
+     */
     @Override
     public void teardown() {
         // Nothing
     }
 
+    /**
+     * 处理联系人事件。
+     *
+     * <p>从上下文取出联系人与事件类型后分发处理；未知事件忽略。</p>
+     *
+     * @param context 插件上下文，需为 {@code ContactPluginContext} 。
+     * @return 固定返回 {@code null} 。
+     */
     @Override
     public HookResult launch(PluginContext context) {
         ContactPluginContext ctx = (ContactPluginContext) context;

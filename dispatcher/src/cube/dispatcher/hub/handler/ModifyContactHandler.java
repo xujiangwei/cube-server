@@ -19,6 +19,7 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class ModifyContactHandler extends HubHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/hub/contact/";
 
     private final long coolingTime = 1000;
@@ -27,6 +28,12 @@ public class ModifyContactHandler extends HubHandler {
         super(performer, controller);
     }
 
+    /**
+     * 修改联系人信息。
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response) {
         String code = this.getRequestPath(request);

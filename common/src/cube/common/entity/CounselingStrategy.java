@@ -55,18 +55,25 @@ public class CounselingStrategy implements JSONable {
         }
     }
 
+    /** 索引。 */
     public int index;
 
+    /** 属性。 */
     public Attribute attribute;
 
+    /** 主题。 */
     public ConsultationTheme theme;
 
+    /** 流名称。 */
     public String streamName;
 
+    /** 咨询动作。 */
     public ConsultingAction consultingAction;
 
+    /** 内容。 */
     public String content;
 
+    /** 时间戳。 */
     public long timestamp;
 
     public CounselingStrategy(int index, Attribute attribute, ConsultationTheme theme, String streamName,
@@ -90,6 +97,11 @@ public class CounselingStrategy implements JSONable {
         this.timestamp = json.getLong("timestamp");
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -103,6 +115,13 @@ public class CounselingStrategy implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

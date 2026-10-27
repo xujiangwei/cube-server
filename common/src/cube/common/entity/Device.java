@@ -259,6 +259,12 @@ public class Device implements JSONable {
         return json;
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param obj 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof Device) {
@@ -271,6 +277,11 @@ public class Device implements JSONable {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         if (0 == this.hash) {
@@ -280,6 +291,11 @@ public class Device implements JSONable {
         return this.hash;
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         return this.name + "/" + this.platform;

@@ -43,26 +43,56 @@ public class ClientDescription extends Entity {
         }
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取密码。
+     *
+     * @return 密码。
+     */
     public String getPassword() {
         return this.password;
     }
 
+    /**
+     * 获取状态。
+     *
+     * @return 状态。
+     */
     public ClientState getState() {
         return this.state;
     }
 
+    /**
+     * 获取冒充者。
+     *
+     * @return 冒充者。
+     */
     public Contact getPretender() {
         return this.pretender;
     }
 
+    /**
+     * 设置冒充者。
+     *
+     * @param pretender 冒充者。
+     */
     public void setPretender(Contact pretender) {
         this.pretender = pretender;
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         StringBuilder buf = new StringBuilder();
@@ -76,6 +106,11 @@ public class ClientDescription extends Entity {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = this.toCompactJSON();
@@ -83,6 +118,13 @@ public class ClientDescription extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

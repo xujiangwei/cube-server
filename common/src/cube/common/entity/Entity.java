@@ -183,8 +183,7 @@ public abstract class Entity implements JSONable {
 
     /**
      * 设置时间戳。
-     *
-     * @param timestamp
+     * @param timestamp 时间戳，单位毫秒。
      */
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
@@ -192,13 +191,18 @@ public abstract class Entity implements JSONable {
 
     /**
      * 设置域。
-     *
-     * @param domainName
+     * @param domainName 域名。
      */
     public void setDomain(String domainName) {
         this.domain = new Domain(domainName);
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param object 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (null != object && object instanceof Entity) {
@@ -218,6 +222,11 @@ public abstract class Entity implements JSONable {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return this.uniqueKey.hashCode();
@@ -249,9 +258,8 @@ public abstract class Entity implements JSONable {
 
     /**
      * 更新时间戳。
-     *
-     * @param data
-     * @param timestamp
+     * @param data 数据。
+     * @param timestamp 时间戳，单位毫秒。
      */
     public static void updateTimestamp(JSONObject data, long timestamp) {
         data.put("timestamp", timestamp);

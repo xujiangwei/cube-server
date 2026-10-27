@@ -12,6 +12,11 @@ import cube.util.TimeUtils;
 
 import java.util.Calendar;
 
+/**
+ * 预约。
+ *
+ * <p>描述一次预约的时间、参与方与状态。</p>
+ */
 public class Appointment extends Entity {
 
     private final String instruction = "我会根据您的情况和需求为您安排专业的咨询师为您服务。";
@@ -34,22 +39,47 @@ public class Appointment extends Entity {
         this.consultationTheme = consultationTheme;
     }
 
+    /**
+     * 获取指令。
+     *
+     * @return 指令。
+     */
     public String getInstruction() {
         return this.instruction;
     }
 
+    /**
+     * 获取用户 ID。
+     *
+     * @return 用户 ID。
+     */
     public long getUserId() {
         return this.userId;
     }
 
+    /**
+     * 设置咨询主题。
+     *
+     * @param theme 咨询主题。
+     */
     public void setConsultationTheme(ConsultationTheme theme) {
         this.consultationTheme = theme;
     }
 
+    /**
+     * 获取咨询主题。
+     *
+     * @return 咨询主题。
+     */
     public ConsultationTheme getConsultationTheme() {
         return this.consultationTheme;
     }
 
+    /**
+     * 设置咨询日期。
+     *
+     * @param value 咨询日期。
+     */
     public void setConsultationDate(long value) {
         this.consultationDate = value;
         if (value > 0) {
@@ -61,10 +91,20 @@ public class Appointment extends Entity {
         }
     }
 
+    /**
+     * 获取咨询日期。
+     *
+     * @return 咨询日期。
+     */
     public long getConsultationDate() {
         return this.consultationDate;
     }
 
+    /**
+     * 判断是否就绪。
+     *
+     * @return 就绪。
+     */
     public boolean isReady() {
         if (null == this.dateCalendar) {
             return false;
@@ -83,6 +123,11 @@ public class Appointment extends Entity {
         return (null != this.consultationTheme);
     }
 
+    /**
+     * 构造会话。
+     *
+     * @return 会话。
+     */
     public String makeConversation() {
         if (null == this.consultationTheme) {
             StringBuilder buf = new StringBuilder();

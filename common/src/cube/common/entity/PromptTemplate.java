@@ -13,10 +13,17 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+/**
+ * 提示词模板。
+ *
+ * <p>含占位参数的模板，渲染时按参数表替换。</p>
+ */
 public class PromptTemplate implements JSONable {
 
+    /** 名称。 */
     public final String name;
 
+    /** 模板参数表，渲染时按占位符替换。 */
     public final Map<String, String> parameters;
 
     public PromptTemplate(JSONObject json) {
@@ -28,6 +35,11 @@ public class PromptTemplate implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -42,6 +54,13 @@ public class PromptTemplate implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -71,6 +71,13 @@ public class AIGCCellet extends AbstractCellet {
         this.responderList = new ConcurrentLinkedQueue<>();
     }
 
+    /**
+     * 装载单元：创建 AIGC 服务并注册全部任务处理器。
+     *
+     * <p>服务实例在装载时创建，卸载时释放；重复装载会复用已有服务。</p>
+     *
+     * @return 恒定返回 {@code true} 。
+     */
     @Override
     public boolean install() {
         this.service = new AIGCService(this);
@@ -119,6 +126,11 @@ public class AIGCCellet extends AbstractCellet {
         return registry.load();
     }
 
+    /**
+     * 卸载单元：停止服务并从内核注销。
+     *
+     * <p>先停服务再注销，保证正在处理的任务先收尾。</p>
+     */
     @Override
     public void uninstall() {
         Kernel kernel = (Kernel) this.getNucleus().getParameter("kernel");
@@ -200,18 +212,49 @@ public class AIGCCellet extends AbstractCellet {
         return responseDialect;
     }
 
+    /**
+     * 获取服务实例。
+     *
+     * @return 服务实例；未装载时为 {@code null} 。
+     */
     public AIGCService getService() {
         return this.service;
     }
 
+    /**
+     * 同步发送请求，使用默认 3 分钟超时。
+     *
+     * @param talkContext 会话上下文。
+     * @param dialect     请求方言。
+     * @return 响应方言；超时或失败返回 {@code null} 。
+     */
     public ActionDialect transmit(TalkContext talkContext, ActionDialect dialect) {
         return this.transmit(talkContext, dialect, 3 * 60 * 1000);
     }
 
+    /**
+     * 同步发送请求并指定超时。
+     *
+     * @param talkContext 会话上下文。
+     * @param dialect     请求方言。
+     * @param timeout     超时时间，单位毫秒。
+     * @return 响应方言；超时或失败返回 {@code null} 。
+     */
     public ActionDialect transmit(TalkContext talkContext, ActionDialect dialect, long timeout) {
         return this.transmit(talkContext, dialect, timeout, Utils.generateSerialNumber());
     }
 
+    /**
+     * 同步发送请求，指定超时与序列号。
+     *
+     * <p>序列号用于把响应与请求配对；中继连接走另一条通道，不在此等待。</p>
+     *
+     * @param talkContext 会话上下文。
+     * @param dialect     请求方言。
+     * @param timeout     超时时间，单位毫秒。
+     * @param sn          请求序列号。
+     * @return 响应方言；超时或失败返回 {@code null} 。
+     */
     public ActionDialect transmit(TalkContext talkContext, ActionDialect dialect, long timeout, long sn) {
         if (talkContext instanceof Relay.Context) {
             Relay.Context context = (Relay.Context) talkContext;
@@ -236,6 +279,13 @@ public class AIGCCellet extends AbstractCellet {
         return response;
     }
 
+    /**
+     * 向客户端发送消息。
+     *
+     * @param context   会话上下文。
+     * @param primitive 消息。
+     * @return 发送成功返回 {@code true} 。
+     */
     @Override
     public boolean speak(TalkContext context, Primitive primitive) {
         if (context instanceof Relay.Context) {
@@ -246,6 +296,13 @@ public class AIGCCellet extends AbstractCellet {
         return super.speak(context, primitive);
     }
 
+    /**
+     * 中断指定序列号的等待。
+     *
+     * <p>唤醒该序列号上的等待方，正在生成的任务会收到取消信号。</p>
+     *
+     * @param sn 请求序列号。
+     */
     public void interrupt(long sn) {
         Responder responder = null;
         for (Responder r : this.responderList) {
@@ -264,6 +321,12 @@ public class AIGCCellet extends AbstractCellet {
         responder.notifyResponse(new ActionDialect("interrupt"));
     }
 
+    /**
+     * 判断请求是否为中断指令。
+     *
+     * @param actionDialect 请求方言。
+     * @return 中断指令返回 {@code true} 。
+     */
     public boolean isInterruption(ActionDialect actionDialect) {
         return actionDialect.getName().equalsIgnoreCase("interrupt");
     }
@@ -327,6 +390,11 @@ public class AIGCCellet extends AbstractCellet {
                 + " This message is logged only once per cellet lifetime.");
     }
 
+    /**
+     * 收到网络消息时触发。
+     *
+     * <p>按动作名分发到对应任务；未知动作返回不支持的错误码。</p>
+     */
     @Override
     public void onListened(TalkContext talkContext, Primitive primitive) {
         super.onListened(talkContext, primitive);

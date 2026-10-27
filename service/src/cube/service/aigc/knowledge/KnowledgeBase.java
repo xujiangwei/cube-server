@@ -42,8 +42,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class KnowledgeBase {
 
+    /** 知识库为空时的标准应答。 */
     public final static String EMPTY_BASE_ANSWER = "您的知识库里没有数据，您可以先向知识库里导入文档或者添加文章，再向我提问。";
 
+    /** 问答时默认召回的片段数量。 */
     public final static int DEFAULT_TOP_K = 10;
 
     private final KnowledgeBaseInfo baseInfo;
@@ -81,18 +83,29 @@ public class KnowledgeBase {
         this.performProgressMap = new ConcurrentHashMap<>();
     }
 
+    /**
+     * 获取知识库名称。
+     *
+     * @return 知识库名称。
+     */
     public String getName() {
         return this.baseInfo.name;
     }
 
+    /**
+     * 获取所属令牌。
+     *
+     * <p>令牌决定该知识库的域与联系人归属，读写都依赖它做隔离。</p>
+     *
+     * @return 访问令牌。
+     */
     public AuthToken getAuthToken() {
         return this.authToken;
     }
 
     /**
      * 获取知识库侧写。
-     *
-     * @return
+     * @return 知识库侧写。
      */
     public KnowledgeProfile getProfile() {
         KnowledgeProfile profile = this.storage.readKnowledgeProfile(this.authToken.getContactId());
@@ -106,11 +119,10 @@ public class KnowledgeBase {
 
     /**
      * 更新知识库侧写。
-     *
-     * @param state
-     * @param maxSize
-     * @param scope
-     * @return
+     * @param state 状态。
+     * @param maxSize 容量上限。
+     * @param scope 可见范围。
+     * @return 知识库侧写。
      */
     public KnowledgeProfile updateProfile(int state, long maxSize, KnowledgeScope scope) {
         KnowledgeProfile profile = this.storage.updateKnowledgeProfile(this.authToken.getContactId(),
@@ -123,13 +135,20 @@ public class KnowledgeBase {
 
     /**
      * 获取装载的知识库文档。
-     *
-     * @return
+     * @return 文档列表；无数据时为空列表。
      */
     public List<KnowledgeDocument> listKnowledgeDocs() {
         return this.listKnowledgeDocs(false);
     }
 
+    /**
+     * 列出知识库文档。
+     *
+     * <p>结果带缓存；{@code force} 为 {@code true} 时强制从存储重新读取。</p>
+     *
+     * @param force 是否强制刷新。
+     * @return 文档列表；无文档时为空列表。
+     */
     public List<KnowledgeDocument> listKnowledgeDocs(boolean force) {
         synchronized (this) {
             if (force) {
@@ -171,6 +190,12 @@ public class KnowledgeBase {
         }
     }
 
+    /**
+     * 按文件码获取文档。
+     *
+     * @param fileCode 源文件码。
+     * @return 文档；不存在返回 {@code null} 。
+     */
     public KnowledgeDocument getKnowledgeDocByFileCode(String fileCode) {
         KnowledgeDocument doc = this.storage.readKnowledgeDoc(this.baseInfo.name, fileCode);
         if (null != doc) {
@@ -183,6 +208,16 @@ public class KnowledgeBase {
         return doc;
     }
 
+    /**
+     * 导入文档。
+     *
+     * <p>导入期间持有独占锁，重复导入会直接返回 {@code null} ；
+     * 文本按指定策略切分后写入存储与索引。</p>
+     *
+     * @param fileCode 源文件码。
+     * @param splitter 文本切分策略。
+     * @return 入库后的文档；锁冲突或失败返回 {@code null} 。
+     */
     public KnowledgeDocument importKnowledgeDoc(String fileCode, TextSplitter splitter) {
         if (this.lock.get()) {
             Logger.w(this.getClass(), "#importKnowledgeDoc - " + this.getName() + " - Store locked: " + fileCode);
@@ -260,6 +295,14 @@ public class KnowledgeBase {
         return activatedDoc;
     }
 
+    /**
+     * 移除文档。
+     *
+     * <p>移除期间持有独占锁，冲突时返回 {@code null} 。</p>
+     *
+     * @param fileCode 源文件码。
+     * @return 被移除的文档；不存在或冲突返回 {@code null} 。
+     */
     public KnowledgeDocument removeKnowledgeDoc(String fileCode) {
         if (this.lock.get()) {
             Logger.w(this.getClass(), "#removeKnowledgeDoc - " + this.getName() + " - Store locked: " + fileCode);
@@ -307,18 +350,31 @@ public class KnowledgeBase {
         return doc;
     }
 
+    /**
+     * 读取文档的文本段。
+     *
+     * @param docId      文档 ID 。
+     * @param startIndex 起始段序号。
+     * @param endIndex   结束段序号。
+     * @return 段列表；无数据时为空列表。
+     */
     public List<KnowledgeSegment> getKnowledgeSegments(long docId, int startIndex, int endIndex) {
         return this.storage.readKnowledgeSegments(docId, startIndex, endIndex);
     }
 
+    /**
+     * 统计文档的文本段数量。
+     *
+     * @param docId 文档 ID 。
+     * @return 段数量。
+     */
     public int numKnowledgeSegments(long docId) {
         return this.storage.countKnowledgeSegments(docId);
     }
 
     /**
      * 获取操作进度。
-     *
-     * @return
+     * @return 操作进度对象。
      */
     public KnowledgeProgress getProgress() {
         return this.progress;
@@ -326,11 +382,10 @@ public class KnowledgeBase {
 
     /**
      * 批量导入知识文档。
-     *
-     * @param fileCodeList
-     * @param splitter
-     * @param listener
-     * @return
+     * @param fileCodeList 源文件码列表。
+     * @param splitter 文本切分策略。
+     * @param listener 进度监听器。
+     * @return 操作进度对象。
      */
     public KnowledgeProgress batchImportKnowledgeDocuments(List<String> fileCodeList, TextSplitter splitter,
                                                            KnowledgeProgressListener listener) {
@@ -531,10 +586,9 @@ public class KnowledgeBase {
 
     /**
      * 批量移除知识文档。
-     *
-     * @param fileCodeList
-     * @param listener
-     * @return
+     * @param fileCodeList 源文件码列表。
+     * @param listener 进度监听器。
+     * @return 操作进度对象。
      */
     public KnowledgeProgress batchRemoveKnowledgeDocuments(List<String> fileCodeList, KnowledgeProgressListener listener) {
         if (this.lock.get()) {
@@ -692,8 +746,7 @@ public class KnowledgeBase {
 
     /**
      * 激活指定知识库文档。
-     *
-     * @param doc
+     * @param doc 文档对象。
      * @return 返回已激活的文档。
      */
     private KnowledgeDocument activateKnowledgeDoc(KnowledgeDocument doc) {
@@ -730,9 +783,8 @@ public class KnowledgeBase {
 
     /**
      * 解除指定的知识库文档。
-     *
-     * @param doc
-     * @return
+     * @param doc 文档对象。
+     * @return 文档对象。
      */
     private KnowledgeDocument deactivateKnowledgeDoc(KnowledgeDocument doc) {
         Packet packet = new Packet(AIGCAction.DeactivateKnowledgeDoc.name, doc.toJSON());
@@ -758,8 +810,7 @@ public class KnowledgeBase {
 
     /**
      * 返回重置进度。
-     *
-     * @return
+     * @return 处理结果。
      */
     public ResetKnowledgeProgress getResetProgress() {
         return this.resetProgress;
@@ -767,10 +818,9 @@ public class KnowledgeBase {
 
     /**
      * 重置知识仓库。
-     *
-     * @param backup
-     * @param listener
-     * @return
+     * @param backup backup。
+     * @param listener 进度监听器。
+     * @return 处理结果。
      */
     public synchronized ResetKnowledgeProgress resetKnowledgeStore(boolean backup,
                                                                    ResetKnowledgeStoreListener listener) {
@@ -1026,8 +1076,7 @@ public class KnowledgeBase {
 
     /**
      * 删除当前库的所有数据。
-     *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean destroy() {
         if (!this.resource.checkUnit()) {
@@ -1100,6 +1149,13 @@ public class KnowledgeBase {
         return true;
     }
 
+    /**
+     * 查询知识库备份。
+     *
+     * <p>依赖推理单元可用；单元未就绪时返回空数组。</p>
+     *
+     * @return 备份清单；无备份或单元不可用时为空数组。
+     */
     public JSONArray getKnowledgeBackups() {
         if (!this.resource.checkUnit()) {
             return null;
@@ -1131,6 +1187,13 @@ public class KnowledgeBase {
         return Packet.extractDataPayload(response).getJSONArray("list");
     }
 
+    /**
+     * 按时间范围查询文章。
+     *
+     * @param startTime 起始时间戳，单位毫秒。
+     * @param endTime   结束时间戳，单位毫秒。
+     * @return 文章列表；无匹配时为空列表。
+     */
     public List<KnowledgeArticle> getKnowledgeArticles(long startTime, long endTime) {
         List<KnowledgeArticle> articles = this.listKnowledgeArticles();
         List<KnowledgeArticle> list = new ArrayList<>();
@@ -1142,6 +1205,14 @@ public class KnowledgeBase {
         return list;
     }
 
+    /**
+     * 按时间范围与激活状态查询文章。
+     *
+     * @param startTime 起始时间戳，单位毫秒。
+     * @param endTime   结束时间戳，单位毫秒。
+     * @param activated 是否只返回已激活文章。
+     * @return 文章列表；无匹配时为空列表。
+     */
     public List<KnowledgeArticle> getKnowledgeArticles(long startTime, long endTime, boolean activated) {
         List<KnowledgeArticle> articles = this.listKnowledgeArticles();
         List<KnowledgeArticle> list = new ArrayList<>();
@@ -1154,15 +1225,35 @@ public class KnowledgeBase {
         return list;
     }
 
+    /**
+     * 按标题查询文章。
+     *
+     * @param title 标题。
+     * @return 文章列表；无匹配时为空列表。
+     */
     public List<KnowledgeArticle> getKnowledgeArticlesByTitle(String title) {
         return this.storage.readKnowledgeArticlesByTitle(this.authToken.getDomain(), this.authToken.getContactId(),
                 this.baseInfo.name, title);
     }
 
+    /**
+     * 获取文章。
+     *
+     * @param articleId 文章 ID 。
+     * @return 文章；不存在返回 {@code null} 。
+     */
     public KnowledgeArticle getKnowledgeArticle(long articleId) {
         return this.storage.readKnowledgeArticle(articleId);
     }
 
+    /**
+     * 更新文章。
+     *
+     * <p>按 ID 读取现状后合并更新，并同步重建该文章的索引。</p>
+     *
+     * @param article 文章对象。
+     * @return 更新后的文章；失败返回 {@code null} 。
+     */
     public KnowledgeArticle updateKnowledgeArticle(KnowledgeArticle article) {
         KnowledgeArticle current = this.storage.readKnowledgeArticle(article.getId());
         if (null == current) {
@@ -1234,6 +1325,14 @@ public class KnowledgeBase {
         return this.storage.updateKnowledgeArticle(article);
     }
 
+    /**
+     * 新增文章。
+     *
+     * <p>入参的 ID 会被重置，由存储分配新 ID。</p>
+     *
+     * @param article 文章对象。
+     * @return 入库后的文章；失败返回 {@code null} 。
+     */
     public KnowledgeArticle appendKnowledgeArticle(KnowledgeArticle article) {
         // 重置 ID，由服务器生成
         article.resetId();
@@ -1309,6 +1408,12 @@ public class KnowledgeBase {
         }
     }
 
+    /**
+     * 批量删除文章。
+     *
+     * @param idList 文章 ID 列表。
+     * @return 实际删除的 ID 列表。
+     */
     public List<Long> removeKnowledgeArticles(List<Long> idList) {
         for (long id : idList) {
             this.resource.removeArticle(id);
@@ -1318,13 +1423,20 @@ public class KnowledgeBase {
 
     /**
      * 获取文章列表。
-     *
-     * @return
+     * @return 文章列表；无数据时为空列表。
      */
     public List<KnowledgeArticle> listKnowledgeArticles() {
         return this.listKnowledgeArticles(false);
     }
 
+    /**
+     * 列出知识库文章。
+     *
+     * <p>结果带缓存；{@code force} 为 {@code true} 时强制刷新。</p>
+     *
+     * @param force 是否强制刷新。
+     * @return 文章列表；无文章时为空列表。
+     */
     public List<KnowledgeArticle> listKnowledgeArticles(boolean force) {
         synchronized (this) {
             if (force) {
@@ -1345,8 +1457,7 @@ public class KnowledgeBase {
 
     /**
      * 获取已激活的文章。
-     *
-     * @return
+     * @return 文章列表；无数据时为空列表。
      */
     private List<KnowledgeArticle> queryActivatedArticles() {
         if (!this.resource.checkUnit()) {
@@ -1387,10 +1498,9 @@ public class KnowledgeBase {
 
     /**
      * 为指定的联系人激活知识库文章。
-     *
-     * @param articleIdList
-     * @param splitter
-     * @return
+     * @param articleIdList 文章 ID 列表。
+     * @param splitter 文本切分策略。
+     * @return 文章列表；无数据时为空列表。
      */
     public List<KnowledgeArticle> activateKnowledgeArticles(List<Long> articleIdList, TextSplitter splitter) {
         if (!this.resource.checkUnit()) {
@@ -1436,6 +1546,14 @@ public class KnowledgeBase {
         return result;
     }
 
+    /**
+     * 批量停用文章。
+     *
+     * <p>停用后文章退出检索但数据保留。依赖推理单元可用，单元未就绪时返回空列表。</p>
+     *
+     * @param articleIdList 文章 ID 列表。
+     * @return 停用后的文章列表；无匹配或单元不可用时为空列表。
+     */
     public List<KnowledgeArticle> deactivateKnowledgeArticles(List<Long> articleIdList) {
         if (!this.resource.checkUnit()) {
             Logger.w(this.getClass(), "#deactivateKnowledgeArticles - " + baseInfo.name + " - No knowledge unit");
@@ -1480,8 +1598,7 @@ public class KnowledgeBase {
 
     /**
      * 查询所有文章分类。
-     *
-     * @return
+     * @return 字符串列表。
      */
     public List<String> queryAllArticleCategories() {
         return this.storage.queryAllArticleCategories(this.authToken.getContactId());
@@ -1489,11 +1606,10 @@ public class KnowledgeBase {
 
     /**
      * 同步方式执行知识库 QA
-     *
-     * @param channel
-     * @param query
-     * @param topK
-     * @return
+     * @param channel channel。
+     * @param query 用户提问。
+     * @param topK 召回数量上限。
+     * @return 问答进度对象。
      */
     public KnowledgeQAProgress performKnowledgeQA(AIGCChannel channel, String query, int topK) {
         Object mutex = new Object();
@@ -1531,12 +1647,11 @@ public class KnowledgeBase {
 
     /**
      * 执行知识库 QA
-     *
-     * @param channel
-     * @param query
-     * @param topK
-     * @param listener
-     * @return
+     * @param channel channel。
+     * @param query 用户提问。
+     * @param topK 召回数量上限。
+     * @param listener 进度监听器。
+     * @return 问答进度对象。
      */
     public KnowledgeQAProgress asyncPerformKnowledgeQA(AIGCChannel channel, String query, int topK,
                                                        KnowledgeQAListener listener) {
@@ -1598,14 +1713,13 @@ public class KnowledgeBase {
 
     /**
      * 执行知识库 QA
-     *
-     * @param channelCode
-     * @param unitName
-     * @param query
-     * @param topK
-     * @param recordList
-     * @param listener
-     * @return
+     * @param channelCode 通道码。
+     * @param unitName unitName。
+     * @param query 用户提问。
+     * @param topK 召回数量上限。
+     * @param recordList recordList。
+     * @param listener 进度监听器。
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean performKnowledgeQA(String channelCode, String unitName, String query, int topK,
                                       List<GeneratingRecord> recordList, KnowledgeQAListener listener) {
@@ -1916,8 +2030,7 @@ public class KnowledgeBase {
 
     /**
      * 处理查询附件。
-     *
-     * @param records
+     * @param records records。
      * @return 返回仅当次需要处理的文本。
      */
     private List<String> processQueryAttachments(List<GeneratingRecord> records) {
@@ -2201,6 +2314,12 @@ public class KnowledgeBase {
         return list;
     }
 
+    /**
+     * 查询问答进度。
+     *
+     * @param channelCode 通道码。
+     * @return 进度对象；不存在返回 {@code null} 。
+     */
     public KnowledgeQAProgress getPerformProgress(String channelCode) {
         return this.performProgressMap.get(channelCode);
     }
@@ -2434,10 +2553,9 @@ public class KnowledgeBase {
 
     /**
      * 生成对应提问的知识。
-     *
-     * @param query
-     * @param topK
-     * @return
+     * @param query 用户提问。
+     * @param topK 召回数量上限。
+     * @return 处理结果。
      */
     public Knowledge generateKnowledge(String query, int topK) {
         if (!this.resource.checkUnit()) {
@@ -2480,6 +2598,11 @@ public class KnowledgeBase {
         return knowledge;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return 知识库 JSON 。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("name", this.baseInfo.name);
@@ -2491,6 +2614,13 @@ public class KnowledgeBase {
         return json;
     }
 
+    /**
+     * 周期清理过期进度。
+     *
+     * <p>遍历问答进度表，移除超时未完成的条目，避免内存持续增长。</p>
+     *
+     * @param now 当前时间戳，单位毫秒。
+     */
     public void onTick(long now) {
         Iterator<KnowledgeQAProgress> iter = this.performProgressMap.values().iterator();
         while (iter.hasNext()) {

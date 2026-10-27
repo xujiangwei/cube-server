@@ -20,6 +20,11 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * 删除联系人端点。
+ *
+ * <p>删除后该联系人的令牌立即失效，相关会话需要重新登录。</p>
+ */
 public class DeleteContact extends ContextHandler {
 
     public DeleteContact(Performer performer) {

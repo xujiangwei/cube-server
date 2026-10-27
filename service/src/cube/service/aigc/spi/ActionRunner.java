@@ -56,6 +56,11 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
     private volatile boolean cancelled = false;
     private volatile boolean deferred = false;
 
+    /**
+     * 声明延迟响应。
+     *
+     * <p>调用后本次任务不会自动回写响应，由业务在异步流程结束时自行调用 {@code respond} 。</p>
+     */
     @Override
     public void deferResponse() {
         this.deferred = true;
@@ -85,6 +90,11 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
         this.request = new Packet(this.dialect);
     }
 
+    /**
+     * 执行插件动作。
+     *
+     * <p>解析动作与令牌后交给目标模块处理；未延迟响应时统一回写状态与数据。</p>
+     */
     @Override
     public void run() {
         AIGCStateCode stateCode;
@@ -133,41 +143,85 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
         }
     }
 
+    /**
+     * 获取动作名称。
+     *
+     * @return 动作名。
+     */
     @Override
     public String getAction() {
         return this.binding.action;
     }
 
+    /**
+     * 获取访问令牌。
+     *
+     * @return 令牌；未提供时为 {@code null} 。
+     */
     @Override
     public AuthToken getToken() {
         return this.authToken;
     }
 
+    /**
+     * 获取请求参数。
+     *
+     * @return 参数对象；无参数时返回空对象。
+     */
     @Override
     public JSONObject getParams() {
         return (null != this.request.data) ? this.request.data : new JSONObject();
     }
 
+    /**
+     * 获取原始请求包。
+     *
+     * @return 请求包。
+     */
     @Override
     public Packet getRequest() {
         return this.request;
     }
 
+    /**
+     * 获取请求方言。
+     *
+     * @return 动作方言。
+     */
     @Override
     public ActionDialect getDialect() {
         return this.dialect;
     }
 
+    /**
+     * 获取处理本动作的模块。
+     *
+     * @return 模块实例。
+     */
     @Override
     public ActionModule getModule() {
         return this.module;
     }
 
+    /**
+     * 获取宿主接口。
+     *
+     * @return 宿主实例，供插件访问存储、单元与通道能力。
+     */
     @Override
     public AIGCHost getHost() {
         return this.host;
     }
 
+    /**
+     * 回写响应。
+     *
+     * <p>流式动作把数据作为分片推送，非流式动作一次性返回；
+     * 重复调用只有第一次生效。</p>
+     *
+     * @param code 状态码。
+     * @param data 响应数据。
+     */
     @Override
     public void respond(AIGCStateCode code, JSONObject data) {
         if (this.binding.streaming) {
@@ -190,16 +244,34 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
         }
     }
 
+    /**
+     * 回写空响应。
+     *
+     * @param code 状态码。
+     */
     @Override
     public void respondEmpty(AIGCStateCode code) {
         this.respond(code, new JSONObject());
     }
 
+    /**
+     * 判断是否已回写响应。
+     *
+     * @return 已回写返回 {@code true} 。
+     */
     @Override
     public boolean isResponded() {
         return this.responded.get();
     }
 
+    /**
+     * 提交异步任务。
+     *
+     * <p>任务在独立线程执行，异常只记录日志；{@code taskKey} 用于日志定位。</p>
+     *
+     * @param taskKey 任务标识。
+     * @param job     待执行任务。
+     */
     @Override
     public void async(String taskKey, Runnable job) {
         if (null == job) {
@@ -214,6 +286,13 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
         this.host.schedule(taskKey, 0L, job);
     }
 
+    /**
+     * 判断请求是否已被取消。
+     *
+     * <p>长时间任务应在关键步骤间检查该标记，及时退出。</p>
+     *
+     * @return 已取消返回 {@code true} 。
+     */
     @Override
     public boolean isCancelled() {
         return this.cancelled;

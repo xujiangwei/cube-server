@@ -18,6 +18,11 @@ import javax.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 提示词端点。
+ *
+ * <p>提供提示词模板的查询与维护能力，支持按联系人维度隔离。</p>
+ */
 public class Prompts extends ContextHandler {
 
     public Prompts() {

@@ -100,12 +100,21 @@ public enum PoseKeypoint {
 
     ;
 
+    /** 码。 */
     public final int code;
 
     PoseKeypoint(int code) {
         this.code = code;
     }
 
+    /**
+     * 按编码解析。
+     *
+     * <p>遍历全部枚举值逐个匹配，未命中时返回 {@code null} 。</p>
+     *
+     * @param code 编码值。
+     * @return 对应枚举；未命中返回 {@code null} 。
+     */
     public static PoseKeypoint parse(int code) {
         for (PoseKeypoint pk : PoseKeypoint.values()) {
             if (pk.code == code) {
@@ -115,6 +124,14 @@ public enum PoseKeypoint {
         return Unknown;
     }
 
+    /**
+     * 按编码解析。
+     *
+     * <p>遍历全部枚举值逐个匹配，未命中时返回 {@code null} 。</p>
+     *
+     * @param nameOrCode 编码值。
+     * @return 对应枚举；未命中返回 {@code null} 。
+     */
     public static PoseKeypoint parse(String nameOrCode) {
         for (PoseKeypoint pk : PoseKeypoint.values()) {
             if (pk.name().equalsIgnoreCase(nameOrCode)

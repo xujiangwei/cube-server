@@ -20,18 +20,25 @@ import java.util.List;
  */
 public class SearchResult implements JSONable {
 
+    /** 序列号。 */
     public long sn;
 
+    /** 引擎。 */
     public String engine;
 
+    /** 创建时间。 */
     public long created;
 
+    /** 原句。 */
     public String originSentence;
 
+    /** 关键词列表。 */
     public List<String> keywords;
 
+    /** 自然搜索结果。 */
     public List<OrganicResult> organicResults;
 
+    /** 访问令牌。 */
     public AuthToken authToken;
 
     /**
@@ -46,10 +53,23 @@ public class SearchResult implements JSONable {
         this.originSentence = originSentence;
     }
 
+    /**
+     * 判断是否结果。
+     *
+     * @return 结果。
+     */
     public boolean hasResult() {
         return (null != this.organicResults && !this.organicResults.isEmpty());
     }
 
+    /**
+     * 添加自然搜索结果。
+     *
+     * @param position 自然搜索结果。
+     * @param title 自然搜索结果。
+     * @param link 自然搜索结果。
+     * @param snippet 自然搜索结果。
+     */
     public void addOrganicResult(int position, String title, String link, String snippet) {
         if (null == this.organicResults) {
             this.organicResults = new ArrayList<>();
@@ -59,6 +79,11 @@ public class SearchResult implements JSONable {
         this.organicResults.add(result);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -85,6 +110,13 @@ public class SearchResult implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

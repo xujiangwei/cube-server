@@ -19,10 +19,16 @@ import cube.service.aigc.AIGCCellet;
  * Internal metadata query. No user token or inference operation is needed.
  */
 public final class GetCapabilitySnapshotTask extends ServiceTask {
+    /** 构造任务实例，参数由单元统一注入。 */
     public GetCapabilitySnapshotTask(AIGCCellet cellet, TalkContext context, Primitive primitive, ResponseTime time) {
         super(cellet, context, primitive, time);
     }
 
+    /**
+     * 执行任务。
+     *
+     * <p>解析请求载荷后转交服务层处理，并把结果回写客户端。</p>
+     */
     @Override
     public void run() {
         ActionDialect request = new ActionDialect(this.primitive);

@@ -38,6 +38,7 @@ import java.util.*;
  */
 public class AIGCStorage implements Storagable {
 
+    /** 数据表名：模型配置。 */
     public final static String ITEM_NAME_MODELS = "models";
 
     private final String appConfigTable = "aigc_app_config";
@@ -777,17 +778,34 @@ public class AIGCStorage implements Storagable {
         this.storage = StorageFactory.getInstance().createStorage(type, "AIGCStorage", config);
     }
 
+    /**
+     * 打开存储：建立连接并确保表结构就绪。
+     *
+     * <p>重复调用幂等；表结构由自检流程创建，不在本方法内做迁移。</p>
+     */
     @Override
     public void open() {
         this.storage.open();
         StorageFactory.ensureOpen(this.storage, this.getClass().getSimpleName());
     }
 
+    /**
+     * 关闭存储。
+     *
+     * <p>允许重复调用；关闭后所有读写都会失败。</p>
+     */
     @Override
     public void close() {
         this.storage.close();
     }
 
+    /**
+     * 执行数据结构自检。
+     *
+     * <p>检查并补齐各域的数据表与索引，用于升级后首次启动。</p>
+     *
+     * @param domainNameList 需要自检的域名列表。
+     */
     @Override
     public void execSelfChecking(List<String> domainNameList) {
         if (!this.storage.exist(this.appConfigTable)) {
@@ -985,6 +1003,12 @@ public class AIGCStorage implements Storagable {
         }
     }
 
+    /**
+     * 按名称读取模型配置。
+     *
+     * @param modelName 模型名称。
+     * @return 配置；不存在返回 {@code null} 。
+     */
     public ModelConfig getModelConfig(String modelName) {
         List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, new StorageField[] {
                 new StorageField("value", LiteralBase.STRING)
@@ -1005,6 +1029,11 @@ public class AIGCStorage implements Storagable {
         return new ModelConfig(value);
     }
 
+    /**
+     * 读取全部模型配置。
+     *
+     * @return 配置列表；无数据时为空列表。
+     */
     public List<ModelConfig> getModelConfigs() {
         List<ModelConfig> list = new ArrayList<>();
 
@@ -1048,6 +1077,12 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 按名称批量读取模型配置。
+     *
+     * @param modelNames 模型名称列表。
+     * @return 配置列表；无匹配时为空列表。
+     */
     public List<ModelConfig> getModelConfigs(List<String> modelNames) {
         List<ModelConfig> list = new ArrayList<>();
 
@@ -1075,6 +1110,11 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 读取应用版本信息。
+     *
+     * @return 版本 JSON ；无数据时返回空对象。
+     */
     public JSONObject getAppVersion() {
         List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[] {
                 Conditional.createEqualTo("item", "AppVersion")
@@ -1088,6 +1128,12 @@ public class AIGCStorage implements Storagable {
         return JSONStorageUtils.decodeObject(data.get("value").getString());
     }
 
+    /**
+     * 按邀请码查询对应令牌。
+     *
+     * @param invitation 邀请码。
+     * @return 令牌；无匹配返回 {@code null} 。
+     */
     public String readTokenByInvitation(String invitation) {
         List<StorageField[]> result = this.storage.executeQuery(this.appInvitationTable, new StorageField[] {
                     new StorageField("token", LiteralBase.STRING)
@@ -1101,6 +1147,13 @@ public class AIGCStorage implements Storagable {
         return result.get(0)[0].getString();
     }
 
+    /**
+     * 写入邀请码与令牌的对应关系。
+     *
+     * @param invitation 邀请码。
+     * @param token      令牌。
+     * @return 写入成功返回 {@code true} 。
+     */
     public boolean writeInvitation(String invitation, String token) {
         return this.storage.executeInsert(this.appInvitationTable, new StorageField[] {
                 new StorageField("invitation", invitation),
@@ -1108,6 +1161,13 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 按条件查询应用事件。
+     *
+     * @param contactId 联系人 ID 。
+     * @param eventName 事件名，为空时不过滤。
+     * @return 事件列表；无匹配时为空列表。
+     */
     public List<AppEvent> readAppEvents(long contactId, String eventName,
                                         long startTimestamp, long endTimestamp) {
         List<AppEvent> list = new ArrayList<>();
@@ -1140,6 +1200,14 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 按条件查询应用事件并限制条数。
+     *
+     * @param contactId 联系人 ID 。
+     * @param eventName 事件名，为空时不过滤。
+     * @param limit     最大返回条数。
+     * @return 事件列表；无匹配时为空列表。
+     */
     public List<AppEvent> readAppEvents(long contactId, String eventName, int limit) {
         List<AppEvent> list = new ArrayList<>();
         List<StorageField[]> result = this.storage.executeQuery(this.appEventTable, this.appEventFields,
@@ -1164,6 +1232,12 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 写入应用事件。
+     *
+     * @param appEvent 应用事件。
+     * @return 写入成功返回 {@code true} 。
+     */
     public boolean writeAppEvent(AppEvent appEvent) {
         return this.storage.executeInsert(this.appEventTable, new StorageField[] {
                 new StorageField("event", appEvent.event),
@@ -1174,6 +1248,15 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 按联系人查询对话历史。
+     *
+     * @param contactId 联系人 ID 。
+     * @param domain    域。
+     * @param startTime 起始时间戳。
+     * @param endTime   结束时间戳。
+     * @return 历史列表；无匹配时为空列表。
+     */
     public List<AIGCChatHistory> readHistoriesByContactId(long contactId, String domain, long startTime, long endTime) {
         List<AIGCChatHistory> list = new ArrayList<>();
 
@@ -1261,6 +1344,15 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 按反馈值查询对话历史。
+     *
+     * @param feedback  反馈值。
+     * @param domain    域。
+     * @param startTime 起始时间戳。
+     * @param endTime   结束时间戳。
+     * @return 历史列表；无匹配时为空列表。
+     */
     public List<AIGCChatHistory> readHistoriesByFeedback(int feedback, String domain, long startTime, long endTime) {
         List<AIGCChatHistory> list = new ArrayList<>();
 
@@ -1348,6 +1440,14 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 按通道查询对话历史。
+     *
+     * @param channelCode 通道码。
+     * @param startTime   起始时间戳。
+     * @param endTime     结束时间戳。
+     * @return 历史列表；无匹配时为空列表。
+     */
     public List<AIGCChatHistory> readHistoriesByChannel(String channelCode, long startTime, long endTime) {
         List<AIGCChatHistory> list = new ArrayList<>();
 
@@ -1430,6 +1530,11 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 写入对话历史。
+     *
+     * @param history 历史记录。
+     */
     public void writeHistory(AIGCChatHistory history) {
         JSONArray queryFiles = null;
         if (null != history.queryFileLabels) {
@@ -1471,6 +1576,13 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 更新历史记录的反馈值。
+     *
+     * @param sn       记录序列号。
+     * @param feedback 反馈值。
+     * @return 更新成功返回 {@code true} 。
+     */
     public boolean updateHistoryFeedback(long sn, int feedback) {
         return this.storage.executeUpdate(this.queryAnswerTable, new StorageField[] {
                 new StorageField("feedback", feedback)
@@ -1479,6 +1591,11 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 读取已启用的通知配置。
+     *
+     * @return 通知列表；无数据时为空列表。
+     */
     public List<Notification> readEnabledNotifications() {
         List<Notification> list = new ArrayList<>();
 
@@ -1501,6 +1618,11 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 写入通知配置。
+     *
+     * @param notification 通知对象。
+     */
     public void writeNotification(Notification notification) {
         this.storage.executeInsert(this.appNotificationTable, new StorageField[] {
                 new StorageField("id", notification.id),
@@ -1512,6 +1634,12 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 读取知识库侧写。
+     *
+     * @param contactId 联系人 ID 。
+     * @return 侧写；不存在返回 {@code null} 。
+     */
     public KnowledgeProfile readKnowledgeProfile(long contactId) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeProfileTable, this.knowledgeProfileFields,
                 new Conditional[] {
@@ -1528,6 +1656,18 @@ public class AIGCStorage implements Storagable {
                 KnowledgeScope.parse(data.get("scope").getString()));
     }
 
+    /**
+     * 更新知识库侧写。
+     *
+     * <p>状态、容量与可见范围支持“不修改”语义，传 {@code -1} 或 {@code null} 时保留原值。</p>
+     *
+     * @param contactId 联系人 ID 。
+     * @param domain    域。
+     * @param state     状态，{@code -1} 表示不修改。
+     * @param maxSize   容量上限，{@code -1} 表示不修改。
+     * @param scope     可见范围，{@code null} 表示不修改。
+     * @return 更新后的侧写；失败返回 {@code null} 。
+     */
     public KnowledgeProfile updateKnowledgeProfile(long contactId, String domain, int state, long maxSize,
                                                    KnowledgeScope scope) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeProfileTable, this.knowledgeProfileFields,
@@ -1562,9 +1702,8 @@ public class AIGCStorage implements Storagable {
 
     /**
      * 读取联系人的知识库信息。
-     *
-     * @param contactId
-     * @return
+     * @param contactId 联系人 ID 。
+     * @return 知识库概要列表；无数据时为空列表。
      */
     public List<KnowledgeBaseInfo> readKnowledgeBaseInfo(long contactId) {
         List<KnowledgeBaseInfo> list = new ArrayList<>();
@@ -1586,6 +1725,13 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 读取知识库概要。
+     *
+     * @param contactId 联系人 ID 。
+     * @param baseName  知识库名称。
+     * @return 概要；不存在返回 {@code null} 。
+     */
     public KnowledgeBaseInfo readKnowledgeBaseInfo(long contactId, String baseName) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeFrameTable, this.knowledgeFrameFields,
                 new Conditional[] {
@@ -1605,6 +1751,13 @@ public class AIGCStorage implements Storagable {
         return info;
     }
 
+    /**
+     * 删除知识库概要。
+     *
+     * @param contactId 联系人 ID 。
+     * @param baseName  知识库名称。
+     * @return 删除成功返回 {@code true} 。
+     */
     public boolean deleteKnowledgeBaseInfo(long contactId, String baseName) {
         return this.storage.executeDelete(this.knowledgeFrameTable, new Conditional[] {
                 Conditional.createEqualTo("contact_id", contactId),
@@ -1613,6 +1766,13 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 更新知识库概要。
+     *
+     * @param contactId 联系人 ID 。
+     * @param info      概要对象。
+     * @return 更新成功返回 {@code true} 。
+     */
     public boolean updateKnowledgeBaseInfo(long contactId, KnowledgeBaseInfo info) {
         return this.storage.executeUpdate(this.knowledgeFrameTable, new StorageField[] {
                 new StorageField("display_name", info.displayName),
@@ -1625,6 +1785,13 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 按分类读取知识库概要。
+     *
+     * @param contactId 联系人 ID 。
+     * @param category  分类。
+     * @return 概要列表；无匹配时为空列表。
+     */
     public List<KnowledgeBaseInfo> readKnowledgeBaseInfoByCategory(long contactId, String category) {
         List<KnowledgeBaseInfo> list = new ArrayList<>();
 
@@ -1647,6 +1814,12 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 写入知识库概要。
+     *
+     * @param info 概要对象。
+     * @return 写入成功返回 {@code true} 。
+     */
     public boolean writeKnowledgeBaseInfo(KnowledgeBaseInfo info) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeFrameTable,
                 this.knowledgeFrameFields, new Conditional[] {
@@ -1680,6 +1853,13 @@ public class AIGCStorage implements Storagable {
         }
     }
 
+    /**
+     * 按域与知识库读取文档列表。
+     *
+     * @param domain   域。
+     * @param baseName 知识库名称。
+     * @return 文档列表；无数据时为空列表。
+     */
     public List<KnowledgeDocument> readKnowledgeDocList(String domain, String baseName) {
         List<KnowledgeDocument> list = new ArrayList<>();
 
@@ -1703,6 +1883,14 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 按联系人读取文档列表。
+     *
+     * @param domain    域。
+     * @param contactId 联系人 ID 。
+     * @param baseName  知识库名称。
+     * @return 文档列表；无数据时为空列表。
+     */
     public List<KnowledgeDocument> readKnowledgeDocList(String domain, long contactId, String baseName) {
         List<KnowledgeDocument> list = new ArrayList<>();
 
@@ -1728,6 +1916,13 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 读取文档。
+     *
+     * @param baseName 知识库名称。
+     * @param fileCode 源文件码。
+     * @return 文档；不存在返回 {@code null} 。
+     */
     public KnowledgeDocument readKnowledgeDoc(String baseName, String fileCode) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, this.knowledgeDocFields,
                 new Conditional[] {
@@ -1748,6 +1943,11 @@ public class AIGCStorage implements Storagable {
         return doc;
     }
 
+    /**
+     * 写入文档。
+     *
+     * @param doc 文档对象。
+     */
     public void writeKnowledgeDoc(KnowledgeDocument doc) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, new StorageField[] {
                 new StorageField("id", LiteralBase.LONG)
@@ -1778,6 +1978,12 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 更新文档。
+     *
+     * @param doc 文档对象。
+     * @return 更新成功返回 {@code true} 。
+     */
     public boolean updateKnowledgeDoc(KnowledgeDocument doc) {
         return this.storage.executeUpdate(this.knowledgeDocTable, new StorageField[] {
                 new StorageField("activated", doc.activated ? 1 : 0),
@@ -1790,6 +1996,13 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 删除文档。
+     *
+     * @param baseName 知识库名称。
+     * @param fileCode 源文件码。
+     * @return 删除成功返回 {@code true} 。
+     */
     public boolean deleteKnowledgeDoc(String baseName, String fileCode) {
         return this.storage.executeDelete(this.knowledgeDocTable, new Conditional[] {
                 Conditional.createEqualTo("base", baseName),
@@ -1798,6 +2011,15 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 按文件名匹配文档。
+     *
+     * <p>用于在导入前判断同名文档是否已存在。</p>
+     *
+     * @param baseName 知识库名称。
+     * @param words    待匹配的词。
+     * @return 匹配到的文档文件名与文件码二元组；无匹配时为空列表。
+     */
     public List<String[]> matchKnowledgeDocWithFileName(String baseName, List<String> words) {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT `file_code`,`file_name` FROM `").append(this.knowledgeDocTable).append("`");
@@ -1823,6 +2045,14 @@ public class AIGCStorage implements Storagable {
         return codeAndNameList;
     }
 
+    /**
+     * 读取文档的文本段。
+     *
+     * @param docId      文档 ID 。
+     * @param startIndex 起始段序号。
+     * @param endIndex   结束段序号。
+     * @return 段列表；无数据时为空列表。
+     */
     public List<KnowledgeSegment> readKnowledgeSegments(long docId, int startIndex, int endIndex) {
         List<KnowledgeSegment> list = new ArrayList<>();
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeSegmentTable,
@@ -1840,6 +2070,12 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 统计文档的文本段数量。
+     *
+     * @param docId 文档 ID 。
+     * @return 段数量。
+     */
     public int countKnowledgeSegments(long docId) {
         String sql = "SELECT COUNT(sn) FROM " + this.knowledgeSegmentTable +
                 " WHERE doc_id=" + docId;
@@ -1847,6 +2083,11 @@ public class AIGCStorage implements Storagable {
         return result.get(0)[0].getInt();
     }
 
+    /**
+     * 批量写入文本段。
+     *
+     * @param segments 段列表。
+     */
     public void writeKnowledgeSegments(List<KnowledgeSegment> segments) {
         for (KnowledgeSegment segment : segments) {
             this.storage.executeInsert(this.knowledgeSegmentTable, new StorageField[] {
@@ -1858,12 +2099,24 @@ public class AIGCStorage implements Storagable {
         }
     }
 
+    /**
+     * 删除文档的全部文本段。
+     *
+     * @param docId 文档 ID 。
+     * @return 删除成功返回 {@code true} 。
+     */
     public boolean deleteKnowledgeSegments(long docId) {
         return this.storage.executeDelete(this.knowledgeSegmentTable, new Conditional[] {
                 Conditional.createEqualTo("doc_id", docId)
         });
     }
 
+    /**
+     * 写入知识库文章。
+     *
+     * @param article 文章对象。
+     * @return 写入成功返回 {@code true} 。
+     */
     public boolean writeKnowledgeArticle(KnowledgeArticle article) {
         return this.storage.executeInsert(this.knowledgeArticleTable, new StorageField[] {
                 new StorageField("id", article.getId().longValue()),
@@ -1885,6 +2138,13 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 更新文章摘要。
+     *
+     * @param articleId     文章 ID 。
+     * @param summarization 摘要。
+     * @return 更新成功返回 {@code true} 。
+     */
     public boolean updateKnowledgeArticleSummarization(long articleId, String summarization) {
         return this.storage.executeUpdate(this.knowledgeArticleTable, new StorageField[] {
                 new StorageField("summarization", summarization)
@@ -1893,6 +2153,14 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 更新文章激活状态。
+     *
+     * @param articleId  文章 ID 。
+     * @param activated  是否激活。
+     * @param numSegments 段数量。
+     * @return 更新成功返回 {@code true} 。
+     */
     public boolean updateKnowledgeArticleActivated(long articleId, boolean activated, int numSegments) {
         return this.storage.executeUpdate(this.knowledgeArticleTable, new StorageField[] {
                 new StorageField("activated", activated ? 1 : 0),
@@ -1902,6 +2170,12 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 更新知识库文章。
+     *
+     * @param article 文章对象，以其 ID 定位。
+     * @return 更新后的文章；失败返回 {@code null} 。
+     */
     public KnowledgeArticle updateKnowledgeArticle(KnowledgeArticle article) {
         if (this.storage.executeUpdate(this.knowledgeArticleTable, new StorageField[] {
                 new StorageField("base", article.baseName),
@@ -1927,6 +2201,12 @@ public class AIGCStorage implements Storagable {
         }
     }
 
+    /**
+     * 读取知识库文章。
+     *
+     * @param articleId 文章 ID 。
+     * @return 文章；不存在返回 {@code null} 。
+     */
     public KnowledgeArticle readKnowledgeArticle(long articleId) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
                 new Conditional[] {
@@ -1948,6 +2228,14 @@ public class AIGCStorage implements Storagable {
         return article;
     }
 
+    /**
+     * 按域与知识库读取文章。
+     *
+     * @param domain    域。
+     * @param contactId 联系人 ID 。
+     * @param baseName  知识库名称。
+     * @return 文章列表；无匹配时为空列表。
+     */
     public List<KnowledgeArticle> readKnowledgeArticles(String domain, long contactId, String baseName) {
         List<KnowledgeArticle> list = new ArrayList<>();
 
@@ -1976,6 +2264,15 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 按标题读取文章。
+     *
+     * @param domain    域。
+     * @param contactId 联系人 ID 。
+     * @param baseName  知识库名称。
+     * @param title     标题。
+     * @return 文章列表；无匹配时为空列表。
+     */
     public List<KnowledgeArticle> readKnowledgeArticlesByTitle(String domain, long contactId, String baseName, String title) {
         List<KnowledgeArticle> list = new ArrayList<>();
 
@@ -2006,6 +2303,12 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 按 ID 列表读取文章。
+     *
+     * @param idList 文章 ID 列表。
+     * @return 文章列表；无匹配时为空列表。
+     */
     public List<KnowledgeArticle> readKnowledgeArticles(List<Long> idList) {
         List<KnowledgeArticle> list = new ArrayList<>();
         if (idList.isEmpty()) {
@@ -2037,6 +2340,15 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 按分类与时间范围读取文章。
+     *
+     * @param baseName  知识库名称。
+     * @param category  分类。
+     * @param startTime 起始时间戳。
+     * @param endTime   结束时间戳。
+     * @return 文章列表；无匹配时为空列表。
+     */
     public List<KnowledgeArticle> readKnowledgeArticles(String baseName, String category, long startTime, long endTime) {
         List<KnowledgeArticle> list = new ArrayList<>();
 
@@ -2067,6 +2379,15 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 按联系人与时间范围读取文章。
+     *
+     * @param contactId 联系人 ID 。
+     * @param baseName  知识库名称。
+     * @param startTime 起始时间戳。
+     * @param endTime   结束时间戳。
+     * @return 文章列表；无匹配时为空列表。
+     */
     public List<KnowledgeArticle> readKnowledgeArticles(long contactId, String baseName, long startTime, long endTime) {
         List<KnowledgeArticle> list = new ArrayList<>();
 
@@ -2099,12 +2420,11 @@ public class AIGCStorage implements Storagable {
 
     /**
      * 使用关键字匹配文章标题和摘要。
-     *
-     * @param domain
-     * @param contactId
-     * @param baseName
-     * @param keyword
-     * @return
+     * @param domain 域。
+     * @param contactId 联系人 ID 。
+     * @param baseName 知识库名称。
+     * @param keyword keyword。
+     * @return 文章列表；无数据时为空列表。
      */
     public List<KnowledgeArticle> matchKnowledgeArticles(String domain, long contactId, String baseName, String keyword) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
@@ -2147,6 +2467,12 @@ public class AIGCStorage implements Storagable {
         return resultList;
     }
 
+    /**
+     * 查询联系人的全部文章分类。
+     *
+     * @param contactId 联系人 ID 。
+     * @return 分类列表；无数据时为空列表。
+     */
     public List<String> queryAllArticleCategories(long contactId) {
         List<String> list = new ArrayList<>();
 
@@ -2164,8 +2490,7 @@ public class AIGCStorage implements Storagable {
 
     /**
      * 删除知识库文章。
-     *
-     * @param idList
+     * @param idList ID 列表。
      * @return 返回已删除的文章 ID 列表。
      */
     public List<Long> deleteKnowledgeArticles(List<Long> idList) {
@@ -2196,6 +2521,12 @@ public class AIGCStorage implements Storagable {
         return result;
     }
 
+    /**
+     * 按分类读取改写样本。
+     *
+     * @param category 分类。
+     * @return 样本列表；无匹配时为空列表。
+     */
     public List<KnowledgeParaphrase> readKnowledgeParaphrases(String category) {
         List<KnowledgeParaphrase> list = new ArrayList<>();
 
@@ -2214,6 +2545,12 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 批量写入改写样本。
+     *
+     * @param list 样本列表。
+     * @return 写入成功返回 {@code true} 。
+     */
     public boolean writeKnowledgeParaphrases(List<KnowledgeParaphrase> list) {
         for (KnowledgeParaphrase paraphrase : list) {
             boolean result = this.storage.executeInsert(this.knowledgeParaphraseTable, new StorageField[] {
@@ -2231,6 +2568,12 @@ public class AIGCStorage implements Storagable {
         return true;
     }
 
+    /**
+     * 批量删除改写样本。
+     *
+     * @param idList 样本 ID 列表。
+     * @return 实际删除的 ID 列表。
+     */
     public List<Long> deleteKnowledgeParaphrases(List<Long> idList) {
         if (idList.isEmpty()) {
             return null;
@@ -2259,6 +2602,12 @@ public class AIGCStorage implements Storagable {
         return result;
     }
 
+    /**
+     * 读取最近一次生成的图表。
+     *
+     * @param name 图表名称。
+     * @return 图表；不存在返回 {@code null} 。
+     */
     public Chart readLastChart(String name) {
         List<StorageField[]> result = this.storage.executeQuery(this.chartTable,
                 this.chartFields, new Conditional[] {
@@ -2279,6 +2628,12 @@ public class AIGCStorage implements Storagable {
         return new Chart(chartJson);
     }
 
+    /**
+     * 写入图表。
+     *
+     * @param chart 图表对象。
+     * @return 写入成功返回 {@code true} 。
+     */
     public boolean insertChart(Chart chart) {
         Date date = new Date(chart.timestamp);
         Calendar calendar = Calendar.getInstance();
@@ -2294,12 +2649,24 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 删除图表。
+     *
+     * @param name 图表名称。
+     * @return 删除成功返回 {@code true} 。
+     */
     public boolean deleteChart(String name) {
         return this.storage.executeDelete(this.chartTable, new Conditional[] {
                 Conditional.createEqualTo("name", name)
         });
     }
 
+    /**
+     * 批量写入原子数据。
+     *
+     * @param atomList 原子列表。
+     * @return 实际写入条数。
+     */
     public int insertAtoms(List<Atom> atomList) {
         if (atomList.isEmpty()) {
             return -1;
@@ -2322,6 +2689,12 @@ public class AIGCStorage implements Storagable {
         return num;
     }
 
+    /**
+     * 批量删除原子数据。
+     *
+     * @param atomSnList 原子序列号列表。
+     * @return 实际删除条数。
+     */
     public int deleteAtoms(List<Long> atomSnList) {
         if (atomSnList.isEmpty()) {
             return -1;
@@ -2340,6 +2713,15 @@ public class AIGCStorage implements Storagable {
         return num;
     }
 
+    /**
+     * 按标签与日期读取原子数据。
+     *
+     * @param label 标签。
+     * @param year  年份。
+     * @param month 月份。
+     * @param date  日。
+     * @return 原子列表；无匹配时为空列表。
+     */
     public List<Atom> readAtoms(String label, String year, String month, String date) {
         List<Atom> list = new ArrayList<>();
 
@@ -2372,6 +2754,17 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 按多标签与日期做全匹配。
+     *
+     * <p>与单标签查询的区别：任一标签命中即算匹配，用于关键词组合检索。</p>
+     *
+     * @param labels 标签列表。
+     * @param year   年份。
+     * @param month  月份。
+     * @param date   日。
+     * @return 匹配的原子列表；无匹配时为空列表。
+     */
     public List<Atom> fullMatching(List<String> labels, String year, String month, String date) {
         List<Atom> atoms = new ArrayList<>();
 
@@ -2431,6 +2824,14 @@ public class AIGCStorage implements Storagable {
         return atomList;
     }
 
+    /**
+     * 判断是否存在匹配的原子数据。
+     *
+     * @param labels 标签列表。
+     * @param year   年份。
+     * @param month  月份。
+     * @return 存在返回 {@code true} 。
+     */
     public boolean existsAtoms(List<String> labels, String year, String month) {
         LinkedList<Conditional> conditionals = new LinkedList<>();
 
@@ -2460,6 +2861,11 @@ public class AIGCStorage implements Storagable {
         return !result.isEmpty();
     }
 
+    /**
+     * 读取提示词列表。
+     *
+     * @return 提示词列表；无数据时为空列表。
+     */
     public List<PromptRecord> readPrompts() {
         return this.readPrompts(0);
     }
@@ -2467,9 +2873,8 @@ public class AIGCStorage implements Storagable {
     /**
      * 读取联系人的提示词。
      * 同时读取 contact_id 为 0 的公共提示词。
-     *
-     * @param contactId
-     * @return
+     * @param contactId 联系人 ID 。
+     * @return 提示词列表；无数据时为空列表。
      */
     public List<PromptRecord> readPrompts(long contactId) {
         List<PromptRecord> promptRecords = new ArrayList<>();
@@ -2506,6 +2911,12 @@ public class AIGCStorage implements Storagable {
         return promptRecords;
     }
 
+    /**
+     * 按标题读取提示词。
+     *
+     * @param title 标题。
+     * @return 提示词；不存在返回 {@code null} 。
+     */
     public PromptRecord readPrompt(String title) {
         List<StorageField[]> result = this.storage.executeQuery(this.promptWordTable, this.promptWordFields,
                 new Conditional[] {
@@ -2524,6 +2935,13 @@ public class AIGCStorage implements Storagable {
                 false);
     }
 
+    /**
+     * 写入提示词并绑定联系人。
+     *
+     * @param promptRecord 提示词记录。
+     * @param contactId    联系人 ID 。
+     * @return 写入成功返回 {@code true} 。
+     */
     public boolean writePrompt(PromptRecord promptRecord, long contactId) {
         List<StorageField[]> result = this.storage.executeQuery(this.promptWordTable,
                 this.promptWordFields, new Conditional[] {
@@ -2566,6 +2984,12 @@ public class AIGCStorage implements Storagable {
         }
     }
 
+    /**
+     * 批量写入提示词并按联系人分发。
+     *
+     * @param promptRecords 提示词列表。
+     * @param contactIds    联系人 ID 列表。
+     */
     public void writePrompts(List<PromptRecord> promptRecords, List<Long> contactIds) {
         List<Long> idList = new ArrayList<>();
         for (PromptRecord promptRecord : promptRecords) {
@@ -2614,6 +3038,11 @@ public class AIGCStorage implements Storagable {
         }
     }
 
+    /**
+     * 批量删除提示词。
+     *
+     * @param promptIdList 提示词 ID 列表。
+     */
     public void deletePrompts(List<Long> promptIdList) {
         for (long id : promptIdList) {
             this.storage.executeDelete(this.promptWordTable, new Conditional[] {
@@ -2626,6 +3055,13 @@ public class AIGCStorage implements Storagable {
         }
     }
 
+    /**
+     * 按联系人删除提示词。
+     *
+     * @param contactId 联系人 ID 。
+     * @param title     标题。
+     * @return 实际删除条数。
+     */
     public int deletePrompt(long contactId, String title) {
         int count = 0;
 
@@ -2667,6 +3103,15 @@ public class AIGCStorage implements Storagable {
         return count;
     }
 
+    /**
+     * 累加用量。
+     *
+     * <p>方法加锁，保证同联系人的并发累加不丢失。</p>
+     *
+     * @param contactId 联系人 ID 。
+     * @param model     模型标识。
+     * @return 累加后的用量。
+     */
     public synchronized Usage updateUsage(long contactId, String model,
                                           long incrementalCompletion, long incrementalPrompt) {
         Usage usage = this.readUsage(contactId, model);
@@ -2697,6 +3142,13 @@ public class AIGCStorage implements Storagable {
         return usage;
     }
 
+    /**
+     * 读取用量。
+     *
+     * @param contactId 联系人 ID 。
+     * @param model     模型标识。
+     * @return 用量；无记录返回 {@code null} 。
+     */
     public Usage readUsage(long contactId, String model) {
         List<StorageField[]> result = this.storage.executeQuery(this.usageTable, this.usageFields, new Conditional[] {
                 Conditional.createEqualTo("contact_id", contactId),
@@ -2713,6 +3165,12 @@ public class AIGCStorage implements Storagable {
         return new Usage(model, inputTokens, outputTokens, 0);
     }
 
+    /**
+     * 读取联系人偏好。
+     *
+     * @param contactId 联系人 ID 。
+     * @return 偏好；无记录返回 {@code null} 。
+     */
     public ContactPreference readContactPreference(long contactId) {
         List<StorageField[]> result = this.storage.executeQuery(this.contactPreferenceTable,
                 this.contactPreferenceFields, new Conditional[] {
@@ -2736,6 +3194,12 @@ public class AIGCStorage implements Storagable {
         return new ContactPreference(contactId, models);
     }
 
+    /**
+     * 写入情绪记录。
+     *
+     * @param emotionRecord 情绪记录。
+     * @return 写入成功返回 {@code true} 。
+     */
     public boolean writeEmotionRecord(EmotionRecord emotionRecord) {
         return this.storage.executeInsert(this.emotionTable, new StorageField[] {
                 new StorageField("contact_id", emotionRecord.contactId),
@@ -2747,6 +3211,12 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 读取联系人的情绪记录。
+     *
+     * @param contactId 联系人 ID 。
+     * @return 记录列表；无数据时为空列表。
+     */
     public List<EmotionRecord> readEmotionRecords(long contactId) {
         List<EmotionRecord> list = new ArrayList<>();
         List<StorageField[]> result = this.storage.executeQuery(this.emotionTable, this.emotionFields, new Conditional[] {
@@ -2773,6 +3243,12 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 更新语音分离结果的备注。
+     *
+     * @param diarization 语音分离结果。
+     * @return 更新成功返回 {@code true} 。
+     */
     public boolean updateVoiceDiarizationRemark(VoiceDiarization diarization) {
         return this.storage.executeUpdate(this.voiceDiarizationTable, new StorageField[] {
                 new StorageField("remark", diarization.remark)
@@ -2781,6 +3257,12 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 更新语音分离结果的分析结论。
+     *
+     * @param diarization 语音分离结果。
+     * @return 更新成功返回 {@code true} 。
+     */
     public boolean updateVoiceDiarizationAnalysis(VoiceDiarization diarization) {
         return this.storage.executeUpdate(this.voiceDiarizationTable, new StorageField[] {
                 new StorageField("analysis", diarization.analysis)
@@ -2789,6 +3271,12 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 更新语音分离结果的建议。
+     *
+     * @param diarization 语音分离结果。
+     * @return 更新成功返回 {@code true} 。
+     */
     public boolean updateVoiceDiarizationSuggestion(VoiceDiarization diarization) {
         return this.storage.executeUpdate(this.voiceDiarizationTable, new StorageField[] {
                 new StorageField("suggestion", diarization.suggestion)
@@ -2797,6 +3285,12 @@ public class AIGCStorage implements Storagable {
         });
     }
 
+    /**
+     * 写入语音分离结果。
+     *
+     * @param diarization 语音分离结果。
+     * @return 写入成功返回 {@code true} 。
+     */
     public boolean writeVoiceDiarization(VoiceDiarization diarization) {
         // 删除旧数据
         this.deleteVoiceDiarization(diarization.fileCode);
@@ -2843,6 +3337,12 @@ public class AIGCStorage implements Storagable {
         return this.storage.executeInsert(this.voiceIndicatorTable, voiceIndicatorFields.toArray(new StorageField[0]));
     }
 
+    /**
+     * 按文件码读取语音分离结果。
+     *
+     * @param fileCode 源文件码。
+     * @return 分离结果；不存在返回 {@code null} 。
+     */
     public VoiceDiarization readVoiceDiarization(String fileCode) {
         List<StorageField[]> result = this.storage.executeQuery(this.voiceDiarizationTable, this.voiceDiarizationFields,
                 new Conditional[] {
@@ -2895,6 +3395,12 @@ public class AIGCStorage implements Storagable {
         return voiceDiarization;
     }
 
+    /**
+     * 读取联系人的全部语音分离结果。
+     *
+     * @param contactId 联系人 ID 。
+     * @return 结果列表；无数据时为空列表。
+     */
     public List<VoiceDiarization> readVoiceDiarizations(long contactId) {
         List<VoiceDiarization> list = new ArrayList<>();
 
@@ -2950,6 +3456,12 @@ public class AIGCStorage implements Storagable {
         return list;
     }
 
+    /**
+     * 删除语音分离结果。
+     *
+     * @param fileCode 源文件码。
+     * @return 删除成功返回 {@code true} 。
+     */
     public boolean deleteVoiceDiarization(String fileCode) {
         List<StorageField[]> result = this.storage.executeQuery(this.voiceDiarizationTable, this.voiceDiarizationFields,
                 new Conditional[] {
@@ -3004,6 +3516,12 @@ public class AIGCStorage implements Storagable {
         return voiceIndicator;
     }
 
+    /**
+     * 读取咨询录音的文件码。
+     *
+     * @param streamName 流名称。
+     * @return 文件码；无记录返回 {@code null} 。
+     */
     public String readCounselingRecordingFileCode(String streamName) {
         List<StorageField[]> result = this.storage.executeQuery(this.counselingRecordingTable,
                 new StorageField[] {
@@ -3019,6 +3537,14 @@ public class AIGCStorage implements Storagable {
         return result.get(0)[0].getString();
     }
 
+    /**
+     * 写入咨询录音记录。
+     *
+     * @param authToken 访问令牌。
+     * @param streamName 流名称。
+     * @param timestamp 录音时间戳。
+     * @return 写入成功返回 {@code true} 。
+     */
     public boolean writeCounselingRecording(AuthToken authToken, String streamName, long timestamp, long duration,
                                             Attribute attribute, ConsultationTheme theme, String fileCode) {
         return (this.storage.executeInsert(this.counselingRecordingTable, new StorageField[] {
@@ -3034,6 +3560,12 @@ public class AIGCStorage implements Storagable {
         }));
     }
 
+    /**
+     * 读取咨询录音记录。
+     *
+     * @param streamName 流名称。
+     * @return 录音 JSON ；无记录返回 {@code null} 。
+     */
     public JSONObject readCounselingRecording(String streamName) {
         List<StorageField[]> storageFields = this.storage.executeQuery(this.counselingRecordingTable,
                 this.counselingRecordingFields, new Conditional[] {

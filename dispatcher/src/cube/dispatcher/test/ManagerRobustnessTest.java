@@ -46,7 +46,7 @@ import java.util.function.Consumer;
 
 /**
  * 无真实网络连接的回归验证。使用 JDK 8，运行于独立临时目录，
- * classpath 包含 dispatcher/classes、common/classes、deploy/libs/* 和 deploy/bin/cell.jar。
+ * classpath 包含 dispatcher/classes、common/classes、deploy/libs/&#42; 和 deploy/bin/cell.jar。
  * 断言失败抛出 AssertionError，不依赖 -ea 或额外测试框架。
  */
 public class ManagerRobustnessTest {

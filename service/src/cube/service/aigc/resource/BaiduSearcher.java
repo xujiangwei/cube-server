@@ -38,6 +38,14 @@ public class BaiduSearcher extends ResourceSearcher {
         super(service);
     }
 
+    /**
+     * 执行百度搜索。
+     *
+     * <p>按关键词拼装请求并解析结果页；解析失败或超时返回 {@code false} 。</p>
+     *
+     * @param words 关键词列表。
+     * @return 搜索成功返回 {@code true} 。
+     */
     @Override
     public boolean search(List<String> words) {
         this.startTime = System.currentTimeMillis();
@@ -88,6 +96,11 @@ public class BaiduSearcher extends ResourceSearcher {
         return true;
     }
 
+    /**
+     * 填充搜索结果的引擎信息。
+     *
+     * @param searchResult 待填充的结果对象。
+     */
     @Override
     public void fillSearchResult(SearchResult searchResult) {
         searchResult.engine = "baidu";
@@ -105,6 +118,12 @@ public class BaiduSearcher extends ResourceSearcher {
         }
     }
 
+    /**
+     * 拼装搜索地址。
+     *
+     * @param words 关键词列表。
+     * @return 请求 URL ；关键词为空时返回 {@code null} 。
+     */
     @Override
     protected String makeURL(List<String> words) {
         if (words.isEmpty()) {

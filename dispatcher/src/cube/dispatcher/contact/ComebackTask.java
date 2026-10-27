@@ -26,6 +26,12 @@ public class ComebackTask extends DispatcherTask {
         super(cellet, talkContext, primitive, performer);
     }
 
+    /**
+     * 执行返场任务。
+     *
+     * <p>解析令牌后把返场请求转发给联系人单元，并把结果回写客户端；
+     * 令牌缺失或转发失败时返回对应错误码。</p>
+     */
     @Override
     public void run() {
         String tokenCode = this.getTokenCode(this.getAction());

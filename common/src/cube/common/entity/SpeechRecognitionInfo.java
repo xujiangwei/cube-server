@@ -18,16 +18,22 @@ import java.util.List;
  */
 public class SpeechRecognitionInfo implements JSONable {
 
+    /** 文件。 */
     public final FileLabel file;
 
+    /** 耗时。 */
     public final long elapsed;
 
+    /** 文本。 */
     public String text;
 
+    /** 词列表。 */
     public final List<String> words;
 
+    /** 语言。 */
     public final String lang;
 
+    /** 时长（秒）。 */
     public final double durationInSeconds;
 
 
@@ -49,6 +55,11 @@ public class SpeechRecognitionInfo implements JSONable {
         this.durationInSeconds = info.durationInSeconds;
     }
 
+    /**
+     * 重置词列表。
+     *
+     * @param words 词列表。
+     */
     public void resetWords(List<String> words) {
         this.words.clear();
         for (String word : words) {
@@ -60,6 +71,11 @@ public class SpeechRecognitionInfo implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -74,6 +90,13 @@ public class SpeechRecognitionInfo implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

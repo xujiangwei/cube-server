@@ -66,22 +66,47 @@ public class TransmissionMethod extends Entity {
         }
     }
 
+    /**
+     * 获取消息。
+     *
+     * @return 消息。
+     */
     public Message getMessage() {
         return this.message;
     }
 
+    /**
+     * 获取目标。
+     *
+     * @return 目标。
+     */
     public AbstractContact getTarget() {
         return this.target;
     }
 
+    /**
+     * 获取设备。
+     *
+     * @return 设备。
+     */
     public Device getDevice() {
         return this.device;
     }
 
+    /**
+     * 获取分享标签。
+     *
+     * @return 分享标签。
+     */
     public SharingTag getSharingTag() {
         return this.sharingTag;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -100,6 +125,13 @@ public class TransmissionMethod extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

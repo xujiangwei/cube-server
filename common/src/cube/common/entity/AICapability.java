@@ -18,16 +18,22 @@ import java.util.List;
  */
 public class AICapability implements JSONable {
 
+    /** 多模态任务。 */
     public final static String MultimodalTask = "Multimodal";
 
+    /** 自然语言处理任务。 */
     public final static String NaturalLanguageProcessingTask = "NaturalLanguageProcessing";
 
+    /** 计算机视觉任务。 */
     public final static String ComputerVisionTask = "ComputerVision";
 
+    /** 音频处理任务。 */
     public final static String AudioProcessingTask = "AudioProcessing";
 
+    /** 数据处理任务。 */
     public final static String DataProcessingTask = "DataProcessing";
 
+    /** 其他处理任务。 */
     public final static String OtherProcessingTask = "OtherProcessing";
 
     private final String name;
@@ -40,7 +46,11 @@ public class AICapability implements JSONable {
 
     private final String description;
 
-    /** Optional protocol capabilities; older units declare none. */
+    /**
+     * 可选的协议能力声明。
+     *
+     * <p>旧版本单元不声明该字段，默认是空对象。</p>
+     */
     private volatile JSONObject chatCompletion = new JSONObject();
 
     public AICapability(String name, String task, String version, List<String> subtasks, String description) {
@@ -73,38 +83,84 @@ public class AICapability implements JSONable {
         }
     }
 
+    /**
+     * 获取名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取任务。
+     *
+     * @return 任务。
+     */
     public String getTask() {
         return this.task;
     }
 
+    /**
+     * 获取版本。
+     *
+     * @return 版本。
+     */
     public String getVersion() {
         return this.version;
     }
 
+    /**
+     * 获取主子任务。
+     *
+     * @return 主子任务。
+     */
     public String getPrimarySubtask() {
         return this.subtasks.get(0);
     }
 
+    /**
+     * 判断是否包含子任务。
+     *
+     * @param subtask 子任务。
+     * @return 子任务。
+     */
     public boolean containsSubtask(String subtask) {
         return this.subtasks.contains(subtask);
     }
 
+    /**
+     * 获取描述。
+     *
+     * @return 描述。
+     */
     public String getDescription() {
         return this.description;
     }
 
+    /**
+     * 获取兼容层生成。
+     *
+     * @return 兼容层生成。
+     */
     public JSONObject getChatCompletion() {
         return new JSONObject(this.chatCompletion.toString());
     }
 
+    /**
+     * 设置兼容层生成。
+     *
+     * @param capability 兼容层生成。
+     */
     public void setChatCompletion(JSONObject capability) {
         this.chatCompletion = new JSONObject(capability.toString());
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -130,6 +186,13 @@ public class AICapability implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

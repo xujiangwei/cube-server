@@ -237,9 +237,8 @@ public class HierarchyNode extends Entity {
 
     /**
      * 断开指定唯一键的实体。
-     *
-     * @param uniqueKey
-     * @return
+     * @param uniqueKey uniqueKey。
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean unlink(String uniqueKey) {
         synchronized (this.relatedKeys) {

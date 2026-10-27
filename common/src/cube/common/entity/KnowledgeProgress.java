@@ -49,34 +49,74 @@ public class KnowledgeProgress implements JSONable {
         this.stateCode = json.getInt("stateCode");
     }
 
+    /**
+     * 获取任务序列号。
+     *
+     * @return 序列号。
+     */
     public long getSN() {
         return this.sn;
     }
 
+    /**
+     * 设置文档总数。
+     *
+     * @param value 文档总数。
+     */
     public void setTotalDocs(int value) {
         this.totalDocs = value;
     }
 
+    /**
+     * 获取已处理文档。
+     *
+     * @return 已处理文档。
+     */
     public int getProcessedDocs() {
         return this.processedDocs;
     }
 
+    /**
+     * 设置已处理文档。
+     *
+     * @param value 已处理文档。
+     */
     public void setProcessedDocs(int value) {
         this.processedDocs = value;
     }
 
+    /**
+     * 设置处理中的文档。
+     *
+     * @param doc 处理中的文档。
+     */
     public void setProcessingDoc(KnowledgeDocument doc) {
         this.processingDoc = doc;
     }
 
+    /**
+     * 设置状态码。
+     *
+     * @param code 状态码。
+     */
     public void setStateCode(int code) {
         this.stateCode = code;
     }
 
+    /**
+     * 设置结束时间。
+     *
+     * @param time 结束时间。
+     */
     public void setEndTime(long time) {
         this.endTime = time;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -92,6 +132,13 @@ public class KnowledgeProgress implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

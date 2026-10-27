@@ -29,10 +29,22 @@ public class StreamStorage {
         this.bufferMap = new ConcurrentHashMap<>();
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static StreamStorage getInstance() {
         return StreamStorage.instance;
     }
 
+    /**
+     * 读取并保存流数据。
+     *
+     * <p>从输入流中累积数据，按流名归档后交给下游处理；流结束时释放缓冲。</p>
+     *
+     * @param inputStream 流式输入。
+     */
     public void process(PrimitiveInputStream inputStream) {
         FlexibleByteBuffer buf = new FlexibleByteBuffer();
         try {

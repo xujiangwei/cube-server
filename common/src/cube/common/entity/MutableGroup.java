@@ -16,14 +16,29 @@ public class MutableGroup {
     public MutableGroup() {
     }
 
+    /**
+     * 替换内部群组。
+     *
+     * @param group 新的群组对象。
+     */
     public void set(Group group) {
         this.group = group;
     }
 
+    /**
+     * 获取内部群组。
+     *
+     * @return 群组对象。
+     */
     public Group get() {
         return this.group;
     }
 
+    /**
+     * 判断是否空。
+     *
+     * @return 空。
+     */
     public boolean isNull() {
         return (null == this.group);
     }

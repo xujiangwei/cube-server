@@ -25,16 +25,34 @@ public class InjectTokenPlugin implements Plugin {
         this.service = service;
     }
 
+    /**
+     * 初始化插件。
+     *
+     * <p>当前无需初始化。</p>
+     */
     @Override
     public void setup() {
         // Nothing
     }
 
+    /**
+     * 释放插件。
+     *
+     * <p>当前无需清理。</p>
+     */
     @Override
     public void teardown() {
         // Nothing
     }
 
+    /**
+     * 注入访问令牌。
+     *
+     * <p>为上下文中的联系人换取令牌并回填；异常只记录日志。</p>
+     *
+     * @param context 插件上下文。
+     * @return 固定返回 {@code null} 。
+     */
     @Override
     public HookResult launch(PluginContext context) {
         try {

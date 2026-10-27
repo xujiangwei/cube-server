@@ -27,6 +27,11 @@ public class GetMediaSourceTask extends DispatcherTask {
         super(cellet, talkContext, primitive, performer);
     }
 
+    /**
+     * 执行媒体源查询任务。
+     *
+     * <p>解析令牌后向文件服务查询媒体源信息，并把结果回写客户端。</p>
+     */
     @Override
     public void run() {
         String tokenCode = this.getTokenCode(this.getAction());

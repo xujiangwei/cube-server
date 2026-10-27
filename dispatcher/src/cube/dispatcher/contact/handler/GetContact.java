@@ -20,6 +20,11 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * 查询联系人端点。
+ *
+ * <p>按联系人 ID 或令牌返回联系人详情，不存在的 ID 返回 404。</p>
+ */
 public class GetContact extends ContextHandler {
 
     public GetContact(Performer performer) {

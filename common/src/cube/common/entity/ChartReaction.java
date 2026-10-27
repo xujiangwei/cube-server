@@ -12,21 +12,33 @@ import org.json.JSONObject;
 
 import java.util.List;
 
+/**
+ * 图表反应。
+ *
+ * <p>记录某项指标对图表的响应词与命中数量。</p>
+ */
 @Deprecated
 public class ChartReaction implements JSONable {
 
+    /** 序列号。 */
     public long sn;
 
+    /** 主要。 */
     public final String[] primary;
 
+    /** 次要。 */
     public String secondary = null;
 
+    /** 第三。 */
     public String tertiary = null;
 
+    /** 第四。 */
     public String quaternary = null;
 
+    /** 系列名称。 */
     public final String seriesName;
 
+    /** 时间戳。 */
     public final long timestamp;
 
     public ChartReaction(String[] primary, String seriesName, long timestamp) {
@@ -54,6 +66,11 @@ public class ChartReaction implements JSONable {
         }
     }
 
+    /**
+     * 序列化主要反应。
+     *
+     * @return 主要反应的文本表示。
+     */
     public String serializePrimary() {
         StringBuilder buf = new StringBuilder();
         for (String word : this.primary) {
@@ -64,6 +81,12 @@ public class ChartReaction implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 统计命中关键词数量。
+     *
+     * @param words 待匹配的词列表。
+     * @return 命中数量。
+     */
     public int matchWordNum(List<String> words) {
         int num = 0;
         for (String word : words) {
@@ -80,6 +103,12 @@ public class ChartReaction implements JSONable {
         return num;
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param obj 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof ChartReaction) {
@@ -90,11 +119,21 @@ public class ChartReaction implements JSONable {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return (int)(this.sn + this.primary[0].hashCode() * 7 + this.timestamp);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -120,6 +159,13 @@ public class ChartReaction implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -25,8 +25,14 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 多模态单元任务。
+ *
+ * <p>把文本与图像等混合输入交给多模态单元处理，结果按通道回写。</p>
+ */
 public class MultimodalUnitMeta extends UnitMeta {
 
+    /** 任务序列号。 */
     public final long sn;
 
     private final AIGCChannel channel;
@@ -46,10 +52,20 @@ public class MultimodalUnitMeta extends UnitMeta {
         this.listener = listener;
     }
 
+    /**
+     * 获取所属通道。
+     *
+     * @return 对话通道。
+     */
     public AIGCChannel getChannel() {
         return this.channel;
     }
 
+    /**
+     * 执行多模态处理。
+     *
+     * <p>调用单元后释放通道的处理占用；无论成功失败都会解除占用，避免通道被永久锁定。</p>
+     */
     @Override
     public void process() {
         boolean processingReleased = false;

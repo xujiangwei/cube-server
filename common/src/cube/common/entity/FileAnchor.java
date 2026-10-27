@@ -14,14 +14,19 @@ import org.json.JSONObject;
  */
 public class FileAnchor implements JSONable {
 
+    /** 文件码。 */
     public final String fileCode;
 
+    /** 文件名。 */
     public final String fileName;
 
+    /** 文件大小。 */
     public final long fileSize;
 
+    /** 最后修改时间。 */
     public final long lastModified;
 
+    /** 位置。 */
     public final long position;
 
     public FileAnchor(JSONObject json) {
@@ -32,6 +37,11 @@ public class FileAnchor implements JSONable {
         this.position = json.getLong("position");
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -43,6 +53,13 @@ public class FileAnchor implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

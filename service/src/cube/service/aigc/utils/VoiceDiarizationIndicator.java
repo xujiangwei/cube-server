@@ -18,6 +18,11 @@ import org.json.JSONObject;
 
 import java.util.List;
 
+/**
+ * 语音分离指标分析器。
+ *
+ * <p>基于分离结果计算时长、发言占比、语速等指标，并写入语音分离实体。</p>
+ */
 public class VoiceDiarizationIndicator extends VoiceIndicator {
 
     public VoiceDiarizationIndicator(long id) {
@@ -28,6 +33,14 @@ public class VoiceDiarizationIndicator extends VoiceIndicator {
         super(json);
     }
 
+    /**
+     * 分析语音分离结果。
+     *
+     * <p>时长为 0 时直接返回，避免除零；其余情况按轨迹统计各说话人的发言占比。</p>
+     *
+     * @param host             宿主。
+     * @param voiceDiarization 语音分离结果。
+     */
     public void analyse(AIGCHost host, VoiceDiarization voiceDiarization) {
         if (voiceDiarization.duration == 0) {
             return;

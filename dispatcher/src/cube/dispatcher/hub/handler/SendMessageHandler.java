@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
  */
 public class SendMessageHandler extends HubHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/hub/message/";
 
     private final long coolingTime = 500;
@@ -37,6 +38,14 @@ public class SendMessageHandler extends HubHandler {
         super(performer, controller);
     }
 
+    /**
+     * 发送消息。
+     *
+     * <p>载荷为消息 JSON ，校验通道后转发给消息服务。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response) {
         String code = this.getRequestPath(request);

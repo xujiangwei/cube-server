@@ -41,6 +41,7 @@ public class FileSharingHandler extends CrossDomainHandler {
 
     private final static boolean CACHE_FILE = false;
 
+    /** 端点路径。 */
     public final static String PATH = "/sharing/";
 
     private final static String QRCODE_PATH = "/qrcode/";
@@ -79,6 +80,17 @@ public class FileSharingHandler extends CrossDomainHandler {
         }
     }
 
+    /**
+     * 处理分享页与静态资源请求。
+     *
+     * <p>按路径后缀分派：静态资源（css/js/图片）直出文件，{@code /qrcode} 前缀返回二维码图片，
+     * 其余长度足够的路径视为分享码并渲染分享页；无法识别时返回 403。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     * @throws IOException      读取文件或写响应失败。
+     * @throws ServletException 容器处理异常。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response)
             throws IOException, ServletException {
@@ -108,6 +120,17 @@ public class FileSharingHandler extends CrossDomainHandler {
         complete();
     }
 
+    /**
+     * 接收分享页与小程序的行为上报。
+     *
+     * <p>按路径分派：{@code /trace/browser} 记录浏览器访问轨迹，
+     * {@code /trace/applet/wechat} 记录小程序访问轨迹；轨道数据异步转发给文件服务。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     * @throws IOException      读取请求体或写响应失败。
+     * @throws ServletException 容器处理异常。
+     */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response)
             throws IOException, ServletException {

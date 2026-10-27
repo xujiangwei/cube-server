@@ -31,6 +31,7 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class ConversationsHandler extends HubHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/hub/conversations/";
 
     private final long coolingTime = 500;
@@ -39,6 +40,14 @@ public class ConversationsHandler extends HubHandler {
         super(performer, controller);
     }
 
+    /**
+     * 查询会话列表。
+     *
+     * <p>支持分页参数，返回该联系人的全部会话摘要。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) {
         String code = this.getRequestPath(request);

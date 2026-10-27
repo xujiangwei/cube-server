@@ -17,16 +17,22 @@ import java.nio.charset.StandardCharsets;
  */
 public class VerificationCode implements JSONable {
 
+    /** 令牌。 */
     public final String token;
 
+    /** 区号。 */
     public final String dialCode;
 
+    /** ISO 码。 */
     public final String isoCode;
 
+    /** 电话号码。 */
     public final String phoneNumber;
 
+    /** 时间戳。 */
     public final long timestamp;
 
+    /** 时长。 */
     public final long duration;
 
     private String code;
@@ -58,19 +64,39 @@ public class VerificationCode implements JSONable {
         }
     }
 
+    /**
+     * 设置码。
+     *
+     * @param code 码。
+     */
     public void setCode(String code) {
         this.code = code;
         this.codeMD5 = Cryptology.getInstance().hashWithMD5AsString(code.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 获取码。
+     *
+     * @return 码。
+     */
     public String getCode() {
         return this.code;
     }
 
+    /**
+     * 获取码的 MD5。
+     *
+     * @return 码的 MD5。
+     */
     public String getCodeMD5() {
         return this.codeMD5;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -89,6 +115,13 @@ public class VerificationCode implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

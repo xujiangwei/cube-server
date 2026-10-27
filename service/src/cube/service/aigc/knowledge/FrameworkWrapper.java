@@ -15,6 +15,12 @@ import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 知识库框架包装。
+ *
+ * <p>持有某个联系人名下的知识库集合与概要列表，提供按名称、分类检索与增删。
+ * 框架在访问时惰性构建，构建完成后由定时任务刷新概要。</p>
+ */
 public class FrameworkWrapper {
 
     private final long contactId;
@@ -36,6 +42,13 @@ public class FrameworkWrapper {
         this.refreshKnowledgeBaseInfo();
     }
 
+    /**
+     * 获取全部知识库概要。
+     *
+     * <p>返回前会重建概要列表，保证与当前知识库集合一致。</p>
+     *
+     * @return 概要列表；无知识库时为空列表。
+     */
     public List<KnowledgeBaseInfo> getBaseInfos() {
         this.baseInfoList.clear();
         List<KnowledgeBaseInfo> list = this.service.getStorage().readKnowledgeBaseInfo(this.contactId);
@@ -43,16 +56,33 @@ public class FrameworkWrapper {
         return new ArrayList<>(this.baseInfoList);
     }
 
+    /**
+     * 获取全部知识库。
+     *
+     * @return 知识库列表；无知识库时为空列表。
+     */
     public List<KnowledgeBase> getAllKnowledgeBases() {
         List<KnowledgeBase> list = new ArrayList<>();
         list.addAll(this.knowledgeMap.values());
         return list;
     }
 
+    /**
+     * 按名称获取知识库。
+     *
+     * @param name 知识库名称。
+     * @return 知识库；不存在返回 {@code null} 。
+     */
     public KnowledgeBase getKnowledgeBase(String name) {
         return this.knowledgeMap.get(name);
     }
 
+    /**
+     * 按分类获取知识库。
+     *
+     * @param category 分类。
+     * @return 匹配的知识库列表；无匹配时为空列表。
+     */
     public List<KnowledgeBase> getKnowledgeBaseByCategory(String category) {
         List<KnowledgeBase> list = new ArrayList<>();
 
@@ -70,10 +100,23 @@ public class FrameworkWrapper {
         return list;
     }
 
+    /**
+     * 放入知识库。
+     *
+     * <p>同名知识库会被覆盖，同时刷新概要列表。</p>
+     *
+     * @param knowledgeBase 知识库。
+     */
     public void putKnowledgeBase(KnowledgeBase knowledgeBase) {
         this.knowledgeMap.put(knowledgeBase.getName(), knowledgeBase);
     }
 
+    /**
+     * 移除知识库。
+     *
+     * @param name 知识库名称。
+     * @return 被移除的知识库；不存在返回 {@code null} 。
+     */
     public KnowledgeBase removeKnowledgeBase(String name) {
         KnowledgeBase base = this.knowledgeMap.remove(name);
         synchronized (this.baseInfoList) {
@@ -82,6 +125,12 @@ public class FrameworkWrapper {
         return base;
     }
 
+    /**
+     * 获取知识库概要。
+     *
+     * @param baseName 知识库名称。
+     * @return 概要；不存在返回 {@code null} 。
+     */
     public KnowledgeBaseInfo getKnowledgeBaseInfo(String baseName) {
         synchronized (this.baseInfoList) {
             for (KnowledgeBaseInfo info : this.baseInfoList) {
@@ -100,6 +149,12 @@ public class FrameworkWrapper {
         return info;
     }
 
+    /**
+     * 按分类获取知识库概要。
+     *
+     * @param category 分类。
+     * @return 概要列表；无匹配时为空列表。
+     */
     public List<KnowledgeBaseInfo> getKnowledgeBaseInfoByCategory(String category) {
         List<KnowledgeBaseInfo> infos = new ArrayList<>();
 
@@ -124,6 +179,11 @@ public class FrameworkWrapper {
         return infos;
     }
 
+    /**
+     * 刷新知识库概要。
+     *
+     * <p>重建概要列表，使文档数量、容量等统计与最新状态一致。</p>
+     */
     public void refreshKnowledgeBaseInfo() {
         synchronized (this.baseInfoList) {
             this.baseInfoList.clear();
@@ -142,6 +202,11 @@ public class FrameworkWrapper {
         }
     }
 
+    /**
+     * 销毁包装。
+     *
+     * <p>清空概要列表与知识库映射，释放对底层存储的引用。</p>
+     */
     public void destroy() {
         this.baseInfoList.clear();
         this.knowledgeMap.clear();

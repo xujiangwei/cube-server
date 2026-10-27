@@ -91,20 +91,46 @@ public class FileChunkStorage {
         this.listenerMap = new ConcurrentHashMap<>();
     }
 
+    /**
+     * 打开存储管理器。
+     *
+     * <p>绑定所属单元与执行机，之后才能把收到的数据块转发给服务节点。重复调用幂等。</p>
+     *
+     * @param cellet    所属文件存储单元。
+     * @param performer 执行机。
+     */
     public void open(FileStorageCellet cellet, Performer performer) {
         this.cellet = cellet;
         this.performer = performer;
         this.executor = Executors.newFixedThreadPool(16);
     }
 
+    /**
+     * 关闭存储管理器。
+     *
+     * <p>停止后台执行器，未处理完的块随之丢弃；关闭后不能再接收新块。</p>
+     */
     public void close() {
         this.executor.shutdown();
     }
 
+    /**
+     * 为指定文件登记事件监听器。
+     *
+     * <p>同一文件码只保留最后一个监听器，后注册者覆盖先前的。</p>
+     *
+     * @param fileCode 文件码。
+     * @param listener 监听器。
+     */
     public void addListener(String fileCode, FileChunkEventListener listener) {
         this.listenerMap.put(fileCode, listener);
     }
 
+    /**
+     * 移除文件的事件监听器。
+     *
+     * @param fileCode 文件码。
+     */
     public void removeListener(String fileCode) {
         this.listenerMap.remove(fileCode);
     }

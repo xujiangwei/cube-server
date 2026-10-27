@@ -21,15 +21,22 @@ import cube.service.aigc.AIGCService;
 import org.json.JSONObject;
 
 /**
- * 查询 Conversation 任务。
- * @deprecated
+ * 查询多模态任务。
+ *
+ * @deprecated 改用 {@code MultimodalTask} 与查询多模态结果的接口，本任务保留仅为兼容旧客户端。
  */
 public class QueryMultimodalTask extends ServiceTask {
 
+    /** 构造任务实例，参数由单元统一注入。 */
     public QueryMultimodalTask(Cellet cellet, TalkContext talkContext, Primitive primitive, ResponseTime responseTime) {
         super(cellet, talkContext, primitive, responseTime);
     }
 
+    /**
+     * 执行任务。
+     *
+     * <p>解析请求载荷后转交服务层处理，并把结果回写客户端。</p>
+     */
     @Override
     public void run() {
         ActionDialect dialect = new ActionDialect(this.primitive);

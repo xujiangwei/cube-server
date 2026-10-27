@@ -21,8 +21,14 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
+/**
+ * 联系人风险端点。
+ *
+ * <p>对外提供联系人风险的查询与评级接口，具体路径由父类统一管理。</p>
+ */
 public class ContactRiskHandler extends RiskManagementHandler {
 
+    /** 端点路径。 */
     public final static String PATH = "/riskmgmt/contact/risk/";
 
     private Performer performer;
@@ -32,6 +38,16 @@ public class ContactRiskHandler extends RiskManagementHandler {
         this.performer = performer;
     }
 
+    /**
+     * 查询联系人风险。
+     *
+     * <p>按联系人 ID 返回风险等级与命中规则。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     * @throws IOException      读取参数或写响应失败。
+     * @throws ServletException 容器处理异常。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response)
             throws IOException, ServletException {
@@ -77,6 +93,14 @@ public class ContactRiskHandler extends RiskManagementHandler {
         this.complete();
     }
 
+    /**
+     * 提交联系人风险数据。
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     * @throws IOException      读取请求体或写响应失败。
+     * @throws ServletException 容器处理异常。
+     */
     @Override
     public void doPost(HttpServletRequest request, HttpServletResponse response)
             throws IOException, ServletException {

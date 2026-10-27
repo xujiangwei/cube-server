@@ -24,6 +24,7 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class AccountHandler extends HubHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/hub/account/";
 
     private final long coolingTime = 500;
@@ -32,6 +33,14 @@ public class AccountHandler extends HubHandler {
         super(performer, controller);
     }
 
+    /**
+     * 查询账号信息。
+     *
+     * <p>从路径取通道码，校验通过后转发查询请求。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) {
         String code = this.getRequestPath(request);

@@ -31,26 +31,56 @@ public class ProcessedFile extends Entity {
         }
     }
 
+    /**
+     * 获取文件码。
+     *
+     * @return 文件码。
+     */
     public String getFileCode() {
         return this.fileCode;
     }
 
+    /**
+     * 获取大小。
+     *
+     * @return 大小。
+     */
     public Size getSize() {
         return this.size;
     }
 
+    /**
+     * 获取是否已处理。
+     *
+     * @return 是否已处理。
+     */
     public FileLabel getProcessed() {
         return this.processed;
     }
 
+    /**
+     * 获取文件标签。
+     *
+     * @return 文件标签。
+     */
     public FileLabel getFileLabel() {
         return this.fileLabel;
     }
 
+    /**
+     * 设置文件标签。
+     *
+     * @param fileLabel 文件标签。
+     */
     public void setFileLabel(FileLabel fileLabel) {
         this.fileLabel = fileLabel;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -64,6 +94,13 @@ public class ProcessedFile extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

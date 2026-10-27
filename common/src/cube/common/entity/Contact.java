@@ -283,8 +283,7 @@ public class Contact extends AbstractContact {
 
     /**
      * 获取当前联系人第一个设备。
-     *
-     * @return
+     * @return 处理结果。
      */
     public Device getDevice() {
         return (this.deviceList.isEmpty()) ? new Device("Unknown", "Unknown") : this.deviceList.get(0);
@@ -329,6 +328,12 @@ public class Contact extends AbstractContact {
         return this.appendix;
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param object 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (object instanceof Contact) {
@@ -341,6 +346,11 @@ public class Contact extends AbstractContact {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return this.id.hashCode() * 3 + this.domain.hashCode() * 5;

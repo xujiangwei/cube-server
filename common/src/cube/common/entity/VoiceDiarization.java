@@ -229,8 +229,7 @@ public class VoiceDiarization extends Entity {
 
     /**
      * 优化说话者标签显示。
-     *
-     * @param language
+     * @param language language。
      */
     public void enhanceSpeakerDisplayNames(Language language) {
         Map<String, String> usedNameMap = new HashMap<>();

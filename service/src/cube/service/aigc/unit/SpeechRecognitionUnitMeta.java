@@ -22,14 +22,22 @@ import cube.service.aigc.AIGCService;
 import cube.service.aigc.listener.AutomaticSpeechRecognitionListener;
 import org.json.JSONObject;
 
+/**
+ * 语音识别单元任务。
+ *
+ * <p>把音频文件转写为文本，并把识别结果回调给监听器。</p>
+ */
 public class SpeechRecognitionUnitMeta extends UnitMeta {
 
 //        protected final static String PROMPT = "合理使用标点符号给以下文本断句并修正错别字：%s";
 
+    /** 待识别的音频文件。 */
     protected FileLabel file;
 
+    /** 访问令牌，决定识别结果的归属域。 */
     protected AuthToken authToken;
 
+    /** 识别结果监听器。 */
     protected AutomaticSpeechRecognitionListener listener;
 
     public SpeechRecognitionUnitMeta(AIGCService service, AIGCUnit unit, AuthToken authToken, FileLabel file,
@@ -40,6 +48,11 @@ public class SpeechRecognitionUnitMeta extends UnitMeta {
         this.listener = listener;
     }
 
+    /**
+     * 执行语音识别。
+     *
+     * <p>组装识别载荷并调用单元，结果通过监听器回调。</p>
+     */
     @Override
     public void process() {
         JSONObject data = new JSONObject();

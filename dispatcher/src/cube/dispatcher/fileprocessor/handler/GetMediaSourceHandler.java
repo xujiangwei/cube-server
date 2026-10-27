@@ -21,6 +21,7 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class GetMediaSourceHandler extends CrossDomainHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/file/source/";
 
     private Performer performer;
@@ -30,6 +31,14 @@ public class GetMediaSourceHandler extends CrossDomainHandler {
         this.performer = performer;
     }
 
+    /**
+     * 查询媒体源地址。
+     *
+     * <p>从查询参数 {@code t} 取令牌，返回该媒体的回放地址。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) {
         String token = request.getParameter("t");

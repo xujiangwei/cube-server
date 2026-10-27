@@ -19,6 +19,17 @@ public class Controller {
         this.visitLogMap = new ConcurrentHashMap<>();
     }
 
+    /**
+     * 校验访问是否在冷却期外。
+     *
+     * <p>按通道码与路径组合记录访问时间，同一组合在冷却时间内重复访问会被拒绝。
+     * 首次访问总是放行。</p>
+     *
+     * @param channelCode 通道码。
+     * @param path        请求路径。
+     * @param coolingTime 冷却时间，单位毫秒。
+     * @return 允许访问返回 {@code true} 。
+     */
     public boolean verify(String channelCode, String path, long coolingTime) {
         String key = channelCode + "_" + path;
 

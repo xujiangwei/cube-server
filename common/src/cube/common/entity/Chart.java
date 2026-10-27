@@ -20,23 +20,33 @@ import java.util.List;
  */
 public class Chart implements JSONable {
 
+    /** 轴类型：数值轴。 */
     public final static String AXIS_TYPE_VALUE = "value";
+    /** 轴类型：类目轴。 */
     public final static String AXIS_TYPE_CATEGORY = "category";
 
+    /** 名称。 */
     public String name;
 
+    /** 描述。 */
     public String desc;
 
+    /** 时间戳。 */
     public long timestamp;
 
+    /** 标题。 */
     public JSONObject title;
 
+    /** 图例。 */
     public Legend legend;
 
+    /** X 轴。 */
     public List<Axis> xAxis;
 
+    /** Y 轴。 */
     public List<Axis> yAxis;
 
+    /** 系列列表。 */
     public List<Series> seriesList;
 
     public Chart(String name, String desc, long timestamp) {
@@ -86,37 +96,73 @@ public class Chart implements JSONable {
         }
     }
 
+    /**
+     * 设置图例。
+     *
+     * @param data 图例。
+     */
     public Legend setLegend(List<String> data) {
         this.legend = new Legend(data);
         return this.legend;
     }
 
+    /**
+     * 设置X 轴。
+     *
+     * @param type X 轴。
+     */
     public Axis setXAxis(String type) {
         this.xAxis.clear();
         this.xAxis.add(new Axis(type));
         return this.xAxis.get(0);
     }
 
+    /**
+     * 获取X 轴。
+     *
+     * @return X 轴。
+     */
     public Axis getXAxis() {
         return this.xAxis.isEmpty() ? null : this.xAxis.get(0);
     }
 
+    /**
+     * 设置Y 轴。
+     *
+     * @param type Y 轴。
+     */
     public Axis setYAxis(String type) {
         this.yAxis.clear();
         this.yAxis.add(new Axis(type));
         return this.yAxis.get(0);
     }
 
+    /**
+     * 获取Y 轴。
+     *
+     * @return Y 轴。
+     */
     public Axis getYAxis() {
         return this.yAxis.isEmpty() ? null : this.yAxis.get(0);
     }
 
+    /**
+     * 添加系列。
+     *
+     * @param name 系列。
+     * @param type 系列。
+     */
     public Series addSeries(String name, String type) {
         Series series = new Series(name, type);
         this.seriesList.add(series);
         return series;
     }
 
+    /**
+     * 移除系列。
+     *
+     * @param name 系列。
+     */
     public Series removeSeries(String name) {
         for (Series series : this.seriesList) {
             if (series.name.equals(name)) {
@@ -129,6 +175,11 @@ public class Chart implements JSONable {
     }
 
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -165,6 +216,13 @@ public class Chart implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

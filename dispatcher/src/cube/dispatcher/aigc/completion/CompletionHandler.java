@@ -62,6 +62,14 @@ public final class CompletionHandler extends ContextHandler {
         });
     }
 
+    /**
+     * 启动处理器。
+     *
+     * <p>创建守护定时器并每秒驱动一次会话心跳，用于探测并清理僵死订阅；
+     * 启动失败时先关闭定时器再把异常抛出，避免线程泄漏。</p>
+     *
+     * @throws Exception 启动失败。
+     */
     @Override
     protected void doStart() throws Exception {
         timer = new ScheduledThreadPoolExecutor(1, runnable -> {
@@ -81,6 +89,14 @@ public final class CompletionHandler extends ContextHandler {
         }
     }
 
+    /**
+     * 停止处理器。
+     *
+     * <p>先把所有会话以 {@code 503} 结束并关闭，再停止定时器——
+     * 顺序颠倒会让客户端收不到明确的结束原因。</p>
+     *
+     * @throws Exception 停止失败。
+     */
     @Override
     protected void doStop() throws Exception {
         for (Session session : sessions) {

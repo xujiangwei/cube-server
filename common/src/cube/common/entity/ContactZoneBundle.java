@@ -14,10 +14,13 @@ import org.json.JSONObject;
  */
 public class ContactZoneBundle implements JSONable {
 
+    /** 动作：新增。 */
     public final static int ACTION_ADD = 1;
 
+    /** 动作：移除。 */
     public final static int ACTION_REMOVE = 0;
 
+    /** 动作：更新。 */
     public final static int ACTION_UPDATE = 9;
 
     private ContactZone zone;
@@ -32,6 +35,11 @@ public class ContactZoneBundle implements JSONable {
         this.action = action;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -41,6 +49,13 @@ public class ContactZoneBundle implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

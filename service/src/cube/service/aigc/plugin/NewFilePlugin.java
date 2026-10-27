@@ -26,16 +26,34 @@ public class NewFilePlugin implements Plugin {
         this.service = service;
     }
 
+    /**
+     * 初始化插件。
+     *
+     * <p>当前无需初始化。</p>
+     */
     @Override
     public void setup() {
         // Nothing
     }
 
+    /**
+     * 释放插件。
+     *
+     * <p>当前无需清理。</p>
+     */
     @Override
     public void teardown() {
         // Nothing
     }
 
+    /**
+     * 处理新文件事件。
+     *
+     * <p>为新提交的文件建立索引或触发后处理；异常只记录日志。</p>
+     *
+     * @param context 插件上下文。
+     * @return 固定返回 {@code null} 。
+     */
     @Override
     public HookResult launch(PluginContext context) {
         try {

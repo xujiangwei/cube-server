@@ -18,12 +18,16 @@ import java.util.List;
  */
 public class KnowledgeQAResult implements JSONable {
 
+    /** 查询。 */
     public final String query;
 
+    /** 提示词。 */
     public String prompt;
 
+    /** 记录。 */
     public GeneratingRecord record;
 
+    /** 来源列表。 */
     public List<KnowledgeSource> sources;
 
     public KnowledgeQAResult(String query) {
@@ -55,6 +59,13 @@ public class KnowledgeQAResult implements JSONable {
         }
     }
 
+    /**
+     * 用另一结果重置当前对象。
+     *
+     * <p>保留对象引用、替换内部状态，便于在流式生成中复用实例。</p>
+     *
+     * @param other 来源结果。
+     */
     public void reset(KnowledgeQAResult other) {
         this.prompt = other.prompt;
         this.sources = other.sources;
@@ -62,6 +73,11 @@ public class KnowledgeQAResult implements JSONable {
         this.record.query = this.query;
     }
 
+    /**
+     * 把来源转为数组。
+     *
+     * @return 来源 JSON 数组。
+     */
     public JSONArray sourcesToArray() {
         JSONArray array = new JSONArray();
         for (KnowledgeSource source : this.sources) {
@@ -70,6 +86,11 @@ public class KnowledgeQAResult implements JSONable {
         return array;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -86,6 +107,13 @@ public class KnowledgeQAResult implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = this.toJSON();

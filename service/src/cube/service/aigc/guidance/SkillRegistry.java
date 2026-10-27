@@ -55,6 +55,11 @@ public class SkillRegistry {
 
     private static final SkillRegistry sInstance = new SkillRegistry();
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static SkillRegistry getInstance() {
         return sInstance;
     }

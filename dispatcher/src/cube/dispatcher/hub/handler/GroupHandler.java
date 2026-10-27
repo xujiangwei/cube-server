@@ -27,6 +27,7 @@ import java.net.URLDecoder;
  */
 public class GroupHandler extends HubHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/hub/group/";
 
     private final long coolingTime = 10;
@@ -35,6 +36,12 @@ public class GroupHandler extends HubHandler {
         super(performer, controller);
     }
 
+    /**
+     * 查询群组信息。
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) {
         String code = this.getRequestPath(request);

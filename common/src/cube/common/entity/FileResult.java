@@ -17,16 +17,22 @@ import java.io.File;
  */
 public class FileResult implements JSONable {
 
+    /** 文件。 */
     public File file;
 
+    /** 完整路径。 */
     public String fullPath;
 
+    /** 流名称。 */
     public String streamName;
 
+    /** 文件名。 */
     public String fileName;
 
+    /** 文件大小。 */
     public long fileSize;
 
+    /** 媒体属性。 */
     public MediaAttribute mediaAttribute;
 
     public FileResult(File file) {
@@ -49,6 +55,11 @@ public class FileResult implements JSONable {
         }
     }
 
+    /**
+     * 重置文件。
+     *
+     * @param file 文件。
+     */
     public void resetFile(File file) {
         this.file = file;
         this.fullPath = file.getAbsolutePath();
@@ -56,6 +67,11 @@ public class FileResult implements JSONable {
         this.fileSize = file.length();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -71,6 +87,13 @@ public class FileResult implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

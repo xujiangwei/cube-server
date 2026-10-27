@@ -89,10 +89,9 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param id
-     * @param contact
-     * @param device
+     * @param id id。
+     * @param contact contact。
+     * @param device 设备信息。
      */
     public CommFieldEndpoint(Long id, Contact contact, Device device) {
         super(id, contact.domain);
@@ -107,8 +106,7 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param json
+     * @param json JSON 数据。
      */
     public CommFieldEndpoint(JSONObject json) {
         super(json);
@@ -143,8 +141,7 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 获取终端名称。
-     *
-     * @return
+     * @return 字符串结果；无值时返回 {@code null} 。
      */
     public String getName() {
         return this.name;
@@ -152,8 +149,7 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 获取联系人实例。
-     *
-     * @return
+     * @return 联系人。
      */
     public Contact getContact() {
         return this.contact;
@@ -161,8 +157,7 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 获取设备实例。
-     *
-     * @return
+     * @return 处理结果。
      */
     public Device getDevice() {
         return this.device;
@@ -170,7 +165,7 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 设置 WebRTC 的 session description 。
-     * @param sessionDescription
+     * @param sessionDescription sessionDescription。
      */
     public void setSessionDescription(JSONObject sessionDescription) {
         this.sessionDescription = sessionDescription;
@@ -178,8 +173,7 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 设置媒体约束。
-     *
-     * @param mediaConstraint
+     * @param mediaConstraint mediaConstraint。
      */
     public void setMediaConstraint(JSONObject mediaConstraint) {
         this.mediaConstraint = mediaConstraint;
@@ -187,8 +181,7 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 添加 ICE Candidate 。
-     *
-     * @param candidate
+     * @param candidate candidate。
      */
     public synchronized void addCandidate(JSONObject candidate) {
         if (null == this.candidateList) {
@@ -200,8 +193,7 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 获取 ICE Candidate 列表。
-     *
-     * @return
+     * @return 列表；无数据时为空列表。
      */
     public List<JSONObject> getCandidates() {
         if (null == this.candidateList) {
@@ -222,8 +214,7 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 设置状态。
-     *
-     * @param state
+     * @param state 状态。
      */
     public void setState(CommFieldEndpointState state) {
         this.state = state;
@@ -232,8 +223,7 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 返回状态。
-     *
-     * @return
+     * @return 处理结果。
      */
     public CommFieldEndpointState getState() {
         return this.state;
@@ -241,13 +231,18 @@ public class CommFieldEndpoint extends Entity {
 
     /**
      * 返回最近一次修改状态的时间戳。
-     *
-     * @return
+     * @return 计算结果。
      */
     public long getLastModified() {
         return this.lastModified;
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param object 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (null != object && object instanceof CommFieldEndpoint) {
@@ -260,6 +255,11 @@ public class CommFieldEndpoint extends Entity {
         return false;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -288,6 +288,13 @@ public class CommFieldEndpoint extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();

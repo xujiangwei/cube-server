@@ -75,15 +75,14 @@ public class Conversation extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param id
-     * @param domain
-     * @param timestamp
-     * @param ownerId
-     * @param type
-     * @param state
-     * @param pivotalId
-     * @param remindType
+     * @param id id。
+     * @param domain 域。
+     * @param timestamp 时间戳，单位毫秒。
+     * @param ownerId ownerId。
+     * @param type 类型。
+     * @param state 状态。
+     * @param pivotalId pivotalId。
+     * @param remindType remindType。
      */
     public Conversation(Long id, String domain, long timestamp, Long ownerId, ConversationType type,
                         ConversationState state, Long pivotalId, ConversationRemindType remindType) {
@@ -98,8 +97,7 @@ public class Conversation extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param contact
+     * @param contact contact。
      */
     public Conversation(Contact contact) {
         this(contact, new ArrayList<>());
@@ -107,8 +105,7 @@ public class Conversation extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param group
+     * @param group group。
      */
     public Conversation(Group group) {
         this(group, new ArrayList<>());
@@ -116,9 +113,8 @@ public class Conversation extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param contact
-     * @param recentMessages
+     * @param contact contact。
+     * @param recentMessages recentMessages。
      */
     public Conversation(Contact contact, List<Message> recentMessages) {
         super(Utils.generateSerialNumber(), "", System.currentTimeMillis());
@@ -134,9 +130,8 @@ public class Conversation extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param group
-     * @param recentMessages
+     * @param group group。
+     * @param recentMessages recentMessages。
      */
     public Conversation(Group group, List<Message> recentMessages) {
         super(Utils.generateSerialNumber(), "", System.currentTimeMillis());
@@ -152,8 +147,7 @@ public class Conversation extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param json
+     * @param json JSON 数据。
      */
     public Conversation(JSONObject json) {
         this(json, null);
@@ -161,9 +155,8 @@ public class Conversation extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param json
-     * @param owner
+     * @param json JSON 数据。
+     * @param owner owner。
      */
     public Conversation(JSONObject json, Contact owner) {
         super(json);
@@ -210,46 +203,101 @@ public class Conversation extends Entity {
         }
     }
 
+    /**
+     * 获取所有者 ID。
+     *
+     * @return 所有者 ID。
+     */
     public Long getOwnerId() {
         return this.ownerId;
     }
 
+    /**
+     * 获取类型。
+     *
+     * @return 类型。
+     */
     public ConversationType getType() {
         return this.type;
     }
 
+    /**
+     * 获取关键实体 ID。
+     *
+     * @return 关键实体 ID。
+     */
     public Long getPivotalId() {
         return this.pivotalId;
     }
 
+    /**
+     * 获取状态。
+     *
+     * @return 状态。
+     */
     public ConversationState getState() {
         return this.state;
     }
 
+    /**
+     * 获取提醒类型。
+     *
+     * @return 提醒类型。
+     */
     public ConversationRemindType getRemindType() {
         return this.remindType;
     }
 
+    /**
+     * 获取上下文。
+     *
+     * @return 上下文。
+     */
     public JSONObject getContext() {
         return this.context;
     }
 
+    /**
+     * 设置上下文。
+     *
+     * @param context 上下文。
+     */
     public void setContext(JSONObject context) {
         this.context = context;
     }
 
+    /**
+     * 获取关键实体。
+     *
+     * @return 关键实体。
+     */
     public AbstractContact getPivotalEntity() {
         return this.pivotalEntity;
     }
 
+    /**
+     * 设置关键实体。
+     *
+     * @param pivotalEntity 关键实体。
+     */
     public void setPivotalEntity(AbstractContact pivotalEntity) {
         this.pivotalEntity = pivotalEntity;
     }
 
+    /**
+     * 获取最近消息列表。
+     *
+     * @return 最近消息列表。
+     */
     public List<Message> getRecentMessages() {
         return this.recentMessages;
     }
 
+    /**
+     * 添加最近消息。
+     *
+     * @param message 最近消息。
+     */
     public void addRecentMessage(Message message) {
         if (null == this.recentMessages) {
             this.recentMessages = new ArrayList<>();
@@ -258,6 +306,11 @@ public class Conversation extends Entity {
         this.recentMessages.add(message);
     }
 
+    /**
+     * 移除最近消息。
+     *
+     * @param message 最近消息。
+     */
     public void removeRecentMessage(Message message) {
         if (null == this.recentMessages) {
             return;
@@ -266,6 +319,11 @@ public class Conversation extends Entity {
         this.recentMessages.remove(message);
     }
 
+    /**
+     * 获取最近消息。
+     *
+     * @return 最近消息。
+     */
     public Message getRecentMessage() {
         if (null == this.recentMessages) {
             return null;
@@ -274,6 +332,11 @@ public class Conversation extends Entity {
         return this.recentMessages.get(this.recentMessages.size() - 1);
     }
 
+    /**
+     * 设置最近消息。
+     *
+     * @param message 最近消息。
+     */
     public void setRecentMessage(Message message) {
         if (null != this.recentMessages) {
             this.recentMessages.clear();
@@ -285,18 +348,38 @@ public class Conversation extends Entity {
         this.recentMessages.add(message);
     }
 
+    /**
+     * 设置未读数。
+     *
+     * @param count 未读数。
+     */
     public void setUnreadCount(int count) {
         this.unreadCount = count;
     }
 
+    /**
+     * 设置头像名称。
+     *
+     * @param avatarName 头像名称。
+     */
     public void setAvatarName(String avatarName) {
         this.avatarName = avatarName;
     }
 
+    /**
+     * 设置头像地址。
+     *
+     * @param avatarURL 头像地址。
+     */
     public void setAvatarURL(String avatarURL) {
         this.avatarURL = avatarURL;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

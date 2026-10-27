@@ -42,10 +42,13 @@ public class AuthDomain implements JSONable {
      */
     public final Endpoint mainEndpoint;
 
+    /** HTTP 端点。 */
     public final Endpoint httpEndpoint;
 
+    /** HTTPS 端点。 */
     public final Endpoint httpsEndpoint;
 
+    /**  ICE 服务器。 */
     public final JSONArray iceServers;
 
     /**
@@ -53,21 +56,21 @@ public class AuthDomain implements JSONable {
      */
     public final boolean ferry;
 
+    /** 该域下已签发的令牌缓存。 */
     public ConcurrentHashMap<String, AuthToken> tokens;
 
     private PrimaryDescription description;
 
     /**
      * 构造函数。
-     *
-     * @param domainName
-     * @param appKey
-     * @param appId
-     * @param mainEndpoint
-     * @param httpEndpoint
-     * @param httpsEndpoint
-     * @param iceServers
-     * @param ferry
+     * @param domainName 域名。
+     * @param appKey appKey。
+     * @param appId appId。
+     * @param mainEndpoint mainEndpoint。
+     * @param httpEndpoint httpEndpoint。
+     * @param httpsEndpoint httpsEndpoint。
+     * @param iceServers iceServers。
+     * @param ferry ferry。
      */
     public AuthDomain(String domainName, String appKey, String appId, Endpoint mainEndpoint,
                       Endpoint httpEndpoint, Endpoint httpsEndpoint, JSONArray iceServers,
@@ -85,11 +88,10 @@ public class AuthDomain implements JSONable {
 
     /**
      * 构造函数。
-     *
-     * @param domainName
-     * @param appKey
-     * @param array
-     * @param ferry
+     * @param domainName 域名。
+     * @param appKey appKey。
+     * @param array array。
+     * @param ferry ferry。
      */
     public AuthDomain(String domainName, String appKey, JSONArray array, boolean ferry) {
         this.domainName = domainName;
@@ -120,8 +122,7 @@ public class AuthDomain implements JSONable {
 
     /**
      * 构造函数。
-     *
-     * @param json
+     * @param json JSON 数据。
      */
     public AuthDomain(JSONObject json) {
         this.domainName = json.getString("domainName");
@@ -134,18 +135,38 @@ public class AuthDomain implements JSONable {
         this.ferry = json.has("ferry") && json.getBoolean("ferry");
     }
 
+    /**
+     * 获取主端点。
+     *
+     * @return 主端点。
+     */
     public Endpoint getMainEndpoint() {
         return this.mainEndpoint;
     }
 
+    /**
+     * 获取HTTP 端点。
+     *
+     * @return HTTP 端点。
+     */
     public Endpoint getHttpEndpoint() {
         return this.httpEndpoint;
     }
 
+    /**
+     * 获取HTTPS 端点。
+     *
+     * @return HTTPS 端点。
+     */
     public Endpoint getHttpsEndpoint() {
         return this.httpsEndpoint;
     }
 
+    /**
+     * 获取主要描述。
+     *
+     * @return 主要描述。
+     */
     public PrimaryDescription getPrimaryDescription() {
         if (null != this.description) {
             return this.description;
@@ -170,10 +191,20 @@ public class AuthDomain implements JSONable {
         return this.description;
     }
 
+    /**
+     * 判断是否Ferry。
+     *
+     * @return Ferry。
+     */
     public boolean isFerry() {
         return this.ferry;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -199,6 +230,13 @@ public class AuthDomain implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

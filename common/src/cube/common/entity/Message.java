@@ -257,12 +257,11 @@ public class Message extends Entity implements Comparable<Message> {
 
     /**
      * 构造函数。
-     *
-     * @param id
-     * @param sender
-     * @param group
-     * @param timestamp
-     * @param payload
+     * @param id id。
+     * @param sender sender。
+     * @param group group。
+     * @param timestamp 时间戳，单位毫秒。
+     * @param payload payload。
      */
     public Message(long id, Contact sender, Group group, long timestamp, JSONObject payload) {
         super();
@@ -277,12 +276,11 @@ public class Message extends Entity implements Comparable<Message> {
 
     /**
      * 构造函数。
-     *
-     * @param id
-     * @param sender
-     * @param partner
-     * @param timestamp
-     * @param payload
+     * @param id id。
+     * @param sender sender。
+     * @param partner partner。
+     * @param timestamp 时间戳，单位毫秒。
+     * @param payload payload。
      */
     public Message(long id, Contact sender, Contact partner, long timestamp, JSONObject payload) {
         super();
@@ -297,9 +295,8 @@ public class Message extends Entity implements Comparable<Message> {
 
     /**
      * 构造函数。
-     *
-     * @param partner
-     * @param payload
+     * @param partner partner。
+     * @param payload payload。
      */
     public Message(Contact partner, JSONObject payload) {
         super();
@@ -313,9 +310,8 @@ public class Message extends Entity implements Comparable<Message> {
 
     /**
      * 构造函数。
-     *
-     * @param group
-     * @param payload
+     * @param group group。
+     * @param payload payload。
      */
     public Message(Group group, JSONObject payload) {
         super();
@@ -329,8 +325,7 @@ public class Message extends Entity implements Comparable<Message> {
 
     /**
      * 获取消息发送人。
-     *
-     * @return
+     * @return 联系人。
      */
     public Contact getSender() {
         return this.sender;
@@ -338,8 +333,7 @@ public class Message extends Entity implements Comparable<Message> {
 
     /**
      * 获取消息的群组。
-     *
-     * @return
+     * @return 处理结果。
      */
     public Group getGroup() {
         return this.group;
@@ -347,8 +341,7 @@ public class Message extends Entity implements Comparable<Message> {
 
     /**
      * 获取消息对话互动联系人。
-     *
-     * @return
+     * @return 联系人。
      */
     public Contact getPartner() {
         return this.partner;
@@ -491,8 +484,7 @@ public class Message extends Entity implements Comparable<Message> {
 
     /**
      * 设置消息附件。
-     *
-     * @param attachment
+     * @param attachment attachment。
      */
     public void setAttachment(FileAttachment attachment) {
         this.attachment = attachment;
@@ -554,8 +546,7 @@ public class Message extends Entity implements Comparable<Message> {
 
     /**
      * 设置时间戳精度。
-     *
-     * @param timestampPrecision
+     * @param timestampPrecision timestampPrecision。
      */
     public void setTimestampPrecision(int timestampPrecision) {
         this.timestampPrecision = timestampPrecision;
@@ -563,8 +554,7 @@ public class Message extends Entity implements Comparable<Message> {
 
     /**
      * 获取时间戳精度。
-     *
-     * @return
+     * @return 计算结果。
      */
     public int getTimestampPrecision() {
         return this.timestampPrecision;

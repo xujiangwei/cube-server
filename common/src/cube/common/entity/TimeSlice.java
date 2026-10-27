@@ -21,10 +21,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class TimeSlice implements JSONable {
 
+    /** 切片。 */
     public final int slice;
 
+    /** 起始。 */
     public final long beginning;
 
+    /** 结束。 */
     public final long ending;
 
     private List<Contact> contactList;
@@ -40,6 +43,12 @@ public class TimeSlice implements JSONable {
         this.deviceCountMap = new HashMap<>();
     }
 
+    /**
+     * 添加联系人。
+     *
+     * @param contact 联系人。
+     * @param device 联系人。
+     */
     public void addContact(Contact contact, Device device) {
         int index = this.contactList.indexOf(contact);
         if (index >= 0) {
@@ -60,6 +69,11 @@ public class TimeSlice implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -76,6 +90,13 @@ public class TimeSlice implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

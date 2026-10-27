@@ -63,8 +63,7 @@ public class ContactZone extends Entity {
 
     /**
      * 构造函数。
-     *
-     * @param name
+     * @param name 名称。
      */
     public ContactZone(String name) {
         this(Utils.generateSerialNumber(), "", 0, name, System.currentTimeMillis(),
@@ -90,6 +89,11 @@ public class ContactZone extends Entity {
         }
     }
 
+    /**
+     * 添加参与者。
+     *
+     * @param participant 参与者。
+     */
     public void addParticipant(ContactZoneParticipant participant) {
         if (participant.type == ContactZoneParticipantType.Contact
                 && participant.id.longValue() == this.owner) {
@@ -104,6 +108,11 @@ public class ContactZone extends Entity {
         this.participants.add(participant);
     }
 
+    /**
+     * 移除参与者。
+     *
+     * @param id 参与者。
+     */
     public void removeParticipant(Long id) {
         for (ContactZoneParticipant participant : this.participants) {
             if (participant.id.equals(id)) {
@@ -113,10 +122,21 @@ public class ContactZone extends Entity {
         }
     }
 
+    /**
+     * 获取参与者列表。
+     *
+     * @return 参与者列表。
+     */
     public List<ContactZoneParticipant> getParticipants() {
         return this.participants;
     }
 
+    /**
+     * 获取参与者。
+     *
+     * @param id 参与者。
+     * @return 参与者。
+     */
     public ContactZoneParticipant getParticipant(Long id) {
         for (ContactZoneParticipant participant : this.participants) {
             if (participant.id.equals(id)) {
@@ -127,6 +147,11 @@ public class ContactZone extends Entity {
         return null;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = ContactZone.this.toCompactJSON();
@@ -142,6 +167,13 @@ public class ContactZone extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toCompactJSON();

@@ -23,6 +23,11 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 检索重排单元任务。
+ *
+ * <p>对召回结果做二次排序，提升送入模型的片段相关性。</p>
+ */
 public class RetrieveReRankUnitMeta extends UnitMeta {
 
     private List<String> queries;
@@ -46,6 +51,11 @@ public class RetrieveReRankUnitMeta extends UnitMeta {
         this.listener = listener;
     }
 
+    /**
+     * 执行重排。
+     *
+     * <p>把候选片段与查询一起提交给重排单元，按返回分数重写顺序并回调结果。</p>
+     */
     @Override
     public void process() {
         JSONObject data = new JSONObject();

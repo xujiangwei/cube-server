@@ -24,6 +24,7 @@ import java.io.IOException;
  */
 public class MediaStreamHandler extends CrossDomainHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/file/media/";
 
     private final String m3u8MIME = "application/x-mpegURL";
@@ -36,6 +37,16 @@ public class MediaStreamHandler extends CrossDomainHandler {
         this.performer = performer;
     }
 
+    /**
+     * 返回媒体流清单与分片。
+     *
+     * <p>按路径区分清单文件与 TS 分片：清单返回 M3U8 内容，分片直接输出字节。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     * @throws IOException      读取文件或写响应失败。
+     * @throws ServletException 容器处理异常。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response)
             throws IOException, ServletException {

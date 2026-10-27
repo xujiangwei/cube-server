@@ -14,16 +14,22 @@ import org.json.JSONObject;
  */
 public class VoiceTrack implements JSONable {
 
+    /** 轨迹。 */
     public String track;
 
+    /** 标签。 */
     public String label;
 
+    /** 显示。 */
     public String display;
 
+    /** 分段。 */
     public VoiceSegment segment;
 
+    /** 情绪。 */
     public SpeechEmotion emotion;
 
+    /** 识别。 */
     public SpeechRecognitionInfo recognition;
 
     public VoiceTrack(JSONObject json) {
@@ -45,6 +51,11 @@ public class VoiceTrack implements JSONable {
         this.recognition = recognition;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -57,6 +68,13 @@ public class VoiceTrack implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

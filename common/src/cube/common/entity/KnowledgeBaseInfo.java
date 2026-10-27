@@ -14,18 +14,25 @@ import org.json.JSONObject;
  */
 public class KnowledgeBaseInfo implements JSONable {
 
+    /** 联系人 ID。 */
     public long contactId;
 
+    /** 名称。 */
     public String name;
 
+    /** 显示名称。 */
     public String displayName;
 
+    /** 分类。 */
     public String category;
 
+    /** 单元 ID。 */
     public long unitId;
 
+    /** 存储大小。 */
     public long storeSize;
 
+    /** 时间戳。 */
     public long timestamp;
 
     public KnowledgeBaseInfo(long contactId, String name, String displayName, String category,
@@ -51,6 +58,12 @@ public class KnowledgeBaseInfo implements JSONable {
         }
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param obj 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof KnowledgeBaseInfo) {
@@ -60,11 +73,21 @@ public class KnowledgeBaseInfo implements JSONable {
         return false;
     }
 
+    /**
+     * 计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return (new Long(this.contactId)).hashCode() * 7 - this.name.hashCode();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -80,6 +103,13 @@ public class KnowledgeBaseInfo implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -49,16 +49,22 @@ public class Membership extends Entity {
      */
     public final static int STATE_FORBIDDEN = 9;
 
+    /** 名称。 */
     public String name;
 
+    /** 类型。 */
     public String type;
 
+    /** 状态。 */
     public int state;
 
+    /** 时长。 */
     public long duration;
 
+    /** 描述。 */
     public String description;
 
+    /** 上下文。 */
     public JSONObject context;
 
     public Membership(long contactId, String domain, String name, String type, int state,
@@ -84,22 +90,47 @@ public class Membership extends Entity {
         }
     }
 
+    /**
+     * 判断是否普通等级。
+     *
+     * @return 普通等级。
+     */
     public boolean isOrdinaryRank() {
         return this.type.equalsIgnoreCase(Membership.TYPE_ORDINARY);
     }
 
+    /**
+     * 判断是否资深等级。
+     *
+     * @return 资深等级。
+     */
     public boolean isSeniorRank() {
         return this.type.equalsIgnoreCase(Membership.TYPE_SENIOR);
     }
 
+    /**
+     * 判断是否高级等级。
+     *
+     * @return 高级等级。
+     */
     public boolean isPremiumRank() {
         return this.type.equalsIgnoreCase(Membership.TYPE_PREMIUM);
     }
 
+    /**
+     * 判断是否至尊等级。
+     *
+     * @return 至尊等级。
+     */
     public boolean isSupremeRank() {
         return this.type.equalsIgnoreCase(Membership.TYPE_SUPREME);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -114,6 +145,13 @@ public class Membership extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

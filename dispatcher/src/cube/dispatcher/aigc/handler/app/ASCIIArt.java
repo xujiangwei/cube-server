@@ -15,6 +15,11 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * 字符画端点。
+ *
+ * <p>下发客户端启动页展示的字符画内容。</p>
+ */
 public class ASCIIArt extends ContextHandler {
 
     public ASCIIArt() {

@@ -25,10 +25,20 @@ public class FileResource extends ComplexResource {
         this.fileLabel = new FileLabel(json.getJSONObject("fileLabel"));
     }
 
+    /**
+     * 获取文件标签。
+     *
+     * @return 文件标签。
+     */
     public FileLabel getFileLabel() {
         return this.fileLabel;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

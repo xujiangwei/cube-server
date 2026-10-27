@@ -54,39 +54,73 @@ public class ObjectInfo extends Entity {
         }
     }
 
+    /**
+     * 获取文件码。
+     *
+     * @return 文件码。
+     */
     public String getFileCode() {
         return this.fileCode;
     }
 
+    /**
+     * 获取耗时。
+     *
+     * @return 耗时。
+     */
     public long getElapsed() {
         return this.elapsed;
     }
 
+    /**
+     * 获取大小。
+     *
+     * @return 大小。
+     */
     public Size getSize() {
         return this.size;
     }
 
+    /**
+     * 获取对象列表。
+     *
+     * @return 对象列表。
+     */
     public List<Material> getObjects() {
         return this.materials;
     }
 
+    /**
+     * 获取描述。
+     *
+     * @return 描述。
+     */
     public String getDescription() {
         return this.description;
     }
 
+    /**
+     * 获取文件标签。
+     *
+     * @return 文件标签。
+     */
     public FileLabel getFileLabel() {
         return this.fileLabel;
     }
 
+    /**
+     * 设置文件标签。
+     *
+     * @param fileLabel 文件标签。
+     */
     public void setFileLabel(FileLabel fileLabel) {
         this.fileLabel = fileLabel;
     }
 
     /**
      * 生成 Markdown 格式的描述。
-     *
-     * @param list
-     * @return
+     * @param list list。
+     * @return 字符串结果；无值时返回 {@code null} 。
      */
     private String makeDescription(List<Material> list) {
         StringBuilder buf = new StringBuilder();
@@ -104,6 +138,11 @@ public class ObjectInfo extends Entity {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -126,6 +165,13 @@ public class ObjectInfo extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

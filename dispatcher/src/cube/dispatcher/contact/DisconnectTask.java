@@ -22,10 +22,22 @@ public class DisconnectTask extends DispatcherTask {
         super(cellet, talkContext, null, performer);
     }
 
+    /**
+     * 重置任务以复用。
+     *
+     * <p>断连任务只依赖会话上下文，没有请求消息。</p>
+     *
+     * @param talkContext 新的会话上下文。
+     */
     public void reset(TalkContext talkContext) {
         this.talkContext = talkContext;
     }
 
+    /**
+     * 执行断连处理。
+     *
+     * <p>按会话上下文查出对应联系人并通知服务端下线；查不到联系人时静默结束。</p>
+     */
     @Override
     public void run() {
         // 查询联系人

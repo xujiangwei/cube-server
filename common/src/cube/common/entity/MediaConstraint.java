@@ -35,14 +35,29 @@ public class MediaConstraint implements JSONable {
         this.dimension = json.getJSONObject("dimension");
     }
 
+    /**
+     * 判断是否启用视频。
+     *
+     * @return 启用返回 {@code true} 。
+     */
     public boolean videoEnabled() {
         return this.video;
     }
 
+    /**
+     * 判断是否启用音频。
+     *
+     * @return 启用返回 {@code true} 。
+     */
     public boolean audioEnabled() {
         return this.audio;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -52,6 +67,13 @@ public class MediaConstraint implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

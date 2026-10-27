@@ -14,6 +14,11 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * 队列计数端点。
+ *
+ * <p>返回各处理队列的排队数量，用于容量观察与告警。</p>
+ */
 public class GetQueueCount extends ContextHandler {
 
     public GetQueueCount() {

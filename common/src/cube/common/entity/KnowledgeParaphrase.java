@@ -37,22 +37,47 @@ public class KnowledgeParaphrase extends Entity {
         this.paraphrase = json.getString("paraphrase");
     }
 
+    /**
+     * 获取父节点 ID。
+     *
+     * @return 父节点 ID。
+     */
     public long getParentId() {
         return this.parentId;
     }
 
+    /**
+     * 获取分类。
+     *
+     * @return 分类。
+     */
     public String getCategory() {
         return this.category;
     }
 
+    /**
+     * 获取词。
+     *
+     * @return 词。
+     */
     public String getWord() {
         return this.word;
     }
 
+    /**
+     * 获取改写样本。
+     *
+     * @return 改写样本。
+     */
     public String getParaphrase() {
         return this.paraphrase;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

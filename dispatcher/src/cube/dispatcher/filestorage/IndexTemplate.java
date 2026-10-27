@@ -68,6 +68,14 @@ public class IndexTemplate {
         this.pageTraceString = pageTraceString;
     }
 
+    /**
+     * 按模板匹配单行并生成替换结果。
+     *
+     * <p>逐条套用模板规则，命中即返回替换后的行；都不命中时原样返回。</p>
+     *
+     * @param input 原始行。
+     * @return 处理后的行。
+     */
     public String matchLine(String input) {
         String line = input;
 

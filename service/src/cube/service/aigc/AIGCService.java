@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class AIGCService extends AbstractModule implements Generatable, cube.aigc.completion.CompletionProvider {
 
+    /** 服务名称，同时作为单元名与配置段名。 */
     public final static String NAME = "AIGC";
 
     private final AIGCCellet cellet;
@@ -103,6 +104,11 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     private final PluginUnitInvoker pluginUnits =
             new cube.service.aigc.unit.PluginUnitInvoker(this);
 
+    /**
+     * 获取插件单元调用器。
+     *
+     * @return 插件单元调用器实例。
+     */
     public PluginUnitInvoker getPluginUnits() {
         return this.pluginUnits;
     }
@@ -1007,7 +1013,11 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     }
 
     /**
-     * Routing metadata only; busy units remain registered capabilities.
+     * 获取能力快照。
+     *
+     * <p>仅用于路由元数据，繁忙单元仍然计入已注册能力，不代表当前可立即处理请求。</p>
+     *
+     * @return 能力快照 JSON 。
      */
     public JSONObject getCapabilitySnapshot() {
         JSONArray units = new JSONArray();
@@ -1039,30 +1049,70 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                 .put("moduleRoutingVersion", 1).put("modules", modules);
     }
 
+    /**
+     * 列出兼容层可用模型。
+     *
+     * @param token 访问令牌。
+     * @return 模型数组；查询失败时为空数组。
+     */
     @Override
     public JSONArray completionModels(String token) {
         return completions.models(token).getJSONArray("models");
     }
 
+    /**
+     * 查询兼容层模型容量。
+     *
+     * @param token       访问令牌。
+     * @param model       模型标识。
+     * @param nativeTools 是否按原生工具调用计算。
+     * @return 容量 JSON 。
+     */
     @Override
     public JSONObject completionCapacity(String token, String model, boolean nativeTools) {
         return completions.capacity(token, model, nativeTools);
     }
 
+    /**
+     * 提交一次兼容层生成请求。
+     *
+     * <p>请求异步执行，结果通过监听器回调；同一请求 ID 重复提交会被拒绝。</p>
+     *
+     * @param token         访问令牌。
+     * @param requestId     请求 ID 。
+     * @param request       请求载荷。
+     * @param timeoutMillis 超时时间，单位毫秒。
+     * @param listener      事件回调。
+     */
     @Override
     public void submitCompletion(String token, String requestId, JSONObject request, long timeoutMillis,
                                  cube.aigc.completion.CompletionProvider.Listener listener) {
         completions.generateInternal(token, requestId, request, timeoutMillis, listener);
     }
 
+    /**
+     * 获取兼容层服务。
+     *
+     * @return 兼容层服务实例。
+     */
     public cube.service.aigc.completion.ChatCompletionService getCompletions() {
         return this.completions;
     }
 
+    /**
+     * 提交文本生成任务到执行器。
+     *
+     * @param meta 单元任务。
+     */
     public void submitChatCompletion(UnitMeta meta) {
         this.taskExecutor.submitGenerateText(meta);
     }
 
+    /**
+     * 从排队中移除文本生成任务。
+     *
+     * @param meta 单元任务。
+     */
     public void removeQueuedChatCompletion(UnitMeta meta) {
         this.taskExecutor.removeQueuedGenerateText(meta);
     }
@@ -1925,10 +1975,9 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
     /**
      * 对历史问答进行评价。
-     *
-     * @param token
-     * @param historySN
-     * @param feedback
+     * @param token 访问令牌。
+     * @param historySN historySN。
+     * @param feedback 反馈值。
      */
     public void evaluate(String token, long historySN, int feedback) {
         AIGCChannel channel = this.getChannelByToken(token);
@@ -2955,17 +3004,14 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
     /**
      * 语音情绪识别。
-     *
      * <p><b>归属：平台能力，非心理学业务</b>。本方法只做「取音频文件 → 发给
      * 音频分类单元 → 解析情绪 → 落情绪记录」。</p>
-     *
      * <p>单元选点按 {@link AICapability.AudioProcessing#AudioClassification} 子任务
      * 匹配，与语音识别、说话人分离同一惯例。</p>
-     *
-     * @param token
-     * @param fileCode
-     * @param listener
-     * @return
+     * @param token 访问令牌。
+     * @param fileCode 源文件码。
+     * @param listener 进度监听器。
+     * @return 满足条件返回 {@code true} 。
      */
     public boolean speechEmotionRecognition(AuthToken token, String fileCode, SpeechEmotionRecognitionListener listener) {
         final FileLabel fileLabel = this.getFile(token.getDomain(), fileCode);

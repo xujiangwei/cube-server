@@ -24,7 +24,7 @@ import java.util.List;
  *
  * <p>本工程无测试框架，故用main 方法直接运行，退出码 0 表示全部通过：</p>
  * <pre>
- * java -cp out/p0/common-classes:&lt;dependencies&gt;/* cube.test.spi.ActionRouterConflictTest
+ * java -cp out/p0/common-classes:&lt;dependencies&gt;/&#42; cube.test.spi.ActionRouterConflictTest
  * </pre>
  */
 public final class ActionRouterConflictTest {

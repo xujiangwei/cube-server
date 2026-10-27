@@ -78,8 +78,7 @@ public class FileAttachment implements JSONable {
 
     /**
      * 获取包含的文件数量。
-     *
-     * @return
+     * @return 计算结果。
      */
     public int numFiles() {
         return Math.max(this.anchorList.size(), this.labelList.size());
@@ -126,14 +125,30 @@ public class FileAttachment implements JSONable {
         this.labelList.add(fileLabel);
     }
 
+    /**
+     * 判断是否是否压缩。
+     *
+     * @return 是否压缩。
+     */
     public boolean isCompressed() {
         return this.compressed;
     }
 
+    /**
+     * 设置是否压缩。
+     *
+     * @param value 是否压缩。
+     */
     public void setCompressed(boolean value) {
         this.compressed = value;
     }
 
+    /**
+     * 判断是否图像类型。
+     *
+     * @param index 图像类型。
+     * @return 图像类型。
+     */
     public boolean isImageType(int index) {
         FileType type = null;
 

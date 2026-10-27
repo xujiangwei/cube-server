@@ -19,6 +19,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 提示词资源库。
+ *
+ * <p>从外部指南文件加载提示词，按名称与语言检索；文件变更后会重新加载，
+ * 因此可直接修改文件而不必重启服务。</p>
+ */
 public class Prompts {
 
     private static long sGuideLastModified = 0;
@@ -29,10 +35,25 @@ public class Prompts {
     private static File sCatalogFile = new File("assets/prompt/catalog.json");
     private static Map<String, CatalogItem> sCatalogMap = new ConcurrentHashMap<>();
 
+    /**
+     * 获取中文提示词。
+     *
+     * @param name 提示词名称。
+     * @return 提示词内容；不存在返回 {@code null} 。
+     */
     public static String getPrompt(String name) {
         return Prompts.getPrompt(name, "cn");
     }
 
+    /**
+     * 按语言获取提示词。
+     *
+     * <p>文件修改时间变化时自动重新加载，避免读到旧内容。</p>
+     *
+     * @param name 提示词名称。
+     * @param lang 语言标识。
+     * @return 提示词内容；不存在返回 {@code null} 。
+     */
     public static String getPrompt(String name, String lang) {
         if (sGuideFile.exists() && sGuideFile.lastModified() != sGuideLastModified) {
             sGuideLastModified = sGuideFile.lastModified();

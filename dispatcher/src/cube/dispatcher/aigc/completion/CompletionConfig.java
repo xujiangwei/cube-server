@@ -8,10 +8,18 @@ package cube.dispatcher.aigc.completion;
 
 import java.util.Properties;
 
+/**
+ * 完成网关的启动配置。
+ *
+ * <p>由系统属性或配置文件解析得到，创建后不可变；关闭时整套 OpenAI/Claude 兼容层都不会注册。</p>
+ */
 public final class CompletionConfig {
 
+    /** 是否启用 OpenAI/Claude 兼容路由。 */
     public final boolean enabled;
+    /** 单次请求的等待超时，单位毫秒。 */
     public final long timeoutMs;
+    /** 请求体上限、事件缓冲条数上限与缓冲字节上限。 */
     public final int bodyBytes, bufferEvents, bufferBytes;
 
     public CompletionConfig(Properties properties) {

@@ -71,21 +71,40 @@ public enum MessageState {
      */
     Unknown(0);
 
+    /** 码。 */
     public final int code;
 
     MessageState(int code) {
         this.code = code;
     }
 
+    /**
+     * 获取码。
+     *
+     * @return 码。
+     */
     public int getCode() {
         return this.code;
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         return Integer.toString(this.code);
     }
 
+    /**
+     * 按编码解析。
+     *
+     * <p>遍历全部枚举值逐个匹配，未命中时返回 {@code null} 。</p>
+     *
+     * @param code 编码值。
+     * @return 对应枚举；未命中返回 {@code null} 。
+     */
     public static MessageState parse(int code) {
         for (MessageState state : MessageState.values()) {
             if (state.code == code) {

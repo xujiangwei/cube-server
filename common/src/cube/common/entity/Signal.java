@@ -49,30 +49,65 @@ public class Signal extends Entity {
         }
     }
 
+    /**
+     * 获取目标联系人。
+     *
+     * @return 目标联系人。
+     */
     public Contact getDestContact() {
         return this.destContact;
     }
 
+    /**
+     * 设置目标联系人。
+     *
+     * @param contact 目标联系人。
+     */
     public void setDestContact(Contact contact) {
         this.destContact = contact;
     }
 
+    /**
+     * 获取目标设备。
+     *
+     * @return 目标设备。
+     */
     public Device getDestDevice() {
         return this.destDevice;
     }
 
+    /**
+     * 获取源联系人。
+     *
+     * @return 源联系人。
+     */
     public Contact getSrcContact() {
         return this.srcContact;
     }
 
+    /**
+     * 获取源设备。
+     *
+     * @return 源设备。
+     */
     public Device getSrcDevice() {
         return this.srcDevice;
     }
 
+    /**
+     * 获取载荷。
+     *
+     * @return 载荷。
+     */
     public JSONObject getPayload() {
         return this.payload;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -101,6 +136,13 @@ public class Signal extends Entity {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = this.toJSON();

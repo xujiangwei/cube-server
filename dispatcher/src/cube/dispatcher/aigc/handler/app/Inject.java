@@ -16,6 +16,11 @@ import org.json.JSONObject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+/**
+ * 令牌注入端点。
+ *
+ * <p>按手机号查找或创建联系人并签发令牌，用于服务端代为登录的场景。</p>
+ */
 public class Inject extends ContextHandler {
 
     public Inject() {

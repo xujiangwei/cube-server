@@ -24,18 +24,27 @@ public class AtomCollider {
 
     private final AIGCStorage storage;
 
+    /** 参与匹配的标签列表。 */
     public List<String> labelList;
 
+    /** 匹配年份，0 表示不限定。 */
     public int year = 0;
+    /** 匹配月份，0 表示不限定。 */
     public int month = 0;
+    /** 匹配日，0 表示不限定。 */
     public int date = 0;
 
+    /** 聚合生成的图表列表。 */
     public List<Chart> chartList;
 
+    /** 推荐词，用于在无匹配时给出替代标签。 */
     public String recommendWord = null;
 
+    /** 推荐词的年份。 */
     public int recommendYear = 0;
+    /** 推荐词的月份。 */
     public int recommendMonth = 0;
+    /** 推荐词的日。 */
     public int recommendDate = 0;
 
     public AtomCollider(AIGCStorage storage) {
@@ -44,6 +53,16 @@ public class AtomCollider {
         this.chartList = new ArrayList<>();
     }
 
+    /**
+     * 按标签与日期聚合数据并生成图表。
+     *
+     * <p>以标签加上年/月/日描述做全匹配，命中的原子数据被组装成图表追加到结果列表。</p>
+     *
+     * @param labels 标签列表。
+     * @param year   年份。
+     * @param month  月份，0 表示不限定。
+     * @param date   日，0 表示不限定。
+     */
     public void collapse(List<String> labels, int year, int month, int date) {
         this.labelList.addAll(labels);
         this.year = year;
@@ -64,6 +83,14 @@ public class AtomCollider {
         }
     }
 
+    /**
+     * 从词序列中分离日期与标签后聚合。
+     *
+     * <p>识别出日期词并转换为阿拉伯数字，其余作为标签；缺失的年月会自动补齐到有效范围，
+     * 再交给另一个重载完成聚合。</p>
+     *
+     * @param words 待分析的分词结果。
+     */
     public void collapse(List<String> words) {
         // 将词分为标签和日期，进行快速标记
         List<String> dates = new ArrayList<>();

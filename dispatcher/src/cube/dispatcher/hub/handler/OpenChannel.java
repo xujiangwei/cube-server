@@ -31,6 +31,7 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class OpenChannel extends HubHandler {
 
+    /** 端点路径。 */
     public final static String CONTEXT_PATH = "/hub/open/";
 
     private final long coolingTime = 500;
@@ -39,6 +40,14 @@ public class OpenChannel extends HubHandler {
         super(performer, controller);
     }
 
+    /**
+     * 打开通道。
+     *
+     * <p>通道是消息推送的载体，打开后才能接收推送与轮询消息。</p>
+     *
+     * @param request  HTTP 请求。
+     * @param response 响应对象。
+     */
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) {
         String code = this.getRequestPath(request);

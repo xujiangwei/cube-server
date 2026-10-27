@@ -19,20 +19,28 @@ import java.util.List;
  */
 public class MultimodalInput implements JSONable {
 
+    /** 单元。 */
     public String unit;
 
+    /** 内容。 */
     public String content;
 
+    /** 历史。 */
     public List<JSONObject> history;
 
+    /** 文件码列表。 */
     public List<String> fileCodes;
 
+    /** 文件标签列表。 */
     public List<FileLabel> fileLabels;
 
+    /** 流列表。 */
     public List<String> streams;
 
+    /** 选项。 */
     public JSONObject option;
 
+    /** 是否可记录。 */
     public boolean recordable = false;
 
     public MultimodalInput(JSONObject json) {
@@ -44,6 +52,11 @@ public class MultimodalInput implements JSONable {
         this.recordable = json.has("recordable") && json.getBoolean("recordable");
     }
 
+    /**
+     * 转换为单元调用格式。
+     *
+     * @return 单元可直接消费的 JSON 。
+     */
     public JSONObject toUnitJson() {
         JSONObject json = new JSONObject();
         json.put("unit", this.unit);
@@ -75,6 +88,11 @@ public class MultimodalInput implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -100,6 +118,13 @@ public class MultimodalInput implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

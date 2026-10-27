@@ -281,6 +281,11 @@ public class PromptComposer {
 
     private static final PromptComposer sInstance = new PromptComposer();
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static PromptComposer getInstance() {
         return sInstance;
     }
@@ -303,10 +308,22 @@ public class PromptComposer {
         this.policy = (null != policy) ? policy : new Policy();
     }
 
+    /**
+     * 判断提示词组装功能是否启用。
+     *
+     * <p>关闭时下游应直接使用原始提示词，跳过技能拼装。</p>
+     *
+     * @return 启用返回 {@code true} 。
+     */
     public boolean isEnabled() {
         return this.enabled;
     }
 
+    /**
+     * 获取组装策略。
+     *
+     * @return 当前生效的策略对象。
+     */
     public Policy getPolicy() {
         return this.policy;
     }

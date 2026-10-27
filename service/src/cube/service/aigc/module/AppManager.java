@@ -18,6 +18,11 @@ import cube.aigc.SemanticSearchListener;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 应用模块管理器。
+ *
+ * <p>把用户提问匹配到内置的问答知识，匹配成功时返回可直接执行的处理流程。</p>
+ */
 public class AppManager implements Module {
 
     private AIGCService service;
@@ -26,21 +31,41 @@ public class AppManager implements Module {
         this.service = service;
     }
 
+    /**
+     * 获取模块名称。
+     *
+     * @return 固定返回 {@code AppManager} 。
+     */
     @Override
     public String getName() {
         return "AppManager";
     }
 
+    /**
+     * 启动模块。
+     *
+     * <p>加载内置问答数据，重复调用幂等。</p>
+     */
     @Override
     public void start() {
 
     }
 
+    /** 停止模块并释放资源。 */
     @Override
     public void stop() {
 
     }
 
+    /**
+     * 为提问匹配处理流程。
+     *
+     * <p>命中内置问答时返回对应流程，未命中返回 {@code null} ，由上层继续尝试其他模块。</p>
+     *
+     * @param token 访问令牌。
+     * @param query 用户提问。
+     * @return 可执行的流程；未命中返回 {@code null} 。
+     */
     public Flowable match(AuthToken token, String query) {
         final List<QuestionAnswer> questionAnswerList = new ArrayList<>();
         boolean success = this.service.semanticSearch(query, new SemanticSearchListener() {

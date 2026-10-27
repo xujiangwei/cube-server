@@ -16,6 +16,11 @@ import cube.common.entity.User;
 import cube.service.aigc.AIGCService;
 import cube.service.contact.ContactManager;
 
+/**
+ * 会员中心。
+ *
+ * <p>维护会员权益与用量口径：按域名与用户判定可用额度，并据此决定高级功能是否放行。</p>
+ */
 public class MemberCenter {
 
     /**
@@ -75,22 +80,33 @@ public class MemberCenter {
     private MemberCenter() {
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static MemberCenter getInstance() {
         return MemberCenter.instance;
     }
 
+    /**
+     * 启动会员中心。
+     *
+     * @param service AIGC 服务实例。
+     */
     public void start(AIGCService service) {
         this.service = service;
     }
 
+    /** 停止会员中心并释放资源。 */
     public void stop() {
     }
 
     /**
      * 获取用户
-     * @param domain
-     * @param user
-     * @return
+     * @param domain 域。
+     * @param user user。
+     * @return 计算结果。
      */
     public int getUsageOfThisMonth(String domain, User user) {
         Membership membership = ContactManager.getInstance().getMembershipSystem().getMembership(
@@ -99,6 +115,14 @@ public class MemberCenter {
         return 0;
     }
 
+    /**
+     * 查询联系人本月的用量。
+     *
+     * <p>当前未接入用量统计，固定返回 0 ，调用方不应据此判定额度耗尽。</p>
+     *
+     * @param contact 联系人。
+     * @return 固定返回 0 。
+     */
     public int getUsageOfThisMonth(Contact contact) {
         // TODO XJW
         return 0;
@@ -106,10 +130,9 @@ public class MemberCenter {
 
     /**
      * 用户剩余的可用量。
-     *
-     * @param user
-     * @param membership
-     * @return
+     * @param user user。
+     * @param membership membership。
+     * @return 计算结果。
      */
     public int getRemainingUsages(User user, Membership membership) {
         // 本月用量
@@ -135,6 +158,16 @@ public class MemberCenter {
         }
     }
 
+    /**
+     * 判定绘画报告权限。
+     *
+     * <p>按本月用量与会员等级计算剩余额度，额度不足时拒绝并给出原因。</p>
+     *
+     * @param domain   域。
+     * @param user     用户。
+     * @param reportSn 报告序列号。
+     * @return 权限判定结果。
+     */
     public ReportPermission allowPredictPainting(String domain, User user, long reportSn) {
         // 本月用量
         int usage = this.getUsageOfThisMonth(domain, user);
@@ -237,6 +270,14 @@ public class MemberCenter {
 //                AIGCStateCode.Ok.code, true, startTime, endTime);
 //    }
 
+    /**
+     * 获取应用侧用户画像。
+     *
+     * <p>按令牌中的联系人信息组装画像，缺失字段留空。</p>
+     *
+     * @param authToken 访问令牌。
+     * @return 用户画像。
+     */
     public UserProfile getAppUserProfile(AuthToken authToken) {
         UserProfile profile = new UserProfile();
 

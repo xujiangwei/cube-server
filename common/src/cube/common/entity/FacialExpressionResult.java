@@ -18,12 +18,16 @@ import java.util.List;
  */
 public class FacialExpressionResult implements JSONable {
 
+    /** 文件。 */
     public final FileLabel file;
 
+    /** 耗时。 */
     public final long elapsed;
 
+    /** 列表。 */
     public final List<FacialExpression> list;
 
+    /** 可视化。 */
     public FileLabel visualization;
 
     public FacialExpressionResult(JSONObject json) {
@@ -41,6 +45,11 @@ public class FacialExpressionResult implements JSONable {
         }
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -59,6 +68,13 @@ public class FacialExpressionResult implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -41,12 +41,21 @@ public enum GroupState {
      */
     Unknown(-1);
 
+    /** 码。 */
     public final int code;
 
     GroupState(int code) {
         this.code = code;
     }
 
+    /**
+     * 按编码解析。
+     *
+     * <p>遍历全部枚举值逐个匹配，未命中时返回 {@code null} 。</p>
+     *
+     * @param code 编码值。
+     * @return 对应枚举；未命中返回 {@code null} 。
+     */
     public static GroupState parse(int code) {
         switch (code) {
             case 0:

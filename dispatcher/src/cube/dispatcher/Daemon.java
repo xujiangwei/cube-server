@@ -244,26 +244,57 @@ public class Daemon extends TimerTask implements LogHandle {
         ReportService.getInstance().submitReport(report);
     }
 
+    /**
+     * 获取日志来源名称。
+     *
+     * @return 固定返回 {@code Daemon} 。
+     */
     @Override
     public String getName() {
         return "Daemon";
     }
 
+    /**
+     * 记录调试日志。
+     *
+     * <p>日志先进入内存缓冲，随后随上报一并提交，不直接写文件。</p>
+     *
+     * @param tag  日志标签。
+     * @param text 日志内容。
+     */
     @Override
     public void logDebug(String tag, String text) {
         this.recordLog(LogLevel.DEBUG, tag, text);
     }
 
+    /**
+     * 记录信息日志。
+     *
+     * @param tag  日志标签。
+     * @param text 日志内容。
+     */
     @Override
     public void logInfo(String tag, String text) {
         this.recordLog(LogLevel.INFO, tag, text);
     }
 
+    /**
+     * 记录告警日志。
+     *
+     * @param tag  日志标签。
+     * @param text 日志内容。
+     */
     @Override
     public void logWarning(String tag, String text) {
         this.recordLog(LogLevel.WARNING, tag, text);
     }
 
+    /**
+     * 记录错误日志。
+     *
+     * @param tag  日志标签。
+     * @param text 日志内容。
+     */
     @Override
     public void logError(String tag, String text) {
         this.recordLog(LogLevel.ERROR, tag, text);

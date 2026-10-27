@@ -11,11 +11,14 @@ package cube.dispatcher;
  */
 public final class Version {
 
+    /** 主版本号。 */
     public final static int MAJOR = 3;
 
+    /** 次版本号。 */
     public final static int MINOR = 0;
 
-    public final static int REVISION = 161;
+    /** 修订号，随每次发布递增。 */
+    public final static int REVISION = 162;
 
     private Version() {
     }

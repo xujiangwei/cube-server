@@ -31,11 +31,27 @@ public class PassThroughTask extends DispatcherTask {
         this.waitResponse = sync;
     }
 
+    /**
+     * 重置任务以复用。
+     *
+     * <p>在父类重置的基础上同步更新同步/单向标记——复用任务时若不同步该标记，
+     * 会把上一次的等待模式带到下一次请求。</p>
+     *
+     * @param talkContext 新的会话上下文。
+     * @param primitive   新的原始消息。
+     * @param sync        是否同步等待结果。
+     */
     protected void reset(TalkContext talkContext, Primitive primitive, boolean sync) {
         super.reset(talkContext, primitive);
         this.waitResponse = sync;
     }
 
+    /**
+     * 执行任务。
+     *
+     * <p>先校验令牌，缺失时直接回 {@code NoAuthToken} 并归还任务；
+     * 否则按同步或单向模式转发，同步失败时返回网关错误。</p>
+     */
     @Override
     public void run() {
         String tokenCode = this.getTokenCode(this.getAction());

@@ -471,8 +471,7 @@ public class FileLabel extends Entity {
 
     /**
      * 设置上下文数据。
-     *
-     * @param context
+     * @param context context。
      */
     public void setContext(JSONObject context) {
         this.context = context;
@@ -480,8 +479,7 @@ public class FileLabel extends Entity {
 
     /**
      * 合并上下文。
-     *
-     * @param context
+     * @param context context。
      */
     public void mergeContext(JSONObject context) {
         if (null != this.context) {
@@ -512,6 +510,12 @@ public class FileLabel extends Entity {
         return this.file;
     }
 
+    /**
+     * 判断指定对象是否与本对象相等。
+     *
+     * @param object 待比较对象。
+     * @return 相等返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (this == object) {

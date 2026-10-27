@@ -26,8 +26,14 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * 查询用户信息的策略节点。
+ *
+ * <p>从提问中识别需要查询的平台与字段，生成查询记录并交由后续节点使用。</p>
+ */
 public class QueryUser extends StrategyNode {
 
+    /** 任务名称，在策略流中以占位符形式引用。 */
     public final static String TASK_NAME = "{{app_query_user}}";
 
     private AuthToken token;
@@ -39,6 +45,14 @@ public class QueryUser extends StrategyNode {
         this.token = token;
     }
 
+    /**
+     * 生成查询记录。
+     *
+     * <p>解析提问中的查询意图，组装成可直接执行的生成记录。</p>
+     *
+     * @param generator 生成器。
+     * @return 生成记录；无法解析时返回 {@code null} 。
+     */
     public GeneratingRecord generate(Generatable generator) {
         List<String> platforms = new ArrayList<>();
         platforms.add("Android");
@@ -117,6 +131,14 @@ public class QueryUser extends StrategyNode {
         return buf.toString();
     }
 
+    /**
+     * 执行查询。
+     *
+     * <p>当前为占位实现，始终返回 {@code null} ，实际查询由后续节点完成。</p>
+     *
+     * @param input 上游生成记录。
+     * @return 固定返回 {@code null} 。
+     */
     @Override
     public String perform(GeneratingRecord input) {
         return null;

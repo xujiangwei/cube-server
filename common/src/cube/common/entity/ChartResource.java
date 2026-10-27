@@ -31,15 +31,30 @@ public class ChartResource extends ComplexResource {
         this.chart = new Chart(payload.getJSONObject("chart"));
     }
 
+    /**
+     * 获取标题。
+     *
+     * @return 标题。
+     */
     public String getTitle() {
         return this.title;
     }
 
+    /**
+     * 获取图表。
+     *
+     * @return 图表。
+     */
     public Chart getChart() {
         return this.chart;
     }
 
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -52,6 +67,13 @@ public class ChartResource extends ComplexResource {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

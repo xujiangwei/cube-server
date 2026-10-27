@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class MarathonTask extends DispatcherTask {
 
+    /** 同时允许执行的长任务数量上限。 */
     public final static int sMaxThreads = 16;
 
     private final static AtomicInteger sNumThreads = new AtomicInteger(0);
@@ -32,6 +33,14 @@ public class MarathonTask extends DispatcherTask {
         super(cellet, talkContext, primitive, performer);
     }
 
+    /**
+     * 尝试启动任务。
+     *
+     * <p>并发数达到上限时返回 {@code false} ，由调用方回“系统忙”而非排队等待，
+     * 避免长任务堆积把线程池拖垮。</p>
+     *
+     * @return 启动成功返回 {@code true} 。
+     */
     public boolean start() {
         if (sNumThreads.get() >= sMaxThreads) {
             return false;
@@ -57,6 +66,11 @@ public class MarathonTask extends DispatcherTask {
         return true;
     }
 
+    /**
+     * 回复系统忙。
+     *
+     * <p>返回 {@code SystemBusy} 状态，客户端可据此稍后重试。</p>
+     */
     public void responseBusy() {
         ActionDialect response = this.makeResponse(new JSONObject(), StateCode.SystemBusy, "Busy");
         this.cellet.speak(this.talkContext, response);

@@ -9,14 +9,23 @@ package cube.common.entity;
 import cube.common.JSONable;
 import org.json.JSONObject;
 
+/**
+ * 情绪占比。
+ *
+ * <p>承载正向、负向与中性情绪的占比统计。</p>
+ */
 public class EmotionRatio implements JSONable {
 
+    /** 分数。 */
     public final double score;
 
+    /** 正向占比。 */
     public final int positiveRatio;
 
+    /** 负向占比。 */
     public final int negativeRatio;
 
+    /** 中性占比。 */
     public final int neutralRatio;
 
     public EmotionRatio(double score, int positiveRatio, int negativeRatio, int neutralRatio) {
@@ -33,6 +42,11 @@ public class EmotionRatio implements JSONable {
         this.neutralRatio = json.getInt("neutralRatio");
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -43,6 +57,13 @@ public class EmotionRatio implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

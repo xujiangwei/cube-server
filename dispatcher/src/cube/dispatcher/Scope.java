@@ -14,6 +14,7 @@ import java.util.List;
  */
 public class Scope {
 
+    /** 该端点负责的单元名称列表。 */
     protected List<String> cellets;
 
     public Scope() {

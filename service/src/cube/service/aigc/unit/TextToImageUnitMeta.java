@@ -21,18 +21,29 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 文生图单元任务。
+ *
+ * <p>把提示词交给绘图单元，产物登记为文件标签后回写。</p>
+ */
 public class TextToImageUnitMeta extends UnitMeta {
 
+    /** 任务序列号。 */
     protected long sn;
 
+    /** 所属对话通道。 */
     protected AIGCChannel channel;
 
+    /** 绘图提示词。 */
     protected String text;
 
+    /** 生成的图片文件标签。 */
     protected FileLabel fileLabel;
 
+    /** 结果监听器。 */
     protected TextToImageListener listener;
 
+    /** 待写入的对话历史。 */
     protected AIGCChatHistory history;
 
     public TextToImageUnitMeta(AIGCService service, AIGCUnit unit, AIGCChannel channel, String text, TextToImageListener listener) {
@@ -49,6 +60,11 @@ public class TextToImageUnitMeta extends UnitMeta {
         this.history.queryContent = text;
     }
 
+    /**
+     * 执行文生图。
+     *
+     * <p>先登记通道的最近任务序列号，再调用绘图单元并在完成后回调监听器。</p>
+     */
     @Override
     public void process() {
         this.channel.setLastUnitMetaSn(this.sn);

@@ -14,10 +14,17 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 知识条目。
+ *
+ * <p>知识库中的一条知识，包含内容与关联的文档来源。</p>
+ */
 public class Knowledge implements JSONable {
 
+    /** 查询。 */
     public String query;
 
+    /** 元数据列表。 */
     public List<Metadata> metadataList;
 
     public Knowledge(String query) {
@@ -37,10 +44,20 @@ public class Knowledge implements JSONable {
         }
     }
 
+    /**
+     * 判断是否空。
+     *
+     * @return 空。
+     */
     public boolean isEmpty() {
         return this.metadataList.isEmpty();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -55,11 +72,23 @@ public class Knowledge implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
     }
 
+    /**
+     * 生成提示词。
+     *
+     * @return 提示词。
+     */
     public String generatePrompt() {
         StringBuilder buf = new StringBuilder();
         for (Metadata metadata : this.metadataList) {
@@ -73,8 +102,7 @@ public class Knowledge implements JSONable {
 
     /**
      * 将相同的源进行合并。
-     *
-     * @return
+     * @return 列表；无数据时为空列表。
      */
     public List<KnowledgeSource> mergeSources() {
         List<KnowledgeSource> list = new ArrayList<>();

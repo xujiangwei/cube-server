@@ -18,10 +18,13 @@ import java.util.List;
  */
 public class HandEstimationInfo implements JSONable {
 
+    /** 文件码。 */
     public final String fileCode;
 
+    /** 耗时。 */
     public final long elapsed;
 
+    /** 文件标签。 */
     public FileLabel fileLabel;
 
     private List<HandEstimation> handEstimations = new ArrayList<>();
@@ -42,10 +45,20 @@ public class HandEstimationInfo implements JSONable {
         }
     }
 
+    /**
+     * 设置文件标签。
+     *
+     * @param fileLabel 文件标签。
+     */
     public void setFileLabel(FileLabel fileLabel) {
         this.fileLabel = fileLabel;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -68,6 +81,13 @@ public class HandEstimationInfo implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>用于传输体积敏感的场合，字段较完整序列化更少。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
