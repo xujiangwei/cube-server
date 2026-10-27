@@ -21,7 +21,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/StatCard.vue'
 import UnitCapabilityList from '@/components/UnitCapabilityList.vue'
 import UnitDeploymentPanel from '@/components/UnitDeploymentPanel.vue'
-import { fetchDomains, fetchUnitOverview, fetchUnitDeployments, pickList } from '@/api/console'
+import { DEFAULT_DOMAIN, fetchDomains, fetchUnitOverview, fetchUnitDeployments, pickList } from '@/api/console'
 import { ApiError } from '@/api/client'
 import type {
   UnitCapability,
@@ -286,7 +286,7 @@ async function bootstrap(): Promise<void> {
     const response = await fetchDomains()
     domains.value = pickList(response)
     if (domains.value.length > 0) {
-      domain.value = domains.value[0]
+      domain.value = domains.value.includes(DEFAULT_DOMAIN) ? DEFAULT_DOMAIN : domains.value[0]
     }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '加载域列表失败'

@@ -28,6 +28,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 WEB_DIR = os.path.abspath(sys.argv[1])
 PORT = int(sys.argv[2])
+DEFAULT_DOMAIN = "default_domain"
 
 NOW = int(time.time() * 1000)
 
@@ -193,7 +194,7 @@ UNIT_ROWS = [
 ]
 
 
-def unit_overview():
+def unit_overview(domain=DEFAULT_DOMAIN):
     """`GET /statistic/units` 的响应。
 
     控制台的 `UnitReport` 上报通道在这里不参与，能力直接写死在 mock 里，
@@ -247,7 +248,7 @@ def unit_overview():
 
     return {
         "tag": "cube",
-        "domain": "shixincube.com",
+        "domain": domain,
         "year": 2026, "month": 9, "date": 20,
         "beginning": day, "ending": day + 86400000,
         "total": len(units),
@@ -268,7 +269,7 @@ def unit_deployments(domain):
     """当前部署快照；示例含同名多部署、多版本、跨节点和旧报告缺失字段。"""
     now = int(time.time() * 1000)
     groups = []
-    if domain == "shixincube.com":
+    if domain == DEFAULT_DOMAIN:
         for name, task, ids in [
             ("Baize", "NaturalLanguageProcessing", [100001, 100002, 100003]),
             ("Baize2", "Multimodal", [100001, 100004]),
@@ -640,12 +641,12 @@ class Handler(BaseHTTPRequestHandler):
                                    "configPath": "/data/cube/service/config",
                                    "celletsPath": "/data/cube/service/cellets"})
         if path == "/auth/domain":
-            return self.send_json({"tag": "cube", "list": ["shixincube.com", "demo.shixincube.com"]})
+            return self.send_json({"tag": "cube", "list": [DEFAULT_DOMAIN, "demo_domain"]})
         if path in ("/statistic/recent", "/statistic/daily"):
             return self.send_json({"tag": "cube", "statistic": statistic(),
                                    "year": 2026, "month": 9, "date": 19})
         if path == "/statistic/units":
-            return self.send_json(unit_overview())
+            return self.send_json(unit_overview(q.get("domain", DEFAULT_DOMAIN)))
         if path == "/statistic/unit-deployments":
             domain = q.get("domain", "").strip()
             if not domain:

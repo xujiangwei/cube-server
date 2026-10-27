@@ -11,7 +11,7 @@ import AppIcon from '@/components/AppIcon.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/StatCard.vue'
-import { fetchDomains, fetchRecentStatistic, fetchStatisticRange, pickList } from '@/api/console'
+import { DEFAULT_DOMAIN, fetchDomains, fetchRecentStatistic, fetchStatisticRange, pickList } from '@/api/console'
 import type { StatisticRangeResponse, StatisticResponse } from '@/api/types'
 import { useChart } from '@/composables/useChart'
 import { useToastStore } from '@/stores/toast'
@@ -333,7 +333,7 @@ async function bootstrap(): Promise<void> {
     const response = await fetchDomains()
     domains.value = pickList(response)
     if (domains.value.length > 0) {
-      domain.value = domains.value[0]
+      domain.value = domains.value.includes(DEFAULT_DOMAIN) ? DEFAULT_DOMAIN : domains.value[0]
       await load()
     }
   } catch (error) {

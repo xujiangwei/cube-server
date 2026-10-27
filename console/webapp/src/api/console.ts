@@ -26,6 +26,9 @@ import type {
 /** JVM 报告的固定名称，后端按名字分派 */
 export const JVM_REPORT_NAME = 'JVMReport'
 
+/** 默认域，与后端 AuthConsts.DEFAULT_DOMAIN 保持一致。 */
+export const DEFAULT_DOMAIN = 'default_domain'
+
 /** 性能报告的固定名称，后端按名字分派 */
 export const PERFORMANCE_REPORT_NAME = 'PerfReport'
 
