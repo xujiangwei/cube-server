@@ -11,7 +11,6 @@ import cell.util.log.Logger;
 import cube.cache.SharedMemoryCache;
 import cube.mq.AdapterMQ;
 import cube.storage.StorageFactory;
-import cube.util.ProcessManager;
 import org.json.JSONObject;
 
 import java.util.*;
@@ -186,9 +185,6 @@ public final class Kernel {
 
         // 关闭所有存储，释放连接池（此前无人负责，进程退出只能靠操作系统断开）
         StorageFactory.getInstance().closeAll();
-
-        // 销毁进程管理器
-        ProcessManager.getInstance().destroy();
 
         this.started = false;
     }
