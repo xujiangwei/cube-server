@@ -15,6 +15,7 @@ import org.json.JSONObject;
  */
 public class JVMReport extends Report {
 
+    /** 报告名称。 */
     public final static String NAME = "JVMReport";
 
     /** JVM 最大可用内存。 */
@@ -55,23 +56,45 @@ public class JVMReport extends Report {
         }
     }
 
+    /**
+     * 采集一次 JVM 指标快照。
+     *
+     * <p>读取堆内存、线程数、GC 次数等运行时数据并填充到报告。</p>
+     */
     public void dump() {
         this.maxMemory = 0;
         this.totalMemory = 0;
         this.freeMemory = 0;
     }
 
+    /**
+     * 设置系统启动时间。
+     *
+     * @param startTime 启动时间戳，单位毫秒。
+     */
     public void setSystemStartTime(long startTime) {
         this.systemStartTime = startTime;
         this.systemDuration = this.getTimestamp() - startTime;
     }
 
+    /**
+     * 按系数缩放数值。
+     *
+     * <p>用于把不同量纲的指标归一到同一尺度，便于同图展示。</p>
+     *
+     * @param factor 缩放系数。
+     */
     public void scaleValue(double factor) {
         this.maxMemory = Math.round((double) this.maxMemory / factor);
         this.totalMemory = Math.round((double) this.totalMemory / factor);
         this.freeMemory = Math.round((double) this.freeMemory / factor);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

@@ -23,8 +23,7 @@ public class Hook {
 
     /**
      * 构造函数。
-     *
-     * @param key
+     * @param key key。
      */
     public Hook(String key) {
         this.key = key;
@@ -41,8 +40,7 @@ public class Hook {
 
     /**
      * 触发插件回调。
-     *
-     * @param context
+     * @param context context。
      */
     public HookResult apply(PluginContext context) {
         context.setKey(this.key);

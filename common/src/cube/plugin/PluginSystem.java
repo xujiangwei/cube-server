@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 插件系统。
  *
- * @param <T>
+ * <p>泛型参数为钩子类型。</p>
  */
 public class PluginSystem<T extends Hook> {
 
@@ -65,9 +65,9 @@ public class PluginSystem<T extends Hook> {
     }
 
     /**
-     * 添加 Hook 。
+     * 添加钩子。
      *
-     * @param hook
+     * @param hook 钩子实例。
      */
     public void addHook(T hook) {
         this.hooks.put(hook.getKey(), hook);
@@ -75,9 +75,9 @@ public class PluginSystem<T extends Hook> {
     }
 
     /**
-     * 移除 Hook 。
+     * 移除钩子。
      *
-     * @param hook
+     * @param hook 钩子实例。
      */
     public void removeHook(T hook) {
         this.hooks.remove(hook.getKey());
@@ -85,10 +85,10 @@ public class PluginSystem<T extends Hook> {
     }
 
     /**
-     * 返回指定 Hook 。
+     * 返回指定钩子。
      *
-     * @param key
-     * @return
+     * @param key 钩子键。
+     * @return 钩子；未注册返回 {@code null} 。
      */
     public T getHook(String key) {
         return (T) this.hooks.get(key);
@@ -97,8 +97,8 @@ public class PluginSystem<T extends Hook> {
     /**
      * 注册指定键的插件。
      *
-     * @param key
-     * @param plugin
+     * @param key    钩子键。
+     * @param plugin 插件实例。
      */
     public void register(String key, Plugin plugin) {
         List<Plugin> list = this.plugins.get(key);
@@ -123,10 +123,10 @@ public class PluginSystem<T extends Hook> {
     }
 
     /**
-     * 注册指定键的插件。
+     * 按类名注册插件。
      *
-     * @param key
-     * @param className
+     * @param key       钩子键。
+     * @param className 插件实现类名。
      */
     public void register(String key, String className) {
         ClassLoader loader = ClassLoader.getSystemClassLoader();
@@ -153,8 +153,8 @@ public class PluginSystem<T extends Hook> {
     /**
      * 注销指定插件。
      *
-     * @param key
-     * @param plugin
+     * @param key    钩子键。
+     * @param plugin 插件实例。
      */
     public void deregister(String key, Plugin plugin) {
         List<Plugin> list = this.plugins.get(key);
@@ -172,6 +172,15 @@ public class PluginSystem<T extends Hook> {
         }
     }
 
+    /**
+     * 依次执行同一钩子下的全部插件。
+     *
+     * <p>任一插件返回 {@code NOT_ALLOWED} 时立即中断并返回该结果。</p>
+     *
+     * @param key     钩子键。
+     * @param context 插件上下文。
+     * @return 合并后的执行结果。
+     */
     protected HookResult apply(String key, PluginContext context) {
         HookResult result = new HookResult();
 
@@ -189,6 +198,11 @@ public class PluginSystem<T extends Hook> {
         return result;
     }
 
+    /**
+     * 获取已加载的插件。
+     *
+     * @return 插件列表；无插件时为空列表。
+     */
     public List<Plugin> getPlugins() {
         List<Plugin> list = new ArrayList<>();
         for (List<Plugin> plugins : this.plugins.values()) {

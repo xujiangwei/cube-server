@@ -14,16 +14,22 @@ import org.json.JSONObject;
  */
 public class Box implements JSONable {
 
+    /** 左上角横坐标。 */
     public int x0;
 
+    /** 左上角纵坐标。 */
     public int y0;
 
+    /** 右下角横坐标。 */
     public int x1;
 
+    /** 右下角纵坐标。 */
     public int y1;
 
+    /** 宽度。 */
     public int width;
 
+    /** 高度。 */
     public int height;
 
     public Box(int x0, int y0, int x1, int y1) {
@@ -44,6 +50,11 @@ public class Box implements JSONable {
         this.height = y1 - y0;
     }
 
+    /**
+     * 用另一个矩形刷新本矩形。
+     *
+     * @param box 来源矩形。
+     */
     public void refresh(Box box) {
         this.x0 = Math.min(this.x0, box.x0);
         this.y0 = Math.min(this.y0, box.y0);
@@ -53,15 +64,31 @@ public class Box implements JSONable {
         this.height = y1 - y0;
     }
 
+    /**
+     * 获取宽高比。
+     *
+     * @return 宽除以高；高度为 0 时返回 0 。
+     */
     public double getAspectRatio() {
         return ((double) this.width) / ((double) this.height);
     }
 
+    /**
+     * 获取中心点。
+     *
+     * @return 中心点坐标。
+     */
     public Point getCenterPoint() {
         return new Point((int) Math.round(((double)(this.x1 - this.x0)) * 0.5),
                 (int) Math.round(((double)(this.y1 - this.y0)) * 0.5));
     }
 
+    /**
+     * 判断与另一矩形是否相交。
+     *
+     * @param box 另一矩形。
+     * @return 相交返回 {@code true} 。
+     */
     public boolean detectCollision(Box box) {
         int mX1 = Math.max(this.x0, box.x0);
         int mY1 = Math.max(this.y0, box.y0);
@@ -77,6 +104,12 @@ public class Box implements JSONable {
         }
     }
 
+    /**
+     * 计算与另一矩形的相交面积。
+     *
+     * @param box 另一矩形。
+     * @return 相交面积；不相交返回 0 。
+     */
     public int calculateCollisionArea(Box box) {
         int mX = Math.max(this.x0, box.x0);
         int mY = Math.max(this.y0, box.y0);
@@ -90,6 +123,11 @@ public class Box implements JSONable {
         return w * h;
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         StringBuilder buf = new StringBuilder();
@@ -101,6 +139,11 @@ public class Box implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -111,6 +154,11 @@ public class Box implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -6,6 +6,11 @@
 
 package cube.auth;
 
+/**
+ * 授权常量。
+ *
+ * <p>集中定义令牌字段名与分隔符，避免各处硬编码不一致。</p>
+ */
 public final class AuthConsts {
 
     /**
@@ -23,6 +28,11 @@ public final class AuthConsts {
      */
     public static String DEFAULT_APP_KEY = "default-opensource-appkey";
 
+    /**
+     * 格式化常量说明。
+     *
+     * @return 便于排查的常量描述。
+     */
     public static String formatString() {
         StringBuilder buf = new StringBuilder();
         buf.append("Default domain : ").append(AuthConsts.DEFAULT_DOMAIN).append("\n");

@@ -50,26 +50,56 @@ public class Report implements JSONable {
         }
     }
 
+    /**
+     * 获取报告名称。
+     *
+     * @return 名称。
+     */
     public String getName() {
         return this.name;
     }
 
+    /**
+     * 获取采集时间戳。
+     *
+     * @return 时间戳，单位毫秒。
+     */
     public long getTimestamp() {
         return this.timestamp;
     }
 
+    /**
+     * 设置上报者标识。
+     *
+     * @param reporter 上报者。
+     */
     public void setReporter(String reporter) {
         this.reporter = reporter;
     }
 
+    /**
+     * 获取上报者标识。
+     *
+     * @return 上报者；未设置返回 {@code null} 。
+     */
     public String getReporter() {
         return this.reporter;
     }
 
+    /**
+     * 重置统计值。
+     *
+     * <p>由子类在采集周期开始时调用，清空上一轮的累计数据。</p>
+     */
     protected void reset() {
         this.timestamp = System.currentTimeMillis();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -79,11 +109,23 @@ public class Report implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
     }
 
+    /**
+     * 从 JSON 中提取报告名称。
+     *
+     * @param json 报告 JSON 。
+     * @return 报告名称。
+     * @throws JSONException 缺少名称字段。
+     */
     public static String extractName(JSONObject json) throws JSONException {
         return json.getString("name");
     }

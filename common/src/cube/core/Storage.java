@@ -20,26 +20,26 @@ public interface Storage {
     /**
      * 获取存储器名称。
      *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     String getName();
 
     /**
      * 获取配置。
      *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     JSONObject getConfig();
 
     /**
      * 获取类型。
      *
-     * @return
+     * @return 满足条件返回 {@code true} 。
      */
     StorageType getType();
 
     /**
-     * @param config
+     * @param config config。
      */
     void configure(JSONObject config);
 

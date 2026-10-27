@@ -116,6 +116,13 @@ public class UnitReport extends Report {
         return true;
     }
 
+    /**
+     * 判断数据是否被截断。
+     *
+     * <p>单元数量超过上限时只保留部分数据，此时返回 {@code true} 。</p>
+     *
+     * @return 被截断返回 {@code true} 。
+     */
     public boolean isTruncated() {
         return this.truncated;
     }
@@ -127,10 +134,20 @@ public class UnitReport extends Report {
         return this.units.size();
     }
 
+    /**
+     * 获取单元指标列表。
+     *
+     * @return 指标列表；无数据时为空列表。
+     */
     public List<JSONObject> getUnits() {
         return this.units;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -145,6 +162,11 @@ public class UnitReport extends Report {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

@@ -19,6 +19,7 @@ import org.json.JSONObject;
  */
 public class SharedMemoryCache extends AbstractCache {
 
+    /** 缓存类型标识。 */
     public final static String TYPE = "SMC";
 
     private String configFile;

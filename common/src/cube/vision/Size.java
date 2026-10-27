@@ -14,8 +14,10 @@ import org.json.JSONObject;
  */
 public class Size implements JSONable {
 
+    /** 宽度。 */
     public int width;
 
+    /** 高度。 */
     public int height;
 
     public Size() {
@@ -33,13 +35,17 @@ public class Size implements JSONable {
 
     /**
      * 计算面积。
-     *
-     * @return
+     * @return 计算结果。
      */
     public int calculateArea() {
         return this.width * this.height;
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         StringBuilder buf = new StringBuilder();
@@ -49,6 +55,11 @@ public class Size implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -57,6 +68,11 @@ public class Size implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
@@ -64,9 +80,8 @@ public class Size implements JSONable {
 
     /**
      * 从字符串形式解析数据。
-     *
-     * @param string
-     * @return
+     * @param string string。
+     * @return 处理结果。
      */
     public static Size parse(String string) {
         String[] data = string.split("x");

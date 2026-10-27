@@ -14,10 +14,13 @@ import org.json.JSONObject;
  */
 public class ResponseTime implements JSONable {
 
+    /** 耗时标记，通常为动作名。 */
     public final String mark;
 
+    /** 开始时间戳，单位毫秒。 */
     public long beginning = 0;
 
+    /** 结束时间戳，单位毫秒。 */
     public long ending = 0;
 
     public ResponseTime(String mark) {
@@ -30,6 +33,11 @@ public class ResponseTime implements JSONable {
         this.ending = json.getLong("ending");
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -39,6 +47,11 @@ public class ResponseTime implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return toJSON();

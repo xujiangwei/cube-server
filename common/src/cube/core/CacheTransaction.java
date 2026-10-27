@@ -16,6 +16,5 @@ public interface CacheTransaction {
      *
      * @param context 上下文 。
      */
-    public void perform(TransactionContext context);
-
+    void perform(TransactionContext context);
 }

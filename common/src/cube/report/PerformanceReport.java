@@ -217,6 +217,7 @@ import java.util.Map;
  */
 public class PerformanceReport extends Report {
 
+    /** 报告名称。 */
     public final static String NAME = "PerfReport";
 
     /** 基准性能。 */
@@ -267,24 +268,52 @@ public class PerformanceReport extends Report {
         }
     }
 
+    /**
+     * 设置系统启动时间。
+     *
+     * @param startTime 启动时间戳，单位毫秒。
+     */
     public void setSystemStartTime(long startTime) {
         this.systemStartTime = startTime;
         this.systemDuration = this.getTimestamp() - startTime;
     }
 
+    /**
+     * 采集指定单元的性能指标。
+     *
+     * @param cellet 目标单元。
+     */
     public void gather(AbstractCellet cellet) {
         this.benchmark.addCounter(cellet.getName(), cellet.getListenedCounter().get());
         this.benchmark.addResponseTimes(cellet.getName(), cellet.getResponseTimes());
     }
 
+    /**
+     * 登记连接数。
+     *
+     * @param port        端口号。
+     * @param numRealtime 当前实时连接数。
+     * @param numMax      历史峰值。
+     */
     public void reportConnection(int port, int numRealtime, int numMax) {
         this.serverConnMap.put(port, new ConnectionReport(port, numRealtime, numMax));
     }
 
+    /**
+     * 获取基准数据。
+     *
+     * @return 基准对象；未配置返回 {@code null} 。
+     */
     public Benchmark getBenchmark() {
         return this.benchmark;
     }
 
+    /**
+     * 追加自定义指标项。
+     *
+     * @param name  指标名。
+     * @param value 指标值。
+     */
     public void appendItem(String name, JSONObject value) {
         if (null == this.itemMap) {
             this.itemMap = new HashMap<>();
@@ -292,6 +321,11 @@ public class PerformanceReport extends Report {
         this.itemMap.put(name, value);
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();
@@ -321,6 +355,11 @@ public class PerformanceReport extends Report {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = super.toJSON();
@@ -351,6 +390,13 @@ public class PerformanceReport extends Report {
         return json;
     }
 
+    /**
+     * 序列化为明细 JSON 。
+     *
+     * <p>与精简序列化的区别：保留全部采样点，用于趋势图。</p>
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toDetailJSON() {
         JSONObject json = super.toJSON();
 

@@ -25,9 +25,8 @@ public final class StorageFields {
 
     /**
      * 按照字段名称获取对应的映射。
-     *
-     * @param fields
-     * @return
+     * @param fields fields。
+     * @return 处理结果。
      */
     public static Map<String, StorageField> get(StorageField[] fields) {
         HashMap<String, StorageField> result = new HashMap<>();
@@ -39,8 +38,7 @@ public final class StorageFields {
 
     /**
      * 创建 SELECT 语句的 '*' 检索。
-     *
-     * @return
+     * @return 处理结果。
      */
     public static StorageField[] all() {
         return null;
@@ -48,10 +46,9 @@ public final class StorageFields {
 
     /**
      * 搜索 ResultSet 数据，生成 StorageField 数组。
-     *
-     * @param resultSet
-     * @return
-     * @throws SQLException
+     * @param resultSet resultSet。
+     * @return 处理结果。
+     * @throws SQLException 处理失败。
      */
     public static StorageField[] scanResultSet(ResultSet resultSet) throws SQLException {
         ResultSetMetaData md = resultSet.getMetaData();

@@ -13,11 +13,7 @@ import cell.util.CachedQueueExecutor;
 import cell.util.log.Logger;
 import cube.benchmark.ResponseTime;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -29,12 +25,24 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public abstract class AbstractCellet extends Cellet {
 
+    /**
+     * 全局共享的任务执行器，所有单元复用同一线程池。
+     */
     protected static ExecutorService sExecutor;
 
+    /**
+     * 累计收到的消息数。
+     */
     protected AtomicLong listenedCounter = new AtomicLong(0L);
 
+    /**
+     * 按标记分组的响应耗时采样。
+     */
     protected ConcurrentHashMap<String, List<ResponseTime>> responseTimeMap = new ConcurrentHashMap<>();
 
+    /**
+     * 每组耗时采样的最大保留条数，超出后丢弃最早的记录。
+     */
     protected int maxListLength = 50;
 
     public AbstractCellet(String name) {
@@ -54,8 +62,7 @@ public abstract class AbstractCellet extends Cellet {
             if (null == properties) {
                 AbstractCellet.sExecutor = Executors.newFixedThreadPool(32);
                 Logger.i(AbstractCellet.class, "The thread pool type (NO configs): " + "fixed - max: " + 32);
-            }
-            else {
+            } else {
                 int max = 8;
                 try {
                     max = Integer.parseInt(properties.getProperty("threadpool.max", "32"));
@@ -65,8 +72,7 @@ public abstract class AbstractCellet extends Cellet {
                 }
                 if (properties.getProperty("threadpool.type", "cached").equalsIgnoreCase("cached")) {
                     AbstractCellet.sExecutor = CachedQueueExecutor.newCachedQueueThreadPool(max);
-                }
-                else {
+                } else {
                     AbstractCellet.sExecutor = Executors.newFixedThreadPool(max);
                 }
                 Logger.i(AbstractCellet.class, "The thread pool type: "
@@ -99,10 +105,20 @@ public abstract class AbstractCellet extends Cellet {
         }
     }
 
+    /**
+     * 获取任务执行器。
+     *
+     * @return 执行器实例。
+     */
     public ExecutorService getExecutor() {
         return AbstractCellet.sExecutor;
     }
 
+    /**
+     * 提交任务到执行器。
+     *
+     * @param task 待执行任务。
+     */
     protected void execute(Runnable task) {
         AbstractCellet.sExecutor.execute(task);
     }
@@ -136,6 +152,14 @@ public abstract class AbstractCellet extends Cellet {
         this.listenedCounter.incrementAndGet();
     }
 
+    /**
+     * 记录一次响应耗时。
+     *
+     * <p>按标记分组采样，用于统计各动作的响应时间分布。</p>
+     *
+     * @param mark 耗时标记，通常为动作名。
+     * @return 本次采样对象。
+     */
     protected ResponseTime markResponseTime(String mark) {
         ResponseTime time = new ResponseTime(mark);
         time.beginning = System.currentTimeMillis();

@@ -18,23 +18,45 @@ public interface MessageQueue {
      *
      * @return 返回缓存名称。
      */
-    public String getName();
+    String getName();
 
     /**
      * 返回配置数据。
      *
      * @return 返回配置数据。
      */
-    public JSONObject getConfig();
+    JSONObject getConfig();
 
-    public void configure(JSONObject config);
+    /**
+     * 按配置初始化消息队列。
+     *
+     * @param config 配置项。
+     */
+    void configure(JSONObject config);
 
-    public void start();
+    /**
+     * 启动消息队列。
+     */
+    void start();
 
-    public void stop();
+    /**
+     * 停止消息队列并释放连接。
+     */
+    void stop();
 
-    public void publish(MQTopic topic, MQMessage json);
+    /**
+     * 发布消息。
+     *
+     * @param topic 主题。
+     * @param json  消息体。
+     */
+    void publish(MQTopic topic, MQMessage json);
 
-    public void subscribe(MQTopic topic);
+    /**
+     * 订阅主题。
+     *
+     * @param topic 主题。
+     */
+    void subscribe(MQTopic topic);
 
 }

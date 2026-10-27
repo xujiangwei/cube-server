@@ -30,6 +30,7 @@ import java.util.List;
  */
 public class SQLiteStorage extends AbstractStorage {
 
+    /** 配置项：数据库文件路径。 */
     public final static String CONFIG_FILE = "file";
 
     private volatile Connection connection = null;

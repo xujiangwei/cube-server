@@ -82,8 +82,8 @@ public abstract class AbstractModule implements Module {
     /**
      * 向模块送达数据并返回结果。
      *
-     * @param data
-     * @return
+     * @param data 数据。
+     * @return 处理结果。
      */
     public <T> T notify(Object data) {
         return (T) data;

@@ -23,6 +23,7 @@ import org.json.JSONObject;
 @Deprecated
 public class AdapterMQ extends AbstractMQ {
 
+    /** 实现类型标识。 */
     public final static String TYPE = "AMQ";
 
     private String name;
@@ -35,26 +36,44 @@ public class AdapterMQ extends AbstractMQ {
         super(name);
     }
 
+    /**
+     * 按配置初始化。
+     *
+     * @param config 配置项。
+     */
     @Override
     public void configure(JSONObject config) {
         super.configure(config);
     }
 
+    /** 启动队列连接。 */
     @Override
     public void start() {
 
     }
 
+    /** 停止队列连接并释放资源。 */
     @Override
     public void stop() {
 
     }
 
+    /**
+     * 发布消息。
+     *
+     * @param topic 主题。
+     * @param json  消息体。
+     */
     @Override
     public void publish(MQTopic topic, MQMessage json) {
 
     }
 
+    /**
+     * 订阅主题。
+     *
+     * @param topic 主题。
+     */
     @Override
     public void subscribe(MQTopic topic) {
 

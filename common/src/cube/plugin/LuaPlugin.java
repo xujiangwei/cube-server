@@ -28,10 +28,21 @@ public abstract class LuaPlugin implements Plugin {
         this.luaFile = new File(luaFilename);
     }
 
+    /**
+     * 获取脚本文件。
+     *
+     * @return Lua 脚本文件。
+     */
     public File getLuaFile() {
         return this.luaFile;
     }
 
+    /**
+     * 执行插件脚本。
+     *
+     * @param context 插件上下文。
+     * @throws FileNotFoundException 脚本文件不存在。
+     */
     public void call(PluginContext context) throws FileNotFoundException {
         if (!this.luaFile.exists()) {
             throw new FileNotFoundException("Not found file " + this.luaFile.getAbsolutePath());
@@ -49,6 +60,7 @@ public abstract class LuaPlugin implements Plugin {
         this.luaState.call(1, 0);
     }
 
+    /** 释放插件占用的资源。 */
     public void close() {
         if (null != this.luaState) {
             this.luaState.close();

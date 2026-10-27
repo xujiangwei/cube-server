@@ -112,6 +112,11 @@ public class SubmitThread extends Thread {
         this.running = running;
     }
 
+    /**
+     * 上报线程主循环。
+     *
+     * <p>循环从队列取报告并发送，队列为空时阻塞等待；线程被中断时退出。</p>
+     */
     @Override
     public void run() {
         HttpClient client = null;
@@ -231,9 +236,8 @@ public class SubmitThread extends Thread {
 
     /**
      * 向所有目标主机提交一份报告，任一主机返回 200 即视为成功。
-     *
-     * @param report
-     * @param client
+     * @param report report。
+     * @param client client。
      * @return {@link #SUBMITTED}、{@link #REJECTED} 或 {@link #UNREACHABLE}。
      */
     private int submit(Report report, HttpClient client) {

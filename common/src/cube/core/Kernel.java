@@ -192,7 +192,7 @@ public final class Kernel {
     /**
      * 安装模块。
      *
-     * @param name 模块名称。
+     * @param name   模块名称。
      * @param module 模块实例。
      */
     public void installModule(String name, AbstractModule module) {
@@ -253,7 +253,7 @@ public final class Kernel {
     /**
      * 安装缓存。
      *
-     * @param name 指定缓存名称。
+     * @param name   指定缓存名称。
      * @param config 指定缓存配置信息。
      */
     public AbstractCache installCache(String name, JSONObject config) {
@@ -309,7 +309,7 @@ public final class Kernel {
      * <p><b>当前状态</b>：本方法在仓库内没有调用点，且唯一能装配的 {@link AdapterMQ} 是空实现，
      * 装上之后不会产生任何实际行为。保留是为了二进制兼容，新代码不要依赖。</p>
      *
-     * @param name 指定消息队列名称。
+     * @param name   指定消息队列名称。
      * @param config 指定队列配置信息。
      */
     @SuppressWarnings("deprecation")
@@ -364,10 +364,9 @@ public final class Kernel {
     }
 
     /**
-     *
-     * @param moduleName
-     * @param data
-     * @return
+     * @param moduleName moduleName。
+     * @param data       数据。
+     * @return 处理结果。
      */
     public Object notifyModule(String moduleName, Object data) {
         AbstractModule module = this.getModule(moduleName);

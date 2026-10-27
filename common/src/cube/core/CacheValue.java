@@ -49,7 +49,7 @@ public class CacheValue {
     /**
      * 构造函数。
      *
-     * @param value 指定数据值。
+     * @param value     指定数据值。
      * @param timestamp 指定时间戳。
      */
     public CacheValue(JSONObject value, long timestamp) {
@@ -93,6 +93,12 @@ public class CacheValue {
         return this.timestamp;
     }
 
+    /**
+     * 按值内容判断相等。
+     *
+     * @param object 待比较对象。
+     * @return 值相同返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (null != object && object instanceof CacheValue) {

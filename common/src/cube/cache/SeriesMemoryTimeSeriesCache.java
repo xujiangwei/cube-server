@@ -24,6 +24,7 @@ import java.util.List;
  */
 public class SeriesMemoryTimeSeriesCache extends AbstractTimeSeriesCache {
 
+    /** 缓存类型标识。 */
     public final static String TYPE = "SMTSC";
 
     private String configFile;

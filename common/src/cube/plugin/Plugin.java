@@ -24,7 +24,8 @@ public interface Plugin {
     /**
      * 当对应关键字的钩子被触发时回调该函数。
      *
-     * @param context
+     * @param context 插件上下文。
+     * @return 执行结果。
      */
     HookResult launch(PluginContext context);
 

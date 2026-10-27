@@ -69,15 +69,19 @@ public abstract class FFmpeg extends Processor {
         }
     }
 
+    /**
+     * 判断处理进程是否在运行。
+     *
+     * @return 运行中返回 {@code true} 。
+     */
     public boolean isRunning() {
         return this.running.get();
     }
 
     /**
      * 探测媒体文件属性。
-     *
-     * @param filePath
-     * @return
+     * @param filePath filePath。
+     * @return JSON 对象。
      */
     protected JSONObject probe(String filePath) {
         List<String> commandLine = new ArrayList<>();
@@ -116,6 +120,15 @@ public abstract class FFmpeg extends Processor {
         }
     }
 
+    /**
+     * 调用 FFmpeg 处理。
+     *
+     * <p>拼装命令行、执行子进程并把输出写入上下文；非 0 退出码视为失败。</p>
+     *
+     * @param params  命令行参数。
+     * @param context 处理上下文。
+     * @return 执行成功返回 {@code true} 。
+     */
     protected boolean call(List<String> params, ProcessorContext context) {
         List<String> commandLine = new ArrayList<>();
         commandLine.add(this.ffmpegCommand);

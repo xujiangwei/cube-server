@@ -24,6 +24,11 @@ public class Rectangle extends BoundingBox {
         super(rectangle.x, rectangle.y, rectangle.width, rectangle.height);
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         StringBuilder buf = new StringBuilder();
@@ -39,9 +44,8 @@ public class Rectangle extends BoundingBox {
 
     /**
      * 解析字符串形式。
-     *
-     * @param string
-     * @return
+     * @param string string。
+     * @return 处理结果。
      */
     public static Rectangle parse(String string) {
         String[] seg = string.split("\\+");

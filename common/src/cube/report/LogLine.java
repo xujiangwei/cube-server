@@ -22,12 +22,16 @@ public class LogLine implements JSONable {
 
     private final static SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("HH:mm:ss.SSS");
 
+    /** 日志级别。 */
     public int level;
 
+    /** 日志标签，通常为来源类名。 */
     public String tag;
 
+    /** 日志正文。 */
     public String text;
 
+    /** 日志时间戳，单位毫秒。 */
     public long time;
 
     public LogLine(int level, String tag, String text, long time) {
@@ -48,6 +52,11 @@ public class LogLine implements JSONable {
         }
     }
 
+    /**
+     * 输出便于日志排查的摘要。
+     *
+     * @return 摘要字符串。
+     */
     @Override
     public String toString() {
         StringBuilder buf = new StringBuilder();
@@ -61,6 +70,11 @@ public class LogLine implements JSONable {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -75,6 +89,11 @@ public class LogLine implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();

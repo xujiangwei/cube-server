@@ -10,6 +10,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 @Retention(RetentionPolicy.RUNTIME)
+/**
+ * 插件声明注解。
+ *
+ * <p>标注在插件实现类上，运行时由插件管理器扫描并注册。</p>
+ */
 public @interface Plugin {
 
     String targetModule();

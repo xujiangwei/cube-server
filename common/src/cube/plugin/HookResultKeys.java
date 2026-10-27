@@ -11,6 +11,7 @@ package cube.plugin;
  */
 public class HookResultKeys {
 
+    /** 结果键：操作不被允许。 */
     public final static String NOT_ALLOWED = "NotAllowed";
 
     private HookResultKeys() {

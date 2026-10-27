@@ -19,6 +19,7 @@ import java.util.List;
  */
 public class LogReport extends Report {
 
+    /** 报告名称。 */
     public final static String NAME = "Log";
 
     private List<LogLine> logLines;
@@ -43,19 +44,35 @@ public class LogReport extends Report {
         }
     }
 
+    /**
+     * 追加一批日志。
+     *
+     * @param logs 日志列表。
+     */
     public void addLogs(List<LogLine> logs) {
         this.logLines.addAll(logs);
     }
 
+    /**
+     * 获取已收集的日志。
+     *
+     * @return 日志列表；无日志时为空列表。
+     */
     public List<LogLine> getLogs() {
         return this.logLines;
     }
 
+    /** 清空已收集的日志。 */
     public void clear() {
         this.logLines.clear();
         this.reset();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = super.toJSON();

@@ -41,22 +41,49 @@ public abstract class ProcessorContext implements JSONable {
         }
     }
 
+    /**
+     * 设置处理是否成功。
+     *
+     * @param value 成功为 {@code true} 。
+     */
     public void setSuccessful(boolean value) {
         this.successful = value;
     }
 
+    /**
+     * 判断处理是否成功。
+     *
+     * @return 成功返回 {@code true} 。
+     */
     public boolean isSuccessful() {
         return this.successful;
     }
 
+    /**
+     * 添加处理产物。
+     *
+     * @param result 文件结果。
+     */
     public void addResult(FileResult result) {
         this.resultList.add(result);
     }
 
+    /**
+     * 获取全部处理产物。
+     *
+     * @return 结果列表；无产物时为空列表。
+     */
     public List<FileResult> getResultList() {
         return this.resultList;
     }
 
+    /**
+     * 追加一行标准输出。
+     *
+     * <p>方法加锁，允许多个读取线程并发写入。</p>
+     *
+     * @param line 输出行。
+     */
     public synchronized void appendStdOutput(String line) {
         if (null == this.stdOutput) {
             this.stdOutput = new ArrayList<>();
@@ -65,10 +92,21 @@ public abstract class ProcessorContext implements JSONable {
         this.stdOutput.add(line);
     }
 
+    /**
+     * 获取累积的标准输出。
+     *
+     * @return 输出行列表。
+     */
     public List<String> getStdOutput() {
         return this.stdOutput;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @param process 处理标识，写入结果以便溯源。
+     * @return JSON 表示。
+     */
     public JSONObject toJSON(String process) {
         JSONObject json = new JSONObject();
 

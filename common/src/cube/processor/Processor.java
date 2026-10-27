@@ -22,10 +22,24 @@ public abstract class Processor {
         this.workPath = workPath;
     }
 
+    /**
+     * 获取工作目录。
+     *
+     * @return 临时文件所在目录。
+     */
     public Path getWorkPath() {
         return this.workPath;
     }
 
+    /**
+     * 构造输入流读取任务。
+     *
+     * <p>在独立线程中持续读取流并写入上下文，避免子进程阻塞。</p>
+     *
+     * @param inputStream 输入流。
+     * @param context     处理上下文。
+     * @return 可提交给执行器的任务。
+     */
     protected Runnable buildInputStreamWorker(InputStream inputStream, ProcessorContext context) {
         Runnable worker = new Runnable() {
             @Override
@@ -54,5 +68,10 @@ public abstract class Processor {
         return worker;
     }
 
+    /**
+     * 执行处理。
+     *
+     * @param context 处理上下文。
+     */
     public abstract void go(ProcessorContext context);
 }

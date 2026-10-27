@@ -45,6 +45,11 @@ public class ManagementDaemon extends Thread {
         this.executor = Executors.newFixedThreadPool(8);
     }
 
+    /**
+     * 守护线程主循环。
+     *
+     * <p>周期性检查各模块状态并触发相应维护动作，直到线程被中断。</p>
+     */
     @Override
     public void run() {
         while (this.spinning) {

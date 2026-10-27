@@ -18,6 +18,9 @@ import cube.util.SQLUtils;
  */
 public class Conditional {
 
+    /**
+     * SQL 标识符引号。
+     */
     public final static String Quote = "`";
 
     /**
@@ -50,7 +53,7 @@ public class Conditional {
     /**
      * 构造函数。
      *
-     * @param sql 指定 SQL 字符串。
+     * @param sql           指定 SQL 字符串。
      * @param whereSentence 是否需要 WHERE 句式。
      */
     protected Conditional(String sql, boolean whereSentence) {
@@ -58,11 +61,21 @@ public class Conditional {
         this.whereSentence = whereSentence;
     }
 
+    /**
+     * 输出条件表达式。
+     *
+     * @return 形如 {@code `field`=?} 的片段。
+     */
     @Override
     public String toString() {
         return this.sql;
     }
 
+    /**
+     * 判断是否需要拼接 WHERE 子句。
+     *
+     * @return 存在有效条件返回 {@code true} 。
+     */
     public boolean needWhereSentence() {
         return this.whereSentence;
     }
@@ -189,7 +202,7 @@ public class Conditional {
     /**
      * 创建 LIMIT 约束。
      *
-     * @param pos 指定开始位置。
+     * @param pos   指定开始位置。
      * @param count 指定数量。
      * @return 返回条件句式实例。
      */
@@ -201,7 +214,7 @@ public class Conditional {
      * 创建等于运算。
      *
      * @param fieldName 字段名。
-     * @param value 字段值。
+     * @param value     字段值。
      * @return 返回条件句式实例。
      */
     public static Conditional createEqualTo(String fieldName, int value) {
@@ -212,7 +225,7 @@ public class Conditional {
      * 创建等于运算。
      *
      * @param fieldName 字段名。
-     * @param value 字段值。
+     * @param value     字段值。
      * @return 返回条件句式实例。
      */
     public static Conditional createEqualTo(String fieldName, long value) {
@@ -223,7 +236,7 @@ public class Conditional {
      * 创建等于运算。
      *
      * @param fieldName 字段名。
-     * @param value 字段值。
+     * @param value     字段值。
      * @return 返回条件句式实例。
      */
     public static Conditional createEqualTo(String fieldName, String value) {
@@ -231,11 +244,11 @@ public class Conditional {
     }
 
     /**
-     *  创建等于运算。
+     * 创建等于运算。
      *
-     * @param fieldName 字段名。
+     * @param fieldName   字段名。
      * @param literalBase 字段类型。
-     * @param value 字段值。
+     * @param value       字段值。
      * @return 返回条件句式实例。
      */
     public static Conditional createEqualTo(String fieldName, LiteralBase literalBase, Object value) {
@@ -255,8 +268,7 @@ public class Conditional {
         if (null != table) {
             return new Conditional(Quote + table + Quote + "." + Quote + field.getName() + Quote + "=" + value,
                     true);
-        }
-        else {
+        } else {
             return new Conditional(Quote + field.getName() + Quote + "=" + value,
                     true);
         }
@@ -265,7 +277,7 @@ public class Conditional {
     /**
      * 创建等于 JOIN 。
      *
-     * @param leftJoinField 左侧连接字段。
+     * @param leftJoinField  左侧连接字段。
      * @param rightJoinField 右侧连接字段。
      * @return 返回条件句式实例。
      */
@@ -281,7 +293,7 @@ public class Conditional {
      * 创建不等于运算。
      *
      * @param fieldName 字段名。
-     * @param value 长整型字段值。
+     * @param value     长整型字段值。
      * @return 返回条件句式实例。
      */
     public static Conditional createUnequalTo(String fieldName, long value) {
@@ -296,7 +308,7 @@ public class Conditional {
      * 创建不等于运算。
      *
      * @param field 字段描述。
-     * @return
+     * @return 处理结果。
      */
     public static Conditional createUnequalTo(StorageField field) {
         String value = renderValue(field);
@@ -305,8 +317,7 @@ public class Conditional {
         if (null != table) {
             return new Conditional(Quote + table + Quote + "." + Quote + field.getName() + Quote + "<>" + value,
                     true);
-        }
-        else {
+        } else {
             return new Conditional(Quote + field.getName() + Quote + "<>" + value,
                     true);
         }
@@ -359,7 +370,7 @@ public class Conditional {
     /**
      * 创建 column IN (value1, value2, ...) 条件。
      *
-     * @param field 字段描述
+     * @param field  字段描述
      * @param values 对应的值数组。
      * @return 返回条件句式实例。
      * @throws IllegalArgumentException 值数组为空或包含 {@code null} 元素时抛出。
@@ -420,7 +431,7 @@ public class Conditional {
      * 并通过 {@code ESCAPE} 子句显式声明转义字符，确保用户输入只作为普通字符参与匹配。</p>
      *
      * @param fieldName 字段名。
-     * @param keyword 匹配关键字。
+     * @param keyword   匹配关键字。
      * @return 返回条件句式实例。
      */
     public static Conditional createLike(String fieldName, String keyword) {
@@ -436,7 +447,7 @@ public class Conditional {
      * 创建 ORDER BY 条件。
      *
      * @param fieldName 字段名。
-     * @param desc 是否倒序。
+     * @param desc      是否倒序。
      * @return 返回条件句式实例。
      */
     public static Conditional createOrderBy(String fieldName, boolean desc) {
@@ -453,7 +464,7 @@ public class Conditional {
      *
      * @param tableName 表名。
      * @param fieldName 字段名。
-     * @param desc 是否倒序。
+     * @param desc      是否倒序。
      * @return 返回条件句式实例。
      */
     public static Conditional createOrderBy(String tableName, String fieldName, boolean desc) {
@@ -470,9 +481,9 @@ public class Conditional {
     /**
      * 创建 LIMIT %n OFFSET %n 条件。
      *
-     * @param limit 限制量。
+     * @param limit  限制量。
      * @param offset 偏移量。
-     * @return
+     * @return 处理结果。
      */
     public static Conditional createLimitOffset(int limit, int offset) {
         StringBuilder buf = new StringBuilder();

@@ -84,18 +84,38 @@ public class Color {
         this.blue = json.getInt("b");
     }
 
+    /**
+     * 获取红色分量。
+     *
+     * @return 分量值，0 到 255 。
+     */
     public int red() {
         return this.red;
     }
 
+    /**
+     * 获取绿色分量。
+     *
+     * @return 分量值，0 到 255 。
+     */
     public int green() {
         return this.green;
     }
 
+    /**
+     * 获取蓝色分量。
+     *
+     * @return 分量值，0 到 255 。
+     */
     public int blue() {
         return this.blue;
     }
 
+    /**
+     * 获取打包后的颜色值。
+     *
+     * @return ARGB 整数。
+     */
     public int color() {
         if (this.color == -1) {
             int r = (this.red << 16) & 0x00FF0000;
@@ -107,6 +127,11 @@ public class Color {
         return this.color;
     }
 
+    /**
+     * 格式化为 RGB 文本。
+     *
+     * @return 形如 {@code rgb(255,0,0)} 的字符串。
+     */
     public String formatRGB() {
         StringBuilder buf = new StringBuilder("rgb(");
         buf.append(this.red);
@@ -118,6 +143,11 @@ public class Color {
         return buf.toString();
     }
 
+    /**
+     * 格式化为十六进制文本。
+     *
+     * @return 形如 {@code #FF0000} 的字符串。
+     */
     public String formatHex() {
         StringBuilder buf = new StringBuilder("#");
         String redHex = Integer.toHexString(this.red);
@@ -129,6 +159,11 @@ public class Color {
         return buf.toString();
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
         json.put("r", this.red);

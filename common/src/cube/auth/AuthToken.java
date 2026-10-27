@@ -204,6 +204,11 @@ public class AuthToken implements JSONable {
         return this.description;
     }
 
+    /**
+     * 设置令牌描述信息。
+     *
+     * @param primaryDescription 主描述，含用户名、设备等。
+     */
     public void setDescription(PrimaryDescription primaryDescription) {
         this.description = primaryDescription;
     }
@@ -240,6 +245,13 @@ public class AuthToken implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * <p>省略描述细节，只保留校验与下发所需字段。</p>
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();

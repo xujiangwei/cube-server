@@ -48,6 +48,11 @@ public class PluginManager {
         this.kernel = kernel;
     }
 
+    /**
+     * 启动插件管理器。
+     *
+     * <p>扫描插件目录、加载并初始化插件，重复调用幂等。</p>
+     */
     public void start() {
         this.config = this.readConfig();
         if (null != this.config) {
@@ -61,8 +66,7 @@ public class PluginManager {
                         PluginDesc desc = new PluginDesc(plugin);
                         if (desc.isValid()) {
                             list.add(desc);
-                        }
-                        else {
+                        } else {
                             // 无效描述可能已创建 ClassLoader，必须显式关闭
                             desc.close();
                         }
@@ -104,6 +108,9 @@ public class PluginManager {
         }
     }
 
+    /**
+     * 停止插件管理器并卸载全部插件。
+     */
     public void stop() {
         if (!this.started) {
             return;
@@ -194,7 +201,7 @@ public class PluginManager {
                     this.module = json.getString("module");
                     this.pluginMap = new HashMap<>();
 
-                    this.loader = new URLClassLoader(new URL[]{ file.toURI().toURL() });
+                    this.loader = new URLClassLoader(new URL[]{file.toURI().toURL()});
 
                     // 读取插件列表
                     JSONArray list = json.getJSONArray("plugins");

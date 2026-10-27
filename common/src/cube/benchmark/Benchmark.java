@@ -61,9 +61,8 @@ public class Benchmark implements JSONable {
 
     /**
      * 添加指定名称的计数。
-     *
-     * @param name
-     * @param counter
+     * @param name 名称。
+     * @param counter counter。
      */
     public void addCounter(String name, Long counter) {
         if (this.counterMap.containsKey(name)) {
@@ -72,15 +71,19 @@ public class Benchmark implements JSONable {
         this.counterMap.put(name, counter);
     }
 
+    /**
+     * 获取计数器映射。
+     *
+     * @return 计数器名到累计值的映射。
+     */
     public Map<String, Long> getCounterMap() {
         return this.counterMap;
     }
 
     /**
      * 添加应答时间。
-     *
-     * @param name
-     * @param timeMap
+     * @param name 名称。
+     * @param timeMap timeMap。
      */
     public void addResponseTimes(String name, Map<String, List<ResponseTime>> timeMap) {
         Map<String, List<ResponseTime>> newMap = new HashMap<>();
@@ -107,15 +110,19 @@ public class Benchmark implements JSONable {
         this.responseTimeMap.put(name, newMap);
     }
 
+    /**
+     * 获取全部耗时标记。
+     *
+     * @return 标记集合；无采样时为空集合。
+     */
     public Set<String> getResponseTimeKeys() {
         return this.responseTimeMap.keySet();
     }
 
     /**
      * 计算应答时间的平均值。
-     *
-     * @param name
-     * @return
+     * @param name 名称。
+     * @return 映射表。
      */
     public Map<String, AverageValue> calcAverageResponseTime(String name) {
         Map<String, AverageValue> result = new HashMap<>();
@@ -160,6 +167,11 @@ public class Benchmark implements JSONable {
         return result;
     }
 
+    /**
+     * 序列化为 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -182,6 +194,11 @@ public class Benchmark implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为精简 JSON 。
+     *
+     * @return JSON 表示。
+     */
     @Override
     public JSONObject toCompactJSON() {
         JSONObject json = new JSONObject();
@@ -201,6 +218,13 @@ public class Benchmark implements JSONable {
         return json;
     }
 
+    /**
+     * 序列化为明细 JSON 。
+     *
+     * <p>与精简序列化的区别：保留每个标记的完整耗时分布。</p>
+     *
+     * @return JSON 表示。
+     */
     public JSONObject toDetailJSON() {
         JSONObject json = this.toJSON();
 

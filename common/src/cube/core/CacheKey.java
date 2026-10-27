@@ -43,6 +43,12 @@ public class CacheKey {
         return this.key;
     }
 
+    /**
+     * 按键内容判断相等。
+     *
+     * @param object 待比较对象。
+     * @return 键相同返回 {@code true} 。
+     */
     @Override
     public boolean equals(Object object) {
         if (null != object && object instanceof CacheKey) {
@@ -55,6 +61,11 @@ public class CacheKey {
         return false;
     }
 
+    /**
+     * 按键内容计算哈希值。
+     *
+     * @return 哈希值。
+     */
     @Override
     public int hashCode() {
         return this.key.hashCode();

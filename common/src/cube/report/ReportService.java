@@ -97,14 +97,32 @@ public class ReportService {
         this.retries = Collections.synchronizedMap(new IdentityHashMap<Report, Integer>());
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public final static ReportService getInstance() {
         return ReportService.instance;
     }
 
+    /**
+     * 添加上报目标主机。
+     *
+     * @param address 主机地址。
+     * @param port    端口号。
+     */
     public void addHost(String address, int port) {
         this.hostUrls.add("http://" + address + ":" + port + "/report");
     }
 
+    /**
+     * 设置待上报队列上限。
+     *
+     * <p>队列满时新报告会被丢弃，避免内存持续增长。</p>
+     *
+     * @param maxQueueLength 上限条数。
+     */
     public void setMaxQueueLength(int maxQueueLength) {
         this.maxQueueLength = maxQueueLength;
     }
@@ -134,6 +152,13 @@ public class ReportService {
         }
     }
 
+    /**
+     * 提交报告。
+     *
+     * <p>报告入队后由上报线程异步发送，不阻塞调用方。</p>
+     *
+     * @param report 报告对象。
+     */
     public void submitReport(Report report) {
         if (!this.canSubmit()) {
             // 暂停期内直接丢弃：等恢复后控制台会收到重新采集的数据

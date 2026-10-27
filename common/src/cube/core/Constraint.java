@@ -72,6 +72,11 @@ public enum Constraint {
         this.statement = statement;
     }
 
+    /**
+     * 获取约束语句。
+     *
+     * @return 建表时使用的约束片段。
+     */
     public String getStatement() {
         return this.statement;
     }
