@@ -6,8 +6,11 @@
 
 package cube.report;
 
+import cell.core.talk.TalkContext;
 import cube.common.entity.AICapability;
+import cube.common.entity.AIGCUnit;
 import cube.common.entity.Contact;
+import cube.common.entity.Device;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -40,8 +43,11 @@ public class UnitReport extends Report {
     /**
      * 单元条目：<code>{id, domain, name, capability}</code>。
      * <code>id</code> 是物理实体（Contact）的 ID，<code>capability</code> 是 AICapability 的 JSON 。
+     * 新版报告补充可选的 connected/address/device/platform 部署元信息。
      */
     private final List<JSONObject> units;
+
+    private boolean truncated;
 
     public UnitReport(String reporter) {
         super(NAME);
@@ -52,6 +58,7 @@ public class UnitReport extends Report {
     public UnitReport(JSONObject json) {
         super(json);
         this.units = new ArrayList<>();
+        this.truncated = json.optBoolean("truncated", false);
 
         JSONArray array = json.optJSONArray("units");
         if (null != array) {
@@ -70,6 +77,7 @@ public class UnitReport extends Report {
      */
     public boolean addUnit(Contact contact, AICapability capability) {
         if (this.units.size() >= MAX_UNITS) {
+            this.truncated = true;
             return false;
         }
 
@@ -80,6 +88,36 @@ public class UnitReport extends Report {
         item.put("capability", capability.toJSON());
         this.units.add(item);
         return true;
+    }
+
+    /**
+     * 保留原能力台账条目，并补充当前连接的部署信息。
+     * connected=false 的能力仍供原台账使用，不进入当前部署列表。
+     */
+    public boolean addUnit(AIGCUnit unit) {
+        if (!this.addUnit(unit.getContact(), unit.getCapability())) {
+            return false;
+        }
+        JSONObject item = this.units.get(this.units.size() - 1);
+        TalkContext context = unit.getContext();
+        boolean connected = context != null && context.isValid();
+        item.put("connected", connected);
+        if (connected) {
+            item.put("address", context.getSessionHost());
+            Device device = unit.getContact().getDevice(context);
+            if (device == null && unit.getContact().numDevices() > 0) {
+                device = unit.getContact().getDevice();
+            }
+            if (device != null) {
+                item.put("device", device.getName());
+                item.put("platform", device.getPlatform());
+            }
+        }
+        return true;
+    }
+
+    public boolean isTruncated() {
+        return this.truncated;
     }
 
     /**
@@ -102,6 +140,7 @@ public class UnitReport extends Report {
             array.put(item);
         }
         json.put("units", array);
+        json.put("truncated", this.truncated);
 
         return json;
     }

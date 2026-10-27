@@ -264,6 +264,43 @@ def unit_overview():
     }
 
 
+def unit_deployments(domain):
+    """当前部署快照；示例含同名多部署、多版本、跨节点和旧报告缺失字段。"""
+    now = int(time.time() * 1000)
+    groups = []
+    if domain == "shixincube.com":
+        for name, task, ids in [
+            ("Baize", "NaturalLanguageProcessing", [100001, 100002, 100003]),
+            ("Baize2", "Multimodal", [100001, 100004]),
+        ]:
+            deployments = []
+            all_caps = []
+            for index, uid in enumerate(ids):
+                caps = [capability(name, task, ["Conversational" if name == "Baize" else "FeatureExtraction"],
+                                   "文本生成与对话" if name == "Baize" else "多模态特征与文本生成")]
+                caps[0]["chatCompletion"] = {"text": True, "stream": True, "tools": name == "Baize2"}
+                if index == 0:
+                    updated = dict(caps[0], version="2.0", description="新版本单元能力")
+                    caps.append(updated)
+                all_caps.extend(cap for cap in caps if cap not in all_caps)
+                deployments.append({
+                    "id": uid, "name": "Unit-%d" % uid,
+                    "addresses": ["10.20.1.%d" % (uid % 100)] + (["2001:db8::10"] if index == 0 else []),
+                    "device": "GPU-Server-%s" % chr(65 + index), "platform": "Ubuntu 22.04 / Linux",
+                    "reporters": ["cube#service#7000", "cube#service#7100"] if index == 0 else ["cube#service#7000"],
+                    "reportedAt": now - (index + 1) * 12000, "capabilities": caps,
+                })
+            groups.append({"name": name, "deploymentCount": len(deployments),
+                           "capabilities": all_caps, "deployments": deployments})
+        legacy = capability("LegacyChat", "NaturalLanguageProcessing", ["Conversational"], "旧节点报告：缺少部署元信息")
+        groups.append({"name": "LegacyChat", "deploymentCount": 1, "capabilities": [legacy],
+                       "deployments": [{"id": 100005, "name": "Legacy-Node", "addresses": [],
+                                        "device": "", "platform": "", "reporters": ["cube#service#7200"],
+                                        "reportedAt": now - 50000, "capabilities": [legacy]}]})
+    return {"domain": domain, "queryTime": now, "unitReportTime": now - 12000,
+            "truncated": False, "groups": groups}
+
+
 def jvm_reports(count=30):
     """注意单位：控制台在 `Console#appendJVMReport` 里已把上报字节数换算成 **MB** 后入库，
     前端 `toJVMSeries` 因此不再做除法 —— mock 必须同样返回 MB，否则纵轴会大三个数量级。"""
@@ -609,6 +646,11 @@ class Handler(BaseHTTPRequestHandler):
                                    "year": 2026, "month": 9, "date": 19})
         if path == "/statistic/units":
             return self.send_json(unit_overview())
+        if path == "/statistic/unit-deployments":
+            domain = q.get("domain", "").strip()
+            if not domain:
+                return self.send_json({"error": "domain is required"}, 400)
+            return self.send_json(unit_deployments(domain))
         if path == "/log/console":
             return self.send_json(logs("console", int(q.get("start", 0))))
         if path == "/log/server":

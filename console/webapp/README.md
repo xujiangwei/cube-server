@@ -63,6 +63,19 @@ mock 返回的 JSON 结构对齐后端 `toJSON()`，但**不校验凭据、数�
    控制台按物理实体 ID 归并、跨节点同能力去重，TTL 5 分钟。
    因此：**能力可能为空**（节点未上报 / 该实体上没有 AIGC 单元），
    前端以 `--` 并按 `unitReportTime` 提示数据新鲜度，不要把它当成统计口径缺失。
+   「按单元名称」标签页单独调用 `GET /statistic/unit-deployments?domain=...`（需登录 Cookie）。
+   此接口直接读取有效节点快照，不依赖统计库或昨日联系人台账；缺少域返回 400，无部署返回 200 与空 `groups`。
+   响应为 `{domain, queryTime, unitReportTime, truncated, groups}`，其中每组为
+   `{name, deploymentCount, capabilities, deployments}`，名称取 `capability.name`，精确区分大小写。
+   部署为 `{id, name, addresses, device, platform, reporters, reportedAt, capabilities}`：
+   同域同名下按 Contact ID 去重，跨节点上报合并节点、接入 IP 和能力，不按 IP 去重。
+   `reportedAt`、`unitReportTime` 使用 console 接收时间，后者为最近有效节点报告的接收时间；
+   连接有效的条目进入部署视图，超过 5 分钟的报告不参与查询，空报告立即替换该节点的旧部署。
+   扩展 `UnitReport.units` 的可选字段为 `connected/address/device/platform`，原台账仍读取全部能力。
+   旧报告缺少扩展字段时保留其身份与能力，地址、设备和平台显示 `--`；未声明连接状态不推断健康或容量。
+   报告超过 500 条时携带 `truncated=true`，页面提示部署数不完整；截断可能漏掉完整域，故任一有效报告截断均提示。
+   目前仅覆盖现有 AIGCService 单元，不接入 Harness worker；独立部署需使用独立 Contact ID。
+   接入 IP 是 Java 服务观察到的单元连接地址，不是远端推理 HTTP 后端地址。
 6. **节点版本号**：`GET /servers/dispatcher`、`GET /servers/service` 的每一项都带 `version`
    （调度机取 `cube.dispatcher.Version`，服务单元取 `cube.service.Version`）。
    值来自**该节点部署目录** `libs/` 里 jar 内的同名类，而不是控制台自身的 classpath，

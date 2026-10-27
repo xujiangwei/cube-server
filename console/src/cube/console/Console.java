@@ -17,6 +17,7 @@ import cube.console.mgmt.ServiceManager;
 import cube.console.mgmt.ServiceServer;
 import cube.console.mgmt.StatisticDataManager;
 import cube.console.mgmt.UserManager;
+import cube.console.mgmt.UnitDeploymentSnapshot;
 import cube.report.JVMReport;
 import cube.report.LogLine;
 import cube.report.LogReport;
@@ -76,7 +77,7 @@ public final class Console implements Runnable {
      * 节点每 60 秒上报一次，取 5 倍间隔容忍抖动与短时重连；超期视为该节点已不再承载单元，
      * 避免节点停服后控制台一直显示陈旧的能力数据。
      */
-    private final static long UNIT_REPORT_TTL = 5L * 60 * 1000L;
+    private final static long UNIT_REPORT_TTL = UnitDeploymentSnapshot.TTL;
 
     private int maxReportNum = 30;
 
@@ -552,6 +553,21 @@ public final class Console implements Runnable {
         }
 
         return result;
+    }
+
+    /** 查询当前有效的单元部署，不依赖昨日联系人统计。 */
+    public JSONObject queryUnitDeployments(String domain) {
+        long now = System.currentTimeMillis();
+        UnitDeploymentSnapshot result = new UnitDeploymentSnapshot(domain, now);
+        for (Map.Entry<String, UnitSnapshot> entry : this.serverUnitMap.entrySet()) {
+            UnitSnapshot snapshot = entry.getValue();
+            if (now - snapshot.receiveTime > UNIT_REPORT_TTL) {
+                this.serverUnitMap.remove(entry.getKey(), snapshot);
+                continue;
+            }
+            result.append(entry.getKey(), snapshot.report, snapshot.receiveTime);
+        }
+        return result.toJSON();
     }
 
     /**

@@ -8,6 +8,7 @@ package cube.console.container.handler;
 
 import cube.console.Console;
 import cube.console.Utils;
+import cube.console.container.Handlers;
 import cube.util.CrossDomainHandler;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.handler.ContextHandler;
@@ -33,6 +34,7 @@ import java.util.Map;
  *   <li><code>GET /statistic/range</code> —— 日期区间的逐日统计与区间汇总（供周/月/年视图使用）</li>
  *   <li><code>GET /statistic/units</code> —— 昨日 AI 单元概览（ID 位数大于等于 6 且小于 8 位的联系人），
  *       每行是一个 Contact 物理实体，<code>capabilities</code> 为该实体承载的能力（来自节点上报）</li>
+ *   <li><code>GET /statistic/unit-deployments</code> —— 按单元名称组织当前部署快照</li>
  * </ul>
  */
 public class StatisticDataHandler extends ContextHandler {
@@ -55,7 +57,19 @@ public class StatisticDataHandler extends ContextHandler {
 
         @Override
         public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
-            if (target.equals("/units")) {
+            if (target.equals("/unit-deployments")) {
+                if (!Handlers.checkCookie(request, console)) {
+                    respond(response, HttpStatus.UNAUTHORIZED_401);
+                    return;
+                }
+                String domain = request.getParameter("domain");
+                if (domain == null || domain.trim().isEmpty()) {
+                    respond(response, HttpStatus.BAD_REQUEST_400);
+                    return;
+                }
+                respondOk(response, console.queryUnitDeployments(domain.trim()));
+            }
+            else if (target.equals("/units")) {
                 // AI 单元概览（ID 十进制位数大于等于 6 且小于 8 位的联系人）
                 String query = request.getQueryString();
                 Map<String, String> params = (null == query) ? new HashMap<String, String>()

@@ -13,36 +13,41 @@ export function useChart(
 ) {
   let chart: ECharts | null = null
   let observer: ResizeObserver | null = null
+  let element: HTMLElement | null = null
+
+  const dispose = (): void => {
+    observer?.disconnect()
+    observer = null
+    chart?.dispose()
+    chart = null
+    element = null
+  }
 
   const resolveOption = (): EChartsCoreOption =>
     typeof option === 'function' ? option() : option.value
 
   /** 创建实例（幂等） */
   const render = (): void => {
+    // v-if 或切换域会替换容器，旧图表不能继续绑定已经移除的 DOM。
+    if (container.value !== element) {
+      dispose()
+      element = container.value
+    }
     if (!container.value) {
       return
     }
     if (!chart) {
       chart = init(container.value, undefined, { renderer: 'canvas' })
+      observer = new ResizeObserver(() => chart?.resize())
+      observer.observe(container.value)
     }
     chart.setOption(resolveOption(), true)
     chart.resize()
   }
 
-  onMounted(() => {
-    render()
-    if (container.value) {
-      observer = new ResizeObserver(() => chart?.resize())
-      observer.observe(container.value)
-    }
-  })
-
-  onBeforeUnmount(() => {
-    observer?.disconnect()
-    observer = null
-    chart?.dispose()
-    chart = null
-  })
+  onMounted(render)
+  watch(container, render, { flush: 'post' })
+  onBeforeUnmount(dispose)
 
   if (typeof option !== 'function') {
     watch(option, render, { deep: true })

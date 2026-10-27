@@ -214,7 +214,7 @@ public class Daemon extends TimerTask implements LogHandle {
             // 由控制台按物理实体归并。
             UnitReport report = new UnitReport(this.kernel.getNodeName());
             for (AIGCUnit unit : service.getAllUnits()) {
-                if (!report.addUnit(unit.getContact(), unit.getCapability())) {
+                if (!report.addUnit(unit)) {
                     Logger.w(this.getClass(), "#submitUnitReport - Report is full with "
                             + UnitReport.MAX_UNITS + " units, the rest are dropped");
                     break;

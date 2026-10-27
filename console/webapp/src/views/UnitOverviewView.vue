@@ -20,11 +20,14 @@ import EmptyState from '@/components/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/StatCard.vue'
 import UnitCapabilityList from '@/components/UnitCapabilityList.vue'
-import { fetchDomains, fetchUnitOverview, pickList } from '@/api/console'
+import UnitDeploymentPanel from '@/components/UnitDeploymentPanel.vue'
+import { fetchDomains, fetchUnitOverview, fetchUnitDeployments, pickList } from '@/api/console'
+import { ApiError } from '@/api/client'
 import type {
   UnitCapability,
   UnitInfo,
   UnitOverviewResponse,
+  UnitDeploymentsResponse,
   UnitState
 } from '@/api/types'
 import { useChart } from '@/composables/useChart'
@@ -37,6 +40,10 @@ const toast = useToastStore()
 const domains = ref<string[]>([])
 const domain = ref('')
 const overview = ref<UnitOverviewResponse | null>(null)
+const activeTab = ref<'ledger' | 'deployments'>('ledger')
+const deployments = ref<UnitDeploymentsResponse | null>(null)
+const deploymentError = ref('')
+let loadSequence = 0
 const loading = ref(false)
 const errorMessage = ref('')
 const chartEl = ref<HTMLElement | null>(null)
@@ -237,20 +244,39 @@ function formatActiveTime(time: number): string {
 
 /** 切换域后重新拉取统计 */
 async function load(): Promise<void> {
+  const sequence = ++loadSequence
   if (!domain.value) {
+    loading.value = false
     return
   }
+  const requestedDomain = domain.value
+  const requestedTab = activeTab.value
   loading.value = true
   errorMessage.value = ''
+  deploymentError.value = ''
   try {
-    overview.value = await fetchUnitOverview(domain.value)
+    if (requestedTab === 'ledger') {
+      const response = await fetchUnitOverview(requestedDomain)
+      if (sequence === loadSequence) overview.value = response
+    } else {
+      const response = await fetchUnitDeployments(requestedDomain)
+      if (sequence === loadSequence) deployments.value = response
+    }
   } catch (error) {
-    overview.value = null
-    errorMessage.value =
-      error instanceof Error ? error.message : `加载域「${domain.value}」的单元统计失败`
-    toast.error(errorMessage.value)
+    if (sequence !== loadSequence) return
+    const message = error instanceof Error ? error.message : `加载域「${requestedDomain}」的单元信息失败`
+    if (requestedTab === 'ledger') {
+      overview.value = null
+      errorMessage.value = message
+    } else {
+      deployments.value = null
+      deploymentError.value = error instanceof ApiError && error.isNotFound
+        ? '当前 console 后端不支持按单元名称查询部署，请升级后端'
+        : message
+    }
+    toast.error(requestedTab === 'ledger' ? errorMessage.value : deploymentError.value)
   } finally {
-    loading.value = false
+    if (sequence === loadSequence) loading.value = false
   }
 }
 
@@ -261,7 +287,6 @@ async function bootstrap(): Promise<void> {
     domains.value = pickList(response)
     if (domains.value.length > 0) {
       domain.value = domains.value[0]
-      await load()
     }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '加载域列表失败'
@@ -270,8 +295,20 @@ async function bootstrap(): Promise<void> {
   }
 }
 
-watch(domain, () => {
+watch([domain, activeTab], ([newDomain], [oldDomain]) => {
+  if (newDomain !== oldDomain) {
+    overview.value = null
+    deployments.value = null
+    resetView()
+  }
   void load()
+})
+
+watch(activeTab, async (tab) => {
+  if (tab === 'ledger') {
+    await nextTick()
+    renderChart()
+  }
 })
 
 onMounted(bootstrap)
@@ -281,7 +318,7 @@ onMounted(bootstrap)
   <div>
     <PageHeader
       title="AI单元概览"
-      description="按域查看 AI 单元的台账与工作状态"
+      description="按域查看 AI 单元台账及同名单元的部署情况"
     >
       <template #actions>
         <select v-model="domain" class="select w-52" :disabled="domains.length === 0">
@@ -295,6 +332,30 @@ onMounted(bootstrap)
       </template>
     </PageHeader>
 
+    <div class="seg mb-5" role="tablist" aria-label="AI单元展示方式">
+      <button
+        id="unit-ledger-tab" type="button" role="tab" class="seg-item"
+        :class="activeTab === 'ledger' ? 'seg-item-active' : ''"
+        :aria-selected="activeTab === 'ledger'" aria-controls="unit-ledger"
+        @click="activeTab = 'ledger'"
+      >
+        节点台账
+      </button>
+      <button
+        id="unit-deployments-tab" type="button" role="tab" class="seg-item"
+        :class="activeTab === 'deployments' ? 'seg-item-active' : ''"
+        :aria-selected="activeTab === 'deployments'" aria-controls="unit-deployments"
+        @click="activeTab = 'deployments'"
+      >
+        按单元名称
+      </button>
+    </div>
+
+    <div v-show="activeTab === 'deployments'" id="unit-deployments" role="tabpanel" aria-labelledby="unit-deployments-tab">
+      <UnitDeploymentPanel :key="domain" :snapshot="deployments" :loading="loading" :error-message="deploymentError" />
+    </div>
+
+    <div v-show="activeTab === 'ledger'" id="unit-ledger" role="tabpanel" aria-labelledby="unit-ledger-tab">
     <div
       v-if="overview"
       class="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500"
@@ -540,5 +601,6 @@ onMounted(bootstrap)
         "
       />
     </section>
+    </div>
   </div>
 </template>

@@ -371,6 +371,8 @@ export interface UnitCapability {
   /** 多个子任务时后端给数组 */
   subtasks?: string[]
   description: string
+  /** 单元声明的 Chat Completions 协议能力，不代表实时容量。 */
+  chatCompletion?: Record<string, unknown>
 }
 
 /**
@@ -443,6 +445,34 @@ export interface UnitOverviewResponse {
   units: UnitInfo[]
   /** 最近一次收到单元能力上报的时间戳，0 表示控制台从未收到过（能力列会全空） */
   unitReportTime?: number
+}
+
+/** 同名能力下的一个 Contact 部署，跨服务节点重复上报已由后端去重。 */
+export interface UnitDeployment {
+  id: number
+  name: string
+  addresses: string[]
+  device: string
+  platform: string
+  reporters: string[]
+  /** console 接收到该部署最新有效报告的时间。 */
+  reportedAt: number
+  capabilities: UnitCapability[]
+}
+
+export interface UnitDeploymentGroup {
+  name: string
+  deploymentCount: number
+  capabilities: UnitCapability[]
+  deployments: UnitDeployment[]
+}
+
+export interface UnitDeploymentsResponse {
+  domain: string
+  queryTime: number
+  unitReportTime: number
+  truncated: boolean
+  groups: UnitDeploymentGroup[]
 }
 
 /** 更新调度机配置时提交的数据体 */

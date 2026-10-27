@@ -19,6 +19,7 @@ import type {
   StatisticRangeResponse,
   StatisticResponse,
   UnitOverviewResponse,
+  UnitDeploymentsResponse,
   UserToken
 } from './types'
 
@@ -187,6 +188,11 @@ export function fetchStatisticRange(
  */
 export function fetchUnitOverview(domain: string): Promise<UnitOverviewResponse> {
   return request<UnitOverviewResponse>('/statistic/units', { query: { domain } })
+}
+
+/** 当前有效上报中的部署，按 capability.name 分组，不依赖昨日统计。 */
+export function fetchUnitDeployments(domain: string): Promise<UnitDeploymentsResponse> {
+  return request<UnitDeploymentsResponse>('/statistic/unit-deployments', { query: { domain } })
 }
 
 /** 轮询控制台自身日志，`start` 为上次返回的游标 */
