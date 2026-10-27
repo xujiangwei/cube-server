@@ -5,8 +5,10 @@ public class SegToken {
     /** 词。 */
     public String word;
 
+    /** 词在原文中的起始偏移。 */
     public int startOffset;
 
+    /** 词在原文中的结束偏移。 */
     public int endOffset;
 
     public SegToken(String word, int startOffset, int endOffset) {

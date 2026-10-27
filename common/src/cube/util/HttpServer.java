@@ -52,6 +52,14 @@ public class HttpServer {
         this.handlers = new ArrayList<>();
     }
 
+    /**
+     * 设置密钥库路径。
+     *
+     * <p>必须在启动前调用，否则默认以明文端口启动。</p>
+     *
+     * @param path 密钥库文件路径。
+     * @throws FileNotFoundException 文件不存在。
+     */
     public void setKeystorePath(String path) throws FileNotFoundException {
         Path keystorePath = Paths.get(path).toAbsolutePath();
         if (!Files.exists(keystorePath)) {
@@ -61,11 +69,23 @@ public class HttpServer {
         this.keystorePath = keystorePath;
     }
 
+    /**
+     * 设置密钥库与密钥管理器密码。
+     *
+     * @param keyStorePassword   密钥库密码。
+     * @param keyManagerPassword 密钥管理器密码。
+     */
     public void setKeystorePassword(String keyStorePassword, String keyManagerPassword) {
         this.keyStorePassword = keyStorePassword;
         this.keyManagerPassword = keyManagerPassword;
     }
 
+    /**
+     * 设置明文与加密端口。
+     *
+     * @param plainPort  明文 HTTP 端口。
+     * @param securePort HTTPS 端口。
+     */
     public void setPort(int plainPort, int securePort) {
         this.plainPort = plainPort;
         this.securePort = securePort;
@@ -286,10 +306,20 @@ public class HttpServer {
         this.server = null;
     }
 
+    /**
+     * 获取明文端口。
+     *
+     * @return 端口号。
+     */
     public int getPlainPort() {
         return this.plainPort;
     }
 
+    /**
+     * 获取加密端口。
+     *
+     * @return 端口号。
+     */
     public int getSecurePort() {
         return this.securePort;
     }

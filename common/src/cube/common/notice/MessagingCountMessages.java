@@ -13,10 +13,13 @@ import org.json.JSONObject;
  */
 public class MessagingCountMessages extends NoticeData {
 
+    /** 通知动作名：统计消息数量。 */
     public final static String ACTION = "CountMessages";
 
+    /** 请求参数：域名。 */
     public final static String DOMAIN = "domain";
 
+    /** 响应字段：消息数量。 */
     public final static String COUNT = "count";
 
     public MessagingCountMessages(String domain) {
@@ -29,14 +32,17 @@ public class MessagingCountMessages extends NoticeData {
         super(json, DOMAIN, COUNT);
     }
 
+    /** 获取域名。 */
     public String getDomain() {
         return this.getString(DOMAIN);
     }
 
+    /** 设置消息数量。 */
     public void setCount(int value) {
         this.put(COUNT, value);
     }
 
+    /** 获取消息数量。 */
     public int getCount() {
         return this.getInt(COUNT);
     }

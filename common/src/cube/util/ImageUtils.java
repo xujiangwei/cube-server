@@ -55,6 +55,14 @@ public final class ImageUtils {
         }
     }
 
+    /**
+     * 把图像旋转为横向。
+     *
+     * <p>竖图按顺时针旋转 90 度，横图原样返回。</p>
+     *
+     * @param image 原始图像。
+     * @return 处理后的图像。
+     */
     public static BufferedImage rotateToLandscape(BufferedImage image) {
         if (image.getWidth() > image.getHeight()) {
             return image;
@@ -74,6 +82,12 @@ public final class ImageUtils {
         return newImage;
     }
 
+    /**
+     * 调整图像宽高比。
+     *
+     * @param image 原始图像。
+     * @return 调整后的图像。
+     */
     public static BufferedImage adjustAspectRatio(BufferedImage image) {
         double width = image.getWidth();
         double height = image.getHeight();
@@ -92,6 +106,12 @@ public final class ImageUtils {
         return image;
     }
 
+    /**
+     * 缩放到默认尺寸。
+     *
+     * @param image 原始图像。
+     * @return 缩放后的图像。
+     */
     public static BufferedImage resizeToDefault(BufferedImage image) {
         if (1280 == image.getWidth()) {
             return image;

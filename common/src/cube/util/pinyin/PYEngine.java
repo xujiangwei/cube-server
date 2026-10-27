@@ -20,6 +20,13 @@ public final class PYEngine {
         //no instance
     }
 
+    /**
+     * 按配置把中文转为拼音。
+     *
+     * @param inputStr 输入文本。
+     * @param conf     拼音配置。
+     * @return 拼音串。
+     */
     public static String toPinyin(final String inputStr, Pinyin.Config config, String separator) {
         List<PinyinDict> pinyinDicts = Collections.unmodifiableList(config.getPinyinDicts());
         Trie trie = Utils.dictsToTrie(config.getPinyinDicts());
@@ -28,6 +35,13 @@ public final class PYEngine {
         return toPinyin(inputStr, trie, pinyinDicts, separator, selector);
     }
 
+    /**
+     * 按词典把中文转为拼音。
+     *
+     * @param inputStr 输入文本。
+     * @param trie     词典前缀树。
+     * @return 拼音串。
+     */
     public static String toPinyin(final String inputStr, final Trie trie, final  List<PinyinDict> pinyinDictList,
             final String separator, final SegmentationSelector selector) {
         if (inputStr == null || inputStr.length() == 0) {
@@ -83,6 +97,12 @@ public final class PYEngine {
         return resultPinyinStrBuf.toString();
     }
 
+    /**
+     * 从词典中查询词语的拼音。
+     *
+     * @param wordInDict 词语。
+     * @return 拼音数组；词典中无该词时返回 {@code null} 。
+     */
     public static String[] pinyinFromDict(String wordInDict, List<PinyinDict> pinyinDictSet) {
         if (pinyinDictSet != null) {
             for (PinyinDict dict : pinyinDictSet) {

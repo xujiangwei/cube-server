@@ -16,6 +16,11 @@ public class IPEntry {
         this.ip = ip;
     }
 
+    /**
+     * 获取 IP 地址。
+     *
+     * @return IP 地址。
+     */
     public String getIp() {
         return ip;
     }
@@ -29,6 +34,11 @@ public class IPEntry {
         return mainInfo;
     }
 
+    /**
+     * 获取归属地等附加信息。
+     *
+     * @return 附加信息。
+     */
     public String getSubInfo() {
         return subInfo;
     }
@@ -42,6 +52,11 @@ public class IPEntry {
         this.mainInfo = info;
     }
 
+    /**
+     * 设置归属地等附加信息。
+     *
+     * @param info 附加信息。
+     */
     public void setSubInfo(final String info) {
         this.subInfo = info;
     }

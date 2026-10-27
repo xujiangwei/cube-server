@@ -95,8 +95,7 @@ public class ModuleEvent implements JSONable {
 
     /**
      * 设置上下文。
-     *
-     * @param context
+     * @param context context。
      */
     public void setContext(JSONObject context) {
         this.context = context;
@@ -111,6 +110,7 @@ public class ModuleEvent implements JSONable {
         return this.context;
     }
 
+    /** 序列化为 JSON 。 */
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
@@ -127,6 +127,7 @@ public class ModuleEvent implements JSONable {
         return json;
     }
 
+    /** 序列化为精简 JSON 。 */
     @Override
     public JSONObject toCompactJSON() {
         return this.toJSON();
@@ -134,9 +135,8 @@ public class ModuleEvent implements JSONable {
 
     /**
      * 提取 JSON 数据里的模块名称。
-     *
      * @param json 指定 JSON 数据。
-     * @return
+     * @return 处理结果。
      */
     public static String extractModuleName(JSONObject json) {
         String mod = null;
@@ -150,9 +150,8 @@ public class ModuleEvent implements JSONable {
 
     /**
      * 提取 JSON 数据里的事件名。
-     *
      * @param json 指定 JSON 数据。
-     * @return
+     * @return 处理结果。
      */
     public static String extractEventName(JSONObject json) {
         String event = null;

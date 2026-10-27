@@ -15,8 +15,10 @@ import org.json.JSONObject;
  */
 public class OfficeConvertToOperation implements FileOperation {
 
+    /** 输出格式：PDF 。 */
     public final static String OUTPUT_FORMAT_PDF = "pdf";
 
+    /** 输出格式：PNG 图片。 */
     public final static String OUTPUT_FORMAT_PNG = "png";
 
     /** 输出格式化文本。 */

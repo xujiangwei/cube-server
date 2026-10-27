@@ -72,6 +72,11 @@ public final class HttpClientFactory {
         this.created = new AtomicInteger(0);
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static HttpClientFactory getInstance() {
         return HttpClientFactory.instance;
     }
@@ -159,6 +164,7 @@ public final class HttpClientFactory {
         return this.created.get();
     }
 
+    /** 关闭工厂并释放连接池。 */
     public void close() {
         Iterator<HttpClient> iter = this.queue.iterator();
         while (iter.hasNext()) {

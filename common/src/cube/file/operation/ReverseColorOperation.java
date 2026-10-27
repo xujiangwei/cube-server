@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class ReverseColorOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "ReverseColor";
 
     public ReverseColorOperation() {
@@ -23,6 +24,11 @@ public class ReverseColorOperation extends ImageOperation {
         super(json);
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;

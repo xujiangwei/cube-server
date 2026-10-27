@@ -9,6 +9,12 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
 
+/**
+ * 主词典。
+ *
+ * <p>维护词到词频的映射与词典前缀树，支持从多个路径加载主词典与用户词典。
+ * 以单例存在，全局共享一份词表。</p>
+ */
 public class WordDictionary {
 
     /**
@@ -27,7 +33,9 @@ public class WordDictionary {
     private static final String MAIN_DICT = "assets/tokenizer/dict.txt";
     private static String USER_DICT_SUFFIX = ".dict";
 
+    /** 词到词频的映射。 */
     public final Map<String, Double> freqs = new HashMap<String, Double>();
+    /** 已加载的词典文件路径，用于避免重复加载。 */
     public final Set<String> loadedPath = new HashSet<String>();
     private Double minFreq = Double.MAX_VALUE;
     private Double total = 0.0;
@@ -37,6 +45,11 @@ public class WordDictionary {
         this.loadDict();
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static WordDictionary getInstance() {
         return Holder.INSTANCE;
     }
@@ -80,6 +93,11 @@ public class WordDictionary {
         }
     }
 
+    /**
+     * 按路径初始化词典。
+     *
+     * @param paths 主词典文件路径数组。
+     */
     public void init(String[] paths) {
         synchronized (WordDictionary.class) {
             for (String path : paths) {
@@ -104,6 +122,11 @@ public class WordDictionary {
         freqs.clear();
     }
 
+    /**
+     * 加载主词典。
+     *
+     * <p>逐行读取词典文件，建立词频表与前缀树；已加载的路径会跳过。</p>
+     */
     public void loadDict() {
         _dict = new DictSegment((char) 0);
         InputStream is = null;
@@ -155,14 +178,30 @@ public class WordDictionary {
     }
 
 
+    /**
+     * 加载用户词典。
+     *
+     * @param userDict 词典文件路径，按 UTF-8 读取。
+     */
     public void loadUserDict(Path userDict) {
         loadUserDict(userDict, StandardCharsets.UTF_8);
     }
 
+    /**
+     * 加载用户词典。
+     *
+     * @param userDictPath 词典文件路径，按 UTF-8 读取。
+     */
     public void loadUserDict(String userDictPath) {
         loadUserDict(userDictPath, StandardCharsets.UTF_8);
     }
 
+    /**
+     * 按指定字符集加载用户词典。
+     *
+     * @param userDict 词典文件路径。
+     * @param charset  文件字符集。
+     */
     public void loadUserDict(Path userDict, Charset charset) {
         try {
             BufferedReader br = Files.newBufferedReader(userDict, charset);
@@ -193,6 +232,12 @@ public class WordDictionary {
         }
     }
 
+    /**
+     * 按指定字符集加载用户词典。
+     *
+     * @param userDictPath 词典文件路径。
+     * @param charset      文件字符集。
+     */
     public void loadUserDict(String userDictPath, Charset charset) {
         InputStream is = null;
         try {
@@ -226,6 +271,11 @@ public class WordDictionary {
         }
     }
 
+    /**
+     * 获取词典前缀树根节点。
+     *
+     * @return 根节点。
+     */
     public DictSegment getTrie() {
         return this._dict;
     }
@@ -242,6 +292,12 @@ public class WordDictionary {
     }
 
 
+    /**
+     * 查询词频。
+     *
+     * @param key 词。
+     * @return 词频。
+     */
     public Double getFreq(String key) {
         if (containsWord(key))
             return freqs.get(key);

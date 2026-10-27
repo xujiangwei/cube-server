@@ -13,16 +13,22 @@ import cube.common.action.FileStorageAction;
  */
 public class ListSharingTraces extends NoticeData {
 
+    /** 通知动作名：查询分享访问记录。 */
     public final static String ACTION = FileStorageAction.ListSharingTraces.name;
 
+    /** 请求参数：分享码。 */
     public final static String SHARING_CODE = "sharingCode";
 
+    /** 请求参数：分页起始序号。 */
     public final static String BEGIN = "begin";
 
+    /** 请求参数：分页结束序号。 */
     public final static String END = "end";
 
+    /** 请求参数：起始时间。 */
     public final static String BEGIN_TIME = "beginTime";
 
+    /** 请求参数：结束时间。 */
     public final static String END_TIME = "endTime";
 
     public ListSharingTraces(long contactId, String domain, String sharingCode, int begin, int end) {

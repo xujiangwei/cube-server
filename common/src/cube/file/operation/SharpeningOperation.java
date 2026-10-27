@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class SharpeningOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "Sharpening";
 
     private double sigma;
@@ -27,14 +28,31 @@ public class SharpeningOperation extends ImageOperation {
         this.sigma = json.getDouble("sigma");
     }
 
+    /**
+     * 获取锐化强度。
+     *
+     * @return sigma 值，越大锐化越明显。
+     */
     public double getSigma() {
         return this.sigma;
     }
 
+    /**
+     * 把锐化强度格式化为字符串。
+     *
+     * <p>用于拼接处理命令，避免浮点数在不同平台上出现多余的尾随零。</p>
+     *
+     * @return 格式化后的 sigma 值。
+     */
     public String formatSigma() {
         return String.format("%.1f", this.sigma);
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;

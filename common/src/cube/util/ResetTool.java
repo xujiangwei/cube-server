@@ -33,6 +33,11 @@ public final class ResetTool {
         }
     }
 
+    /**
+     * 重置消息存储。
+     *
+     * <p>清空消息相关表并重建结构，仅用于本地调试，生产环境禁止调用。</p>
+     */
     public static void resetMessagingStorage() {
         String path = ResetTool.guessPath();
         File file = new File(path, "MessagingService.db");

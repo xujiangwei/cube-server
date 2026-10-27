@@ -27,6 +27,7 @@ public class TimeDuration {
     /** 第二。 */
     public final int seconds;
 
+    /** 时长的毫秒数。 */
     public final int milliseconds;
 
     public TimeDuration(int hours, int minutes, int seconds) {
@@ -118,6 +119,11 @@ public class TimeDuration {
                 && this.seconds == 0 && this.milliseconds == 0);
     }
 
+    /**
+     * 格式化为时:分:秒。
+     *
+     * @return 形如 {@code 01:02:03} 的字符串。
+     */
     public String formatHMS() {
         StringBuilder buf = new StringBuilder();
         buf.append(this.hours < 10 ? "0" + this.hours : this.hours);
@@ -128,6 +134,11 @@ public class TimeDuration {
         return buf.toString();
     }
 
+    /**
+     * 格式化为时:分:秒.毫秒。
+     *
+     * @return 形如 {@code 01:02:03.456} 的字符串。
+     */
     public String formatHMSMs() {
         StringBuilder buf = new StringBuilder();
         buf.append(this.hours < 10 ? "0" + this.hours : this.hours);
@@ -140,6 +151,11 @@ public class TimeDuration {
         return buf.toString();
     }
 
+    /**
+     * 格式化为分:秒.毫秒。
+     *
+     * @return 形如 {@code 02:03.456} 的字符串。
+     */
     public String formatMSMs() {
         StringBuilder buf = new StringBuilder();
         buf.append(this.minutes < 10 ? "0" + this.minutes : this.minutes);
@@ -150,6 +166,13 @@ public class TimeDuration {
         return buf.toString();
     }
 
+    /**
+     * 格式化为人可读的时长。
+     *
+     * <p>按时长量级自动选择单位，如“3 分 20 秒”“2 小时 5 分”。</p>
+     *
+     * @return 可读字符串。
+     */
     public String toHumanString() {
         StringBuilder buf = new StringBuilder();
         if (this.days > 0) {
@@ -166,6 +189,13 @@ public class TimeDuration {
         return buf.toString();
     }
 
+    /**
+     * 格式化为人可读的“天 时 分 秒”。
+     *
+     * <p>与 {@link #toHumanString()} 的区别：固定输出全部单位，适合报表展示。</p>
+     *
+     * @return 可读字符串。
+     */
     public String toHumanStringDHMS() {
         StringBuilder buf = new StringBuilder();
         if (this.days > 0) {

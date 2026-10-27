@@ -85,7 +85,7 @@ public class StreamAttribute {
     /** 视频参数：参考帧数。 */
     public int refs;
 
-    // video
+    /** 视频参数：是否为 AVC（H.264）编码。 */
     public boolean isAvc;
 
     /** 视频参数：NAL 长度字段大小。 */
@@ -109,6 +109,7 @@ public class StreamAttribute {
     /** 音频参数：位深。 */
     public int bitsPerSample;
 
+    /** 帧率的有理数表示，如 {@code 30/1} 。 */
     public String rFrameRate;
 
     /** 平均帧率。 */
@@ -135,7 +136,7 @@ public class StreamAttribute {
     /** 视频参数：原始采样位深。 */
     public int bitsPerRawSample;
 
-    // video/audio
+    /** 音视频参数：帧数。 */
     public int numFrames = 0;
 
     /** 音视频参数：附加数据大小。 */

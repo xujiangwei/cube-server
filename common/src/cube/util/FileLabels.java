@@ -15,6 +15,15 @@ public class FileLabels {
     private FileLabels() {
     }
 
+    /**
+     * 修正文件标签中的地址信息。
+     *
+     * <p>把内部地址替换为对外可达地址，避免客户端拿到无法访问的链接。</p>
+     *
+     * @param json  文件标签 JSON 。
+     * @param token 访问令牌。
+     * @return 修正后的 JSON 。
+     */
     public static JSONObject reviseFileLabel(JSONObject json, String token, Endpoint httpEndpoint, Endpoint httpsEndpoint) {
         String fileCode = json.getString("fileCode");
         String type = json.getString("fileType");

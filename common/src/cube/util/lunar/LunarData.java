@@ -11,12 +11,15 @@ public class LunarData {
      * 支持的最小日期1850-02-12
      */
     public final static int MINI_YEAR = 1850;
+    /** 农历最小月份。 */
     public final static int MINI_MONTH = 1;
+    /** 农历最小日期。 */
     public final static int MINI_DATE = 12;
     /**
      * 支持的最大日期2150-12-31
      */
     public final static int MAX_YEAR = 2150;
+    /** 农历最大月份（从 0 起算）。 */
     public final static int MAX_MONTH = 11;
     /** 最大日期。 */
     public final static int MAX_DATE = 31;

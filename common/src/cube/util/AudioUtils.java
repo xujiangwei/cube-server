@@ -10,6 +10,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 
+/**
+ * 音频格式工具。
+ *
+ * <p>在裸 PCM 数据与 WAV 容器之间互转，供语音识别链路使用。</p>
+ */
 public class AudioUtils {
 
     /**
@@ -17,10 +22,18 @@ public class AudioUtils {
      */
     public static final int SAMPLE_RATE = 16000;
 
+    /** 采样位深，固定 16 位。 */
     public static final int SAMPLE_SIZE_IN_BITS = 16;
 
+    /** 声道数，固定单声道。 */
     public static final int CHANNELS = 1;
 
+    /**
+     * 把 PCM 数据封装为 WAV 。
+     *
+     * @param pcmData 裸 PCM 数据。
+     * @return WAV 字节流。
+     */
     public static byte[] pcmToWav(byte[] pcmData) {
         byte[] header = buildWavHeader(pcmData.length, SAMPLE_RATE, SAMPLE_SIZE_IN_BITS, CHANNELS);
         byte[] wavData = new byte[header.length + pcmData.length];
@@ -29,6 +42,14 @@ public class AudioUtils {
         return wavData;
     }
 
+    /**
+     * 把 PCM 数据的指定区间封装为 WAV 。
+     *
+     * @param pcmData 裸 PCM 数据。
+     * @param offset  起始偏移。
+     * @param length  数据长度。
+     * @return WAV 字节流。
+     */
     public static byte[] pcmToWav(byte[] pcmData, int offset, int length,
                                   int sampleRate, int sampleSizeInBits, int channels) {
         byte[] header = buildWavHeader(length, sampleRate, sampleSizeInBits, channels);
@@ -38,6 +59,15 @@ public class AudioUtils {
         return wavData;
     }
 
+    /**
+     * 从 WAV 中提取 PCM 数据。
+     *
+     * <p>跳过文件头，只返回音频负载部分。</p>
+     *
+     * @param wavData WAV 字节流。
+     * @param length  期望读取的长度。
+     * @return PCM 数据。
+     */
     public static byte[] wavToPcm(byte[] wavData, int length) {
         return Arrays.copyOfRange(wavData, 44, length);
     }

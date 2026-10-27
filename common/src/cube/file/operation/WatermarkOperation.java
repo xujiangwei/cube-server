@@ -15,6 +15,7 @@ import org.json.JSONObject;
  */
 public class WatermarkOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "Watermark";
 
     private String text;
@@ -41,10 +42,20 @@ public class WatermarkOperation extends ImageOperation {
         return this.text;
     }
 
+    /**
+     * 获取水印文本约束。
+     *
+     * @return 文本约束；未设置返回 {@code null} 。
+     */
     public TextConstraint getTextConstraint() {
         return this.constraint;
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;

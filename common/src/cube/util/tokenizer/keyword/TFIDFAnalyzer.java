@@ -72,6 +72,13 @@ public class TFIDFAnalyzer {
         return keywordList;
     }
 
+    /**
+     * 只返回关键词，不带权重。
+     *
+     * @param content 待分析内容。
+     * @param topN    返回数量上限。
+     * @return 关键词列表；内容为空时返回空列表。
+     */
     public List<String> analyzeOnlyWords(String content, int topN) {
         List<Keyword> list = this.analyze(content, topN);
         List<String> result = new ArrayList<>();

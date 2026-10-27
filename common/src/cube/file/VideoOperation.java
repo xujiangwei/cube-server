@@ -38,10 +38,20 @@ public abstract class VideoOperation implements FileOperation, JSONable {
         return FileProcessorAction.Video.name;
     }
 
+    /**
+     * 获取输入文件。
+     *
+     * @return 输入视频文件。
+     */
     public File getInputFile() {
         return this.inputFile;
     }
 
+    /**
+     * 设置输入文件。
+     *
+     * @param inputFile 输入视频文件。
+     */
     public void setInputFile(File inputFile) {
         this.inputFile = inputFile;
     }

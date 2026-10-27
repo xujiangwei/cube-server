@@ -19,6 +19,14 @@ public final class ForwardLongestSelector implements SegmentationSelector {
 
     static final PYEngine.EmitComparator HIT_COMPARATOR = new PYEngine.EmitComparator();
 
+    /**
+     * 从前向后选择最长的拼音匹配。
+     *
+     * <p>用于消除同一位置上的多个候选，保证切分结果最长且有重叠时不冲突。</p>
+     *
+     * @param emits 候选集合。
+     * @return 选中的结果列表。
+     */
     @Override
     public List<Emit> select(final Collection<Emit> emits) {
         if (emits == null) {

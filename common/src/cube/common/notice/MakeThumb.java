@@ -13,12 +13,16 @@ import cube.common.action.FileProcessorAction;
  */
 public class MakeThumb extends NoticeData {
 
+    /** 通知动作名：生成缩略图。 */
     public final static String ACTION = FileProcessorAction.Thumb.name;
 
+    /** 请求参数：域名。 */
     public final static String DOMAIN = "domain";
 
+    /** 请求参数：源文件码。 */
     public final static String FILE_CODE = "fileCode";
 
+    /** 请求参数：缩略图质量。 */
     public final static String QUALITY = "quality";
 
     public MakeThumb(String domain, String fileCode) {

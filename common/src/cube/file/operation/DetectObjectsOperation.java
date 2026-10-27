@@ -17,6 +17,7 @@ import java.util.List;
  */
 public class DetectObjectsOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "detectObject";
 
     private List<DetectedObject> detectedObjectList;
@@ -29,10 +30,22 @@ public class DetectObjectsOperation extends ImageOperation {
 
     }
 
+    /**
+     * 设置检测到的目标列表。
+     *
+     * <p>用于把识别结果回填到操作对象，便于随工作流一并序列化。</p>
+     *
+     * @param detectedObjects 目标列表。
+     */
     public void setDetectedObjects(List<DetectedObject> detectedObjects) {
         this.detectedObjectList = detectedObjects;
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;

@@ -119,6 +119,12 @@ public final class IPSeeker {
         return IPSeeker.instance;
     }
 
+    /**
+     * 查询 IP 归属地。
+     *
+     * @param ip IP 地址。
+     * @return 归属信息；地址非法或库中无匹配时返回 {@code null} 。
+     */
     public IPEntry findIP(final String ip) {
         final long ipNum = toNumericIP(ip);
         final QIndex idx = searchIndex(ipNum);

@@ -15,6 +15,7 @@ import org.json.JSONObject;
  */
 public class ExtractAudioOperation extends VideoOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "ExtractAudio";
 
     private final static String KEY_OUTPUT_TYPE = "outputType";
@@ -39,6 +40,11 @@ public class ExtractAudioOperation extends VideoOperation {
         this.outputType = FileType.matchExtension(json.getString(KEY_OUTPUT_TYPE));
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return ExtractAudioOperation.Operation;

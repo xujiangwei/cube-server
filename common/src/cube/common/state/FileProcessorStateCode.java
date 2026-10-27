@@ -63,12 +63,19 @@ public enum FileProcessorStateCode {
 
     ;
 
+    /** 状态码数值，随协议上报给客户端。 */
     public final int code;
 
     FileProcessorStateCode(int code) {
         this.code = code;
     }
 
+    /**
+     * 按编码解析状态码。
+     *
+     * @param code 编码值。
+     * @return 状态码；未知编码返回 {@code null} 。
+     */
     public static FileProcessorStateCode parse(int code) {
         for (FileProcessorStateCode sc : FileProcessorStateCode.values()) {
             if (sc.code == code) {

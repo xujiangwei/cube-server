@@ -83,6 +83,7 @@ public enum MessagingAction {
 
     ;
 
+    /** 动作名称，用于在协议中标识该动作。 */
     public final String name;
 
     MessagingAction(String name) {

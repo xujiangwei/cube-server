@@ -34,6 +34,11 @@ public class FinalSeg {
         this.loadModel();
     }
 
+    /**
+     * 获取单例。
+     *
+     * @return 全局唯一实例。
+     */
     public static FinalSeg getInstance() {
         return Holder.INSTANCE;
     }
@@ -101,6 +106,12 @@ public class FinalSeg {
     }
 
 
+    /**
+     * 对句子做切分。
+     *
+     * @param sentence 待切分句子。
+     * @param tokens   输出词列表。
+     */
     public void cut(String sentence, List<String> tokens) {
         StringBuilder chinese = new StringBuilder();
         StringBuilder other = new StringBuilder();
@@ -129,6 +140,12 @@ public class FinalSeg {
     }
 
 
+    /**
+     * 用维特比算法求解最优切分。
+     *
+     * @param sentence 待切分句子。
+     * @param tokens   输出词列表。
+     */
     public void viterbi(String sentence, List<String> tokens) {
         Vector<Map<Character, Double>> v = new Vector<Map<Character, Double>>();
         Map<Character, Node> path = new HashMap<Character, Node>();

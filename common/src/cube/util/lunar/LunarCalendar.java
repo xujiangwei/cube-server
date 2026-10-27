@@ -240,12 +240,28 @@ public class LunarCalendar extends GregorianCalendar {
         computeByLunarDate(y, m, days, isLeap);
     }
 
+    /**
+     * 设置日历字段。
+     *
+     * <p>重写以支持农历字段，公历字段仍交给父类处理。</p>
+     *
+     * @param field 字段常量。
+     * @param value 字段值。
+     */
     @Override
     public void set(int field, int value) {
         super.set(field, value);
         computeBySolarDate(get(Calendar.YEAR), get(Calendar.MONTH), get(Calendar.DATE));
     }
 
+    /**
+     * 按增量滚动日历字段。
+     *
+     * <p>与 {@code set} 的区别：不改变更大的时间单位。</p>
+     *
+     * @param field  字段常量。
+     * @param amount 增量。
+     */
     @Override
     public void roll(int field, int amount) {
         super.roll(field, amount);
@@ -303,6 +319,11 @@ public class LunarCalendar extends GregorianCalendar {
         return result;
     }
 
+    /**
+     * 复制日历对象。
+     *
+     * @return 副本。
+     */
     @Override
     public Object clone() {
         LunarCalendar other = (LunarCalendar) super.clone();
@@ -494,22 +515,47 @@ public class LunarCalendar extends GregorianCalendar {
 
     // ------------------------ getter and setter --------------------------------
 
+    /**
+     * 获取农历年份。
+     *
+     * @return 农历年。
+     */
     public int getLunarYear() {
         return lunarYear;
     }
 
+    /**
+     * 获取农历月份。
+     *
+     * @return 农历月，1 到 12 。
+     */
     public int getLunarMonth() {
         return lunarMonth;
     }
 
+    /**
+     * 获取农历日。
+     *
+     * @return 农历日，1 到 30 。
+     */
     public int getDayOfLunarMonth() {
         return dayOfLunarMonth;
     }
 
+    /**
+     * 获取闰月月份。
+     *
+     * @return 闰月月份；当年无闰月返回 0 。
+     */
     public int getLeapMonth() {
         return leapMonth;
     }
 
+    /**
+     * 判断当前是否处于闰月。
+     *
+     * @return 闰月返回 {@code true} 。
+     */
     public boolean isLeapMonth() {
         return isLeapMonth;
     }

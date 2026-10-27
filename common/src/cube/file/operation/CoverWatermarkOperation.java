@@ -14,12 +14,18 @@ import org.json.JSONObject;
  */
 public class CoverWatermarkOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "CoverWatermark";
 
     public CoverWatermarkOperation() {
         super();
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;

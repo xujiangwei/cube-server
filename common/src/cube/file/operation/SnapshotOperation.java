@@ -16,8 +16,10 @@ import org.json.JSONObject;
  */
 public class SnapshotOperation extends VideoOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "Snapshot";
 
+    /** 截图的时间点，从视频起始位置算起。 */
     public TimeDuration offset;
 
     /** 时长。 */
@@ -29,6 +31,7 @@ public class SnapshotOperation extends VideoOperation {
     /** 输出类型。 */
     public FileType outputType;
 
+    /** 是否把截取的图片打包为 ZIP ，默认启用。 */
     public boolean packToZip = true;
 
 //    private List<TimeOffset> timeOffsets;
@@ -51,6 +54,11 @@ public class SnapshotOperation extends VideoOperation {
 
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return SnapshotOperation.Operation;

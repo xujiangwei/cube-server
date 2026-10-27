@@ -31,6 +31,7 @@ public final class Domain {
         return this.name;
     }
 
+    /** 按域名字符串判断相等。 */
     @Override
     public boolean equals(Object other) {
         if (null != other && other instanceof Domain) {
@@ -42,11 +43,13 @@ public final class Domain {
         return false;
     }
 
+    /** 按域名字符串计算哈希值。 */
     @Override
     public int hashCode() {
         return this.name.hashCode();
     }
 
+    /** 输出域名字符串。 */
     @Override
     public String toString() {
         return this.name;

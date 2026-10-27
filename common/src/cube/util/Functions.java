@@ -11,6 +11,12 @@ public final class Functions {
     private Functions() {
     }
 
+    /**
+     * 求数组元素之和。
+     *
+     * @param data 数值数组。
+     * @return 总和。
+     */
     public static double sum(double[] data) {
         double sum = 0;
         for (double v : data) {

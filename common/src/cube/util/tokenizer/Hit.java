@@ -93,26 +93,56 @@ public class Hit {
         this.hitState = UNMATCH;
     }
 
+    /**
+     * 获取匹配到的词典节点。
+     *
+     * @return 词典分支节点。
+     */
     public DictSegment getMatchedDictSegment() {
         return matchedDictSegment;
     }
 
+    /**
+     * 设置匹配到的词典节点。
+     *
+     * @param matchedDictSegment 词典分支节点。
+     */
     public void setMatchedDictSegment(DictSegment matchedDictSegment) {
         this.matchedDictSegment = matchedDictSegment;
     }
 
+    /**
+     * 获取词段起始位置。
+     *
+     * @return 起始下标。
+     */
     public int getBegin() {
         return begin;
     }
 
+    /**
+     * 设置词段起始位置。
+     *
+     * @param begin 起始下标。
+     */
     public void setBegin(int begin) {
         this.begin = begin;
     }
 
+    /**
+     * 获取词段结束位置。
+     *
+     * @return 结束下标。
+     */
     public int getEnd() {
         return end;
     }
 
+    /**
+     * 设置词段结束位置。
+     *
+     * @param end 结束下标。
+     */
     public void setEnd(int end) {
         this.end = end;
     }

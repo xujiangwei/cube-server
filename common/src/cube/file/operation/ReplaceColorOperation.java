@@ -19,14 +19,19 @@ import java.util.List;
  */
 public class ReplaceColorOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "ReplaceColor";
 
+    /** 待替换的目标颜色。 */
     private Color targetColor;
 
+    /** 替换成的颜色。 */
     private Color replaceColor;
 
+    /** 颜色匹配容差，取值越大匹配范围越宽。 */
     private int fuzzFactor = 20;
 
+    /** 批量替换的子操作列表；非空时忽略本层的单色替换。 */
     private List<ReplaceColorOperation> operations;
 
     public ReplaceColorOperation(Color targetColor, Color replaceColor) {
@@ -71,22 +76,47 @@ public class ReplaceColorOperation extends ImageOperation {
         return this.targetColor;
     }
 
+    /**
+     * 获取替换颜色。
+     *
+     * @return 替换颜色。
+     */
     public Color getReplaceColor() {
         return this.replaceColor;
     }
 
+    /**
+     * 设置颜色匹配容差。
+     *
+     * @param fuzzFactor 容差值。
+     */
     public void setFuzzFactor(int fuzzFactor) {
         this.fuzzFactor = fuzzFactor;
     }
 
+    /**
+     * 获取颜色匹配容差。
+     *
+     * @return 容差值。
+     */
     public int getFuzzFactor() {
         return this.fuzzFactor;
     }
 
+    /**
+     * 获取批量替换的子操作列表。
+     *
+     * @return 子操作列表；单色替换时返回 {@code null} 。
+     */
     public List<ReplaceColorOperation> getOperationList() {
         return this.operations;
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;

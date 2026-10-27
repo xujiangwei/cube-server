@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
  */
 public final class SQLUtils {
 
+    /** SQL 标识符引号。 */
     public final static String Quote = "`";
 
     /**

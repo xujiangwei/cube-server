@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class GrayscaleOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "Grayscale";
 
     public GrayscaleOperation() {
@@ -24,6 +25,11 @@ public class GrayscaleOperation extends ImageOperation {
         super(json);
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;

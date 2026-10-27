@@ -295,6 +295,15 @@ public final class TextUtils {
         }
     }
 
+    /**
+     * 把超长 URL 截断为省略形式。
+     *
+     * <p>保留域名与尾部路径，中间以省略号替代，便于在有限宽度内展示。</p>
+     *
+     * @param url   原始地址。
+     * @param limit 允许的最大字符数。
+     * @return 截断后的地址。
+     */
     public static String ellipsisURL(String url, int limit) {
         String result = url.toLowerCase();
         if (result.startsWith("https")) {
@@ -627,6 +636,15 @@ public final class TextUtils {
         return result;
     }
 
+    /**
+     * 按单元要求过滤非中文内容。
+     *
+     * <p>仅对中文专用单元生效，其他单元原样返回。</p>
+     *
+     * @param unit 目标单元。
+     * @param text 原始文本。
+     * @return 过滤后的文本。
+     */
     public static String filterChinese(AIGCUnit unit, String text) {
         if (unit.getCapability().getName().equalsIgnoreCase(ModelConfig.BAIZE_UNIT)) {
             if (TextUtils.containsChinese(text)) {
@@ -977,6 +995,12 @@ public final class TextUtils {
         }
     }
 
+    /**
+     * 从邮件地址中提取账号名。
+     *
+     * @param email 邮件地址。
+     * @return {@code @} 之前的部分；格式非法时返回 {@code null} 。
+     */
     public static String extractEmailAccountName(String email) {
         int index = email.indexOf("@");
         if (index > 0) {
@@ -1031,6 +1055,14 @@ public final class TextUtils {
         return textList;
     }
 
+    /**
+     * 截断过长内容。
+     *
+     * <p>按上下文长度上限裁剪，避免超出模型的输入限制。</p>
+     *
+     * @param content 原始内容。
+     * @return 截断后的内容。
+     */
     public static String clip(String content) {
         String value = "";
         if (null != content && content.length() > 1) {
@@ -1042,6 +1074,13 @@ public final class TextUtils {
         return buf.toString();
     }
 
+    /**
+     * 判断字符串是否包含任一候选串。
+     *
+     * @param string     待检查的字符串。
+     * @param candidates 候选串数组。
+     * @return 命中任一候选返回 {@code true} 。
+     */
     public static boolean containsString(String string, String[] candidates) {
         String lowerCaseString = string.toLowerCase();
         for (String word : candidates) {

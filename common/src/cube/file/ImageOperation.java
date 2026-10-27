@@ -45,18 +45,38 @@ public abstract class ImageOperation implements FileOperation {
         return FileProcessorAction.Image.name;
     }
 
+    /**
+     * 获取输入文件。
+     *
+     * @return 输入文件。
+     */
     public File getInputFile() {
         return this.inputFile;
     }
 
+    /**
+     * 设置输入文件。
+     *
+     * @param inputFile 输入文件。
+     */
     public void setInputFile(File inputFile) {
         this.inputFile = inputFile;
     }
 
+    /**
+     * 设置输出文件名。
+     *
+     * @param outputFilename 输出文件名，不含目录。
+     */
     public void setOutputFilename(String outputFilename) {
         this.outputFilename = outputFilename;
     }
 
+    /**
+     * 获取输出文件名。
+     *
+     * @return 输出文件名；未指定时返回 {@code null} 。
+     */
     public String getOutputFilename() {
         return this.outputFilename;
     }

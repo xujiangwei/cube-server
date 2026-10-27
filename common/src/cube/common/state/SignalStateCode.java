@@ -38,6 +38,7 @@ public enum SignalStateCode {
 
     ;
 
+    /** 状态码数值，随协议上报给客户端。 */
     public final int code;
 
     SignalStateCode(int code) {

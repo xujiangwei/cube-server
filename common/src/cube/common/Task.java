@@ -53,8 +53,7 @@ public abstract class Task implements Runnable {
 
     /**
      * 获取令牌码。
-     *
-     * @param actionDialect
+     * @param actionDialect actionDialect。
      * @return 如果在动作方言中找不到令牌码返回 {@code null} 值。
      */
     public String getTokenCode(ActionDialect actionDialect) {

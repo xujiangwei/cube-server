@@ -33,6 +33,11 @@ public class YOLOResultFile implements JSONable {
         this.resultObjects = new HashMap<>();
     }
 
+    /**
+     * 解析识别结果文件。
+     *
+     * <p>读取 YOLO 输出并逐行转换为目标对象，填充到结果列表。</p>
+     */
     public void analysisResult() {
         File cropsDir = new File(this.resultDir, "crops");
         if (cropsDir.isDirectory()) {

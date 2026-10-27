@@ -164,10 +164,20 @@ public class OperationWorkflow implements JSONable {
         this.contactId = contactId;
     }
 
+    /**
+     * 获取客户端 ID 。
+     *
+     * @return 客户端标识。
+     */
     public long getClientId() {
         return this.clientId;
     }
 
+    /**
+     * 设置客户端 ID 。
+     *
+     * @param clientId 客户端标识。
+     */
     public void setClientId(long clientId) {
         this.clientId = clientId;
     }
@@ -224,18 +234,38 @@ public class OperationWorkflow implements JSONable {
         this.workList.remove(operationWork);
     }
 
+    /**
+     * 获取全部工作项。
+     *
+     * @return 工作项列表；未编排操作时为空列表。
+     */
     public List<OperationWork> getWorkList() {
         return new ArrayList<>(this.workList);
     }
 
+    /**
+     * 获取第一个工作项。
+     *
+     * @return 首个工作项；工作项列表为空时返回 {@code null} 。
+     */
     public OperationWork getFirstWork() {
         return this.workList.get(0);
     }
 
+    /**
+     * 设置结果文件名。
+     *
+     * @param filename 结果文件名，不含目录。
+     */
     public void setResultFilename(String filename) {
         this.resultFilename = filename;
     }
 
+    /**
+     * 获取结果文件名。
+     *
+     * @return 结果文件名；未指定时返回 {@code null} 。
+     */
     public String getResultFilename() {
         return this.resultFilename;
     }
@@ -258,10 +288,20 @@ public class OperationWorkflow implements JSONable {
         return this.resultFileLabel;
     }
 
+    /**
+     * 判断是否在处理后删除中间文件。
+     *
+     * @return 删除返回 {@code true} 。
+     */
     public boolean isDeleteProcessedFile() {
         return this.deleteProcessedFile;
     }
 
+    /**
+     * 设置是否在处理后删除中间文件。
+     *
+     * @param value 为 {@code true} 表示删除。
+     */
     public void setDeleteProcessedFile(boolean value) {
         this.deleteProcessedFile = value;
     }

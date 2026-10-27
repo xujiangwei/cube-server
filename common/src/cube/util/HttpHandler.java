@@ -32,21 +32,38 @@ import java.util.Map;
  */
 public abstract class HttpHandler extends AbstractHandler {
 
+    /** 请求头：访问令牌。 */
     public final static String HEADER_X_BAIZE_API_TOKEN = "x-baize-api-token";
+    /** 请求头：客户端标识。 */
     public final static String HEADER_X_BAIZE_API_CLIENT = "x-baize-api-client";
+    /** 请求头：接口版本。 */
     public final static String HEADER_X_BAIZE_API_VERSION = "x-baize-api-version";
+    /** 请求头：设备信息。 */
     public final static String HEADER_X_BAIZE_API_DEVICE = "x-baize-api-device";
+    /** 请求头：平台标识。 */
     public final static String HEADER_X_BAIZE_API_PLATFORM = "x-baize-api-platform";
 
     /** 目标。 */
     protected String target;
 
+    /** 当前正在处理的 Jetty 请求。 */
     protected Request baseRequest;
 
     public HttpHandler() {
         super();
     }
 
+    /**
+     * 处理 HTTP 请求。
+     *
+     * <p>由 Jetty 调用：先保存请求对象，再按方法分派到 {@code doGet}/{@code doPost}，
+     * 最后标记请求完成，保证连接被正确释放。</p>
+     *
+     * @param target      目标路径。
+     * @param baseRequest Jetty 请求对象。
+     * @param request     Servlet 请求。
+     * @param response    Servlet 响应。
+     */
     @Override
     public void handle(String target, Request baseRequest,
                        HttpServletRequest request, HttpServletResponse response)
@@ -152,6 +169,12 @@ public abstract class HttpHandler extends AbstractHandler {
         return json;
     }
 
+    /**
+     * 解析查询参数。
+     *
+     * @param request HTTP 请求。
+     * @return 参数映射；无参数时返回空映射。
+     */
     public Map<String, String> parseQueryStringParams(HttpServletRequest request) {
         String queryString = request.getQueryString();
         if (null == queryString) {
@@ -180,6 +203,14 @@ public abstract class HttpHandler extends AbstractHandler {
         return result;
     }
 
+    /**
+     * 设置 Cookie 。
+     *
+     * @param response 响应对象。
+     * @param name     Cookie 名。
+     * @param value    Cookie 值。
+     * @param maxAge   有效期，单位秒；0 表示随会话结束失效。
+     */
     public void setCookie(HttpServletResponse response, String name, String value, int maxAge) {
         try {
             response.addHeader("Set-Cookie", name + "=" + URLEncoder.encode(value, "UTF-8") + "; max-age=" + maxAge);
@@ -188,14 +219,33 @@ public abstract class HttpHandler extends AbstractHandler {
         }
     }
 
+    /**
+     * 返回成功响应。
+     *
+     * @param response 响应对象。
+     * @param data     响应数据。
+     */
     public void respondOk(HttpServletResponse response, JSONObject data) {
         this.respond(response, HttpStatus.OK_200, data);
     }
 
+    /**
+     * 返回指定状态码的空响应。
+     *
+     * @param response 响应对象。
+     * @param status   HTTP 状态码。
+     */
     public void respond(HttpServletResponse response, int status) {
         this.respond(response, status, new JSONObject());
     }
 
+    /**
+     * 返回指定状态码与 JSON 数据。
+     *
+     * @param response 响应对象。
+     * @param status   HTTP 状态码。
+     * @param data     响应数据。
+     */
     public void respond(HttpServletResponse response, int status, JSONObject data) {
         response.setStatus(status);
 
@@ -210,6 +260,13 @@ public abstract class HttpHandler extends AbstractHandler {
         }
     }
 
+    /**
+     * 返回指定状态码与 JSON 数组。
+     *
+     * @param response 响应对象。
+     * @param status   HTTP 状态码。
+     * @param data     响应数组。
+     */
     public void respond(HttpServletResponse response, int status, JSONArray data) {
         response.setStatus(status);
 
@@ -224,6 +281,11 @@ public abstract class HttpHandler extends AbstractHandler {
         }
     }
 
+    /**
+     * 标记请求处理完成。
+     *
+     * <p>通知 Jetty 本次请求已结束，必须在响应写出之后调用。</p>
+     */
     public void complete() {
         this.baseRequest.setHandled(true);
     }

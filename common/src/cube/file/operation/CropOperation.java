@@ -15,6 +15,7 @@ import org.json.JSONObject;
  */
 public class CropOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "Crop";
 
     private Rectangle cropRect;
@@ -34,14 +35,29 @@ public class CropOperation extends ImageOperation {
         this.cropRect = new Rectangle(json.getJSONObject("rect"));
     }
 
+    /**
+     * 设置裁剪区域。
+     *
+     * @param rect 裁剪矩形，坐标相对于原图左上角。
+     */
     public void setCropRect(Rectangle rect) {
         this.cropRect = rect;
     }
 
+    /**
+     * 获取裁剪区域。
+     *
+     * @return 裁剪矩形。
+     */
     public Rectangle getCropRect() {
         return this.cropRect;
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;

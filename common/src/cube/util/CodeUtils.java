@@ -34,6 +34,12 @@ public class CodeUtils {
     private CodeUtils() {
     }
 
+    /**
+     * 从编码串中提取协议名。
+     *
+     * @param codeString 编码串。
+     * @return 协议名；无协议标识时返回 {@code null} 。
+     */
     public static String extractProtocol(String codeString) {
         byte[] bytes = codeString.getBytes(StandardCharsets.UTF_8);
         byte[] buf = new byte[bytes.length];
@@ -49,6 +55,12 @@ public class CodeUtils {
         return new String(buf, 0, length, StandardCharsets.UTF_8);
     }
 
+    /**
+     * 从编码串中提取资源路径分段。
+     *
+     * @param codeString 编码串。
+     * @return 分段数组；无资源路径时返回空数组。
+     */
     public static String[] extractCubeResourceSegments(String codeString) {
         int index = codeString.indexOf("//");
         if (index < 0) {
@@ -80,10 +92,22 @@ public class CodeUtils {
         return false;
     }
 
+    /**
+     * 从编码串中提取盒式域名。
+     *
+     * @param codeString 编码串。
+     * @return 域名；无域名标识时返回 {@code null} 。
+     */
     public static String extractBoxDomain(String codeString) {
         return extractURLLastPath(codeString);
     }
 
+    /**
+     * 从编码串中提取 URL 末段。
+     *
+     * @param codeString 编码串。
+     * @return 末段路径；无路径时返回 {@code null} 。
+     */
     public static String extractURLLastPath(String codeString) {
         String path = null;
         try {

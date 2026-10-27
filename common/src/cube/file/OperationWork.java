@@ -33,18 +33,38 @@ public class OperationWork implements JSONable {
         this.fileOperation = FileOperationHelper.parseFileOperation(json.getJSONObject("operation"));
     }
 
+    /**
+     * 设置本步执行的文件操作。
+     *
+     * @param fileOperation 文件操作。
+     */
     public void setOperation(FileOperation fileOperation) {
         this.fileOperation = fileOperation;
     }
 
+    /**
+     * 获取本步执行的文件操作。
+     *
+     * @return 文件操作。
+     */
     public FileOperation getFileOperation() {
         return this.fileOperation;
     }
 
+    /**
+     * 设置本步的输入文件。
+     *
+     * @param files 输入文件列表。
+     */
     public void setInputFiles(List<File> files) {
         this.inputList = files;
     }
 
+    /**
+     * 获取本步的输入文件。
+     *
+     * @return 输入文件列表；无输入时为空列表。
+     */
     public List<File> getInputFiles() {
         return this.inputList;
     }

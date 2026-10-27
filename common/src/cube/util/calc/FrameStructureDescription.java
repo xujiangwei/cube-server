@@ -138,11 +138,21 @@ public class FrameStructureDescription {
         return this.frameStructures.contains(FrameStructure.BottomRightCorner);
     }
 
+    /**
+     * 判断是否不在画面四角。
+     *
+     * @return 不在四角返回 {@code true} 。
+     */
     public boolean isNotInCorner() {
         return this.frameStructures.contains(FrameStructure.NotInCorner) ||
                 (!this.isTopLeftCorner() && !this.isTopRightCorner() && !this.isBottomLeftCorner() && !this.isBottomRightCorner());
     }
 
+    /**
+     * 判断是否位于画面四角。
+     *
+     * @return 位于四角返回 {@code true} 。
+     */
     public boolean isInCorner() {
         return this.isTopLeftCorner() || this.isTopRightCorner() || this.isBottomLeftCorner() ||
                 this.isBottomRightCorner();

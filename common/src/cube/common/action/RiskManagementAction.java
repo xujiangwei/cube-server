@@ -28,6 +28,7 @@ public enum RiskManagementAction {
 
     ;
 
+    /** 动作名称，用于在协议中标识该动作。 */
     public final String name;
 
     RiskManagementAction(String name) {

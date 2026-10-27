@@ -17,6 +17,7 @@ import org.json.JSONObject;
  */
 public class SteganographyOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "Steganography";
 
     private boolean recover = false;
@@ -53,6 +54,13 @@ public class SteganographyOperation extends ImageOperation {
         }
     }
 
+    /**
+     * 判断是否为还原模式。
+     *
+     * <p>还原模式下不写入水印，而是从图像中提取此前隐藏的文本。</p>
+     *
+     * @return 还原模式返回 {@code true} 。
+     */
     public boolean isRecover() {
         return this.recover;
     }
@@ -93,14 +101,29 @@ public class SteganographyOperation extends ImageOperation {
         return this.watermarkSize;
     }
 
+    /**
+     * 设置文本约束。
+     *
+     * @param textConstraint 对隐藏文本的字体、字号等约束。
+     */
     public void setTextConstraint(TextConstraint textConstraint) {
         this.textConstraint = textConstraint;
     }
 
+    /**
+     * 获取文本约束。
+     *
+     * @return 文本约束；未设置返回 {@code null} 。
+     */
     public TextConstraint getTextConstraint() {
         return this.textConstraint;
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;

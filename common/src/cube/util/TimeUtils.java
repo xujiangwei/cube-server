@@ -144,6 +144,12 @@ public final class TimeUtils {
         return result.toString();
     }
 
+    /**
+     * 把星期序号转为中文名称。
+     *
+     * @param value 星期序号。
+     * @return 星期名称。
+     */
     public static String convertDayOfWeek(int value) {
         switch (value) {
             case Calendar.SUNDAY:
@@ -165,6 +171,13 @@ public final class TimeUtils {
         }
     }
 
+    /**
+     * 按语言格式化日期。
+     *
+     * @param time     时间戳，单位毫秒。
+     * @param language 语言。
+     * @return 日期字符串。
+     */
     public static String formatDateString(long time, Language language) {
         Date date = new Date();
         date.setTime(time);
@@ -176,6 +189,12 @@ public final class TimeUtils {
         }
     }
 
+    /**
+     * 格式化为年月日。
+     *
+     * @param time 时间戳，单位毫秒。
+     * @return 形如 {@code 2025-08-24} 的字符串。
+     */
     public static String formatDateYMD(long time) {
         Date date = new Date();
         date.setTime(time);
@@ -183,6 +202,12 @@ public final class TimeUtils {
         return format.format(date);
     }
 
+    /**
+     * 格式化为年月日时。
+     *
+     * @param time 时间戳，单位毫秒。
+     * @return 形如 {@code 2025-08-24 15} 的字符串。
+     */
     public static String formatDateYMDH(long time) {
         Date date = new Date();
         date.setTime(time);

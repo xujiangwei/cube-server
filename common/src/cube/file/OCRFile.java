@@ -24,6 +24,7 @@ import java.util.List;
  */
 public class OCRFile implements JSONable {
 
+    /** 识别出的页面列表。 */
     protected List<Page> pages = new ArrayList<>();
 
     public OCRFile() {
@@ -92,6 +93,11 @@ public class OCRFile implements JSONable {
         }
     }
 
+    /**
+     * 获取页面列表。
+     *
+     * @return 页面列表；无识别结果时为空列表。
+     */
     public List<Page> getPages() {
         return this.pages;
     }
@@ -115,6 +121,14 @@ public class OCRFile implements JSONable {
         return text;
     }
 
+    /**
+     * 把识别结果写入输出流。
+     *
+     * <p>按内置模板输出 HTML ，可直接作为文件内容下发。</p>
+     *
+     * @param stream 输出流。
+     * @throws IOException 写出失败。
+     */
     public void outputFile(FileOutputStream stream) throws IOException {
         JSONObject json = this.toJSON();
         String jsonString = json.toString(4);

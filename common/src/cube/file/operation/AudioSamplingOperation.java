@@ -15,6 +15,7 @@ import org.json.JSONObject;
  */
 public class AudioSamplingOperation extends AudioOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "AudioSampling";
 
     private final static String KEY_OUTPUT_TYPE = "outputType";
@@ -53,6 +54,11 @@ public class AudioSamplingOperation extends AudioOperation {
         this.rate = json.getInt(KEY_RATE);
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return AudioSamplingOperation.Operation;

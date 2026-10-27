@@ -62,6 +62,12 @@ public class CharacterUtil {
     }
 
 
+    /**
+     * 判断字符是否为中文。
+     *
+     * @param ch 字符。
+     * @return 中文返回 {@code true} 。
+     */
     public static boolean ccFind(char ch) {
         if (isChineseLetter(ch))
             return true;

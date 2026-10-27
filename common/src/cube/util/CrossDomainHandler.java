@@ -84,6 +84,16 @@ public class CrossDomainHandler extends HttpHandler {
         this.allowOriginList.remove(origin);
     }
 
+    /**
+     * 处理 HTTP 请求。
+     *
+     * <p>在父类分派前先写入跨域响应头，保证预检请求也能得到正确应答。</p>
+     *
+     * @param target      目标路径。
+     * @param baseRequest Jetty 请求对象。
+     * @param request     Servlet 请求。
+     * @param response    Servlet 响应。
+     */
     @Override
     public void handle(String target, Request baseRequest,
                        HttpServletRequest request, HttpServletResponse response)
@@ -117,6 +127,11 @@ public class CrossDomainHandler extends HttpHandler {
         this.complete();
     }
 
+    /**
+     * 写入跨域响应头。
+     *
+     * @param response 响应对象。
+     */
     protected void allowCrossDomain(HttpServletResponse response) {
         // 允许跨域
         String rootURL = this.baseRequest.getRootURL().toString();

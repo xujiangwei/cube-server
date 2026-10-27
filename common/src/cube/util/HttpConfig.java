@@ -11,8 +11,11 @@ package cube.util;
  */
 public class HttpConfig {
 
+    /** 明文 HTTP 端口。 */
     public int httpPort = 0;
+    /** HTTPS 端口。 */
     public int httpsPort = 0;
+    /** 密钥库文件路径。 */
     public String keystore = null;
     /** 存储密码。 */
     public String storePassword = null;

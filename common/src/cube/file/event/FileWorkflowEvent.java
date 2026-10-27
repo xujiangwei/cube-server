@@ -50,10 +50,20 @@ public class FileWorkflowEvent implements JSONable {
         return this.name;
     }
 
+    /**
+     * 获取所属工作流。
+     *
+     * @return 工作流对象。
+     */
     public OperationWorkflow getWorkflow() {
         return this.workflow;
     }
 
+    /**
+     * 获取当前工作项。
+     *
+     * @return 工作项；事件不针对具体步骤时返回 {@code null} 。
+     */
     public OperationWork getWork() {
         return this.work;
     }

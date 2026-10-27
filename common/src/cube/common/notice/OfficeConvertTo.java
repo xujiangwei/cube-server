@@ -14,14 +14,19 @@ import org.json.JSONObject;
  */
 public class OfficeConvertTo extends NoticeData {
 
+    /** 通知动作名：转换 Office 文档。 */
     public final static String ACTION = FileProcessorAction.OfficeConvertTo.name;
 
+    /** 请求参数：域名。 */
     public final static String DOMAIN = "domain";
 
+    /** 请求参数：源文件码。 */
     public final static String FILE_CODE = "fileCode";
 
+    /** 请求参数：转换参数。 */
     public final static String PARAMETER = "parameter";
 
+    /** 请求参数：目标格式。 */
     public final static String FORMAT = "format";
 
     public OfficeConvertTo(String domain, String fileCode, String format) {

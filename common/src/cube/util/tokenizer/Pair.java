@@ -3,6 +3,7 @@ package cube.util.tokenizer;
 public class Pair<K> {
     /** 键。 */
     public K key;
+    /** 词频。 */
     public Double freq = 0.0;
 
     public Pair(K key, double freq) {

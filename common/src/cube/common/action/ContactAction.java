@@ -188,12 +188,18 @@ public enum ContactAction {
 
     ;
 
+    /** 动作名称，用于在协议中标识该动作。 */
     public final String name;
 
     ContactAction(String name) {
         this.name = name;
     }
 
+    /**
+     * 获取动作名。
+     *
+     * @return 动作名。
+     */
     @Override
     public String toString() {
         return this.name;

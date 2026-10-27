@@ -112,6 +112,11 @@ public class Tokenizer {
         dict().init(path);
     }
 
+    /**
+     * 初始化用户词典。
+     *
+     * @param paths 用户词典文件路径数组。
+     */
     public void initUserDict(String[] paths) {
         dict().init(paths);
     }

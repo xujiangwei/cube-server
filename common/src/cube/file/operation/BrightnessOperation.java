@@ -14,6 +14,7 @@ import org.json.JSONObject;
  */
 public class BrightnessOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "Brightness";
 
     private int brightness;
@@ -31,14 +32,29 @@ public class BrightnessOperation extends ImageOperation {
         this.contrast = json.getInt("contrast");
     }
 
+    /**
+     * 获取亮度调整值。
+     *
+     * @return 亮度值，正值提亮、负值压暗。
+     */
     public int getBrightness() {
         return this.brightness;
     }
 
+    /**
+     * 获取对比度调整值。
+     *
+     * @return 对比度值，负值趋向灰阶。
+     */
     public int getContrast() {
         return this.contrast;
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;

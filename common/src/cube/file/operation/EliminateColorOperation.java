@@ -15,6 +15,7 @@ import org.json.JSONObject;
  */
 public class EliminateColorOperation extends ImageOperation {
 
+    /** 操作名称，用于在 JSON 中标识本操作。 */
     public final static String Operation = "EliminateColor";
 
     private Color reservedColor;
@@ -33,15 +34,32 @@ public class EliminateColorOperation extends ImageOperation {
         this.fillColor = new Color(json.getJSONObject("fill"));
     }
 
+    /**
+     * 获取操作名称。
+     *
+     * @return 固定返回 {@link #Operation} 。
+     */
     @Override
     public String getOperation() {
         return Operation;
     }
 
+    /**
+     * 获取保留的颜色。
+     *
+     * <p>除该颜色外的像素都会被替换为填充色。</p>
+     *
+     * @return 保留的颜色。
+     */
     public Color getReservedColor() {
         return this.reservedColor;
     }
 
+    /**
+     * 获取填充色。
+     *
+     * @return 用于替换被消除像素的颜色。
+     */
     public Color getFillColor() {
         return this.fillColor;
     }

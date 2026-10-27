@@ -61,6 +61,13 @@ public class OCROperation implements FileOperation, JSONable {
         return this.language;
     }
 
+    /**
+     * 判断是否按单行文本识别。
+     *
+     * <p>单行模式下不做事后分行合并，适用于票据、编号等短文本。</p>
+     *
+     * @return 单行模式返回 {@code true} 。
+     */
     public boolean isSingleTextLine() {
         return this.singleTextLine;
     }

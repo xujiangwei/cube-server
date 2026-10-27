@@ -110,6 +110,11 @@ public class FileProcessResult {
         return this.resultList;
     }
 
+    /**
+     * 获取工作流提交结果。
+     *
+     * @return 提交结果；工作流尚未提交时返回 {@code null} 。
+     */
     public SubmitWorkflowResult getSubmitWorkflowResult() {
         return this.submitWorkflowResult;
     }
@@ -141,10 +146,22 @@ public class FileProcessResult {
         return this.audioResult;
     }
 
+    /**
+     * 获取 OCR 处理结果。
+     *
+     * @return 识别结果；未包含 OCR 操作时返回 {@code null} 。
+     */
     public OCRProcessResult getOCRResult() {
         return this.ocrResult;
     }
 
+    /**
+     * 添加本地输出文件。
+     *
+     * <p>用于记录工作流在各阶段落在本地磁盘的中间产物，便于调用方自行清理。</p>
+     *
+     * @param file 本地文件。
+     */
     public void addLocalFile(File file) {
         synchronized (this) {
             if (null == this.localFileList) {
@@ -162,6 +179,11 @@ public class FileProcessResult {
         }
     }
 
+    /**
+     * 获取本地输出文件列表。
+     *
+     * @return 文件列表；无本地产物时为空列表。
+     */
     public List<File> getLocalFileList() {
         return this.localFileList;
     }

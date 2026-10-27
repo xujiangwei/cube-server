@@ -13,6 +13,7 @@ import org.json.JSONObject;
  */
 public class FormatAttribute {
 
+    /** 媒体文件名。 */
     public String filename;
 
     /**
