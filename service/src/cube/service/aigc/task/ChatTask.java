@@ -97,6 +97,12 @@ public class ChatTask extends ServiceTask {
 
         AIGCService service = ((AIGCCellet) this.cellet).getService();
 
+        cube.aigc.usage.UsageContext accounting;
+        try { accounting = cube.aigc.usage.UsageContext.visitor(service.getToken(token), "AIGC", Long.toString(packet.sn)); }
+        catch (RuntimeException invalid) {
+            cellet.speak(talkContext, makeResponse(dialect, packet, AIGCStateCode.InconsistentToken.code, new JSONObject()));
+            markResponseTime(); return;
+        }
         this.deferMonitoring(false);
         boolean success = false;
 
@@ -106,7 +112,7 @@ public class ChatTask extends ServiceTask {
             // 创建指定的频道
             Logger.i(this.getClass(), "#run - Create new channel for token: " + token);
             boolean english = TextUtils.isTextMainlyInEnglish(content);
-            service.createChannel(token, "User-" + channelCode, channelCode,
+            channel = service.createChannel(token, "User-" + channelCode, channelCode,
                     english ? Language.English : Language.Chinese);
         }
 
@@ -115,7 +121,7 @@ public class ChatTask extends ServiceTask {
             // 判断单元任务类型
             if (ModelConfig.isTextToImageUnit(unit)) {
                 // 执行 Text to Image
-                success = service.generateImage(channel, content, unit, new TextToImageListener() {
+                success = service.generateImage(accounting, channel, content, unit, new TextToImageListener() {
                     @Override
                     public void onProcessing(AIGCChannel channel) {
                         cellet.speak(talkContext,
@@ -152,7 +158,7 @@ public class ChatTask extends ServiceTask {
             }
             else {
                 // 执行文本生成
-                success = service.generateText(channelCode, content, unit, option, recordList, histories,
+                success = service.generateText(accounting, channelCode, content, unit, option, recordList, histories,
                         null, categories, recordable, networking, new GenerateTextListener() {
                     @Override
                     public void onGenerated(AIGCChannel channel, GeneratingRecord record) {
@@ -229,7 +235,7 @@ public class ChatTask extends ServiceTask {
             }
 
             if (null != knowledgeBase) {
-                success = knowledgeBase.performKnowledgeQA(channelCode, unit, content, searchTopK, recordList,
+                success = knowledgeBase.performKnowledgeQA(accounting, channelCode, unit, content, searchTopK, recordList,
                         new KnowledgeQAListener() {
                     @Override
                     public void onCompleted(AIGCChannel channel, KnowledgeQAResult result) {

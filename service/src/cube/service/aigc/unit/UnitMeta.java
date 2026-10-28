@@ -22,6 +22,31 @@ import java.util.List;
  * 任务对象由执行器创建、调度并回收。</p>
  */
 public abstract class UnitMeta {
+    public cube.aigc.usage.UsageContext usageContext = cube.aigc.usage.UsageContext.system("AIGC");
+    protected String meterId;
+    private boolean meterFinished;
+
+    protected void meterBegin() {
+        meterBegin(unit.getCapability().getName());
+    }
+    protected void meterBegin(String model) {
+        String id = java.util.UUID.randomUUID().toString();
+        service.getStorage().getUsageWriter().begin(usageContext, id, model, unit.getQueryKey(), System.currentTimeMillis());
+        meterId = id;
+    }
+    protected void meterFinish(org.json.JSONObject payload, String status) {
+        if(meterId == null || (meterFinished && cube.aigc.usage.UsageTokens.read(payload) == null) || usageContext.delegated) return;
+        long[] tokens = cube.aigc.usage.UsageTokens.read(payload);
+        service.getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(meterId, tokens == null ? 1 : 2, status,
+                tokens == null ? "unknown" : "actual", tokens == null ? null : tokens[0], tokens == null ? null : tokens[1], System.currentTimeMillis()));
+        meterFinished = true;
+    }
+    protected void meterEstimated(long input, long output) {
+        if(meterId == null || meterFinished || usageContext.delegated)return;
+        service.getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(meterId,2,"succeeded","estimated",input,output,System.currentTimeMillis()));
+        meterFinished = true;
+    }
+    protected void meterUnknown() { if (!meterFinished) meterFinish(null, "unknown"); }
 
     /** AIGC 服务实例。 */
     protected final AIGCService service;

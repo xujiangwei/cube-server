@@ -72,6 +72,10 @@ public class QueryUsageTask extends ServiceTask {
             return;
         }
 
+        if (token.getExpiry() <= System.currentTimeMillis() || contactId != token.getContactId() || contactId <= 0) {
+            cellet.speak(talkContext, makeResponse(dialect, packet, AIGCStateCode.InconsistentToken.code, new JSONObject()));
+            markResponseTime(); return;
+        }
         List<Usage> usages = service.queryContactUsages(contactId);
         if (null == usages) {
             this.cellet.speak(this.talkContext,

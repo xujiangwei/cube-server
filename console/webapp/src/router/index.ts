@@ -29,6 +29,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/DashboardView.vue'),
         meta: { title: '服务器概览' }
       },
+      { path: 'ai-usage', name: 'ai-usage', component: () => import('@/views/AIUsageView.vue'), meta: { title: 'AI 用量' } },
       {
         path: 'ai-units',
         name: 'ai-units',

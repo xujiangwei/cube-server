@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import AppIcon from './AppIcon.vue'
+import AIUsageSummary from './AIUsageSummary.vue'
 import EmptyState from './EmptyState.vue'
 import ServiceTopology from './ServiceTopology.vue'
 import { queryPerformanceReport } from '@/api/console'
@@ -128,6 +129,7 @@ onBeforeUnmount(() => { ++generation })
         </section>
         <p v-for="m in snapshot.modules.filter(m => m.collectionError)" :key="m.module" class="text-xs text-amber-600">{{ m.module }} 运行状态采集失败；该模块连接状态未知。</p>
       </template>
+      <AIUsageSummary />
       <ServiceTopology :server="selected" :snapshot="snapshot" :fresh="fresh" />
       <template v-if="snapshot && execution">
         <section class="rounded-xl border border-slate-200"><div class="border-b border-slate-100 px-5 py-4"><h3 class="text-sm font-semibold">模块业务量与耗时排行</h3><p class="mt-1 text-[11px] text-slate-400">近一分钟 · 点击模块过滤动作</p><select v-model="moduleSort" aria-label="模块排行排序" class="input mt-2 w-40 text-xs"><option value="requests">按命令量排序</option><option value="avgMs">按平均耗时排序</option><option value="p95Ms">按 P95 排序</option></select></div><div class="overflow-auto"><table class="w-full whitespace-nowrap text-left text-xs"><thead class="bg-slate-50 text-[10px] text-slate-400"><tr><th class="px-5 py-3">模块</th><th class="px-4">命令量 / 累计</th><th class="px-4">平均 / P95</th><th class="px-4">失败 / 拒绝</th><th class="px-4">运行 / 排队</th></tr></thead><tbody><tr v-for="m in modules" :key="m.module" class="border-t border-slate-100"><td class="px-5 py-3"><button class="font-semibold text-indigo-600" @click="moduleFilter = moduleFilter === m.module ? '' : m.module">{{ m.module }}</button></td><td class="tabular px-4">{{ metric(m.window.requests) }} / {{ metric(m.total.requests) }}</td><td class="tabular px-4">{{ milliseconds(m.window.avgMs) }} / {{ milliseconds(m.window.p95Ms) }}</td><td class="tabular px-4">{{ failureCount(m.window) }} / {{ m.window.rejected }}</td><td class="tabular px-4">{{ m.running }} / {{ m.queued }}</td></tr></tbody></table></div><p v-if="!modules.length" class="p-6 text-xs text-slate-400">等待首个业务命令。</p></section>

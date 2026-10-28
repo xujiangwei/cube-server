@@ -67,6 +67,7 @@ public class TextToImageUnitMeta extends UnitMeta {
      */
     @Override
     public void process() {
+        try {
         this.channel.setLastUnitMetaSn(this.sn);
 
         this.service.getExecutor().execute(new Runnable() {
@@ -81,7 +82,8 @@ public class TextToImageUnitMeta extends UnitMeta {
 
         Packet request = new Packet(AIGCAction.TextToImage.name, data);
         // 使用较长的超时时间，以便等待上传数据
-        ActionDialect dialect = this.service.getCellet().transmit(this.unit.getContext(), request.toDialect(),
+        meterBegin();
+                ActionDialect dialect = this.service.getCellet().transmit(this.unit.getContext(), request.toDialect(),
                 180 * 1000, this.sn);
         if (null == dialect) {
             Logger.w(AIGCService.class, "TextToImage unit error");
@@ -102,6 +104,7 @@ public class TextToImageUnitMeta extends UnitMeta {
 
         Packet response = new Packet(dialect);
         JSONObject payload = Packet.extractDataPayload(response);
+            meterFinish(payload, "succeeded");
         if (payload.has("fileLabel")) {
             this.fileLabel = new FileLabel(payload.getJSONObject("fileLabel"));
             this.fileLabel.resetURLsToken(this.channel.getAuthToken().getCode());
@@ -141,5 +144,10 @@ public class TextToImageUnitMeta extends UnitMeta {
 
         // 重置状态
         this.channel.setProcessing(false);
+
+        } catch (IllegalStateException unavailable) {
+            this.channel.setProcessing(false);
+            this.listener.onFailed(this.channel, AIGCStateCode.UsageUnavailable);
+        } finally { meterUnknown(); }
     }
 }

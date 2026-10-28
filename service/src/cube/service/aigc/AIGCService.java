@@ -1090,6 +1090,12 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         completions.generateInternal(token, requestId, request, timeoutMillis, listener);
     }
 
+    @Override
+    public void submitCompletion(String token, String requestId, JSONObject request, long timeoutMillis,
+                                 cube.aigc.usage.UsageContext accounting, cube.aigc.completion.CompletionProvider.Listener listener) {
+        completions.generateInternal(token, requestId, request, timeoutMillis, accounting, listener);
+    }
+
     /**
      * 获取兼容层服务。
      *
@@ -2105,6 +2111,13 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                                 List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
                                 List<String> categories, boolean recordable, boolean networking,
                                 GenerateTextListener listener) {
+        return generateText(cube.aigc.usage.UsageContext.system("AIGC"), channelCode, content, unitName, option, histories, maxHistories, attachments, categories, recordable, networking, listener);
+    }
+
+public boolean generateText(cube.aigc.usage.UsageContext accounting, String channelCode, String content, String unitName, GeneratingOption option,
+                                List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
+                                List<String> categories, boolean recordable, boolean networking,
+                                GenerateTextListener listener) {
         if (!this.isStarted()) {
             Logger.w(AIGCService.class, "#generateText - Service is NOT ready");
             return false;
@@ -2148,6 +2161,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
         final GenerateTextUnitMeta meta = new GenerateTextUnitMeta(this, unit, channel, content, option, categories,
                 histories, attachments, listener);
+        meta.usageContext = accounting;
         meta.setMaxHistories(maxHistories);
         meta.setRecordHistoryEnabled(recordable);
         meta.setNetworkingEnabled(networking);
@@ -2188,7 +2202,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             return null;
         }
 
-        return this.syncGenerateText(unitName, prompt, option, null, participant);
+        return this.syncGenerateText(cube.aigc.usage.UsageContext.visitor(authToken, "AIGC", ""), unit, prompt, option, null, participant);
     }
 
     /**
@@ -2229,7 +2243,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             Logger.w(this.getClass(), "#syncGenerateText - Can NOT find unit: " + unitName);
             return null;
         }
-        return this.syncGenerateText(unit, prompt, option, history, participantContact);
+        return this.syncGenerateText(cube.aigc.usage.UsageContext.visitor(authToken, "AIGC", ""), unit, prompt, option, history, participantContact);
     }
 
     /**
@@ -2248,6 +2262,14 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     public GeneratingRecord syncGenerateText(AIGCUnit unit, String prompt, GeneratingOption option,
                                              List<GeneratingRecord> history, Contact participantContact) {
+        return syncGenerateText(cube.aigc.usage.UsageContext.system("AIGC"), unit, prompt, option, history, participantContact);
+    }
+
+    public GeneratingRecord syncGenerateText(cube.aigc.usage.UsageContext accounting, AIGCUnit unit, String prompt, GeneratingOption option,
+                                             List<GeneratingRecord> history, Contact participantContact) {
+        String accountingId = java.util.UUID.randomUUID().toString();
+        boolean accountingStarted = false;
+        try {
         AtomicInteger count = increaseUnitCounter(unit.getCapability().getName());
 
         Packet request = null;
@@ -2273,6 +2295,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             data.put("option", (null == option) ? (new GeneratingOption()).toJSON() : option.toJSON());
 
             request = new Packet(AIGCAction.TextToText.name, data);
+            getStorage().getUsageWriter().begin(accounting, accountingId, unit.getCapability().getName(), unit.getQueryKey(), System.currentTimeMillis());
+            accountingStarted = true;
             dialect = this.cellet.transmit(unit.getContext(), request.toDialect(),
                     8 * 60 * 1000, sn);
             if (null == dialect) {
@@ -2297,6 +2321,9 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             return null;
         }
         JSONObject payload = Packet.extractDataPayload(response);
+        long[] measured = cube.aigc.usage.UsageTokens.read(payload);
+        if (!accounting.delegated) getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(accountingId, 2, "succeeded",
+                measured == null ? "unknown" : "actual", measured == null ? null : measured[0], measured == null ? null : measured[1], System.currentTimeMillis()));
 
         String responseText = "";
         String thoughtText = "";
@@ -2314,6 +2341,9 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         // 过滤中文字符
         responseText = TextUtils.filterChinese(unit, responseText);
         return new GeneratingRecord(request.sn, unit.getCapability().getName(), prompt, responseText, thoughtText);
+        } finally {
+            if (accountingStarted && !accounting.delegated) getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(accountingId, 1, "unknown", "unknown", null, null, System.currentTimeMillis()));
+        }
     }
 
     /**
@@ -2325,6 +2355,11 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      * @param history  历史记录列表。
      * @return 返回生成记录；无可用单元或生成失败返回 {@code null}。
      */
+    public GeneratingRecord syncGenerateText(cube.aigc.usage.UsageContext accounting, String unitName, String prompt, GeneratingOption option) {
+        AIGCUnit unit = selectUnitByName(unitName);
+        return unit == null ? null : syncGenerateText(accounting, unit, prompt, option, null, null);
+    }
+
     @Override
     public GeneratingRecord generateText(String unitName, String prompt, GeneratingOption option,
                                          List<GeneratingRecord> history) {
@@ -2353,6 +2388,12 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     public void generateText(AIGCChannel channel, AIGCUnit unit, String query, String prompt, GeneratingOption option,
                              List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
                              List<String> categories, boolean recordable, GenerateTextListener listener) {
+        generateText(cube.aigc.usage.UsageContext.system("AIGC"), channel, unit, query, prompt, option, histories, maxHistories, attachments, categories, recordable, listener);
+    }
+
+    public void generateText(cube.aigc.usage.UsageContext accounting, AIGCChannel channel, AIGCUnit unit, String query, String prompt, GeneratingOption option,
+                             List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
+                             List<String> categories, boolean recordable, GenerateTextListener listener) {
         if (null == unit) {
             // 没有单元数据：异步回告失败，避免在调用方线程上回调
             this.taskExecutor.execute(new Runnable() {
@@ -2366,7 +2407,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
         final GenerateTextUnitMeta meta = new GenerateTextUnitMeta(this, unit, channel, prompt, option, categories,
                 histories, attachments, listener);
-        meta.setMaxHistories(maxHistories);
+        meta.usageContext = accounting;
+            meta.setMaxHistories(maxHistories);
         meta.setOriginalQuery(query);
         meta.setRecordHistoryEnabled(recordable);
         meta.setNetworkingEnabled(false);
@@ -2396,6 +2438,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     public boolean executeMultimodal(String tokenCode, String channelCode,
                                      MultimodalInput input, MultimodalListener listener) {
+        cube.aigc.usage.UsageContext visitor = cube.aigc.usage.UsageContext.visitor(this.getToken(tokenCode), "AIGC", "");
         if (!this.isStarted()) {
             Logger.w(AIGCService.class, "#executeMultimodal - Service is NOT ready");
             return false;
@@ -2426,6 +2469,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                 Logger.w(AIGCService.class, "#executeMultimodal - Unknown stream: " + streamId);
                 return false;
             }
+            if (!visitor.domain.equals(streamMeta.usageContext.domain) || visitor.contactId != streamMeta.usageContext.contactId) return false;
             unit = streamMeta.unit;
             if (null == unit.getContext() || !unit.getContext().isValid()) {
                 Logger.w(AIGCService.class, "#executeMultimodal - Stream unit is unavailable: " + streamId);
@@ -2442,6 +2486,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
         channel.setProcessing(true);
         final MultimodalUnitMeta meta = new MultimodalUnitMeta(this, unit, channel, input, listener);
+        meta.usageContext = visitor;
 
         // 取队列 → 起任务 → 收尾，统一由单元任务队列执行器处理
         this.taskExecutor.submitMultimodal(meta);
@@ -2519,6 +2564,10 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      * 单元非文生图类型返回 {@code false}。
      */
     public boolean generateImage(AIGCChannel channel, String text, String unitName, TextToImageListener listener) {
+        return generateImage(cube.aigc.usage.UsageContext.system("AIGC"), channel, text, unitName, listener);
+    }
+
+public boolean generateImage(cube.aigc.usage.UsageContext accounting, AIGCChannel channel, String text, String unitName, TextToImageListener listener) {
         if (!this.isStarted()) {
             return false;
         }
@@ -2548,6 +2597,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 //        }
 
         final UnitMeta meta = new TextToImageUnitMeta(this, unit, channel, text, listener);
+        meta.usageContext = accounting;
 
         // 取队列 → 起任务 → 收尾，统一由单元任务队列执行器处理
         this.taskExecutor.submitTextToImage(meta);

@@ -57,6 +57,30 @@ public class StatisticDataHandler extends ContextHandler {
 
         @Override
         public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+            if (target.startsWith("/ai-usage/")) {
+                if (!Handlers.checkCookie(request, console)) { respond(response, HttpStatus.UNAUTHORIZED_401); return; }
+                try {
+                    cube.console.mgmt.UserToken session = console.getUserManager().getToken(Handlers.getToken(request));
+                    if (session == null || session.user == null) { respond(response, HttpStatus.UNAUTHORIZED_401); return; }
+                    Map<String, String> params = new HashMap<>();
+                    for (Map.Entry<String, String[]> entry : request.getParameterMap().entrySet()) {
+                        if (entry.getValue().length != 1) throw new IllegalArgumentException("Duplicate query parameter");
+                        params.put(entry.getKey(), entry.getValue()[0]);
+                    }
+                    String operation = target.substring("/ai-usage/".length());
+                    JSONObject result = console.getStatisticDataManager().queryAIUsage(operation, params, session.user);
+                    if ("export".equals(operation)) {
+                        response.setStatus(HttpStatus.OK_200); response.setCharacterEncoding("UTF-8");
+                        response.setContentType("text/csv; charset=UTF-8");
+                        response.setHeader("Content-Disposition", "attachment; filename=ai-usage.csv");
+                        response.setHeader("Cache-Control", "no-store");
+                        response.getWriter().write(cube.console.mgmt.AIUsageManager.csv(result));
+                        this.complete();
+                    } else { response.setHeader("Cache-Control", "no-store"); respondOk(response, result); }
+                } catch (SecurityException denied) { respond(response, HttpStatus.FORBIDDEN_403); }
+                  catch (IllegalArgumentException invalid) { respond(response, HttpStatus.BAD_REQUEST_400); }
+                return;
+            }
             if (target.equals("/unit-deployments")) {
                 if (!Handlers.checkCookie(request, console)) {
                     respond(response, HttpStatus.UNAUTHORIZED_401);

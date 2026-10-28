@@ -52,6 +52,10 @@ public class AICapability implements JSONable {
      * <p>旧版本单元不声明该字段，默认是空对象。</p>
      */
     private volatile JSONObject chatCompletion = new JSONObject();
+    private volatile int usageProtocol;
+
+    public int getUsageProtocol() { return usageProtocol; }
+    public void setUsageProtocol(int version) { usageProtocol = version; }
 
     public AICapability(String name, String task, String version, List<String> subtasks, String description) {
         this.name = name;
@@ -78,6 +82,7 @@ public class AICapability implements JSONable {
         }
 
         this.description = json.getString("description");
+        this.usageProtocol = json.optInt("usageProtocol", 0);
         if (json.optJSONObject("chatCompletion") != null) {
             this.chatCompletion = new JSONObject(json.getJSONObject("chatCompletion").toString());
         }
@@ -164,6 +169,7 @@ public class AICapability implements JSONable {
     @Override
     public JSONObject toJSON() {
         JSONObject json = new JSONObject();
+        if (usageProtocol > 0) json.put("usageProtocol", usageProtocol);
         json.put("name", this.name);
         json.put("task", this.task);
         json.put("version", this.version);

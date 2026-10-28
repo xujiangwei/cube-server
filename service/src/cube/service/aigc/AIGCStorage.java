@@ -773,6 +773,12 @@ public class AIGCStorage implements Storagable {
     };
 
     private Storage storage;
+    private cube.aigc.usage.UsageWriter usageWriter;
+
+    public cube.aigc.usage.UsageWriter getUsageWriter() {
+        if (usageWriter == null) throw new IllegalStateException("AI_USAGE_NOT_READY");
+        return usageWriter;
+    }
 
     public AIGCStorage(StorageType type, JSONObject config) {
         this.storage = StorageFactory.getInstance().createStorage(type, "AIGCStorage", config);
@@ -787,6 +793,10 @@ public class AIGCStorage implements Storagable {
     public void open() {
         this.storage.open();
         StorageFactory.ensureOpen(this.storage, this.getClass().getSimpleName());
+        cube.aigc.usage.UsageLedger ledger = cube.aigc.usage.UsageLedger.storage(this.storage);
+        ledger.initialize();
+        this.usageWriter = new cube.aigc.usage.UsageWriter(ledger,
+                java.nio.file.Paths.get("storage", "ai-usage-outbox", ledger.transaction(c -> ledger.metadata(c).getString("store_id"))));
     }
 
     /**
@@ -796,6 +806,7 @@ public class AIGCStorage implements Storagable {
      */
     @Override
     public void close() {
+        if (this.usageWriter != null) this.usageWriter.close();
         this.storage.close();
     }
 

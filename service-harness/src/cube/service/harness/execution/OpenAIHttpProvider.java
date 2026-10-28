@@ -149,7 +149,7 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
         try {
             executor.execute(() -> execute(id, wire, timeout, listener));
         } catch (RejectedExecutionException e) {
-            listener.onEvent(error(id, 1, "MODEL_BACKEND_BUSY", true));
+            listener.onEvent(error(id, 1, "MODEL_BACKEND_BUSY", true).put("modelDispatched",false));
         }
     }
 
@@ -211,6 +211,7 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
         long seq = 0;
         ScheduledFuture<?> deadlineTask = null;
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeout);
+        JSONObject knownUsage = null;
         try {
             connection = (HttpURLConnection) endpoint.openConnection();
             final HttpURLConnection active = connection;
@@ -235,7 +236,7 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
             if (status != 200) {
                 // 仅明确的推理前拒绝（参数、鉴权、不存在、过大、限流）才可安全释放物理容量。
                 finished = status == 400 || status == 401 || status == 403 || status == 404 || status == 413 || status == 429;
-                listener.onEvent(error(id, ++seq, "MODEL_HTTP_" + status, finished));
+                listener.onEvent(error(id, ++seq, "MODEL_HTTP_" + status, finished).put("modelDispatched",!finished));
                 return;
             }
             JSONObject result;
@@ -244,6 +245,7 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
                 if (!wire.getBoolean("stream")) {
                     byte[] raw = read(input, 65536, deadline);
                     rawResponse = StrictJson.object(raw);
+                    if(cube.aigc.usage.UsageTokens.read(rawResponse)!=null)knownUsage=rawResponse.getJSONObject("usage");
                     JSONArray choices = rawResponse.optJSONArray("choices");
                     if (choices != null && choices.length() == 1) {
                         JSONObject choice = choices.optJSONObject(0);
@@ -286,6 +288,7 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
                                 break;
                             }
                             JSONObject delta = accumulator.add(StrictJson.object(raw.getBytes(StandardCharsets.UTF_8)));
+                            knownUsage = accumulator.usageEvidence();
                             if (delta.length() > 0) {
                                 listener.onEvent(event(id, ++seq, "delta", new JSONObject().put("delta", delta), false));
                             }
@@ -316,7 +319,9 @@ public final class OpenAIHttpProvider implements CompletionProvider, AutoCloseab
             // 缺失 usage 不估算 token；请求未实际发出（attempted=false）时一律按未完成回报。
             String code = e instanceof CompletionError && "usage_missing".equals(((CompletionError) e).code)
                     ? "MODEL_USAGE_MISSING" : "MODEL_COMPLETION_UNKNOWN";
-            listener.onEvent(error(id, ++seq, code, finished || !attempted));
+            JSONObject failure=error(id, ++seq, code, finished || !attempted).put("modelDispatched",attempted);
+            if(knownUsage!=null)failure.getJSONObject("payload").put("usage",knownUsage);
+            listener.onEvent(failure);
         } finally {
             if (deadlineTask != null) {
                 deadlineTask.cancel(false);

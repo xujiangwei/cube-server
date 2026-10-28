@@ -71,6 +71,20 @@ public class StatisticDataManager {
     private static final String EVENT_COMEBACK = "Comeback";
 
     private DataStorage storage;
+    private AIUsageManager aiUsage = new AIUsageManager(new JSONArray());
+    public JSONObject queryAIUsage(String operation, Map<String, String> params, User user) {
+        AIUsageManager.Filter filter = new AIUsageManager.Filter(params, user);
+        JSONObject data = aiUsage.query(operation, filter);
+        if (storage != null) {
+            JSONArray ranks = data.getJSONArray("breakdown");
+            if ("contact".equals(filter.group)) for (int i = 0; i < ranks.length(); i++) {
+                JSONObject row = ranks.getJSONObject(i);
+                row.put("contact_name", storage.queryContactName(row.getString("domain"), row.getLong("contact_id")));
+            }
+            if (filter.contact != null && !filter.domain.isEmpty()) data.put("contactName", storage.queryContactName(filter.domain, filter.contact));
+        }
+        return data;
+    }
 
     public StatisticDataManager() {
     }
@@ -87,6 +101,7 @@ public class StatisticDataManager {
 
         try {
             Properties properties = ConfigUtils.readProperties(filepath);
+            this.aiUsage = new AIUsageManager(properties);
             this.storage = new DataStorage(properties);
             this.storage.open();
         } catch (IOException e) {

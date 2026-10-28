@@ -1,0 +1,1 @@
+import{r as a}from"./index-CgOvYSLs.js";function n(e,t={}){return a(`/statistic/ai-usage/${e}`,{query:t,timeout:6e4})}function o(e){const t=new URLSearchParams;return Object.entries(e).forEach(([s,r])=>{r!=null&&r!==""&&t.set(s,String(r))}),`/statistic/ai-usage/export?${t}`}export{n as f,o as u};

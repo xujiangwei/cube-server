@@ -132,6 +132,9 @@ public enum AIGCStateCode {
      */
     ModuleNotLoaded(33),
 
+    /** Durable accounting cannot admit a new model call. Retry after recovery. */
+    UsageUnavailable(34),
+
     /**
      * 内容长度越界。
      */

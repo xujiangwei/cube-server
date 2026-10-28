@@ -121,6 +121,7 @@ public class UnitScheduler {
             if (null != unit) {
                 unit.setContext(context);
                 unit.getCapability().setChatCompletion(capability.getChatCompletion());
+                unit.getCapability().setUsageProtocol(capability.getUsageProtocol());
             } else {
                 unit = new AIGCUnit(contact, capability, context);
                 this.unitMap.put(key, unit);

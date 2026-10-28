@@ -130,6 +130,10 @@ public final class InferenceTest {
          * @param timeout 未使用的超时
          * @param listener 事件回调
          */
+        @Override public void submitCompletion(String token, String id, JSONObject body, long timeout, cube.aigc.usage.UsageContext context, Listener listener) {
+            check(context.contactId == Long.parseLong(S) && context.delegated, "original Contact reaches delegated provider");
+            submitCompletion(token, id, body, timeout, listener);
+        }
         public void submitCompletion(String token, String id, JSONObject body, long timeout, Listener listener) {
             check(listeners.putIfAbsent(id, listener) == null, "Duplicate physical inference");
         }
@@ -389,6 +393,7 @@ public final class InferenceTest {
                 JSONObject last = events.get(events.size() - 1);
                 if (mode.equals("truncated")) {
                     check(!last.getBoolean("actualFinished") && last.getString("kind").equals("error"), "Truncated SSE falsely finished");
+                    check(last.getJSONObject("payload").getJSONObject("usage").getInt("prompt_tokens")==17,"confirmed SSE usage discarded after disconnect");
                 } else if (mode.equals("slow")) {
                     check(!last.getBoolean("actualFinished")
                                     && TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start) < 1500,

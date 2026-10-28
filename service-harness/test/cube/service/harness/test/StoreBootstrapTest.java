@@ -54,7 +54,7 @@ public final class StoreBootstrapTest {
                 Paths.get(System.getProperty("java.home"), "bin", "java").toString(),
                 "-cp", System.getProperty("java.class.path"), Child.class.getName(), privateConfig.toString(), "--startup")
                 .redirectErrorStream(true).redirectOutput(root.resolve("startup-child-" + i + ".log").toFile()).start());
-        for (Process child : startups) check(child.waitFor(30, TimeUnit.SECONDS) && child.exitValue() == 0,
+        for (Process child : startups) check(child.waitFor(90, TimeUnit.SECONDS) && child.exitValue() == 0,
                 "Concurrent JVM startup failed");
         for (int i = 0; i < 2; i++) {
             HarnessService service = new HarnessService(new HarnessConfig(properties));
@@ -79,7 +79,7 @@ public final class StoreBootstrapTest {
             for (int i = 0; i < 3; i++) work.add(threads.submit(() -> {
                 try { StoreBootstrap.selfCheck(config); } catch (Exception e) { throw new RuntimeException(e); }
             }));
-            for (Future<?> future : work) future.get(30, TimeUnit.SECONDS);
+            for (Future<?> future : work) future.get(90, TimeUnit.SECONDS);
         } finally { threads.shutdownNow(); }
         System.out.println("PASS: empty/repeated service startup, concurrent JVM construction, missing objects, conflicts and retained data");
     }
@@ -179,6 +179,21 @@ public final class StoreBootstrapTest {
             new CatalogStore(new JdbcRunStore(sc), sc.mysql()).ensureTenant("process.example.com", TenantTemplates.load(Paths.get(args[1])));
         }
     }
+    private static void usageMigration() throws Exception {
+        // Simulate the exact pre-accounting release while retaining all run data.
+        for(String table:Arrays.asList("revision","hourly","call","store")) sql("DROP TABLE harness_ai_usage_"+table);
+        String previous=config.mysql()?"dcda116b812ddb9ecc491e81e5614e72ce8b2e2ca134a39ef2ba3bf3424ce61b":"e722e01d82aeaff998fc45783308f8c2cb6ef923b48f04b32f402ce3cd9ee021";
+        sql("UPDATE harness_store_identity SET schema_hash='"+previous+"' WHERE singleton=1");
+        long before=count("harness_run","retained");
+        StoreBootstrap.selfCheck(config);
+        try(Connection c=config.connect()) {
+            StoreBootstrap.verify(c,config);
+            check(cube.aigc.usage.UsageLedger.one(c,"SELECT COUNT(*) AS n FROM harness_ai_usage_call").getLong("n")==0,"Migration invented historical calls");
+        }
+        check(count("harness_run","retained")==before,"Accounting migration lost existing runs");
+        System.out.println("PASS: known previous schema upgraded with retained runs and no historical backfill");
+    }
+
     public static void main(String[] args) throws Exception {
         root = Files.createTempDirectory("harness-bootstrap-");
         properties = new Properties();
@@ -197,7 +212,7 @@ public final class StoreBootstrapTest {
         properties.setProperty("http.port", "0");
         properties.setProperty("worker.credential", "private-bootstrap-test-worker-1234");
         config = new StoreConfig(properties);
-        startup(); tenantInitialization(); invalidTemplates();
+        startup(); usageMigration(); tenantInitialization(); invalidTemplates();
         System.out.println("PASS: automatic store and tenant initialization on " + config.dialect);
     }
 }

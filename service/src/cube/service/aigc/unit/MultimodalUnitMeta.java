@@ -42,6 +42,18 @@ public class MultimodalUnitMeta extends UnitMeta {
     private final MultimodalListener listener;
 
     private MultimodalOutput output;
+    private final String streamMeterId = java.util.UUID.randomUUID().toString();
+
+    /** Called synchronously by the owning Unit, before each physical stream inference. */
+    public JSONObject beginSegment(JSONObject payload) {
+        long sequence = payload.getLong("sequence");
+        if (sequence < 0) throw new IllegalArgumentException("INVALID_SEGMENT_SEQUENCE");
+        String id = streamMeterId + ":" + sequence;
+        cube.aigc.usage.UsageWriter writer = service.getStorage().getUsageWriter();
+        writer.begin(usageContext, id, unit.getCapability().getName(), unit.getQueryKey(), System.currentTimeMillis());
+        return writer.ledger.transaction(c -> cube.aigc.usage.UsageLedger.one(c,
+                "SELECT meter_id,started_at FROM aigc_ai_usage_call WHERE meter_id=?", id));
+    }
 
     public MultimodalUnitMeta(AIGCService service, AIGCUnit unit, AIGCChannel channel,
                               MultimodalInput input, MultimodalListener listener) {
@@ -68,6 +80,7 @@ public class MultimodalUnitMeta extends UnitMeta {
      */
     @Override
     public void process() {
+        try {
         boolean processingReleased = false;
         try {
             Logger.d(this.getClass(), "#process - Model: " + this.unit.getCapability().getName());
@@ -136,7 +149,15 @@ public class MultimodalUnitMeta extends UnitMeta {
             this.input.fileLabels = fileLabelList;
 
             Packet request = new Packet(AIGCAction.Multimodal.name, this.input.toUnitJson());
-            ActionDialect dialect = this.service.getCellet().transmit(this.unit.getContext(), request.toDialect(),
+            String operation = input.option == null ? "" : input.option.optString("operation", "").trim();
+            boolean streamControl = "status".equalsIgnoreCase(operation) || "update".equalsIgnoreCase(operation) || "stop".equalsIgnoreCase(operation);
+            boolean streamStart = false;
+            for (String source : input.fileCodes) if (source.toLowerCase(java.util.Locale.ROOT).startsWith("rtsp://") || source.toLowerCase(java.util.Locale.ROOT).startsWith("rtsps://")) streamStart = true;
+            if (streamStart && "OmniVL".equals(unit.getCapability().getName())) {
+                if (unit.getCapability().getUsageProtocol() < 1) throw new IllegalStateException("AI_USAGE_UNIT_UPGRADE_REQUIRED");
+                service.getStorage().getUsageWriter().checkAvailable();
+            } else if (!streamControl) meterBegin();
+                ActionDialect dialect = this.service.getCellet().transmit(this.unit.getContext(), request.toDialect(),
                     3 * 60 * 1000, this.sn);
             // 处理单元返回
             if (null == dialect) {
@@ -154,6 +175,7 @@ public class MultimodalUnitMeta extends UnitMeta {
             }
 
             JSONObject payload = Packet.extractDataPayload(response);
+            meterFinish(payload, "succeeded");
             String responseText = payload.getString("response");
             String thoughtText = payload.has("thought") ? payload.getString("thought") : "";
             JSONObject resultPayload = payload.has("resultPayload") ? payload.getJSONObject("resultPayload") : null;
@@ -199,6 +221,9 @@ public class MultimodalUnitMeta extends UnitMeta {
                     }
                 });
             }
+        } catch (IllegalStateException unavailable) {
+            Logger.e(this.getClass(), "AI usage storage or protocol unavailable", unavailable);
+            this.listener.onFailed(this.channel, AIGCStateCode.UsageUnavailable);
         } catch (Exception e) {
             Logger.e(this.getClass(), "#process", e);
             this.listener.onFailed(this.channel, AIGCStateCode.IllegalOperation);
@@ -207,5 +232,7 @@ public class MultimodalUnitMeta extends UnitMeta {
                 this.channel.setProcessing(false);
             }
         }
+
+        } finally { meterUnknown(); }
     }
 }

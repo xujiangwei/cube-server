@@ -58,6 +58,7 @@ public class MultimodalStreamRoutingTest {
         finally {
             CENTER.stop();
             service.executor.shutdown();
+            service.accounting.close();
         }
     }
 
@@ -235,7 +236,8 @@ public class MultimodalStreamRoutingTest {
     }
 
     private static MultimodalUnitMeta meta(FakeService service, AIGCUnit unit, Reply reply) {
-        return new MultimodalUnitMeta(service, unit, service.channel, input("start", null), reply);
+        MultimodalUnitMeta meta=new MultimodalUnitMeta(service, unit, service.channel, input("start", null), reply);
+        meta.usageContext=cube.aigc.usage.UsageContext.visitor(service.channel.getAuthToken(),"AIGC","");return meta;
     }
 
     private static void check(boolean condition, String message) {
@@ -323,6 +325,7 @@ public class MultimodalStreamRoutingTest {
     }
 
     private static class FakeService extends AIGCService {
+        final ChatCompletionServiceTest.FakeStorage accounting=new ChatCompletionServiceTest.FakeStorage();
         final AIGCChannel channel;
         final AIGCTaskExecutor executor;
         final AtomicInteger selections = new AtomicInteger();
@@ -340,6 +343,12 @@ public class MultimodalStreamRoutingTest {
             ChannelManager manager = (ChannelManager) field(this, AIGCService.class, "channelManager");
             ((Map<String, AIGCChannel>) field(manager, ChannelManager.class, "channelMap")).put("channel", channel);
         }
+
+        @Override
+        public AuthToken getToken(String code) { return "token".equals(code)?channel.getAuthToken():null; }
+
+        @Override
+        public cube.service.aigc.AIGCStorage getStorage() { return accounting; }
 
         @Override
         public AIGCUnit selectUnitByName(String name) {

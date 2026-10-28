@@ -28,7 +28,8 @@ public final class StoreBootstrap {
             byte[] buffer = new byte[4096];
             int count;
             while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
-            return new String(out.toByteArray(), StandardCharsets.UTF_8).replace("\r\n", "\n");
+            return new String(out.toByteArray(), StandardCharsets.UTF_8).replace("\r\n", "\n") + "\n"
+                    + String.join(";\n", cube.aigc.usage.UsageSchema.statements("harness_ai_usage_", config.mysql())) + ";\n";
         }
     }
 
@@ -82,8 +83,9 @@ public final class StoreBootstrap {
                 throw new StoreException("STORE_IDENTITY_MISMATCH");
             }
             String hash = r.getString(3);
-            boolean previous = allowPreviousMysqlSchema && config.mysql()
-                    && MYSQL_SCHEMA_BEFORE_EXPLICIT_COLLATIONS.equals(hash);
+            boolean previous = allowPreviousMysqlSchema && (config.mysql()
+                    ? MYSQL_SCHEMA_BEFORE_EXPLICIT_COLLATIONS.equals(hash) || "dcda116b812ddb9ecc491e81e5614e72ce8b2e2ca134a39ef2ba3bf3424ce61b".equals(hash)
+                    : "e722e01d82aeaff998fc45783308f8c2cb6ef923b48f04b32f402ce3cd9ee021".equals(hash));
             if ((!digest(config).equals(hash) && !previous) || r.next()) {
                 throw new StoreException("STORE_IDENTITY_MISMATCH");
             }
@@ -97,7 +99,9 @@ public final class StoreBootstrap {
         StoreSchema expected = schema(statements);
         try (Connection c = config.connect()) {
             if (config.mysql()) {
-                try (PreparedStatement s = c.prepareStatement("SELECT GET_LOCK(?,10)")) {
+                c.setAutoCommit(false);
+                // Full strict verification can exceed ten seconds while another JVM constructs DDL.
+                try (PreparedStatement s = c.prepareStatement("SELECT GET_LOCK(?,60)")) {
                     // The database name is at most 56 characters; MySQL lock names allow 64.
                     s.setString(1, "harness:" + config.database);
                     try (ResultSet r = s.executeQuery()) {
@@ -130,17 +134,19 @@ public final class StoreBootstrap {
                 if (updateSchemaHash) {
                     // Advance the marker only after all DDL and structural checks succeed.
                     try (PreparedStatement s = c.prepareStatement(
-                            "UPDATE harness_store_identity SET schema_hash=? WHERE singleton=1 AND store_id=? AND schema_hash=?")) {
+                            "UPDATE harness_store_identity SET schema_hash=? WHERE singleton=1 AND store_id=?")) {
                         s.setString(1, digest(config));
                         s.setString(2, config.identity);
-                        s.setString(3, MYSQL_SCHEMA_BEFORE_EXPLICIT_COLLATIONS);
+
                         if (s.executeUpdate() != 1) throw new StoreException("STORE_IDENTITY_MISMATCH");
                     }
                 }
                 verifyIdentity(c, config);
-                if (!config.mysql()) StoreConfig.end(c, false, true);
+                if (config.mysql()) c.commit();
+                else StoreConfig.end(c, false, true);
             } catch (Exception e) {
-                if (!config.mysql()) StoreConfig.end(c, false, false);
+                if (config.mysql()) c.rollback();
+                else StoreConfig.end(c, false, false);
                 throw e;
             } finally {
                 if (config.mysql()) {

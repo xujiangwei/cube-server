@@ -190,6 +190,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
      */
     @Override
     public void process() {
+        try {
         // 实时并发计数：与执行起止严格配对，异常路径同样释放。
         // 原先在 AIGCService#processGenerateTextMeta 中随「自旋等待 + 派发」维护，
         // 改为队列派发后迁移到此处，计数含义为「该能力名下正在处理的请求数」。
@@ -199,6 +200,11 @@ public class GenerateTextUnitMeta extends UnitMeta {
         } finally {
             count.decrementAndGet();
         }
+
+        } catch (IllegalStateException unavailable) {
+            this.channel.setProcessing(false);
+            this.listener.onFailed(this.channel, AIGCStateCode.UsageUnavailable);
+        } finally { meterUnknown(); }
     }
 
     private void processInternal() {
@@ -343,6 +349,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
                         responseText, "", null, complexContext);
             } else {
                 Packet request = new Packet(AIGCAction.TextToText.name, data);
+                meterBegin();
                 ActionDialect dialect = this.service.getCellet().transmit(this.unit.getContext(), request.toDialect(),
                         3 * 60 * 1000, this.sn);
                 if (null == dialect) {
@@ -368,6 +375,8 @@ public class GenerateTextUnitMeta extends UnitMeta {
 
                 Packet response = new Packet(dialect);
                 JSONObject payload = Packet.extractDataPayload(response);
+                long[] measured = cube.aigc.usage.UsageTokens.read(payload);
+                if (measured != null) meterFinish(payload, "succeeded");
 
                 String responseText = "";
                 String thoughtText = "";
@@ -406,7 +415,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
             // 复杂上下文：提取资源内容后进行推理
             ResourceAnswer resourceAnswer = new ResourceAnswer(complexContext);
             // 提取内容
-            String content = resourceAnswer.extractContent(this.service, this.channel.getAuthToken());
+            String content = resourceAnswer.extractContent(this.service, this.channel.getAuthToken(), this.usageContext);
             String answer = resourceAnswer.answer(content);
             result = this.channel.appendRecord(this.sn, this.unit.getCapability().getName(),
                     (null != this.originalQuery) ? this.originalQuery : this.content,
@@ -436,6 +445,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
 
         this.listener.onGenerated(this.channel, result);
 
+        if (meterId != null) meterEstimated(calcTokens(prompt.toString()).size(), calcTokens(result.answer).size());
         final Usage usage = result.usage;
         final String promptText = prompt.toString();
         this.service.getExecutor().execute(new Runnable() {
@@ -562,7 +572,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
                 buf.delete(buf.length() - 1, buf.length());
                 // 提取页面与提问匹配的信息
                 String prompt = Consts.formatExtractContent(buf.toString(), query);
-                GeneratingRecord answer = this.service.syncGenerateText(this.channel.getAuthToken(), ModelConfig.BAIZE_UNIT, prompt,
+                GeneratingRecord answer = this.service.syncGenerateText(this.usageContext, ModelConfig.BAIZE_UNIT, prompt,
                         new GeneratingOption());
                 if (null != answer) {
                     // 记录内容
@@ -594,7 +604,7 @@ public class GenerateTextUnitMeta extends UnitMeta {
 
         // 对提取出来的内容进行推理
         String prompt = Consts.formatQuestion(pageContent.toString(), query);
-        GeneratingRecord result = this.service.syncGenerateText(this.channel.getAuthToken(), unitName, prompt, new GeneratingOption());
+        GeneratingRecord result = this.service.syncGenerateText(this.usageContext, unitName, prompt, new GeneratingOption());
         if (null == result) {
             Logger.w(this.getClass(), "#performSearchPageQA - Infers page content failed, cid:"
                     + this.channel.getAuthToken().getContactId());

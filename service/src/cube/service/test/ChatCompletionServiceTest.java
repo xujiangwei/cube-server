@@ -57,6 +57,8 @@ public final class ChatCompletionServiceTest {
             testMonitoringRejections();
             testTwelveUnits();
             testInternalBridge();
+            testRejectedSend();
+            testUnboundContactAdmission();
             service.getCompletions().stop();
             check(service.getCompletions().activeRequests() == 0, "stop clears registry");
             until(() -> service.getGenerateTextUnitRealtimeCount().get("Baize2").get() == 0, "stop releases counters");
@@ -64,6 +66,7 @@ public final class ChatCompletionServiceTest {
         } finally {
             service.getCompletions().stop();
             service.queue.shutdown();
+            service.storage.close();
         }
     }
 
@@ -85,6 +88,45 @@ public final class ChatCompletionServiceTest {
         check(!registered.getCapability().getChatCompletion().optBoolean("text"), "older units default unsupported");
         scheduler.setup(contact, Collections.singletonList(updated), service.owner);
         check(registered.getCapability().getChatCompletion().getBoolean("text"), "capabilities refreshed on re-registration");
+    }
+
+    static void testUnboundContactAdmission() throws Exception {
+        FakeCellet cellet = new FakeCellet();
+        FakeService service = new FakeService(cellet) {
+            @Override public AuthToken getToken(String code) {
+                return "no-contact".equals(code) ? new AuthToken(code, "domain", "app", (Long) null, 0, Long.MAX_VALUE, false) : super.getToken(code);
+            }
+        };
+        try {
+            for (int i = 0; i < 130; i++) {
+                ActionDialect request = new Packet(AIGCAction.ChatCompletion.name, new JSONObject().put("requestId", "unbound-" + i)
+                        .put("request", request("model-a")).put("timeoutMs", 3000)).toDialect();
+                service.getCompletions().generate("no-contact", service.origin, request);
+            }
+            check(service.getCompletions().activeRequests() == 0, "unbound Contact requests never enter the queue");
+            check(new Packet(cellet.events("unbound-0").get(0).dialect).data.getJSONObject("payload").getJSONObject("error").getInt("status") == 403,
+                    "unbound Contact has an explicit authorization error");
+            generate(service, "valid-after-unbound", 3000);
+            until(() -> cellet.find("valid-after-unbound", AIGCAction.ChatCompletion.name) != null,
+                    "invalid Contact requests cannot exhaust admission capacity");
+            service.getCompletions().cancel("token", "valid-after-unbound", service.origin);
+        } finally { service.getCompletions().stop(); service.queue.shutdown(); service.storage.close(); }
+    }
+
+    static void testRejectedSend() throws Exception {
+        FakeCellet cellet=new FakeCellet(){@Override public boolean speak(TalkContext context,Primitive primitive){
+            if(AIGCAction.ChatCompletion.name.equals(new ActionDialect(primitive).getName())) return false;
+            return super.speak(context,primitive);
+        }};
+        FakeService service=new FakeService(cellet);service.selected.setTimestamp(0);
+        List<JSONObject> events=new CopyOnWriteArrayList<>();
+        try {
+            service.submitCompletion("token","unsent",request("model-a"),1000,events::add);
+            until(()->!events.isEmpty()&&service.getCompletions().activeRequests()==0,"rejected transport releases internal observer");
+            check(events.get(0).getBoolean("actualFinished")&&!events.get(0).getBoolean("modelDispatched"),"rejected send does not claim a model call");
+            long calls=service.storage.accounting.ledger.transaction(c->cube.aigc.usage.UsageLedger.one(c,"SELECT SUM(calls) AS n FROM aigc_ai_usage_hourly").getLong("n"));
+            check(calls==0,"unsent model request excluded from hourly usage");
+        } finally {service.getCompletions().stop();service.queue.shutdown();service.storage.close();}
     }
 
     static void testModelTaskReplies() throws Exception {
@@ -126,6 +168,7 @@ public final class ChatCompletionServiceTest {
         } finally {
             service.getCompletions().stop();
             service.queue.shutdown();
+            service.storage.close();
             testNucleus.destroy();
         }
     }
@@ -164,7 +207,8 @@ public final class ChatCompletionServiceTest {
             service.getCompletions().stop();
             until(()->service.getGenerateTextUnitRealtimeCount().get("Baize2").get()==0,"shutdown leaked an internal queue thread");
             check(!stopping.get(0).getBoolean("actualFinished"),"shutdown fabricated physical completion");
-        } finally {service.getCompletions().stop();service.queue.shutdown();}
+        } finally {service.getCompletions().stop();service.queue.shutdown();
+            service.storage.close();}
     }
 
     static void generate(FakeService service, String id, long timeout) {
@@ -264,7 +308,8 @@ public final class ChatCompletionServiceTest {
             metrics = service.getCompletions().monitoringSnapshot();
             check(metrics.getInt("queued") == 0 && metrics.getInt("running") == 0 && metrics.getJSONObject("total").getInt("failed") == 1,
                     "malformed generation has no leaked observation");
-        } finally { service.getCompletions().stop(); service.queue.shutdown(); }
+        } finally { service.getCompletions().stop(); service.queue.shutdown();
+            service.storage.close(); }
     }
 
     static AICapability capability(boolean compatible) {
@@ -335,9 +380,18 @@ public final class ChatCompletionServiceTest {
         final AtomicInteger calls = new AtomicInteger();
         long input, output, totalInput, totalOutput;
 
+        final cube.aigc.usage.UsageWriter accounting;
         FakeStorage() {
             super(StorageType.Other, new JSONObject());
+            try {
+                java.nio.file.Path root = java.nio.file.Files.createTempDirectory("completion-accounting-");
+                cube.aigc.usage.UsageLedger ledger = new cube.aigc.usage.UsageLedger(
+                        () -> java.sql.DriverManager.getConnection("jdbc:sqlite:" + root.resolve("usage.db")), "aigc_ai_usage_", false);
+                ledger.initialize(); accounting = new cube.aigc.usage.UsageWriter(ledger, root.resolve("outbox"));
+            } catch (Exception e) { throw new IllegalStateException(e); }
         }
+        @Override public cube.aigc.usage.UsageWriter getUsageWriter() { return accounting; }
+        @Override public void close() { accounting.close(); }
 
         @Override
         public synchronized Usage updateUsage(long cid, String model, long output, long input) {
@@ -418,6 +472,7 @@ public final class ChatCompletionServiceTest {
         } finally {
             service.getCompletions().stop();
             service.queue.shutdown();
+            service.storage.close();
         }
     }
 

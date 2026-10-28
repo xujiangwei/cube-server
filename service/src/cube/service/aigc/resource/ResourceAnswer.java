@@ -163,6 +163,10 @@ public class ResourceAnswer {
      * @return 抽取到的内容；无可用资源时返回空字符串。
      */
     public String extractContent(AIGCService service, AuthToken authToken) {
+        return extractContent(service, authToken, cube.aigc.usage.UsageContext.visitor(authToken, "AIGC", ""));
+    }
+
+    public String extractContent(AIGCService service, AuthToken authToken, cube.aigc.usage.UsageContext accounting) {
         StringBuilder result = new StringBuilder();
 
         for (ComplexResource res : this.complexContext.getResources()) {
@@ -182,8 +186,8 @@ public class ResourceAnswer {
 
                     if (content.length() > 10) {
                         String prompt = Consts.formatExtractContent(content.toString(), resource.title);
-                        GeneratingRecord response = service.syncGenerateText(ModelConfig.BAIZE_UNIT, prompt,
-                                new GeneratingOption(), null, null);
+                        GeneratingRecord response = service.syncGenerateText(accounting, ModelConfig.BAIZE_UNIT, prompt,
+                                new GeneratingOption());
                         if (null != response) {
                             result.append(response.answer).append("\n");
                         }

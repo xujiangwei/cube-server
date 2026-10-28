@@ -18,6 +18,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import AIUsageSummary from '@/components/AIUsageSummary.vue'
 import StatCard from '@/components/StatCard.vue'
 import UnitCapabilityList from '@/components/UnitCapabilityList.vue'
 import UnitDeploymentPanel from '@/components/UnitDeploymentPanel.vue'
@@ -331,6 +332,7 @@ onMounted(bootstrap)
         </button>
       </template>
     </PageHeader>
+    <AIUsageSummary :domain="domain" />
 
     <div
       class="mb-6 inline-flex w-full gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-auto"

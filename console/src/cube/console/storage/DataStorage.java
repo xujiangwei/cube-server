@@ -88,6 +88,14 @@ public class DataStorage {
         this.statisticStorage.close();
     }
 
+    public String queryContactName(String domain, long contactId) {
+        try {
+            String table = SQLUtils.correctTableName(this.contactTablePrefix + domain);
+            List<StorageField[]> rows = this.authStorage.executeQuery("SELECT `name` FROM " + table + " WHERE `id`=" + contactId);
+            return rows == null || rows.isEmpty() || rows.get(0)[0].isNullValue() ? "" : rows.get(0)[0].getString();
+        } catch (RuntimeException unavailable) { return ""; }
+    }
+
     public List<String> queryAllDomains() {
         ArrayList<String> list = new ArrayList<>();
 

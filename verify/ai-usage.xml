@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="ai-usage-verification" default="test" basedir=".">
+  <property name="lib.dir" location="../cube-server-dependencies"/>
+  <path id="cp">
+    <pathelement location="build/ai-usage"/>
+    <pathelement location="../service/build/classes"/>
+    <pathelement location="../console/build/classes"/>
+    <pathelement location="../build/cube-common-3.0.jar"/>
+    <pathelement location="../build/cube-dispatcher-3.0.jar"/>
+    <fileset dir="${lib.dir}" includes="*.jar"/>
+  </path>
+  <target name="compile">
+    <fail message="Run verification with JDK 8"><condition><not><equals arg1="${java.specification.version}" arg2="1.8"/></not></condition></fail>
+    <mkdir dir="build/ai-usage"/>
+    <javac srcdir="src" includes="cube/service/test/AIUsageIntegrationTest.java" destdir="build/ai-usage" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
+  </target>
+  <target name="test" depends="compile">
+    <java classname="cube.console.test.AIUsageTest" fork="true" failonerror="true"><classpath refid="cp"/></java>
+    <java classname="cube.service.test.AIUsageIntegrationTest" fork="true" failonerror="true" dir=".."><classpath refid="cp"/></java>
+  </target>
+</project>

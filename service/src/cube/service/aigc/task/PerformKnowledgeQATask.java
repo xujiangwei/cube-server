@@ -62,6 +62,7 @@ public class PerformKnowledgeQATask extends ServiceTask {
                     ? packet.data.getString("baseName") : KnowledgeFramework.DefaultName;
 
             AIGCService service = ((AIGCCellet) this.cellet).getService();
+            cube.aigc.usage.UsageContext accounting=cube.aigc.usage.UsageContext.visitor(service.getToken(tokenCode),"Knowledge",Long.toString(packet.sn));
 
             AIGCChannel channel = service.getChannel(channelCode);
             if (null == channel) {
@@ -88,10 +89,10 @@ public class PerformKnowledgeQATask extends ServiceTask {
             // 执行知识库问答
             KnowledgeQAProgress progress = null;
             if (sync) {
-                progress = base.performKnowledgeQA(channel, query, topK);
+                progress = base.performKnowledgeQA(accounting,channel, query, topK);
             }
             else {
-                progress = base.asyncPerformKnowledgeQA(channel, query, topK,
+                progress = base.asyncPerformKnowledgeQA(accounting,channel, query, topK,
                         new KnowledgeQAListener() {
                             @Override
                             public void onCompleted(AIGCChannel channel, KnowledgeQAResult result) {

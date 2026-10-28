@@ -34,6 +34,15 @@ public final class JdbcRunStore {
      * 存储连接配置：方言、目标专用库与库身份。
      */
     private final StoreConfig config;
+    private cube.aigc.usage.UsageLedger accounting;
+    synchronized cube.aigc.usage.UsageLedger accounting() {
+        if (accounting == null) {
+            accounting = new cube.aigc.usage.UsageLedger(config::connect, "harness_ai_usage_", config.mysql());
+            accounting.initialize();
+        }
+        return accounting;
+    }
+    String accountingIdentity() { return config.identity; }
 
     /**
      * 事务边界故障钩子；仅隔离测试注入，生产使用无钩子构造器（空实现）。

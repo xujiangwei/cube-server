@@ -1612,8 +1612,12 @@ public class KnowledgeBase {
      * @return 问答进度对象。
      */
     public KnowledgeQAProgress performKnowledgeQA(AIGCChannel channel, String query, int topK) {
+        return performKnowledgeQA(cube.aigc.usage.UsageContext.system("Knowledge"),channel,query,topK);
+    }
+
+    public KnowledgeQAProgress performKnowledgeQA(cube.aigc.usage.UsageContext accounting,AIGCChannel channel,String query,int topK) {
         Object mutex = new Object();
-        KnowledgeQAProgress progress = this.asyncPerformKnowledgeQA(channel, query, topK, new KnowledgeQAListener() {
+        KnowledgeQAProgress progress = this.asyncPerformKnowledgeQA(accounting,channel, query, topK, new KnowledgeQAListener() {
             @Override
             public void onCompleted(AIGCChannel channel, KnowledgeQAResult result) {
                 synchronized (mutex) {
@@ -1655,6 +1659,10 @@ public class KnowledgeBase {
      */
     public KnowledgeQAProgress asyncPerformKnowledgeQA(AIGCChannel channel, String query, int topK,
                                                        KnowledgeQAListener listener) {
+        return asyncPerformKnowledgeQA(cube.aigc.usage.UsageContext.system("Knowledge"),channel,query,topK,listener);
+    }
+
+    public KnowledgeQAProgress asyncPerformKnowledgeQA(cube.aigc.usage.UsageContext accounting,AIGCChannel channel,String query,int topK,KnowledgeQAListener listener) {
         // 如果没有设置知识库文档，返回提示
         boolean noDocument = null == this.resource.docList || this.resource.docList.isEmpty();
         boolean noArticle = null == this.resource.articleList || this.resource.articleList.isEmpty();
@@ -1697,7 +1705,7 @@ public class KnowledgeBase {
                 progress.updateProgress(50);
 
                 progress.setCode(AIGCStateCode.Inferencing.code);
-                GeneratingRecord record = service.syncGenerateText(unit, prompt,
+                GeneratingRecord record = service.syncGenerateText(accounting,unit, prompt,
                         new GeneratingOption(), null, null);
                 KnowledgeQAResult result = new KnowledgeQAResult(query, prompt, record);
                 result.sources = knowledge.mergeSources();
@@ -1722,6 +1730,11 @@ public class KnowledgeBase {
      * @return 满足条件返回 {@code true} 。
      */
     public boolean performKnowledgeQA(String channelCode, String unitName, String query, int topK,
+                                      List<GeneratingRecord> recordList, KnowledgeQAListener listener) {
+        return performKnowledgeQA(cube.aigc.usage.UsageContext.system("Knowledge"), channelCode, unitName, query, topK, recordList, listener);
+    }
+
+    public boolean performKnowledgeQA(cube.aigc.usage.UsageContext accounting, String channelCode, String unitName, String query, int topK,
                                       List<GeneratingRecord> recordList, KnowledgeQAListener listener) {
         final String fixQuery = query.replaceAll("\n", "");
 
@@ -1779,7 +1792,7 @@ public class KnowledgeBase {
         /*
         PromptMetadata promptMetadata = null;
         // 根据文件名匹配文档，读取文件内容进行问题推理
-        promptMetadata = this.extractDocumentContent(query, 5);
+        promptMetadata = this.extractDocumentContent(accounting,query, 5);
         if (null != promptMetadata && !promptMetadata.isEmpty()) {
             Logger.d(this.getClass(), "#performKnowledgeQA - "
                     + baseInfo.name + " - Generate prompt from document - num:" +
@@ -1825,7 +1838,7 @@ public class KnowledgeBase {
                 prompt +
                 "\n----------------------------------------");
         final List<KnowledgeSource> sources = knowledge.mergeSources();
-        this.service.generateText(channel, unit, query, prompt, new GeneratingOption(), null, 0,
+        this.service.generateText(accounting, channel, unit, query, prompt, new GeneratingOption(), null, 0,
                 null, null, true, new GenerateTextListener() {
                     @Override
                     public void onGenerated(AIGCChannel channel, GeneratingRecord record) {
@@ -1850,7 +1863,7 @@ public class KnowledgeBase {
     }
 
     /* 2025-5-14 作废
-    private PromptMetadata extractDocumentContent(String query, int topN) {
+    private PromptMetadata extractDocumentContent(cube.aigc.usage.UsageContext accounting,String query, int topN) {
         List<String> wordList = new ArrayList<>();
         TFIDFAnalyzer analyzer = new TFIDFAnalyzer(this.service.getTokenizer());
         List<Keyword> keywordList = analyzer.analyze(query, 10);
@@ -1945,8 +1958,8 @@ public class KnowledgeBase {
 
                 // 将所有内容推送给模型推理
                 String prompt = Consts.formatExtractContent(content.toString(), query);
-                GeneratingRecord result = this.service.syncGenerateText(ModelConfig.BAIZE_X_UNIT, prompt,
-                        new GeneratingOption(), null, null);
+                GeneratingRecord result = this.service.syncGenerateText(accounting,ModelConfig.BAIZE_X_UNIT, prompt,
+                        new GeneratingOption());
                 if (null == result) {
                     Logger.w(this.getClass(), "#extractDocumentContent - "
                             + baseInfo.name + " - Unit error, no answer: " + this.baseInfo.name);

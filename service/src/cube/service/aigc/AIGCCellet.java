@@ -727,6 +727,11 @@ public class AIGCCellet extends AbstractCellet {
             this.execute(new SubmitEventTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
         } else if (AIGCAction.Event.name.equalsIgnoreCase(action)) {
+            String eventName = new Packet(dialect).data.optString("name", "");
+            if ("segmentBegin".equals(eventName) || "segmentUsage".equals(eventName)) {
+                this.execute(new UsageSegmentTask(this, talkContext, primitive, this.markResponseTime(action)));
+                return;
+            }
             // 来自 Unit 的请求
             this.execute(new Runnable() {
                 @Override

@@ -255,13 +255,33 @@ public class ChatCompletionService {
         generate(code, null, dialect, listener);
     }
 
+    public void generateInternal(String code, String id, JSONObject request, long timeout,
+                                 cube.aigc.usage.UsageContext accounting, CompletionProvider.Listener listener) {
+        if (listener == null || accounting == null) throw new IllegalArgumentException("Accounting context required");
+        ActionDialect dialect = new Packet(AIGCAction.ChatCompletion.name, new JSONObject()
+                .put("requestId", id).put("request", request).put("timeoutMs", timeout)).toDialect();
+        generate(code, null, dialect, listener, accounting);
+    }
+
     private boolean generate(String code, TalkContext origin, ActionDialect dialect, CompletionProvider.Listener listener) {
+        return generate(code, origin, dialect, listener, null);
+    }
+
+    private boolean generate(String code, TalkContext origin, ActionDialect dialect, CompletionProvider.Listener listener,
+                             cube.aigc.usage.UsageContext accounting) {
         cube.monitor.ServiceMetrics.Sample observation = generationMetrics.submit("AIGC", "generation", false);
         String id = "";
         boolean cancelledBeforeAdmission = false;
         try {
             id = new Packet(dialect).data.optString("requestId", "");
             AuthToken token = authenticate(code);
+            cube.aigc.usage.UsageContext identity;
+            try {
+                identity = accounting != null ? accounting : listener == null
+                        ? cube.aigc.usage.UsageContext.visitor(token, "AIGC", id) : cube.aigc.usage.UsageContext.system("AIGC");
+            } catch (IllegalArgumentException invalidContact) {
+                throw new CompletionError(403, "permission_error", "A valid Contact is required for AI usage", null);
+            }
             JSONObject data = new Packet(dialect).data;
             JSONObject request = data.getJSONObject("request");
             CompletionRequest.validate(request);
@@ -283,6 +303,7 @@ public class ChatCompletionService {
             if (!admission.tryAcquire())
                 throw new CompletionError(429, "rate_limit_error", "Generation queue is full", null);
             Pending pending = new Pending(id, token, model, unit, origin, dialect, request, timeout, listener);
+            pending.usageContext = identity;
             synchronized (this) {
                 if (stopped) {
                     admission.release();
@@ -367,6 +388,7 @@ public class ChatCompletionService {
         try {
             JSONObject event = new Packet(dialect).data;
             pending = requests.get(event.getString("requestId"));
+            if (pending == null) pending = lateAccounting.get(event.getString("requestId"));
             if (pending != null && pending.unitContext.equals(context)) pending.accept(event);
         } catch (RuntimeException e) {
             if (pending != null && pending.unitContext.equals(context)) pending.fail(new CompletionError(502,
@@ -389,6 +411,7 @@ public class ChatCompletionService {
         }
         timer.shutdownNow();
         earlyCancellations.clear();
+        lateAccounting.clear();
     }
 
     /**
@@ -433,6 +456,8 @@ public class ChatCompletionService {
         Director.copyPerformer(dialect, reply);
         return cellet.speak(origin, reply);
     }
+
+    private final java.util.concurrent.ConcurrentHashMap<String, Pending> lateAccounting = new java.util.concurrent.ConcurrentHashMap<>();
 
     private class Pending extends UnitMeta {
         final String id;
@@ -482,9 +507,13 @@ public class ChatCompletionService {
                     }
                     JSONObject data = new JSONObject().put("requestId", id).put("unit", unit.getCapability().getName())
                             .put("request", request).put("timeoutMs", remaining);
+                    meterBegin(model.getModel());
                     attempted = true;
                     sent = cellet.speak(unitContext, new Packet(AIGCAction.ChatCompletion.name, data).toDialect());
                     if (!sent) {
+                        attempted = false;
+                        actualFinished = true;
+                        meterFinish(null, "not_dispatched");
                         fail(new CompletionError(503, "service_unavailable", "Unit transport unavailable", null));
                         return;
                     }
@@ -496,7 +525,7 @@ public class ChatCompletionService {
                 Thread.currentThread().interrupt();
                 fail(new CompletionError(503, "service_unavailable", "Generation interrupted", null));
             } catch (RuntimeException e) {
-                fail(new CompletionError(502, "upstream_error", "Unit generation failed", null));
+                fail(new CompletionError(e instanceof IllegalStateException ? 503 : 502, "service_unavailable", "Generation or accounting unavailable", null));
             } finally {
                 // Every exit path, including a failed send/callback, preserves the Unit's serial queue.
                 boolean interrupted = false;
@@ -523,7 +552,7 @@ public class ChatCompletionService {
         }
 
         synchronized void accept(JSONObject event) {
-            boolean observing = terminal && listener != null && !actualFinished;
+            boolean observing = terminal && !actualFinished;
             if (terminal && !observing) return;
             if (observing && !"completed".equals(event.optString("kind"))
                     && !("error".equals(event.optString("kind")) && event.optBoolean("actualFinished"))) return;
@@ -543,7 +572,8 @@ public class ChatCompletionService {
                     actualFinished = true;
                     JSONObject usage = result.getJSONObject("usage");
                     long input = CompletionResult.tokens(usage, "prompt_tokens"), output = CompletionResult.tokens(usage, "completion_tokens");
-                    service.getStorage().updateUsage(token.getContactId(), model.getModel(), output, input);
+                    meterFinish(new JSONObject().put("usage", usage), "succeeded");
+                    if (!usageContext.delegated) service.getStorage().updateUsage(usageContext.contactId, model.getModel(), output, input);
                 } catch (CompletionError e) {
                     fail(e);
                     return;
@@ -555,6 +585,7 @@ public class ChatCompletionService {
                 generationMetrics.complete(observation, "succeeded");
             } else if (kind.equals("error")) {
                 actualFinished = actualFinished || event.optBoolean("actualFinished", false);
+                meterFinish(event.optJSONObject("payload"), "failed");
                 terminal = true;
                 JSONObject payload = event.optJSONObject("payload");
                 JSONObject error = payload == null ? null : payload.optJSONObject("error");
@@ -575,6 +606,7 @@ public class ChatCompletionService {
 
         synchronized void fail(CompletionError error) {
             if (terminal) return;
+            meterUnknown();
             terminal = true;
             generationMetrics.complete(observation, cancelledByCaller ? "cancelled" : error.status == 504 ? "timed_out" : "failed");
             if (sent && listener == null) {
@@ -596,13 +628,18 @@ public class ChatCompletionService {
 
         boolean deliver(JSONObject event) {
             if (listener == null) return send(origin, dialect, event);
-            listener.onEvent(new JSONObject(event.toString()).put("actualFinished", actualFinished || !attempted)
+            listener.onEvent(new JSONObject(event.toString()).put("actualFinished", actualFinished || !attempted).put("modelDispatched", attempted)
                     .put("unitId", unit.getQueryKey()));
             return true;
         }
 
         void release() {
             // Internal callers keep observing late completion. Logical failure is not physical completion.
+            if (listener == null && attempted && !actualFinished && !stopped && !lateAccounting.containsKey(id)) {
+                lateAccounting.put(id, this);
+                timer.schedule(() -> lateAccounting.remove(id, this), 30, TimeUnit.MINUTES);
+            }
+            if (actualFinished) lateAccounting.remove(id, this);
             if ((listener == null || actualFinished || !attempted) && requests.remove(id, this)) admission.release();
             if (timeoutTask != null) timeoutTask.cancel(false);
             service.removeQueuedChatCompletion(this);

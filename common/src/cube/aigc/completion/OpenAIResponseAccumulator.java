@@ -42,6 +42,11 @@ public final class OpenAIResponseAccumulator {
         return java.util.Arrays.asList("stop", "length", "tool_calls", "content_filter").contains(finish);
     }
 
+    /** Latest cumulative usage snapshot, including evidence received before a disconnect. */
+    public JSONObject usageEvidence() {
+        return usage != null && cube.aigc.usage.UsageTokens.read(usage) != null ? new JSONObject(usage.toString()) : null;
+    }
+
     /**
      * 追加一个分片。
      *
@@ -51,7 +56,7 @@ public final class OpenAIResponseAccumulator {
     public JSONObject add(JSONObject chunk) {
         if (chunk.has("error")) throw invalid();
         if (chunk.optJSONObject("usage") != null) {
-            if (usage != null) throw invalid();
+            if (cube.aigc.usage.UsageTokens.read(chunk.getJSONObject("usage")) == null) throw invalid();
             usage = chunk.getJSONObject("usage");
         }
         JSONArray choices = chunk.getJSONArray("choices");

@@ -298,8 +298,13 @@ public final class InferenceGateway implements AutoCloseable {
                     continue;
                 }
                 try {
-                    p.submitCompletion(property(backend, "token", ""), id, canonical, seconds * 1000L,
-                            event -> accept(id, wire.getString("model"), event));
+                    if (property(backend, "type", "unit").equals("unit")) {
+                        p.submitCompletion(property(backend, "token", ""), id, canonical, seconds * 1000L,
+                                ledger.accountingContext(id).delegate(), event -> accept(id, wire.getString("model"), event));
+                    } else {
+                        p.submitCompletion(property(backend, "token", ""), id, canonical, seconds * 1000L,
+                                event -> accept(id, wire.getString("model"), event));
+                    }
                 } catch (Exception e) {
                     // 调用可能已到达提供方；保留预约，以 unknown 收尾，不自动重发。
                     ledger.finish(id, null, "MODEL_COMPLETION_UNKNOWN", false, null);
@@ -336,7 +341,8 @@ public final class InferenceGateway implements AutoCloseable {
                 if (!code.matches("[A-Z0-9_]{1,128}")) {
                     code = "MODEL_BACKEND_ERROR";
                 }
-                ledger.finish(id, null, code, event.optBoolean("actualFinished", false), event.optString("unitId", null));
+                if (!event.optBoolean("modelDispatched",true)) code="MODEL_NOT_DISPATCHED";
+                ledger.finish(id, null, code, event.optBoolean("actualFinished", false), event.optString("unitId", null),event.optJSONObject("payload"));
             } else if (kind.equals("delta")) {
                 JSONObject chunk = new JSONObject().put("id", id).put("model", model).put("object", "chat.completion.chunk")
                         .put("choices", new JSONArray().put(new JSONObject().put("index", 0)
@@ -354,6 +360,7 @@ public final class InferenceGateway implements AutoCloseable {
     @Override
     public void close() {
         dispatcher.shutdownNow();
+        ledger.closeAccounting();
         try {
             dispatcher.awaitTermination(3, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
