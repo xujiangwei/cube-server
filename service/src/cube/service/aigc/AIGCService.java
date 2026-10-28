@@ -3491,4 +3491,20 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     public AtomicInteger increaseUnitCounter(String unitName) {
         return this.taskExecutor.beginUnitTask(unitName);
     }
+
+    @Override public JSONObject monitoringSnapshot() {
+        JSONArray workers = new JSONArray();
+        for (AIGCUnit unit : this.getAllUnits()) {
+            cell.core.talk.TalkContext context = unit.getContext();
+            boolean connected = context != null && context.isValid();
+            workers.put(new JSONObject().put("workerId", unit.getQueryKey())
+                    .put("instanceId", context == null ? "" : String.valueOf(context.getSessionId()))
+                    .put("role", "AI Unit").put("name", unit.getCapability().getName())
+                    .put("address", context == null ? JSONObject.NULL : context.getSessionHost() + ":" + context.getSessionPort())
+                    .put("ready", connected).put("busy", unit.isRunning()));
+        }
+        JSONObject result = new JSONObject().put("workers", workers);
+        if (this.getCompletions() != null) result.put("jobs", this.getCompletions().monitoringSnapshot());
+        return result;
+    }
 }

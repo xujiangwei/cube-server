@@ -235,6 +235,63 @@ export interface PerfItem {
   [key: string]: number
 }
 
+export interface RestMetricValues {
+  requests: number
+  completed: number
+  failures: number
+  transportFailures: number
+  statusCodes: Record<string, number>
+  rps: number
+  failureRate: number | null
+  normalCount: number
+  avgMs: number | null
+  p95Ms: number | null
+  streamCount: number
+  streamAvgMs: number | null
+  firstByteAvgMs: number | null
+}
+
+export interface RestMetricRow {
+  module: string
+  window: RestMetricValues
+  totalRequests: number
+  inFlight: number
+}
+
+export interface RestRouteRow extends RestMetricRow {
+  method: string
+  route: string
+}
+
+export interface DispatcherServiceConnection {
+  id: string
+  address: string
+  port: number
+  cellets: string[]
+  ready: boolean | null
+  calls: number | null
+  sendFailures: number | null
+  totalCalls: number | null
+  totalSendFailures: number | null
+}
+
+export interface DispatcherSnapshot {
+  schemaVersion: 1
+  http: {
+    startedAt: number
+    windowSeconds: number
+    windowStartedAt: number
+    windowEndedAt: number
+    window: RestMetricValues
+    total: RestMetricValues
+    inFlight: number
+    series: (RestMetricValues & { timestamp: number })[]
+    modules: RestMetricRow[]
+    routes: RestRouteRow[]
+  }
+  topology: { services: DispatcherServiceConnection[] }
+}
+
 /** 性能报告（benchmark 的详细结构由后端动态生成，此处只声明用到的部分） */
 export interface PerformanceReport {
   name: string
@@ -243,7 +300,7 @@ export interface PerformanceReport {
   systemStartTime: number
   systemDuration: number
   connNums: ConnNum[]
-  items: Record<string, PerfItem>
+  items: { Contact?: PerfItem; Dispatcher?: DispatcherSnapshot; Service?: import('./service-monitor').ServiceSnapshot; [name: string]: unknown }
   benchmark: {
     avgResponseTimeMap: Record<string, Record<string, AvgResponseValue>>
     counterMap: Record<string, number>
@@ -259,6 +316,8 @@ export interface JVMReportResponse {
 export interface PerformanceReportResponse {
   name: string
   report?: PerformanceReport
+  /** Age since console reception, independent of node clock. */
+  reportAgeMs?: number
 }
 
 /** 用户统计的时段切片 */

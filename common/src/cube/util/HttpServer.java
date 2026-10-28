@@ -48,6 +48,13 @@ public class HttpServer {
 
     private HandlerList handlerList;
 
+    private HttpChannel.Listener requestListener;
+
+    /** Install an optional connector listener before startup (including asynchronous requests). */
+    public void setRequestListener(HttpChannel.Listener listener) {
+        this.requestListener = listener;
+    }
+
     public HttpServer() {
         this.handlers = new ArrayList<>();
     }
@@ -219,6 +226,11 @@ public class HttpServer {
         ServerConnector http = new ServerConnector(this.server, new HttpConnectionFactory(httpConfig));
         http.setPort(plainPort);
         http.setIdleTimeout(30000);
+
+        if (this.requestListener != null) {
+            http.addBean(this.requestListener);
+            if (https != null) https.addBean(this.requestListener);
+        }
 
         if (null != https) {
             this.server.setConnectors(new Connector[]{ http, https });

@@ -47,6 +47,7 @@
 		<fileset dir="${dependencies.dir}">
 			<include name="cube-common-*.jar" />
 			<include name="cube-dispatcher-*.jar" />
+			<include name="cube-console-*.jar" />
 			<include name="cube-service-*.jar" />
 		</fileset>
 		<pathelement path="${build.classes}" />

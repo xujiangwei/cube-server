@@ -160,6 +160,20 @@ public final class HarnessCelletTest {
                 ActionDialect response = client.performer.syncTransmit(client.director, "Harness", malformed, 5000);
                 HarnessSessionTest.check(response != null && new Packet(response).data.getInt("status") == 500
                         && new Packet(response).sn == sn, "Internal error lost request correlation");
+                JSONObject metrics = kernel.getServiceMetrics().snapshot();
+                HarnessSessionTest.check(metrics.getJSONObject("total").getInt("rejected") >= 1,
+                        "Business queue rejection missing from monitor");
+                HarnessSessionTest.check(metrics.getJSONObject("total").getInt("failed") >= 1,
+                        "HTTP-shaped business failure missing from monitor");
+                HarnessSessionTest.check(metrics.getInt("running") == 0 && metrics.getInt("queued") == 0,
+                        "Harness business monitoring leaked concurrency");
+                JSONObject monitoredSnapshot = new cube.monitor.ServiceSnapshot(kernel).capture();
+                HarnessSessionTest.check(monitoredSnapshot.getJSONObject("execution").getJSONObject("total").getInt("requests") > 0
+                                && monitoredSnapshot.getJSONArray("pools").length() >= 3,
+                        "Runtime provider missing business metrics or dedicated pools");
+                HarnessSessionTest.check(!monitoredSnapshot.toString().contains("user-private-cellet-fixture")
+                                && !monitoredSnapshot.toString().contains("second-private-cellet-fixture"),
+                        "Monitoring snapshot leaked credentials");
                 // 停止服务后请求返回 503
                 cellet.getService().stop();
                 client.call(HarnessAction.Capabilities, new JSONObject(), null, 503);

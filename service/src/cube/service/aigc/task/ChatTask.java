@@ -97,6 +97,7 @@ public class ChatTask extends ServiceTask {
 
         AIGCService service = ((AIGCCellet) this.cellet).getService();
 
+        this.deferMonitoring(false);
         boolean success = false;
 
         // 检查频道
@@ -124,6 +125,7 @@ public class ChatTask extends ServiceTask {
 
                     @Override
                     public void onCompleted(GeneratingRecord record) {
+                        finishMonitoring("succeeded");
                         cellet.speak(talkContext,
                                 makeResponse(dialect, packet, AIGCStateCode.Ok.code, record.toJSON()));
                         markResponseTime();
@@ -131,6 +133,7 @@ public class ChatTask extends ServiceTask {
 
                     @Override
                     public void onFailed(AIGCChannel channel, AIGCStateCode stateCode) {
+                        finishMonitoring(stateCode == AIGCStateCode.Interrupted || stateCode == AIGCStateCode.Cancelled ? "cancelled" : "failed");
                         if (stateCode == AIGCStateCode.Interrupted) {
                             // 被中断
                             GeneratingRecord record = new GeneratingRecord(unit,
@@ -153,6 +156,7 @@ public class ChatTask extends ServiceTask {
                         null, categories, recordable, networking, new GenerateTextListener() {
                     @Override
                     public void onGenerated(AIGCChannel channel, GeneratingRecord record) {
+                        finishMonitoring("succeeded");
                         cellet.speak(talkContext,
                                 makeResponse(dialect, packet, AIGCStateCode.Ok.code, record.toJSON()));
                         markResponseTime();
@@ -169,6 +173,7 @@ public class ChatTask extends ServiceTask {
 
                     @Override
                     public void onFailed(AIGCChannel channel, AIGCStateCode stateCode) {
+                        finishMonitoring(stateCode == AIGCStateCode.Interrupted || stateCode == AIGCStateCode.Cancelled ? "cancelled" : "failed");
                         if (stateCode == AIGCStateCode.Interrupted) {
                             // 被中断
                             GeneratingRecord record = new GeneratingRecord(unit,
@@ -228,6 +233,7 @@ public class ChatTask extends ServiceTask {
                         new KnowledgeQAListener() {
                     @Override
                     public void onCompleted(AIGCChannel channel, KnowledgeQAResult result) {
+                        finishMonitoring("succeeded");
                         cellet.speak(talkContext,
                                 makeResponse(dialect, packet, AIGCStateCode.Ok.code, result.toCompactJSON()));
                         markResponseTime();
@@ -244,6 +250,7 @@ public class ChatTask extends ServiceTask {
 
                     @Override
                     public void onFailed(AIGCChannel channel, AIGCStateCode errorCode) {
+                        finishMonitoring(errorCode == AIGCStateCode.Interrupted || errorCode == AIGCStateCode.Cancelled ? "cancelled" : "failed");
                         cellet.speak(talkContext,
                                 makeResponse(dialect, packet, errorCode.code, new JSONObject()));
                         markResponseTime();
@@ -263,6 +270,7 @@ public class ChatTask extends ServiceTask {
         }
 
         if (!success) {
+            this.finishMonitoring("failed");
             this.cellet.speak(this.talkContext,
                     this.makeResponse(dialect, packet, AIGCStateCode.Failure.code, new JSONObject()));
             markResponseTime();

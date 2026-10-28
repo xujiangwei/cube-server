@@ -97,6 +97,8 @@ public class ServerReportHandler extends ContextHandler {
 
                         response.put("name", name);
                         response.put("report", detail ? perfReport.toDetailJSON() : perfReport.toCompactJSON());
+                        long age = console.getPerformanceReportAge(perfReport);
+                        if (age >= 0) response.put("reportAgeMs", age);
                     }
 
                     httpServletResponse.getWriter().write(response.toString());

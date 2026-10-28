@@ -42,6 +42,8 @@ public class ServiceCarpet implements CellListener {
 
     private Timer timer;
 
+    private Timer performanceTimer;
+
     private String licensePath = "license/";
 
     public ServiceCarpet() {
@@ -89,6 +91,13 @@ public class ServiceCarpet implements CellListener {
         this.timer.schedule(this.daemon, 30 * 1000, 10 * 1000);
 
         this.initManagement(nucleus);
+        this.performanceTimer = new Timer("service-performance", true);
+        this.performanceTimer.schedule(new java.util.TimerTask() {
+            @Override public void run() {
+                try { daemon.submitPerformanceReport(System.currentTimeMillis()); }
+                catch (RuntimeException e) { Logger.w(ServiceCarpet.class, "Performance report failed", e); }
+            }
+        }, 10000, 10000);
 
         buf.append("--------------------------------------------------------------------------------------\n");
         buf.append("   ______            __                  _____                         _\n");
@@ -102,6 +111,8 @@ public class ServiceCarpet implements CellListener {
 
     @Override
     public void cellPredestroy(Nucleus nucleus) {
+        if (this.performanceTimer != null) { this.performanceTimer.cancel(); this.performanceTimer = null; }
+        this.daemon.stopReporting();
         this.kernel.dispose();
     }
 

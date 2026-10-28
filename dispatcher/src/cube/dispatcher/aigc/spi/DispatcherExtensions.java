@@ -311,6 +311,7 @@ public final class DispatcherExtensions {
                     continue;
                 }
 
+                handler.setAttribute(cube.dispatcher.monitor.RestMetricsListener.MODULE_ATTRIBUTE, extension.getName());
                 httpServer.addContextHandler(handler);
                 ++count;
                 ++total;

@@ -40,7 +40,9 @@ public class Daemon extends TimerTask implements LogHandle {
 
     private long startTime;
 
-    private boolean stopped = false;
+    private volatile boolean stopped = false;
+
+    private final cube.monitor.ServiceSnapshot serviceSnapshot;
 
     /**
      * 日志报告间隔。
@@ -86,11 +88,14 @@ public class Daemon extends TimerTask implements LogHandle {
         super();
         this.startTime = System.currentTimeMillis();
         this.kernel = kernel;
+        this.serviceSnapshot = new cube.monitor.ServiceSnapshot(kernel);
         this.nucleus = nucleus;
         this.licensePath = licensePath;
         this.logRecords = new ArrayList<>();
         this.lastVerifyLicenceTime = this.startTime;
     }
+
+    public synchronized void stopReporting() { this.stopped = true; }
 
     public List<LogLine> getLogRecords(int limit) {
         synchronized (this.logRecords) {
@@ -144,7 +149,6 @@ public class Daemon extends TimerTask implements LogHandle {
 
         if (now - this.lastReportTime > this.reportInterval) {
             this.submitJVMReport(now);
-            this.submitPerformanceReport(now);
             this.submitUnitReport();
             this.lastReportTime = now;
         }
@@ -175,7 +179,8 @@ public class Daemon extends TimerTask implements LogHandle {
         ReportService.getInstance().submitReport(report);
     }
 
-    private void submitPerformanceReport(long timestamp) {
+    public synchronized void submitPerformanceReport(long timestamp) {
+        if (this.stopped) return;
         PerformanceReport report = new PerformanceReport(this.kernel.getNodeName(), timestamp);
         report.setSystemStartTime(this.startTime);
 
@@ -190,11 +195,17 @@ public class Daemon extends TimerTask implements LogHandle {
             report.reportConnection(server.getPort(), server.numTalkContexts(), server.getMaxConnections());
         }
 
+        report.appendItem("Service", this.serviceSnapshot.capture());
+
         // 填写联系人性能
-        JSONObject contactPerf = new JSONObject();
-        contactPerf.put("onlineNum", ContactManager.getInstance().numOnlineContacts());
-        contactPerf.put("maxNum", ContactManager.getInstance().getMaxContactNum());
-        report.appendItem(ContactManager.NAME, contactPerf);
+        cube.core.Module contactModule = this.kernel.getModule(ContactManager.NAME);
+        if (contactModule instanceof ContactManager && contactModule.isStarted()) {
+            ContactManager contacts = (ContactManager) contactModule;
+            JSONObject contactPerf = new JSONObject();
+            contactPerf.put("onlineNum", contacts.numOnlineContacts());
+            contactPerf.put("maxNum", contacts.getMaxContactNum());
+            report.appendItem(ContactManager.NAME, contactPerf);
+        }
 
         ReportService.getInstance().submitReport(report);
     }

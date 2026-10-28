@@ -20,6 +20,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * 服务器上的内核。
  */
 public final class Kernel {
+    private final cube.monitor.ServiceMetrics serviceMetrics = new cube.monitor.ServiceMetrics();
+
+    public cube.monitor.ServiceMetrics getServiceMetrics() { return this.serviceMetrics; }
+
+    public Map<String, AbstractModule> getModuleMapSnapshot() {
+        synchronized (this.moduleMap) { return new LinkedHashMap<>(this.moduleMap); }
+    }
 
     /**
      * 容器内核。

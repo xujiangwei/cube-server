@@ -9,7 +9,6 @@ import { computed, onMounted, ref } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import LoadBar from '@/components/LoadBar.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import ServiceMonitor from '@/components/ServiceMonitor.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -19,7 +18,8 @@ import {
   startService,
   stopService
 } from '@/api/console'
-import { calcServiceLoad, fetchLastPerformance, type LoadRate } from '@/api/monitor'
+import { queryPerformanceReport } from '@/api/console'
+import { serviceSnapshot } from '@/api/service-monitor'
 import type { CacheConfig, SeriesCacheConfig, ServiceServer } from '@/api/types'
 import { usePolling } from '@/composables/usePolling'
 import { useServersStore } from '@/stores/servers'
@@ -55,7 +55,7 @@ const STORAGE_LABELS: Record<string, string> = {
 /* 列表                                                                */
 /* ------------------------------------------------------------------ */
 
-const perfMap = ref<Record<string, { load: LoadRate; startTime: number }>>({})
+const perfMap = ref<Record<string, { running: number | null; queued: number | null; startTime: number; fresh: boolean }>>({})
 const loading = ref(false)
 
 const rows = computed(() =>
@@ -68,13 +68,15 @@ async function loadPerformance(): Promise<void> {
   const results = await Promise.all(
     targets.map(async (server) => {
       try {
-        const report = await fetchLastPerformance(server.name)
+        const result = await queryPerformanceReport(server.name, 0, true)
+        const report = result.report
         if (!report) {
           return null
         }
         return [
           server.name,
-          { load: calcServiceLoad(report), startTime: report.systemStartTime }
+          { running: serviceSnapshot(report)?.execution.running ?? null, queued: serviceSnapshot(report)?.execution.queued ?? null,
+            startTime: report.systemStartTime, fresh: result.reportAgeMs != null && result.reportAgeMs < 30000 }
         ] as const
       } catch {
         return null
@@ -82,7 +84,7 @@ async function loadPerformance(): Promise<void> {
     })
   )
 
-  const next: Record<string, { load: LoadRate; startTime: number }> = {}
+  const next: Record<string, { running: number | null; queued: number | null; startTime: number; fresh: boolean }> = {}
   for (const item of results) {
     if (item) {
       next[item[0]] = item[1]
@@ -279,7 +281,7 @@ onMounted(async () => {
   await load()
 })
 
-usePolling(loadPerformance, 60000, { immediate: false })
+usePolling(loadPerformance, 10000, { immediate: false })
 </script>
 
 <template>
@@ -310,9 +312,9 @@ usePolling(loadPerformance, 60000, { immediate: false })
       <div class="overflow-x-auto">
         <!--
           `table-fixed` + 明确列宽，理由同调度机页；本页「操作」有 3 个按钮（最小需 236px），
-          因此把「标签」收窄到 152px，7 列显式宽度合计 876px，余量留给自动列「部署路径」。
+          因此把「标签」收窄到 152px，7 列显式宽度合计 902px，余量留给自动列「部署路径」。
         -->
-        <table class="data-table table-fixed min-w-[60rem]">
+        <table class="data-table table-fixed min-w-[70rem]">
           <thead>
             <tr>
               <th class="w-[40px]">#</th>
@@ -320,7 +322,7 @@ usePolling(loadPerformance, 60000, { immediate: false })
               <th class="w-[78px]">版本号</th>
               <th>部署路径</th>
               <th class="w-[100px]">状态</th>
-              <th class="w-[142px]">负载</th>
+              <th class="w-[160px]">业务执行</th>
               <th class="w-[132px]">启动时间</th>
               <th class="w-[240px] text-right">操作</th>
             </tr>
@@ -345,7 +347,8 @@ usePolling(loadPerformance, 60000, { immediate: false })
               </td>
               <td><StatusPill :running="row.server.running" /></td>
               <td>
-                <LoadBar v-if="row.perf" :percent="row.perf.load.percent" />
+                <span v-if="row.server.running && row.perf?.fresh && row.perf.running != null" class="tabular text-xs text-slate-600">运行 {{ row.perf.running }} · 排队 {{ row.perf.queued }}</span>
+                <span v-else-if="row.server.running && row.perf" class="text-xs text-slate-400">{{ row.perf.running == null ? '未提供执行数据' : '数据已过期' }}</span>
                 <span v-else class="text-xs text-slate-400">
                   {{ row.server.running ? '采集中的…' : '--' }}
                 </span>

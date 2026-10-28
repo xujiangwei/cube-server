@@ -120,7 +120,8 @@ public abstract class AbstractCellet extends Cellet {
      * @param task 待执行任务。
      */
     protected void execute(Runnable task) {
-        AbstractCellet.sExecutor.execute(task);
+        if (task instanceof cube.common.Task) ((cube.common.Task) task).executeObserved(this.getExecutor());
+        else this.getExecutor().execute(task);
     }
 
     /**
@@ -150,6 +151,14 @@ public abstract class AbstractCellet extends Cellet {
     @Override
     public void onListened(TalkContext talkContext, Primitive primitive) {
         this.listenedCounter.incrementAndGet();
+        if (getNucleus() != null) {
+            Kernel kernel = (Kernel) getNucleus().getParameter("kernel");
+            if (kernel != null) {
+                kernel.getServiceMetrics().message();
+                try { kernel.getServiceMetrics().observePeer(talkContext, new cell.core.talk.dialect.ActionDialect(primitive)); }
+                catch (RuntimeException ignored) { /* Worker envelopes and raw streams are not dispatcher actions. */ }
+            }
+        }
     }
 
     /**

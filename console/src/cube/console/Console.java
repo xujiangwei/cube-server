@@ -48,6 +48,14 @@ public final class Console implements Runnable {
      */
     private ConcurrentHashMap<String, List<PerformanceReport>> serverPerfMap;
 
+    // Weak keys follow the lifetime of the retained reports; use a monotonic reception clock.
+    private final Map<PerformanceReport, Long> performanceReceivedAt = Collections.synchronizedMap(new WeakHashMap<>());
+
+    public long getPerformanceReportAge(PerformanceReport report) {
+        Long received = this.performanceReceivedAt.get(report);
+        return received == null ? -1 : Math.max(0, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - received));
+    }
+
     /**
      * AI 单元能力快照：每个节点只保留最近一份。
      */
@@ -414,6 +422,7 @@ public final class Console implements Runnable {
     }
 
     public void appendPerformanceReport(PerformanceReport report) {
+        this.performanceReceivedAt.put(report, System.nanoTime());
         Logger.d(this.getClass(), "Received report from " + report.getReporter() + " (" + report.getName() + ")");
 
         // 归一节点名：自报名与控制台期望名不一致时，数据仍落到控制台期望的键上

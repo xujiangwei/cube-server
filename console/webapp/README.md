@@ -46,6 +46,8 @@ mock 返回的 JSON 结构对齐后端 `toJSON()`，但**不校验凭据、数�
 
 ## 与后端的接口约定
 
+Dispatcher REST 监控的指标口径、报告 schema、兼容行为与验证步骤见 [监控说明](../../docs/dispatcher-rest-monitor.md)。
+
 前端依赖以下后端行为（见 `console/src/cube/console/container/handler/`）：
 
 1. **鉴权**：登录成功后后端下发 `CubeConsoleToken` Cookie，前端后续请求自动携带；
@@ -120,3 +122,5 @@ src/
    `SpaFallbackHandler` 因此把前缀分成 `RESERVED_PREFIXES`（裸路径 + 子路径都排除）
    与 `SUB_PATH_ONLY_PREFIXES`（仅子路径排除）两组。
    **新增接口前缀时必须同步维护这两组名单**，否则页面会 404 或接口被回退成 HTML。
+
+服务执行监控：默认 10 秒刷新，消费 `items.Service` v1 快照；采集与兼容口径见 `../../docs/service-execution-monitor.md`。本地浏览器回归：`node mock/check_service_monitor.cjs`（先构建并启动 mock 服务，需要 Playwright/Chrome；可用 `PLAYWRIGHT_MODULE` 指定依赖路径）。

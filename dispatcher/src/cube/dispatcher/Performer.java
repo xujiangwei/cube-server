@@ -23,6 +23,8 @@ import cube.common.entity.Device;
 import cube.common.state.AuthStateCode;
 import cube.dispatcher.aigc.AIGCCellet;
 import cube.dispatcher.aigc.CapabilityRouter;
+import cube.dispatcher.monitor.RestMetrics;
+import cube.dispatcher.monitor.RestMetricsListener;
 import cube.dispatcher.stream.StreamServer;
 import cube.dispatcher.util.Tickable;
 import cube.util.FileUtils;
@@ -31,6 +33,7 @@ import cube.util.HttpConfig;
 import cube.util.HttpServer;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.json.JSONArray;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -74,6 +77,7 @@ public class Performer implements TalkListener, Tickable {
      * HTTP 服务。
      */
     private HttpServer httpServer;
+    private final RestMetrics restMetrics = new RestMetrics();
     private cube.dispatcher.harness.HarnessGateway harnessGateway;
 
     /**
@@ -200,6 +204,26 @@ public class Performer implements TalkListener, Tickable {
         return this.httpServer;
     }
 
+    /** Runtime connections, including configured peers which are currently disconnected. */
+    public JSONObject getDispatcherSnapshot() {
+        JSONArray services = new JSONArray();
+        for (Director director : new ArrayList<>(this.directorList)) {
+            String id = endpointId(director);
+            Speakable speaker = director.speaker;
+            services.put(this.restMetrics.downstream(id).put("id", id)
+                    .put("address", director.endpoint.getHost()).put("port", director.endpoint.getPort())
+                    .put("cellets", new JSONArray(director.scope.cellets))
+                    .put("ready", speaker != null && speaker.isReady()));
+        }
+        return new JSONObject().put("schemaVersion", 1).put("http", this.restMetrics.snapshot())
+                .put("topology", new JSONObject().put("services", services));
+    }
+
+    private static String endpointId(Director director) {
+        String host = director.endpoint.getHost();
+        return (host.contains(":") ? "[" + host + "]" : host) + ":" + director.endpoint.getPort();
+    }
+
     /**
      * 配置 HTTP 服务器。
      *
@@ -208,6 +232,7 @@ public class Performer implements TalkListener, Tickable {
     public void configHttpServer(HttpConfig config) {
         if (null == this.httpServer) {
             this.httpServer = new HttpServer();
+            this.httpServer.setRequestListener(new RestMetricsListener(this.restMetrics, this.httpServer::getContextHandlers));
         }
 
         if (config.httpsPort > 0) {
@@ -875,7 +900,10 @@ public class Performer implements TalkListener, Tickable {
      * @return 如果数据成功交给连接发送返回 <code>true</code> ，否则返回 <code>false</code> 。
      */
     public boolean tryTransmit(Director director, String celletName, ActionDialect actionDialect) {
-        if (!isReady(director, celletName) || actionDialect == null) return false;
+        if (!isReady(director, celletName) || actionDialect == null) {
+            if (director != null && actionDialect != null) this.restMetrics.sent(endpointId(director), false);
+            return false;
+        }
         final Speakable source = director.speaker;
         long sn = actionDialect.containsParam("sn") ? actionDialect.getParamAsLong("sn") : Utils.generateSerialNumber();
         actionDialect.addParam(this.performerKey, createPerformer(sn));
@@ -891,6 +919,7 @@ public class Performer implements TalkListener, Tickable {
             Logger.w(this.getClass(), "#tryTransmit - " + celletName, e);
             return false;
         } finally {
+            this.restMetrics.sent(endpointId(director), sent);
             if (!sent && tracked) this.capabilityRouter.failed(actionDialect);
         }
     }
@@ -1145,6 +1174,7 @@ public class Performer implements TalkListener, Tickable {
      */
     public ActionDialect syncTransmit(Director director, String celletName, ActionDialect actionDialect, long timeout) {
         if (!isReady(director, celletName) || null == actionDialect) {
+            if (director != null && actionDialect != null) this.restMetrics.sent(endpointId(director), false);
             return null;
         }
         final Speakable source = director.speaker;
@@ -1157,11 +1187,19 @@ public class Performer implements TalkListener, Tickable {
         final Block block = new Block(sn);
         block.source = source;
         this.blockMap.put(block.sn, block);
-        boolean tracked = false, received = false;
+        boolean tracked = false, received = false, sent = false, sendRecorded = false;
         try {
             if (AIGCCellet.NAME.equals(celletName)) this.capabilityRouter.sent(director, source, actionDialect);
             tracked = AIGCCellet.NAME.equals(celletName);
-            if (Thread.currentThread().isInterrupted() || !source.speak(celletName, actionDialect)) {
+            if (Thread.currentThread().isInterrupted()) return null;
+            try {
+                sent = source.speak(celletName, actionDialect);
+            } finally {
+                // A synchronous reply may take minutes; attribute the call to its send window.
+                this.restMetrics.sent(endpointId(director), sent);
+                sendRecorded = true;
+            }
+            if (!sent) {
                 return null;
             }
             long beginning = System.nanoTime();
@@ -1191,6 +1229,7 @@ public class Performer implements TalkListener, Tickable {
             Logger.w(this.getClass(), "#syncTransmit - " + celletName, e);
             return null;
         } finally {
+            if (!sendRecorded) this.restMetrics.sent(endpointId(director), false);
             this.blockMap.remove(sn, block);
             this.capabilityRouter.finished(sn);
             if (tracked && !received) this.capabilityRouter.failed(actionDialect);
@@ -1208,6 +1247,7 @@ public class Performer implements TalkListener, Tickable {
         try {
             json.put("sn", sn);
             json.put("ts", System.currentTimeMillis());
+            json.put("node", this.getNodeName());
         } catch (JSONException e) {
             e.printStackTrace();
         }

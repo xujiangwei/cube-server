@@ -16,6 +16,44 @@ import cube.core.Kernel;
  * Cellet 通信任务描述。
  */
 public abstract class Task implements Runnable {
+    private volatile cube.monitor.ServiceMetrics.Sample monitoring;
+    private volatile boolean monitoringDeferred;
+    private volatile String monitoringOutcome = "unknown";
+
+    public String monitoringModule() { return this.cellet.getName(); }
+    public String monitoringAction() {
+        try { return new ActionDialect(this.primitive).getName(); }
+        catch (RuntimeException e) { return this.getClass().getSimpleName(); }
+    }
+    /** Preserve asynchronous work until its actual terminal callback. */
+    public void deferMonitoring(boolean streaming) {
+        this.monitoringDeferred = true;
+        if (streaming && this.kernel != null) this.kernel.getServiceMetrics().streaming(this.monitoring);
+    }
+    public void monitoringStreaming() { if (this.kernel != null) this.kernel.getServiceMetrics().streaming(this.monitoring); }
+    public void monitoringFirst() { if (this.kernel != null) this.kernel.getServiceMetrics().first(this.monitoring); }
+    public void monitoringResult(String result) { this.monitoringOutcome = result; }
+    public void finishMonitoring(String result) {
+        if (this.kernel != null) this.kernel.getServiceMetrics().complete(this.monitoring, result);
+    }
+    /** Called by the shared Cellet submission path, before the executor can start the task. */
+    public void executeObserved(java.util.concurrent.ExecutorService executor) {
+        if (this.kernel == null) { executor.execute(this); return; }
+        cube.monitor.ServiceMetrics metrics = this.kernel.getServiceMetrics();
+        String action = monitoringAction();
+        this.monitoring = metrics.submit(monitoringModule(), action, cube.monitor.ServiceMetrics.control(action));
+        try {
+            if (executor == null) throw new java.util.concurrent.RejectedExecutionException("Executor unavailable");
+            executor.execute(() -> {
+                metrics.start(this.monitoring);
+                try { this.run(); }
+                catch (RuntimeException | Error failure) { this.finishMonitoring("failed"); throw failure; }
+                finally { if (!this.monitoringDeferred) this.finishMonitoring(this.monitoringOutcome); }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException failure) {
+            this.finishMonitoring("rejected"); throw failure;
+        }
+    }
 
     /**
      * 框架的内核实例。

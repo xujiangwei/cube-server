@@ -408,6 +408,7 @@ public final class RunStoreTest {
         expect("INJECTED_CRASH", () -> broken.create(T, S, key(), "profile-v1", object("rollback")));
         check(count("harness_run") == runCount && count("harness_event") == eventCount
                 && count("harness_outbox") == outboxCount && count("harness_request") == requestCount, "Partial transaction survived");
+        check(broken.monitoringSnapshot().getJSONObject("total").getInt("requests") == 0, "Rolled back create was monitored");
         // afterCommit 故障：提交已生效，同键重试只返回原回执，不重复落事件。
         String key = key();
         JdbcRunStore lost = new JdbcRunStore(config, stage -> {
@@ -416,7 +417,10 @@ public final class RunStoreTest {
             }
         });
         expect("LOST_REPLY", () -> lost.create(T, S, key, "profile-v1", object("lost")));
+        check(lost.monitoringSnapshot().getJSONObject("total").getInt("requests") == 1, "Committed create missing from monitoring after lost reply");
+        long monitored = a.monitoringSnapshot().getJSONObject("total").getLong("requests");
         JSONObject retried = a.create(T, S, key, "profile-v1", object("lost"));
+        check(a.monitoringSnapshot().getJSONObject("total").getLong("requests") == monitored, "Idempotent replay counted as new run");
         check(a.events(T, S, retried.getString("runId"), 0, 10).length() == 1, "Lost reply duplicated commit");
         pass("rollback leaves no run/event/outbox/receipt, lost commit reply is idempotent");
     }
@@ -636,8 +640,11 @@ public final class RunStoreTest {
         });
         expect("FINAL_CRASH", () -> broken.finish(lease, v, "succeeded", "confirmed", object("final"), new JSONArray().put(actual)));
         check(count("harness_result") == finals && count("harness_usage_adjustment") == adjustments && version(run) == v, "Final rollback incomplete");
+        check(broken.monitoringSnapshot().getJSONObject("total").getInt("completed") == 0, "Rolled back finish was monitored");
+        long completedBefore = a.monitoringSnapshot().getJSONObject("total").getLong("succeeded");
         // 正式提交后同参重放等价；异参 final 冲突。
         JSONObject committed = a.finish(lease, v, "succeeded", "confirmed", object("final"), new JSONArray().put(actual));
+        check(a.monitoringSnapshot().getJSONObject("total").getLong("succeeded") == completedBefore + 1, "Committed finish missing in monitoring");
         check(JdbcRunStore.canonical(committed).equals(JdbcRunStore.canonical(b.finish(lease, v, "succeeded", "confirmed", object("final"), new JSONArray().put(actual)))), "Final receipt changed");
         check(count("harness_result") == finals + 1 && count("harness_usage_adjustment") == adjustments + 1, "Duplicate final or usage row");
         expect("FINAL_CONFLICT", () -> a.finish(lease, v, "succeeded", "confirmed", object("different"), new JSONArray().put(actual)));

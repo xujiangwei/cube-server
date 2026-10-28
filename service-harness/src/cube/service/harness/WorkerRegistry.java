@@ -222,7 +222,7 @@ public final class WorkerRegistry {
         JSONArray result = new JSONArray();
         for (Worker w : workers.values()) {
             result.put(new JSONObject().put("workerId", w.id).put("instanceId", w.instance)
-                    .put("role", w.role).put("registered", true).put("ready", !w.draining && w.capabilities.length() > 0).put("capabilities", w.capabilities));
+                    .put("role", w.role).put("transportId", w.transport).put("draining", w.draining).put("leaseRemainingMs", Math.max(0, w.deadline - now())).put("registered", true).put("ready", !w.draining && w.capabilities.length() > 0).put("capabilities", w.capabilities));
         }
         return result;
     }

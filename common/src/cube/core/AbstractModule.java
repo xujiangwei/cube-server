@@ -12,6 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 模块抽象层。
  */
 public abstract class AbstractModule implements Module {
+    /** Optional operational snapshot; providers must omit credentials and business payloads. */
+    public org.json.JSONObject monitoringSnapshot() { return null; }
 
     /**
      * 内核实例。

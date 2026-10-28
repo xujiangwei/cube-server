@@ -45,6 +45,14 @@ import java.util.concurrent.TimeUnit;
  * 业务路径在此监听器一律 404。执行未启用时只提供 scripted 通信探针能力。
  */
 public final class HarnessService extends AbstractModule {
+    private final java.util.Map<Long, String> monitoringEndpoints = new java.util.concurrent.ConcurrentHashMap<>();
+    public void observeTransport(cell.core.talk.TalkContext context) {
+        if (monitoringEndpoints.size() >= 512 && !monitoringEndpoints.containsKey(context.getSessionId())) {
+            java.util.Iterator<Long> keys = monitoringEndpoints.keySet().iterator();
+            if (keys.hasNext()) monitoringEndpoints.remove(keys.next());
+        }
+        monitoringEndpoints.put(context.getSessionId(), context.getSessionHost() + ":" + context.getSessionPort());
+    }
 
     /**
      * Cellet 路由目标与模块名，与 Python 侧 HarnessService.NAME 保持一致。
@@ -306,6 +314,7 @@ public final class HarnessService extends AbstractModule {
             }
         }
         business = null;
+        monitoringEndpoints.clear();
         if (execution != null) {
             execution.close();
             execution = null;
@@ -341,6 +350,7 @@ public final class HarnessService extends AbstractModule {
      * @param transport 断开的 Cell transport 会话标识
      */
     public void disconnect(long transport) {
+        monitoringEndpoints.remove(transport);
         HarnessBusiness current = business;
         if (current != null && current.transfers != null) {
             current.transfers.disconnect(transport);
@@ -555,6 +565,40 @@ public final class HarnessService extends AbstractModule {
      * （registeredWorkers/infrastructureReady/runsReady=false/execution=scripted）；
      * 执行启用时追加 runnerTypes、accepting、runsReady、capacity 与 files 指标
      */
+    @Override public JSONObject monitoringSnapshot() {
+        JSONObject caps = capabilities();
+        JSONArray workers = new JSONArray(), all = caps.getJSONArray("registeredWorkers");
+        // Never forward descriptors, credentials or arbitrary worker payloads into reports.
+        String[] safe = {"workerId", "instanceId", "role", "runnerType", "registered", "ready", "healthy", "draining", "leaseRemainingMs", "capacity", "occupied", "available"};
+        for (int i = 0; i < all.length(); ++i) {
+            JSONObject source = all.getJSONObject(i), worker = new JSONObject();
+            for (String key : safe) if (source.has(key)) worker.put(key, source.get(key));
+            worker.put("address", monitoringEndpoints.get(source.optLong("transportId", -1L)));
+            JSONObject descriptor = source.optJSONObject("descriptor");
+            if (descriptor != null) {
+                worker.put("model", descriptor.optString("model", "")).put("backendId", descriptor.optString("backendId", ""));
+                JSONObject capacity = caps.optJSONObject("capacity");
+                JSONArray occupations = capacity == null ? null : capacity.optJSONArray("workers");
+                long occupied = 0;
+                if (occupations != null) for (int j = 0; j < occupations.length(); ++j) {
+                    JSONObject entry = occupations.getJSONObject(j);
+                    if (source.getString("workerId").equals(entry.getString("worker_id"))) occupied = entry.getLong("occupied");
+                }
+                worker.put("occupied", occupied);
+            }
+            workers.put(worker);
+        }
+        JSONObject result = new JSONObject().put("workers", workers)
+                .put("infrastructureReady", caps.getBoolean("infrastructureReady")).put("runsReady", caps.getBoolean("runsReady"))
+                .put("accepting", caps.opt("accepting") == null ? JSONObject.NULL : caps.get("accepting"))
+                .put("capacity", caps.optJSONObject("capacity") == null ? JSONObject.NULL : caps.getJSONObject("capacity"))
+                .put("pools", new JSONArray().put(cube.monitor.ServiceSnapshot.pool("Harness worker", executor))
+                        .put(cube.monitor.ServiceSnapshot.pool("Harness business", businessExecutor))
+                        .put(cube.monitor.ServiceSnapshot.pool("Harness admin", httpExecutor)));
+        if (execution != null) result.put("jobs", execution.monitoringSnapshot());
+        return result;
+    }
+
     JSONObject capabilities() {
         if (execution != null) {
             JSONArray all = execution.workers.snapshot();

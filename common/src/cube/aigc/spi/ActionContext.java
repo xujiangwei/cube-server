@@ -107,6 +107,9 @@ public interface ActionContext {
      */
     boolean isResponded();
 
+    /** Signal the actual end of a deferred/streaming response, after the terminal fragment. */
+    default void completeResponse(AIGCStateCode code) { }
+
     /**
      * Opt into one deferred response, preserving the normal duplicate-response guard.
      */

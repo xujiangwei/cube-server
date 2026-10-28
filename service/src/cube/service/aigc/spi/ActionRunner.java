@@ -64,6 +64,7 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
     @Override
     public void deferResponse() {
         this.deferred = true;
+        this.deferMonitoring(this.binding.streaming);
     }
 
     private AuthToken authToken;
@@ -90,6 +91,12 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
         this.request = new Packet(this.dialect);
     }
 
+    @Override public void completeResponse(AIGCStateCode code) {
+        this.finishMonitoring(code == AIGCStateCode.Ok ? "succeeded" : code == AIGCStateCode.Cancelled ? "cancelled" : "failed");
+    }
+
+    @Override public String monitoringModule() { return this.module.getName(); }
+
     /**
      * 执行插件动作。
      *
@@ -97,6 +104,7 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
      */
     @Override
     public void run() {
+        if (this.binding.streaming) this.monitoringStreaming();
         AIGCStateCode stateCode;
 
         try {
@@ -131,6 +139,7 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
                 this.respondEmpty(stateCode);
             }
         } catch (Exception e) {
+            this.finishMonitoring("failed");
             Logger.e(ActionRunner.class, "#run - Action \"" + this.binding.action
                     + "\" of module \"" + this.module.getName() + "\" failed", e);
 
@@ -139,7 +148,7 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
             }
         } finally {
             // 与既有任务类的语义一致，但用 finally 收口，避免处理器异常导致计时记录缺少结束标记
-            if (!this.deferred) this.markResponseTime();
+            if (!this.deferred) { this.markResponseTime(); if (this.binding.streaming) this.monitoringResult("unknown"); }
         }
     }
 
@@ -241,6 +250,7 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
                     this.makeResponse(this.dialect, this.request, code.code, data));
         } finally {
             if (this.deferred) this.markResponseTime();
+            if (this.deferred && !this.binding.streaming) this.finishMonitoring(code.code == 0 ? "succeeded" : code == AIGCStateCode.Cancelled ? "cancelled" : "failed");
         }
     }
 
@@ -305,5 +315,6 @@ public final class ActionRunner extends ServiceTask implements ActionContext {
      */
     public void cancel() {
         this.cancelled = true;
+        this.finishMonitoring("cancelled");
     }
 }

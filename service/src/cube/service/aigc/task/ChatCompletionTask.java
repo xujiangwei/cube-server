@@ -31,7 +31,7 @@ public class ChatCompletionTask extends ServiceTask {
         String token = getTokenCode(dialect);
         try {
             if (AIGCAction.ChatCompletion.name.equals(packet.name)) {
-                completions.generate(token, talkContext, dialect);
+                monitoringResult(completions.generateAccepted(token, talkContext, dialect) ? "accepted" : "failed");
             }
             else if (AIGCAction.CancelChatCompletion.name.equals(packet.name)) {
                 completions.cancel(token, packet.data.optString("requestId"), talkContext);

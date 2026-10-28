@@ -81,19 +81,6 @@ export function calcDispatcherLoad(perf: PerformanceReport): LoadRate {
   }
 }
 
-/** 计算服务单元负载：Contact 单元的在线数占比 */
-export function calcServiceLoad(perf: PerformanceReport): LoadRate {
-  const contact = perf.items?.Contact
-  if (!contact) {
-    return { realtime: 0, max: 0, percent: 0 }
-  }
-  return {
-    realtime: contact.onlineNum,
-    max: contact.maxNum,
-    percent: Math.floor((contact.onlineNum / contact.maxNum) * 100)
-  }
-}
-
 /** 拉平平均应答时间为排行列表，按耗时从大到小排序 */
 export function arrangeAvgResponseTime(perf: PerformanceReport): AvgResponseRankItem[] {
   const map = perf.benchmark?.avgResponseTimeMap ?? {}

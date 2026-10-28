@@ -5,7 +5,7 @@
  */
 
 import { use } from 'echarts/core'
-import { BarChart, LineChart } from 'echarts/charts'
+import { BarChart, LineChart, GraphChart } from 'echarts/charts'
 import {
   GridComponent,
   LegendComponent,
@@ -17,6 +17,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 use([
   BarChart,
   LineChart,
+  GraphChart,
   GridComponent,
   TooltipComponent,
   LegendComponent,

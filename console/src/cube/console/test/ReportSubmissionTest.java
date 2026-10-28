@@ -79,6 +79,27 @@ public class ReportSubmissionTest {
             idle(sender);
             check(console.queryJVMReport(sent.getReporter(), 1, now).get(0).totalMemory > 0, "real sender reaches full console handler chain");
 
+            // A nested dispatcher snapshot survives the sender, HTTP receiver and both query serializers.
+            PerformanceReport dispatcher = new PerformanceReport("rest#dispatcher#7000", now - 86_400_000L);
+            dispatcher.appendItem("Dispatcher", new JSONObject().put("schemaVersion", 1)
+                    .put("http", new JSONObject().put("total", new JSONObject().put("requests", 7)))
+                    .put("topology", new JSONObject().put("services", new org.json.JSONArray()
+                            .put(new JSONObject().put("id", "127.0.0.1:6000").put("ready", false)))));
+            sender.submitReport(dispatcher); idle(sender);
+            for (String detail : new String[] {"false", "true"}) {
+                String restQuery = "GET /server-report?report=PerfReport&time=0&name=rest%23dispatcher%237000&detail=" + detail
+                        + " HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+                String restResponse = local.getResponse(restQuery);
+                JSONObject payload = new JSONObject(restResponse.substring(restResponse.indexOf("\r\n\r\n") + 4));
+                JSONObject snapshot = payload.getJSONObject("report").getJSONObject("items").getJSONObject("Dispatcher");
+                check(snapshot.getJSONObject("http").getJSONObject("total").getInt("requests") == 7,
+                        "nested REST snapshot returned, detail=" + detail);
+                check(!snapshot.getJSONObject("topology").getJSONArray("services").getJSONObject(0).getBoolean("ready"),
+                        "disconnected topology preserved, detail=" + detail);
+                check(payload.getLong("reportAgeMs") >= 0 && payload.getLong("reportAgeMs") < 30_000,
+                        "freshness uses reception despite yesterday's node timestamp");
+            }
+
             JSONObject malformed = new JSONObject().put("name", PerformanceReport.NAME)
                     .put("reporter", reporter).put("timestamp", now);
             check(post(local, "/report", malformed).startsWith("HTTP/1.1 400"), "malformed performance must not acknowledge success");

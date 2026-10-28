@@ -96,6 +96,7 @@ public final class ExecutionRuntime implements AutoCloseable {
      * run 权威账本（私有）：findCreate/read/events/subject/admissionLimit。
      */
     private final JdbcRunStore store;
+    public JSONObject monitoringSnapshot() { return store.monitoringSnapshot(); }
 
     /**
      * 单租户活跃 run 准入上限（execution.max.active，取值 1..256）。

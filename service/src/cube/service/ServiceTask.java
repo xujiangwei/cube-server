@@ -66,6 +66,9 @@ public abstract class ServiceTask extends Task {
     }
 
     protected JSONObject makePacketPayload(int stateCode, JSONObject data) {
+        this.monitoringFirst();
+        this.monitoringResult("AIGC".equals(this.cellet.getName()) && (stateCode == 7 || stateCode == 8) ? "accepted" : stateCode == 0 ? "succeeded" : "AIGC".equals(this.cellet.getName()) && (stateCode == 2 || stateCode == 12)
+                ? "cancelled" : "AIGC".equals(this.cellet.getName()) && stateCode == 26 ? "rejected" : "failed");
         JSONObject payload = new JSONObject();
         payload.put("code", stateCode);
         payload.put("data", data);

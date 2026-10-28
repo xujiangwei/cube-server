@@ -54,6 +54,7 @@ public final class ChatCompletionServiceTest {
             testEvents(service, cellet);
             testCancellation(service, cellet);
             testMalformedAndTimeout(service, cellet);
+            testMonitoringRejections();
             testTwelveUnits();
             testInternalBridge();
             service.getCompletions().stop();
@@ -153,6 +154,9 @@ public final class ChatCompletionServiceTest {
             until(()->service.getCompletions().activeRequests()==0&&service.completionCapacity("token","model-a",true).getInt("available")==1,"late completion did not release internal reservation");
             check(events.size()==2&&events.get(1).getBoolean("actualFinished"),"late completion not delivered to internal caller");
             check(service.storage.calls.get()==1,"late internal usage counted more than once");
+            JSONObject measured=service.getCompletions().monitoringSnapshot();
+            check(measured.getJSONObject("total").getInt("timedOut")==1 && measured.getJSONObject("total").getInt("completed")==1,"logical timeout monitored exactly once despite late events");
+            check(measured.getInt("running")==0 && measured.getInt("queued")==0,"logical monitoring released independently from physical reservations");
             check(cellet.events("internal").isEmpty(),"internal provider depends on dispatcher session");
             List<JSONObject> stopping=new CopyOnWriteArrayList<>();
             service.submitCompletion("token","internal-stop",request("model-a"),100,stopping::add);
@@ -246,6 +250,21 @@ public final class ChatCompletionServiceTest {
         check(service.storage.calls.get() == 1, "failed requests are not billed");
         generate(service, "stopping", 3000);
         until(() -> cellet.find("stopping", AIGCAction.ChatCompletion.name) != null, "stop task started");
+    }
+
+    static void testMonitoringRejections() throws Exception {
+        FakeCellet cellet = new FakeCellet(); FakeService service = new FakeService(cellet);
+        try {
+            service.getCompletions().cancel("token", "early", service.origin);
+            generate(service, "early", 3000);
+            JSONObject metrics = service.getCompletions().monitoringSnapshot();
+            check(metrics.getJSONObject("total").getInt("cancelled") == 1 && metrics.getJSONObject("total").getInt("timedOut") == 0,
+                    "cancel before admission is cancellation, not timeout");
+            service.getCompletions().generate("token", service.origin, new Packet(AIGCAction.ChatCompletion.name, new JSONObject()).toDialect());
+            metrics = service.getCompletions().monitoringSnapshot();
+            check(metrics.getInt("queued") == 0 && metrics.getInt("running") == 0 && metrics.getJSONObject("total").getInt("failed") == 1,
+                    "malformed generation has no leaked observation");
+        } finally { service.getCompletions().stop(); service.queue.shutdown(); }
     }
 
     static AICapability capability(boolean compatible) {

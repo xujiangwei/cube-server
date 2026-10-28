@@ -25,6 +25,10 @@ import java.util.*;
  * 单调 event_seq 分页；终态 run 的最终结果不因迟到证据改写。
  */
 public final class JdbcRunStore {
+    private final cube.monitor.LifecycleMetrics monitoring = new cube.monitor.LifecycleMetrics();
+    private final ThreadLocal<java.util.List<JSONObject>> monitoringEvents = new ThreadLocal<>();
+    public JSONObject monitoringSnapshot() { return monitoring.snapshot(); }
+
 
     /**
      * 存储连接配置：方言、目标专用库与库身份。
@@ -191,6 +195,9 @@ public final class JdbcRunStore {
      */
     <T> T tx(Work<T> work) {
         for (int attempt = 0; ; attempt++) {
+            java.util.List<JSONObject> priorEvents = monitoringEvents.get();
+            java.util.List<JSONObject> observed = new java.util.ArrayList<>();
+            monitoringEvents.set(observed);
             boolean committed = false, commitAttempted = false;
             try (Connection c = config.connectTransaction()) {
                 StoreConfig.begin(c, config.mysql());
@@ -200,6 +207,11 @@ public final class JdbcRunStore {
                     commitAttempted = true;
                     StoreConfig.end(c, config.mysql(), true);
                     committed = true;
+                    // Observe only committed states. Monitoring must never change transaction outcomes.
+                    for (JSONObject event : observed) {
+                        try { monitoring.observe(event.getString("runId"), event.getString("state"), event.getLong("version")); }
+                        catch (RuntimeException ignored) { }
+                    }
                     faults.at("afterCommit");
                     return result;
                 } catch (Exception e) {
@@ -230,6 +242,8 @@ public final class JdbcRunStore {
                 }
                 throw new StoreException(
                         commitAttempted ? "STORE_COMMIT_OUTCOME_UNKNOWN" : "STORE_UNAVAILABLE", e);
+            } finally {
+                if (priorEvents == null) monitoringEvents.remove(); else monitoringEvents.set(priorEvents);
             }
         }
     }
@@ -592,6 +606,7 @@ public final class JdbcRunStore {
                 id(topic),
                 json(event),
                 time);
+        if (type.startsWith("run.") && monitoringEvents.get() != null) monitoringEvents.get().add(snapshot(r));
         return snapshot(r);
     }
 

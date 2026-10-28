@@ -36,6 +36,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Structured generation has no channel, hidden history, SKILL or tool executor.
  */
 public class ChatCompletionService {
+    private final cube.monitor.ServiceMetrics generationMetrics = new cube.monitor.ServiceMetrics();
+    public JSONObject monitoringSnapshot() { return generationMetrics.snapshot(); }
+
 
     private final AIGCService service;
 
@@ -229,6 +232,10 @@ public class ChatCompletionService {
         generate(code, origin, dialect, null);
     }
 
+    public boolean generateAccepted(String code, TalkContext origin, ActionDialect dialect) {
+        return generate(code, origin, dialect, null);
+    }
+
     /**
      * 内部生成入口。
      *
@@ -248,9 +255,12 @@ public class ChatCompletionService {
         generate(code, null, dialect, listener);
     }
 
-    private void generate(String code, TalkContext origin, ActionDialect dialect, CompletionProvider.Listener listener) {
-        String id = new Packet(dialect).data.optString("requestId", "");
+    private boolean generate(String code, TalkContext origin, ActionDialect dialect, CompletionProvider.Listener listener) {
+        cube.monitor.ServiceMetrics.Sample observation = generationMetrics.submit("AIGC", "generation", false);
+        String id = "";
+        boolean cancelledBeforeAdmission = false;
         try {
+            id = new Packet(dialect).data.optString("requestId", "");
             AuthToken token = authenticate(code);
             JSONObject data = new Packet(dialect).data;
             JSONObject request = data.getJSONObject("request");
@@ -281,12 +291,15 @@ public class ChatCompletionService {
                 Cancelled cancelled = earlyCancellations.remove(id);
                 if (cancelled != null && cancelled.matches(code, origin)) {
                     admission.release();
+                    cancelledBeforeAdmission = true;
                     throw new CompletionError(504, "request_timeout", "Generation cancelled before admission", null);
                 }
                 if (requests.putIfAbsent(id, pending) != null) {
                     admission.release();
                     throw CompletionError.invalid("Duplicate request ID", null);
                 }
+                pending.observation = observation;
+                if (request.optBoolean("stream", false)) generationMetrics.streaming(pending.observation);
                 pending.timeoutTask = timer.schedule(() -> pending.fail(new CompletionError(504,
                         "request_timeout", "Generation timed out", null)), timeout, TimeUnit.MILLISECONDS);
             }
@@ -294,12 +307,17 @@ public class ChatCompletionService {
                 pending.enqueue();
             } catch (RuntimeException e) {
                 pending.fail(new CompletionError(503, "service_unavailable", "Generation queue is unavailable", null));
+                return false;
             }
+            return true;
         } catch (CompletionError error) {
+            generationMetrics.complete(observation, cancelledBeforeAdmission ? "cancelled" : error.status == 429 || error.status == 503 ? "rejected" : "failed");
             reject(origin, dialect, id, error, listener);
         } catch (RuntimeException error) {
+            generationMetrics.complete(observation, "failed");
             reject(origin, dialect, id, CompletionError.invalid("Invalid structured request", null), listener);
         }
+        return false;
     }
 
     /**
@@ -332,7 +350,7 @@ public class ChatCompletionService {
         }
         // Bind control operations to both the token and original dispatcher connection.
         if (pending != null && pending.token.getCode().equals(code) && java.util.Objects.equals(pending.origin, origin)) {
-            pending.fail(new CompletionError(504, "request_timeout", "Generation cancelled", null));
+            synchronized (pending) { pending.cancelledByCaller = true; pending.fail(new CompletionError(504, "request_timeout", "Generation cancelled", null)); }
         }
     }
 
@@ -432,6 +450,8 @@ public class ChatCompletionService {
         volatile boolean actualFinished;
         final CompletionProvider.Listener listener;
         ScheduledFuture<?> timeoutTask;
+        cube.monitor.ServiceMetrics.Sample observation;
+        boolean cancelledByCaller;
 
         Pending(String id, AuthToken token, ModelConfig model, AIGCUnit unit, TalkContext origin,
                 ActionDialect dialect, JSONObject request, long timeout, CompletionProvider.Listener listener) {
@@ -454,6 +474,7 @@ public class ChatCompletionService {
             try {
                 synchronized (this) {
                     if (terminal) return;
+                    generationMetrics.start(observation);
                     long remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
                     if (remaining <= 0) {
                         fail(new CompletionError(504, "request_timeout", "Generation timed out in queue", null));
@@ -514,6 +535,7 @@ public class ChatCompletionService {
                 return;
             }
             String kind = event.getString("kind");
+            if (kind.equals("delta") || kind.equals("completed")) generationMetrics.first(observation);
             if (kind.equals("completed")) {
                 try {
                     JSONObject result = event.getJSONObject("payload").getJSONObject("result");
@@ -530,9 +552,14 @@ public class ChatCompletionService {
                     return;
                 }
                 terminal = true;
+                generationMetrics.complete(observation, "succeeded");
             } else if (kind.equals("error")) {
                 actualFinished = actualFinished || event.optBoolean("actualFinished", false);
                 terminal = true;
+                JSONObject payload = event.optJSONObject("payload");
+                JSONObject error = payload == null ? null : payload.optJSONObject("error");
+                generationMetrics.complete(observation, error != null && ("cancelled".equals(error.optString("code")) || "request_cancelled".equals(error.optString("code")))
+                        ? "cancelled" : error != null && error.optInt("status") == 504 ? "timed_out" : "failed");
             } else if (!kind.equals("started") && !kind.equals("delta")) {
                 fail(new CompletionError(502, "upstream_error", "Unknown generation event", null));
                 return;
@@ -549,6 +576,7 @@ public class ChatCompletionService {
         synchronized void fail(CompletionError error) {
             if (terminal) return;
             terminal = true;
+            generationMetrics.complete(observation, cancelledByCaller ? "cancelled" : error.status == 504 ? "timed_out" : "failed");
             if (sent && listener == null) {
                 try {
                     cellet.speak(unitContext, new Packet(AIGCAction.CancelChatCompletion.name,

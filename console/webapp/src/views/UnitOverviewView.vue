@@ -332,21 +332,33 @@ onMounted(bootstrap)
       </template>
     </PageHeader>
 
-    <div class="seg mb-5" role="tablist" aria-label="AI单元展示方式">
+    <div
+      class="mb-6 inline-flex w-full gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-auto"
+      role="tablist"
+      aria-label="AI单元展示方式"
+    >
       <button
-        id="unit-ledger-tab" type="button" role="tab" class="seg-item"
-        :class="activeTab === 'ledger' ? 'seg-item-active' : ''"
+        id="unit-ledger-tab" type="button" role="tab"
+        class="inline-flex min-h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 text-[15px] font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 sm:min-w-40 sm:px-6"
+        :class="activeTab === 'ledger'
+          ? 'bg-brand-600 text-white shadow-sm hover:bg-brand-700'
+          : 'text-slate-600 hover:bg-brand-50 hover:text-brand-700'"
         :aria-selected="activeTab === 'ledger'" aria-controls="unit-ledger"
         @click="activeTab = 'ledger'"
       >
+        <AppIcon name="server" :size="18" />
         节点台账
       </button>
       <button
-        id="unit-deployments-tab" type="button" role="tab" class="seg-item"
-        :class="activeTab === 'deployments' ? 'seg-item-active' : ''"
+        id="unit-deployments-tab" type="button" role="tab"
+        class="inline-flex min-h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 text-[15px] font-semibold whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 sm:min-w-40 sm:px-6"
+        :class="activeTab === 'deployments'
+          ? 'bg-brand-600 text-white shadow-sm hover:bg-brand-700'
+          : 'text-slate-600 hover:bg-brand-50 hover:text-brand-700'"
         :aria-selected="activeTab === 'deployments'" aria-controls="unit-deployments"
         @click="activeTab = 'deployments'"
       >
+        <AppIcon name="layers" :size="18" />
         按单元名称
       </button>
     </div>

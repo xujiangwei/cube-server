@@ -318,9 +318,10 @@ def jvm_reports(count=30):
     return out
 
 
-def performance_report():
-    return {
-        "name": "PerfReport", "timestamp": NOW - 5000, "reporter": DISPATCHERS[0]["name"],
+def performance_report(reporter=None):
+    reporter = reporter or DISPATCHERS[0]["name"]
+    result = {
+        "name": "PerfReport", "timestamp": int(time.time() * 1000) - 1500, "reporter": reporter,
         "systemStartTime": NOW - 86400000 * 5, "systemDuration": 86400000 * 5,
         "connNums": [
             {"port": 6800, "realtime": 128, "max": 512},
@@ -350,6 +351,106 @@ def performance_report():
             "counterMap": {"Contact": 92330, "FileStorage": 47210, "Messaging": 184320},
         },
     }
+    if any(server["name"] == reporter for server in DISPATCHERS):
+        result["items"]["Dispatcher"] = dispatcher_rest_snapshot()
+    else:
+        result["items"]["Service"] = service_execution_snapshot()
+    return result
+
+
+def service_execution_snapshot():
+    end = int(time.time() // 10) * 10000
+    def values(n=120, avg=24, seconds=60):
+        return dict(requests=n, completed=n, succeeded=max(0, n-8), failed=min(n, 2), timedOut=min(n, 1),
+                    cancelled=min(n, 1), rejected=min(n, 2), accepted=min(n, 2), unknown=min(n, 2), knownCompleted=max(0,n-4),
+                    rps=n/seconds, failureRate=2.6 if n else None, avgMs=avg if n else None, p95Ms=avg*2 if n else None,
+                    queueAvgMs=3 if n else None, executionAvgMs=avg-3 if n else None,
+                    streamCount=min(n, 10), streamAvgMs=12480.5 if n else None, firstByteAvgMs=185.2 if n else None,
+                    queuedPeak=3, runningPeak=8)
+    def row(module='', action=None, n=120, avg=24, control=False):
+        out = dict(module=module, window=values(n,avg), total=values(n*100,avg), queued=2, running=4)
+        if action: out.update(action=action, control=control)
+        return out
+    def execution(module=''):
+        out = row(module)
+        out.update(startedAt=end-86400000, windowSeconds=60, windowStartedAt=end-60000, windowEndedAt=end,
+                   receivedMessages=90000, modules=[row('AIGC',n=80,avg=120), row('Harness',n=40)],
+                   actions=[row('AIGC','chat',80,120),row('Harness','CreateRun',40),row('Harness','ReadRun',20),row('Harness','worker-message',500,1,True)],
+                   series=[dict(values(10+i%10, 20+i%13, 10),timestamp=end-(180-i)*10000) for i in range(180)],
+                   control=row(n=500,avg=1))
+        return out
+    workers=[]
+    for i, role in enumerate(['model','model','runner','runner']):
+        workers.append(dict(id='Harness:worker-'+str(i)+':instance-'+str(i),module='Harness',workerId='worker-'+str(i),
+                            instanceId='instance-'+str(i),role=role,runnerType='tool' if role=='runner' else None,
+                            connected=i!=3,ready=i<2,healthy=i!=3,draining=i==2,leaseRemainingMs=24000,
+                            capacity=8,occupied=2,available=6 if i<2 else None,lastSeenAgeMs=0 if i<3 else 40000))
+    jvm=dict(timestamp=end,heapUsed=2100000000,heapCommitted=3200000000,heapMax=4200000000,threads=58,
+             daemonThreads=20,peakThreads=70,gcCount=220,gcMillis=8000,gcDeltaCount=2,gcDeltaMillis=23)
+    harness=execution('Harness');harness.update(states=dict(queued=2,running=1,waiting_approval=3),recovered=1,untracked=0)
+    return dict(schemaVersion=1,execution=execution(),modules=[dict(module='AIGC',started=True,details=dict(jobs=execution('AIGC'))),
+             dict(module='Harness',started=True,details=dict(jobs=harness,accepting=True,runsReady=True,infrastructureReady=True,
+                  capacity=dict(registeredUnits=2,available=3,executableConcurrency=4,backends=[dict(backend_id='shared-model',capacity=4,occupied=1,readyUnits=2,available=3,executableConcurrency=4)])))],
+             pools=[dict(name='Cellet shared',running=True,active=4,threads=16,maxThreads=32,queued=2,completed=34200),
+                    dict(name='Harness business',running=True,active=2,threads=4,maxThreads=4,queued=1,completed=12300)],
+             jvm=jvm,runtimeSeries=[dict(jvm,timestamp=end-(179-i)*10000,heapUsed=1800000000+i*1000000) for i in range(180)],
+             topology=dict(dispatchers=[dict(id='dispatcher-a',name='cube#dispatcher#6800',address='10.0.0.2:52000',ready=True,totalCalls=5000,lastSeenAgeMs=1000),
+                                       dict(id='dispatcher-b',name='cube#dispatcher#6801',address='10.0.0.3:53000',ready=False,totalCalls=500,lastSeenAgeMs=20000)],workers=workers))
+
+
+def dispatcher_rest_snapshot():
+    """Schema v1 fixtures: normal / SSE / failed traffic and same-module service peers."""
+    end = int(time.time() // 10) * 10000
+
+    def values(requests, failures=0, avg=42.5, streams=0, seconds=60):
+        return {"requests": requests, "completed": requests, "failures": failures,
+                "transportFailures": min(1, failures),
+                "statusCodes": {"1xx": 0, "2xx": requests - failures, "3xx": 0,
+                                "4xx": max(0, failures - 1), "5xx": min(1, failures)},
+                "rps": round(requests / seconds, 3),
+                "failureRate": round(failures / requests * 100, 3) if requests else None,
+                "normalCount": requests - streams, "avgMs": avg if requests > streams else None,
+                "p95Ms": round(avg * 2.4, 1) if requests > streams else None,
+                "streamCount": streams, "streamAvgMs": 12480.5 if streams else None,
+                "firstByteAvgMs": 185.2 if streams else None}
+
+    routes = [
+        {"module": "AIGC", "method": "POST", "route": "/v1/chat/completions", "window": values(420, 6, 85.4, 160), "totalRequests": 105200, "inFlight": 8},
+        {"module": "Harness", "method": "POST", "route": "/harness/v1/runs", "window": values(90, 1, 62.1), "totalRequests": 29700, "inFlight": 1},
+        {"module": "Harness", "method": "GET", "route": "/harness/v1/runs/{id}/events", "window": values(60, 0, 0, 60), "totalRequests": 24100, "inFlight": 4},
+        {"module": "Contact", "method": "GET", "route": "/contact/get", "window": values(180, 2, 9.3), "totalRequests": 87000, "inFlight": 0},
+        {"module": "Auth", "method": "POST", "route": "/auth/token", "window": values(210, 3, 12.8), "totalRequests": 114000, "inFlight": 1},
+    ]
+    modules = []
+    for module in ("AIGC", "Harness", "Contact", "Auth"):
+        rows = [row for row in routes if row["module"] == module]
+        normal = sum(row["window"]["normalCount"] for row in rows)
+        avg = sum((row["window"]["avgMs"] or 0) * row["window"]["normalCount"] for row in rows) / max(1, normal)
+        modules.append({"module": module,
+                        "window": values(sum(row["window"]["requests"] for row in rows),
+                                         sum(row["window"]["failures"] for row in rows), round(avg, 1),
+                                         sum(row["window"]["streamCount"] for row in rows)),
+                        "totalRequests": sum(row["totalRequests"] for row in rows),
+                        "inFlight": sum(row["inFlight"] for row in rows)})
+    series = []
+    for i in range(180):
+        item = values(int(155 + 45 * math.sin(i / 8)), i % 4, round(36 + 16 * math.sin(i / 12), 1), 30, 10)
+        item["timestamp"] = end - (180 - i) * 10000
+        series.append(item)
+    services = []
+    for address, modules_on_peer, ready, calls, failed in (
+            ("10.0.0.7", ["Auth", "Contact"], True, 395, 0),
+            ("10.0.0.8", ["AIGC", "Harness"], True, 650, 1),
+            ("10.0.0.9", ["AIGC"], False, 42, 8)):
+        services.append({"id": address + ":7001", "address": address, "port": 7001,
+                         "cellets": modules_on_peer, "ready": ready, "calls": calls, "sendFailures": failed,
+                         "totalCalls": calls * 100, "totalSendFailures": failed * 10})
+    return {"schemaVersion": 1,
+            "http": {"startedAt": BOOT_MS, "windowStartedAt": end - 60000, "windowEndedAt": end,
+                     "windowSeconds": 60, "window": values(960, 12, 42.5, 220),
+                     "total": values(360000, 680, 39.5, 65000, 86400 * 6), "inFlight": 14,
+                     "series": series, "modules": modules, "routes": routes},
+            "topology": {"services": services}}
 
 
 BOOT_MS = NOW - 86400000 * 6
@@ -664,7 +765,8 @@ class Handler(BaseHTTPRequestHandler):
             report = q.get("report", "JVMReport")
             if report == "JVMReport":
                 return self.send_json({"name": "JVMReport", "list": jvm_reports()})
-            return self.send_json({"name": "PerfReport", "report": performance_report()})
+            return self.send_json({"name": "PerfReport", "reportAgeMs": 1500,
+                                   "report": performance_report(q.get("name"))})
 
         # 静态资源 / SPA 回退
         if self.serve_static(path):

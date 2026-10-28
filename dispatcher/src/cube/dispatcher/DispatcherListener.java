@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * 网关容器的监听器。
@@ -30,6 +31,7 @@ import java.util.Timer;
 public class DispatcherListener implements CellListener {
 
     private Timer timer;
+    private Timer performanceTimer;
 
     private Daemon daemon;
 
@@ -79,6 +81,19 @@ public class DispatcherListener implements CellListener {
         this.timer = new Timer();
         this.timer.schedule(this.daemon, 30 * 1000, 10 * 1000);
 
+        // Downstream latency probes in the general daemon can block on disconnected services.
+        // Keep performance snapshots independent so HTTP monitoring remains fresh during outages.
+        this.performanceTimer = new Timer("Cube-Dispatcher-Performance", true);
+        this.performanceTimer.schedule(new TimerTask() {
+            @Override public void run() {
+                try {
+                    daemon.submitPerformanceReport(System.currentTimeMillis());
+                } catch (RuntimeException e) {
+                    Logger.w(DispatcherListener.class, "Performance report failed", e);
+                }
+            }
+        }, 10_000L, 10_000L);
+
         // 配置管理信息
         this.initManagement(performer, nucleus);
     }
@@ -105,6 +120,10 @@ public class DispatcherListener implements CellListener {
      */
     @Override
     public void cellDestroyed(Nucleus nucleus) {
+        if (null != this.performanceTimer) {
+            this.performanceTimer.cancel();
+            this.performanceTimer = null;
+        }
         if (null != this.timer) {
             this.timer.cancel();
             this.timer = null;
