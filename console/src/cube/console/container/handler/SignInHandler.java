@@ -23,7 +23,7 @@ import java.io.IOException;
 
 /**
  * 用户签入。
- *
+ * <p>
  * 支持两种调用方式：
  * <ul>
  *     <li>XHR（请求头 {@code X-Requested-With: XMLHttpRequest} 或 {@code Accept: application/json}）：
@@ -35,7 +35,9 @@ public class SignInHandler extends ContextHandler {
 
     private final static String COOKIE_NAME_TOKEN = "CubeConsoleToken";
 
-    /** 登录页，携带错误码 {@code e} 回跳 */
+    /**
+     * 登录页，携带错误码 {@code e} 回跳
+     */
     private final static String LOGIN_PAGE = "/login";
 
     private UserManager userManager;
@@ -97,12 +99,10 @@ public class SignInHandler extends ContextHandler {
                             if (null != token) {
                                 if (json) {
                                     respondToken(response, token);
-                                }
-                                else {
+                                } else {
                                     redirect(response, "/");
                                 }
-                            }
-                            else {
+                            } else {
                                 respondFailure(response, json,
                                         HttpStatus.UNAUTHORIZED_401, "登录状态已失效");
                             }
@@ -131,8 +131,7 @@ public class SignInHandler extends ContextHandler {
 
             if (json) {
                 respondToken(response, token);
-            }
-            else {
+            } else {
                 redirect(response, "/");
             }
 
@@ -159,8 +158,7 @@ public class SignInHandler extends ContextHandler {
                 response.setStatus(status);
                 response.setContentType("application/json; charset=UTF-8");
                 response.getWriter().write(data.toString());
-            }
-            else {
+            } else {
                 // 兼容旧的表单提交：回到登录页并携带错误码
                 redirect(response, LOGIN_PAGE + "?e=" + (HttpStatus.UNAUTHORIZED_401 == status ? 10 : 9));
             }

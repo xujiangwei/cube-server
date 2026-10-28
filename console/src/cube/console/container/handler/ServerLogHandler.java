@@ -66,8 +66,7 @@ public class ServerLogHandler extends ContextHandler {
                     response.put("lines", result);
                     if (list.isEmpty()) {
                         response.put("last", start);
-                    }
-                    else {
+                    } else {
                         response.put("last", list.get(list.size() - 1).time);
                     }
                 } catch (JSONException e) {
@@ -75,8 +74,7 @@ public class ServerLogHandler extends ContextHandler {
                 }
 
                 httpServletResponse.getWriter().write(response.toString());
-            }
-            else if (target.equals("/server")) {
+            } else if (target.equals("/server")) {
                 String query = URLDecoder.decode(httpServletRequest.getQueryString(), "UTF-8");
                 Map<String, String> params = Utils.parseQueryStringParams(query);
 
@@ -97,8 +95,7 @@ public class ServerLogHandler extends ContextHandler {
                         response.put("lines", result);
                         if (list.isEmpty()) {
                             response.put("last", start);
-                        }
-                        else {
+                        } else {
                             response.put("last", list.get(list.size() - 1).time);
                         }
                     } catch (JSONException e) {

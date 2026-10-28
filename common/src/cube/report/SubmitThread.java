@@ -13,18 +13,9 @@ import org.eclipse.jetty.client.util.StringContentProvider;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.io.EofException;
 
-import java.net.ConnectException;
-import java.net.NoRouteToHostException;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.nio.channels.UnresolvedAddressException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -142,11 +133,9 @@ public class SubmitThread extends Thread {
                 }
                 ownsRunning = true;
             }
-        }
-        catch (Throwable t) {
+        } catch (Throwable t) {
             Logger.w(this.getClass(), "Submit thread aborted", t);
-        }
-        finally {
+        } finally {
             // 必须复位，否则上报链路会永久静默
             // 释放后可能已有新线程接管，不能清除接管线程的运行标志。
             if (ownsRunning) {
@@ -156,8 +145,7 @@ public class SubmitThread extends Thread {
             if (null != client) {
                 try {
                     client.stop();
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     // 停止失败不影响线程复位，仅记录
                     Logger.d(SubmitThread.class, "#run - Failed to stop the client: " + e.getMessage());
                 }
@@ -235,8 +223,7 @@ public class SubmitThread extends Thread {
         for (Report item : retryLater) {
             if (this.queue.size() < this.maxQueueLength) {
                 this.queue.offer(item);
-            }
-            else {
+            } else {
                 this.retries.remove(item);
             }
         }
@@ -252,8 +239,7 @@ public class SubmitThread extends Thread {
                         + report.getReporter() + ") dropped - console unreachable - attempts "
                         + attempts);
             }
-        }
-        else {
+        } else {
             Logger.w(this.getClass(), "Drop report: \"" + report.getName() + "\" ("
                     + report.getReporter() + ") after " + attempts + " attempts");
         }
@@ -261,6 +247,7 @@ public class SubmitThread extends Thread {
 
     /**
      * 向所有目标主机提交一份报告，任一主机返回 200 即视为成功。
+     *
      * @param report report。
      * @param client client。
      * @return {@link #SUBMITTED}、{@link #REJECTED} 或 {@link #UNREACHABLE}。
@@ -269,8 +256,7 @@ public class SubmitThread extends Thread {
         String json = null;
         try {
             json = report.toJSON().toString();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Logger.w(this.getClass(), "Serialize report \"" + report.getName() + "\" failed", e);
             return SUBMITTED;
         }
@@ -301,24 +287,21 @@ public class SubmitThread extends Thread {
                 Logger.w(this.getClass(), "Report: \"" + report.getName() + "\" ("
                         + report.getReporter() + ") submit failed - " + url + " - "
                         + response.getStatus() + " - " + duration);
-            }
-            catch (InterruptedException e) {
+            } catch (InterruptedException e) {
                 // 恢复中断状态
                 Thread.currentThread().interrupt();
                 if (Logger.isDebugLevel()) {
                     Logger.d(this.getClass(), "Report: \"" + report.getName() + "\" ("
                             + report.getReporter() + ") submit interrupted - " + url);
                 }
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 if (isConnectionFailure(e)) {
                     if (Logger.isDebugLevel()) {
                         Logger.d(this.getClass(), "Report: \"" + report.getName() + "\" ("
                                 + report.getReporter() + ") skipped - console unreachable - "
                                 + url + " - " + describe(e));
                     }
-                }
-                else {
+                } else {
                     unreachable = false;
                     Logger.w(this.getClass(), "Submitting report \"" + report.getName() + "\" ("
                             + report.getReporter() + ") failed - " + url, e);

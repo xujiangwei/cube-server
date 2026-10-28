@@ -12,7 +12,6 @@ import cube.console.container.Handlers;
 import cube.util.CrossDomainHandler;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.handler.ContextHandler;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.servlet.ServletException;
@@ -22,7 +21,6 @@ import java.io.IOException;
 import java.net.URLDecoder;
 import java.util.Calendar;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -39,7 +37,9 @@ import java.util.Map;
  */
 public class StatisticDataHandler extends ContextHandler {
 
-    /** 区间查询允许的最大天数：一年 + 一天，避免一次拉取过长时间跨度。 */
+    /**
+     * 区间查询允许的最大天数：一年 + 一天，避免一次拉取过长时间跨度。
+     */
     private static final int MAX_RANGE_DAYS = 366;
 
     private Console console;
@@ -68,8 +68,7 @@ public class StatisticDataHandler extends ContextHandler {
                     return;
                 }
                 respondOk(response, console.queryUnitDeployments(domain.trim()));
-            }
-            else if (target.equals("/units")) {
+            } else if (target.equals("/units")) {
                 // AI 单元概览（ID 十进制位数大于等于 6 且小于 8 位的联系人）
                 String query = request.getQueryString();
                 Map<String, String> params = (null == query) ? new HashMap<String, String>()
@@ -108,8 +107,7 @@ public class StatisticDataHandler extends ContextHandler {
                 data.put("unitReportTime", console.getUnitReportTimestamp());
 
                 respondOk(response, data);
-            }
-            else if (target.equals("/recent")) {
+            } else if (target.equals("/recent")) {
                 String query = URLDecoder.decode(request.getQueryString(), "UTF-8");
                 Map<String, String> params = Utils.parseQueryStringParams(query);
 
@@ -142,8 +140,7 @@ public class StatisticDataHandler extends ContextHandler {
                 data.put("date", calendar.get(Calendar.DATE));
 
                 respondOk(response, data);
-            }
-            else if (target.equals("/range")) {
+            } else if (target.equals("/range")) {
                 String query = request.getQueryString();
                 Map<String, String> params = (null == query) ? new HashMap<String, String>()
                         : Utils.parseQueryStringParams(URLDecoder.decode(query, "UTF-8"));
@@ -167,14 +164,12 @@ public class StatisticDataHandler extends ContextHandler {
                             days = MAX_RANGE_DAYS;
                         }
                         from.add(Calendar.DAY_OF_MONTH, -(days - 1));
-                    }
-                    else if (params.containsKey("from") && params.containsKey("to")) {
+                    } else if (params.containsKey("from") && params.containsKey("to")) {
                         if (!setDate(from, params.get("from")) || !setDate(to, params.get("to"))) {
                             respond(response, HttpStatus.BAD_REQUEST_400);
                             return;
                         }
-                    }
-                    else {
+                    } else {
                         // 缺省最近 30 天（含今日）
                         from.add(Calendar.DAY_OF_MONTH, -29);
                     }
@@ -197,8 +192,7 @@ public class StatisticDataHandler extends ContextHandler {
 
                 data.put("tag", console.getTag());
                 respondOk(response, data);
-            }
-            else if (target.equals("/daily")) {
+            } else if (target.equals("/daily")) {
                 String query = URLDecoder.decode(request.getQueryString(), "UTF-8");
                 Map<String, String> params = Utils.parseQueryStringParams(query);
 
@@ -245,7 +239,7 @@ public class StatisticDataHandler extends ContextHandler {
          * 解析 <code>yyyy-MM-dd</code> 格式的日期到日历对象，时分秒清零。
          *
          * @param calendar 目标日历。
-         * @param value 日期字符串。
+         * @param value    日期字符串。
          * @return 解析成功返回 {@code true} 。
          */
         private boolean setDate(Calendar calendar, String value) {

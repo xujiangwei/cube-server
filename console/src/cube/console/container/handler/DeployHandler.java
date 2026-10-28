@@ -10,7 +10,6 @@ import cube.console.Console;
 import cube.console.container.Handlers;
 import cube.console.mgmt.DispatcherManager;
 import cube.console.mgmt.ServiceManager;
-import cube.console.mgmt.ServiceServer;
 import cube.util.CrossDomainHandler;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.handler.ContextHandler;
@@ -33,7 +32,6 @@ public class DeployHandler extends ContextHandler {
         this.setHandler(new Handler());
         this.console = console;
     }
-
 
     /**
      * 处理句柄。
@@ -70,8 +68,7 @@ public class DeployHandler extends ContextHandler {
                 }
 
                 respondOk(response, data);
-            }
-            else if (target.equals("/service")) {
+            } else if (target.equals("/service")) {
                 ServiceManager manager = console.getServiceManager();
                 String tag = console.getTag();
 
@@ -100,7 +97,6 @@ public class DeployHandler extends ContextHandler {
             }
 
             String deployPath = request.getParameter("deployPath");
-
 
             complete();
         }

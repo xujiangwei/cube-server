@@ -7,7 +7,6 @@
 package cube.console.container;
 
 import cube.console.Console;
-import cube.console.container.handler.ReportHandler;
 import cube.console.container.handler.*;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
@@ -40,15 +39,14 @@ public final class Handlers {
     public static HandlerList createHandlerList(Server server, Console console) {
         ResourceHandler resourceHandler = new ResourceHandler();
         resourceHandler.setDirectoriesListed(false);
-        resourceHandler.setWelcomeFiles(new String[] { "index.html" });
+        resourceHandler.setWelcomeFiles(new String[]{"index.html"});
 
         // 判断目录
         File path = new File("web");
         String resourceBase = "web";
         if (path.exists() && path.isDirectory()) {
             resourceBase = "web";
-        }
-        else {
+        } else {
             resourceBase = "WebContent";
         }
         resourceHandler.setResourceBase(resourceBase);
@@ -57,7 +55,7 @@ public final class Handlers {
         indexHandler.setHandler(resourceHandler);
 
         HandlerList handlers = new HandlerList();
-        handlers.setHandlers(new Handler[] {
+        handlers.setHandlers(new Handler[]{
                 // 单页应用路由回退（仅处理磁盘上不存在的 GET 路径）
                 new SpaFallbackHandler(resourceBase),
 

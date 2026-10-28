@@ -19,16 +19,18 @@ import java.nio.file.Files;
 
 /**
  * 单页应用路由回退。
- *
+ * <p>
  * 控制台前端采用前端路由（history 模式），形如 {@code /dispatcher} 的地址在磁盘上
  * 并不存在对应文件。该句柄把这些「非静态、非接口」的 GET 请求统一回退到
  * {@code index.html}，交给前端路由解析。
- *
+ * <p>
  * 注意：只有磁盘上确实不存在的路径才会被回退，因此不会抢占真实的静态资源。
  */
 public class SpaFallbackHandler extends AbstractHandler {
 
-    /** 该前缀及其子路径均属于接口，不参与回退 */
+    /**
+     * 该前缀及其子路径均属于接口，不参与回退
+     */
     private final static String[] RESERVED_PREFIXES = {
             "/signin",
             "/signout",
@@ -45,7 +47,7 @@ public class SpaFallbackHandler extends AbstractHandler {
 
     /**
      * 仅子路径属于接口的前缀。
-     *
+     * <p>
      * 调度机与服务单元的接口分别挂在 {@code /dispatcher/xxx} 与 {@code /service/xxx}，
      * 而前端路由恰好占用了 {@code /dispatcher} 与 {@code /service} 两个裸路径，
      * 因此这里只把子路径当作接口，裸路径仍需回退给前端路由。
@@ -112,8 +114,7 @@ public class SpaFallbackHandler extends AbstractHandler {
             try {
                 this.indexContent = Files.readAllBytes(this.indexFile.toPath());
                 this.indexLastModified = modified;
-            }
-            catch (IOException e) {
+            } catch (IOException e) {
                 return null;
             }
         }

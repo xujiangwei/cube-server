@@ -28,7 +28,7 @@ import java.io.IOException;
  * </ul>
  *
  * <p>说明：与工程内其他只读查询接口（{@code /servers}、{@code /statistic}、{@code /log}）保持一致，
- * 本句柄不做 Cookie 校验。如需收紧权限，可在 {@link #doGet} 起始处补
+ * 本句柄不做 Cookie 校验。如需收紧权限，可在 {@link Handler#doGet} 起始处补
  * {@link cube.console.container.Handlers#checkCookie} 判断。</p>
  */
 public class HostInfoHandler extends ContextHandler {
@@ -56,11 +56,9 @@ public class HostInfoHandler extends ContextHandler {
             // ContextHandler 已剥掉上下文路径，这里 target 是 "/static" / "/metrics"
             if (target.equals("/static")) {
                 respondOk(response, hostMonitor.getStaticInfo());
-            }
-            else if (target.equals("/metrics")) {
+            } else if (target.equals("/metrics")) {
                 respondOk(response, hostMonitor.getMetrics());
-            }
-            else {
+            } else {
                 respond(response, HttpStatus.NOT_FOUND_404, makeError(HttpStatus.NOT_FOUND_404));
             }
 

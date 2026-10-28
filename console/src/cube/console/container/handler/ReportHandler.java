@@ -8,17 +8,13 @@ package cube.console.container.handler;
 
 import cell.util.log.Logger;
 import cube.console.Console;
-import cube.report.JVMReport;
-import cube.report.LogReport;
-import cube.report.PerformanceReport;
-import cube.report.Report;
-import cube.report.UnitReport;
+import cube.report.*;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.server.handler.ContextHandler;
-import org.json.JSONException;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import javax.servlet.ServletException;
@@ -92,25 +88,21 @@ public class ReportHandler extends ContextHandler {
                     }
                     LogReport report = new LogReport(reportJson);
                     console.appendLogReport(report);
-                }
-                else if (JVMReport.NAME.equals(name)) {
-                    for (String key : new String[] {"maxMemory", "totalMemory", "freeMemory",
+                } else if (JVMReport.NAME.equals(name)) {
+                    for (String key : new String[]{"maxMemory", "totalMemory", "freeMemory",
                             "systemStartTime", "systemDuration"}) {
                         reportJson.getLong(key);
                     }
                     JVMReport report = new JVMReport(reportJson);
                     console.appendJVMReport(report);
-                }
-                else if (PerformanceReport.NAME.equals(name)) {
+                } else if (PerformanceReport.NAME.equals(name)) {
                     PerformanceReport report = new PerformanceReport(reportJson);
                     console.appendPerformanceReport(report);
-                }
-                else if (UnitReport.NAME.equals(name)) {
+                } else if (UnitReport.NAME.equals(name)) {
                     reportJson.getJSONArray("units");
                     UnitReport report = new UnitReport(reportJson);
                     console.appendUnitReport(report);
-                }
-                else {
+                } else {
                     throw new JSONException("Unsupported report name: " + name);
                 }
 

@@ -6,9 +6,9 @@
 
 package cube.console.storage;
 
+import cube.common.entity.Contact;
 import cube.core.Storage;
 import cube.core.StorageField;
-import cube.common.entity.Contact;
 import cube.storage.StorageFactory;
 import cube.storage.StorageType;
 import cube.util.SQLUtils;
@@ -44,7 +44,7 @@ public class DataStorage {
 
     /**
      * 历史数据兼容阈值。
-     *
+     * <p>
      * 统计口径 1 的 AOT 以毫秒入库，口径 2 起改为小时。日均在线时长不可能超过该阈值，
      * 因此把大于该阈值的值按毫秒换算为小时。
      */
@@ -127,11 +127,11 @@ public class DataStorage {
     /**
      * 查询指定域在日期区间内的逐日统计。
      *
-     * @param domain 指定域。
+     * @param domain  指定域。
      * @param fromYmd 起始日期，格式为 <code>yyyyMMdd</code> 的整数。
-     * @param toYmd 结束日期，格式为 <code>yyyyMMdd</code> 的整数。
+     * @param toYmd   结束日期，格式为 <code>yyyyMMdd</code> 的整数。
      * @return 返回按日期升序的列表，每项包含 <code>year</code>、<code>month</code>、<code>date</code>、
-     *         <code>statistic</code>；无数据时返回空列表。
+     * <code>statistic</code>；无数据时返回空列表。
      */
     public List<JSONObject> queryContactStatisticsRange(String domain, int fromYmd, int toYmd) {
         ArrayList<JSONObject> list = new ArrayList<>();
@@ -186,9 +186,9 @@ public class DataStorage {
      * <p>周/月活跃人数不能由日活跃数相加得到（同一用户会被重复计数），必须回到事件明细去重。
      * 明细只保留有限天数，超出后返回 -1 表示不可用。</p>
      *
-     * @param domain 指定域。
+     * @param domain    指定域。
      * @param beginning 起始时间戳（含）。
-     * @param ending 结束时间戳（不含）。
+     * @param ending    结束时间戳（不含）。
      * @return 返回去重活跃用户数；明细不可用时返回 -1 。
      */
     public int countDistinctActiveUsers(String domain, long beginning, long ending) {
@@ -219,8 +219,7 @@ public class DataStorage {
     private void parseItem(JSONObject json, String item, String data) {
         if (item.equals(ITEM_TNU) || item.equals(ITEM_DAU) || item.equals(ITEM_AOT_USERS)) {
             json.put(item, Integer.parseInt(data));
-        }
-        else if (item.equals(ITEM_AOT)) {
+        } else if (item.equals(ITEM_AOT)) {
             // 单位：小时
             double hours = Double.parseDouble(data);
             if (hours > LEGACY_AOT_MILLIS_THRESHOLD) {
@@ -228,18 +227,16 @@ public class DataStorage {
                 hours = hours / (60.0 * 60.0 * 1000.0);
             }
             json.put(item, Math.round(hours * 100) / 100.0);
-        }
-        else if (item.equals(ITEM_AOT_TOTAL)) {
+        } else if (item.equals(ITEM_AOT_TOTAL)) {
             json.put(item, Long.parseLong(data));
-        }
-        else if (item.equals(ITEM_TD)) {
+        } else if (item.equals(ITEM_TD)) {
             json.put(item, new JSONArray(data));
         }
     }
 
     /**
      * 查询指定域里的 AIGC 工作单元联系人。
-     *
+     * <p>
      * 工作单元即 ID 十进制位数大于等于 6 且小于 8 位的联系人（例如 <code>Unit-531001</code>），
      * 位数小于 6 位的联系人不是统计对象。
      *
@@ -274,10 +271,10 @@ public class DataStorage {
     /**
      * 查询指定域里联系人的活动事件。
      *
-     * @param domain 指定域。
+     * @param domain    指定域。
      * @param beginning 起始时间戳（含）。
-     * @param ending 结束时间戳（不含）。
-     * @param unitOnly 为 <code>true</code> 时只查询 AIGC 工作单元的事件，否则只查询用户的事件。
+     * @param ending    结束时间戳（不含）。
+     * @param unitOnly  为 <code>true</code> 时只查询 AIGC 工作单元的事件，否则只查询用户的事件。
      * @return 返回按时间升序排列的事件列表。
      */
     public List<ContactEvent> queryContactEvents(String domain, long beginning, long ending, boolean unitOnly) {
@@ -292,8 +289,7 @@ public class DataStorage {
         if (unitOnly) {
             sql.append(" AND `contact_id`>=").append(Contact.MIN_UNIT_CONTACT_ID);
             sql.append(" AND `contact_id`<").append(Contact.MIN_USER_CONTACT_ID);
-        }
-        else {
+        } else {
             sql.append(" AND `contact_id`>=").append(Contact.MIN_USER_CONTACT_ID);
         }
         sql.append(" ORDER BY `time`");

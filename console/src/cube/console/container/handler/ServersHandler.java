@@ -23,7 +23,7 @@ import java.util.List;
 /**
  * 服务器信息句柄。
  */
-public class ServersHandler extends ContextHandler  {
+public class ServersHandler extends ContextHandler {
 
     private Console console;
 
@@ -55,8 +55,7 @@ public class ServersHandler extends ContextHandler  {
                 data.put("list", array);
 
                 respondOk(response, data);
-            }
-            else if (target.equals("/service")) {
+            } else if (target.equals("/service")) {
                 JSONObject data = new JSONObject();
                 data.put("tag", console.getTag());
 
@@ -70,8 +69,7 @@ public class ServersHandler extends ContextHandler  {
                 data.put("list", array);
 
                 respondOk(response, data);
-            }
-            else {
+            } else {
                 // TODO
             }
 

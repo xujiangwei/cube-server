@@ -15,7 +15,6 @@ import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.server.handler.ContextHandler;
 import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
 
 import javax.servlet.ServletException;
@@ -77,14 +76,12 @@ public class ServerReportHandler extends ContextHandler {
                     response.put("list", result);
 
                     httpServletResponse.getWriter().write(response.toString());
-                }
-                else if (report.equals(PerformanceReport.NAME)) {
+                } else if (report.equals(PerformanceReport.NAME)) {
                     PerformanceReport perfReport = null;
 
                     if (time == 0) {
                         perfReport = console.queryLastPerformanceReport(name);
-                    }
-                    else {
+                    } else {
                         perfReport = console.queryPerformanceReport(name, time);
                     }
 
@@ -92,8 +89,7 @@ public class ServerReportHandler extends ContextHandler {
 
                     if (null == perfReport) {
                         response.put("name", name);
-                    }
-                    else {
+                    } else {
                         boolean detail = false;
                         if (params.containsKey("detail")) {
                             detail = params.get("detail").equalsIgnoreCase("true");

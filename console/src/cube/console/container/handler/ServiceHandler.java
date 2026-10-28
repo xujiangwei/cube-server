@@ -66,8 +66,7 @@ public class ServiceHandler extends ContextHandler {
                 }
 
                 respondOk(response, server.toJSON());
-            }
-            else if (target.equals("/start")) {
+            } else if (target.equals("/start")) {
                 // 启动服务器
                 String password = request.getParameter("pwd");
                 String tag = request.getParameter("tag");
@@ -92,8 +91,7 @@ public class ServiceHandler extends ContextHandler {
                 // 启动
                 ServiceServer server = console.getServiceManager().startService(tag, deployPath, password);
                 respondOk(response, server.toJSON());
-            }
-            else if (target.equals("/stop")) {
+            } else if (target.equals("/stop")) {
                 // 关闭服务器
                 String password = request.getParameter("pwd");
                 String tag = request.getParameter("tag");
@@ -118,8 +116,7 @@ public class ServiceHandler extends ContextHandler {
                 // 停止
                 ServiceServer server = console.getServiceManager().stopService(tag, deployPath, password);
                 respondOk(response, server.toJSON());
-            }
-            else if (target.equals("/config")) {
+            } else if (target.equals("/config")) {
                 // 更新配置
                 String configString = null;
                 InputStream is = request.getInputStream();

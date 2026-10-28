@@ -84,8 +84,7 @@ public class Main {
             ContentResponse response = httpClient.GET("http://127.0.0.1:" + port + "/stop/");
             if (HttpStatus.OK_200 == response.getStatus()) {
                 System.out.println("Cube Console - stop server # " + port);
-            }
-            else {
+            } else {
                 System.out.println("Cube Console - STOP FAILED # " + port);
             }
         } catch (Exception e) {
@@ -104,12 +103,10 @@ public class Main {
         if (args.length == 1) {
             if (args[0].equalsIgnoreCase("start")) {
                 Main.start(7080);
-            }
-            else if (args[0].equalsIgnoreCase("stop")) {
+            } else if (args[0].equalsIgnoreCase("stop")) {
                 Main.stop(7080);
             }
-        }
-        else {
+        } else {
             System.out.println("Please input args");
         }
     }

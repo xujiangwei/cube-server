@@ -24,20 +24,20 @@ import java.util.Properties;
  */
 public class DispatcherStorage extends AbstractStorage {
 
-    private final StorageField[] dispatcherFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] dispatcherFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTO_INCREMENT
             }),
-            new StorageField("tag", LiteralBase.STRING, new Constraint[] {
+            new StorageField("tag", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("deploy_path", LiteralBase.STRING, new Constraint[] {
+            new StorageField("deploy_path", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("config", LiteralBase.STRING, new Constraint[] {
+            new StorageField("config", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("properties", LiteralBase.STRING, new Constraint[] {
+            new StorageField("properties", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             })
     };
@@ -58,7 +58,7 @@ public class DispatcherStorage extends AbstractStorage {
     }
 
     public void writeServer(String tag, String deployPath, String cellConfigFile, String propertiesFile) {
-        StorageField[] fields = new StorageField[] {
+        StorageField[] fields = new StorageField[]{
                 new StorageField("tag", LiteralBase.STRING, tag),
                 new StorageField("deploy_path", LiteralBase.STRING, deployPath),
                 new StorageField("config", LiteralBase.STRING, cellConfigFile),
@@ -69,7 +69,7 @@ public class DispatcherStorage extends AbstractStorage {
     }
 
     public DispatcherServer readServer(String tag, String deployPath) {
-        List<StorageField[]> result = this.storage.executeQuery(this.dispatcherTable, this.dispatcherFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.dispatcherTable, this.dispatcherFields, new Conditional[]{
                 Conditional.createEqualTo("tag", LiteralBase.STRING, tag),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("deploy_path", LiteralBase.STRING, deployPath)

@@ -24,20 +24,20 @@ import java.util.Properties;
  */
 public class ServiceStorage extends AbstractStorage {
 
-    private final StorageField[] serviceFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] serviceFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTO_INCREMENT
             }),
-            new StorageField("tag", LiteralBase.STRING, new Constraint[] {
+            new StorageField("tag", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("deploy_path", LiteralBase.STRING, new Constraint[] {
+            new StorageField("deploy_path", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("config_path", LiteralBase.STRING, new Constraint[] {
+            new StorageField("config_path", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("cellets_path", LiteralBase.STRING, new Constraint[] {
+            new StorageField("cellets_path", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             })
     };
@@ -58,7 +58,7 @@ public class ServiceStorage extends AbstractStorage {
     }
 
     public void writeServer(String tag, String deployPath, String configPath, String celletsPath) {
-        StorageField[] fields = new StorageField[] {
+        StorageField[] fields = new StorageField[]{
                 new StorageField("tag", LiteralBase.STRING, tag),
                 new StorageField("deploy_path", LiteralBase.STRING, deployPath),
                 new StorageField("config_path", LiteralBase.STRING, configPath),
@@ -69,7 +69,7 @@ public class ServiceStorage extends AbstractStorage {
     }
 
     public ServiceServer readServer(String tag, String deployPath) {
-        List<StorageField[]> result = this.storage.executeQuery(this.serviceTable, this.serviceFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.serviceTable, this.serviceFields, new Conditional[]{
                 Conditional.createEqualTo("tag", LiteralBase.STRING, tag),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("deploy_path", LiteralBase.STRING, deployPath)

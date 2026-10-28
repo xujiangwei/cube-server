@@ -10,30 +10,12 @@ import cell.util.log.LogHandle;
 import cell.util.log.LogLevel;
 import cell.util.log.LogManager;
 import cell.util.log.Logger;
-import cube.console.mgmt.DispatcherManager;
-import cube.console.mgmt.DispatcherServer;
-import cube.console.mgmt.NodeHeartbeat;
-import cube.console.mgmt.ServiceManager;
-import cube.console.mgmt.ServiceServer;
-import cube.console.mgmt.StatisticDataManager;
-import cube.console.mgmt.UserManager;
-import cube.console.mgmt.UnitDeploymentSnapshot;
-import cube.report.JVMReport;
-import cube.report.LogLine;
-import cube.report.LogReport;
-import cube.report.PerformanceReport;
-import cube.report.UnitReport;
+import cube.console.mgmt.*;
+import cube.report.*;
 import cube.util.NodeName;
 import org.json.JSONObject;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -73,7 +55,7 @@ public final class Console implements Runnable {
 
     /**
      * 单元能力上报的有效期。
-     *
+     * <p>
      * 节点每 60 秒上报一次，取 5 倍间隔容忍抖动与短时重连；超期视为该节点已不再承载单元，
      * 避免节点停服后控制台一直显示陈旧的能力数据。
      */
@@ -143,7 +125,7 @@ public final class Console implements Runnable {
 
     /**
      * 将节点自报名归一为控制台的期望名。
-     *
+     * <p>
      * 控制台里的服务器名由本地推导（`&lt;tag&gt;#&lt;role&gt;#&lt;port&gt;`），节点上报时携带的是它自己算出的名字。
      * 当两者前缀不一致（跨机部署、历史版本、网卡集合变化）时，若仍按精确键存取，监控数据会静默落到另一个键上：
      * 列表显示正常但 JVM / 性能 / 日志全空且不报错。这里以「角色 + 端口」后缀唯一命中为准做一次归一，
@@ -190,7 +172,7 @@ public final class Console implements Runnable {
 
     /**
      * 返回控制台已知的服务器期望名集合。
-     *
+     * <p>
      * 优先返回管理器内存缓存里的名字（零 IO，适合上报热路径）；只有当内存里还没有任何服务器
      * （控制台刚启动、前端尚未拉取过列表）时，才按 TTL 做一次完整加载 —— 完整加载会读数据库并
      * 触发各服务器的状态刷新（含端口探测），不能放在每份上报上。
@@ -247,8 +229,7 @@ public final class Console implements Runnable {
             String name = null;
             if (server instanceof DispatcherServer) {
                 name = ((DispatcherServer) server).getName();
-            }
-            else if (server instanceof ServiceServer) {
+            } else if (server instanceof ServiceServer) {
                 name = ((ServiceServer) server).getName();
             }
 
@@ -556,7 +537,9 @@ public final class Console implements Runnable {
         return result;
     }
 
-    /** 查询当前有效的单元部署，不依赖昨日联系人统计。 */
+    /**
+     * 查询当前有效的单元部署，不依赖昨日联系人统计。
+     */
     public JSONObject queryUnitDeployments(String domain) {
         long now = System.currentTimeMillis();
         UnitDeploymentSnapshot result = new UnitDeploymentSnapshot(domain, now);
