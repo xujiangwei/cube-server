@@ -192,7 +192,7 @@ public final class RunStoreTest {
     }
 
     /**
-     * 启动自检与配置校验场景：重复建表安全、错误 store 身份与遗留目标拒绝、外来 schema 拒绝。
+     * 启动自检与配置校验场景：重复建表安全、错误 store 身份与非法库名拒绝、外来 schema 拒绝。
      *
      * @throws Exception 存储或断言失败
      */
@@ -211,13 +211,18 @@ public final class RunStoreTest {
         } catch (StoreException e) {
             check(e.code.equals("STORE_IDENTITY_MISMATCH"), e.code);
         }
-        // 非 harness_ 前缀的遗留业务库名直接拒绝。
-        wrong.setProperty("store.database", "legacy_business");
-        try {
-            new StoreConfig(wrong);
-            throw new AssertionError("Legacy target accepted");
-        } catch (StoreException e) {
-            check(e.code.equals("STORE_TARGET_REFUSED"), e.code);
+        // 库名无需固定前缀，但空值、非法字符、路径和超长名称仍须拒绝。
+        wrong.setProperty("store.identity", properties.getProperty("store.identity"));
+        for (String database : Arrays.asList("", "lens-harness", "lens.harness", "lens harness",
+                "Lens_harness", "../lens_harness", "lens_harness?useSSL=true",
+                String.join("", Collections.nCopies(57, "a")))) {
+            wrong.setProperty("store.database", database);
+            wrong.setProperty("store.sqlite.file", configFile.getParent() + "/" + database + ".db");
+            try (StoreConfig refused = new StoreConfig(wrong)) {
+                throw new AssertionError("Invalid database name accepted: " + database);
+            } catch (StoreException e) {
+                check(e.code.equals("STORE_TARGET_REFUSED"), e.code);
+            }
         }
         if (!config.mysql()) {
             // 仅 SQLite：含外来表的库不得被初始化。
@@ -236,7 +241,7 @@ public final class RunStoreTest {
                 check(e.code.equals("STORE_SCHEMA_MISMATCH"), e.code);
             }
         }
-        pass("bootstrap repeat, identity mismatch and foreign target refusal");
+        pass("bootstrap repeat, identity mismatch, invalid database names and foreign target refusal");
     }
 
     private static long connectionId(Connection c) throws SQLException {
@@ -745,10 +750,10 @@ public final class RunStoreTest {
         if (configured.isEmpty() || configured.startsWith("${")) {
             Path dir = Files.createTempDirectory("cube-harness-store-");
             properties.setProperty("store.dialect", "sqlite");
-            properties.setProperty("store.database", "harness_test");
+            properties.setProperty("store.database", "lens_harness");
             properties.setProperty("store.identity", "test-identity-" + key());
             properties.setProperty("store.sqlite.root", dir.toString());
-            properties.setProperty("store.sqlite.file", dir.resolve("harness_test.db").toString());
+            properties.setProperty("store.sqlite.file", dir.resolve("lens_harness.db").toString());
             configFile = dir.resolve("private.properties");
             try (OutputStream out = Files.newOutputStream(configFile)) {
                 properties.store(out, "Disposable Harness test only");

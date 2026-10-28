@@ -550,7 +550,7 @@ Harness 的核心思想：**把提示词模板能力嵌入任意环节**，在�
 - **协议**：Cell v3 增加 `inference_submit` / `inference_poll` / `inference_cancel`，job、worker 实例、wireAttempt、请求摘要绑定唯一执行；HTTP 侧开放 `/harness/v1/capabilities`、`/harness/v1/task-profiles`、`/harness/v1/runs`、`/harness/v1/runs/{id}`、`/harness/v1/runs/{id}/events`，`POST /harness/v1/runs` 带 Bearer 与 Idempotency-Key，事务受理后返回 202。
 - **模型后端**：默认为同 JVM 的 `AIGCService` 已注册 Unit（Baize / Baize2，经 `CompletionProvider` 内部接口复用鉴权、队列与用量记录）；显式 `type=openai` 时走 Java 外部 HTTP 服务（JSON/SSE，整体截止时间，实际 usage 校验）。**Python 不调用模型 HTTP、不加载权重**，地址、密钥、超时与共享物理限额仅由 Java 配置。
 - **容量与对账**：共享同一物理引擎的所有模型/Unit/worker 必须使用同一 `backendId` 与可信 `backend.<id>.capacity`；数据库锁定 backend 行认领推理槽。超时、取消、断连只能结束观察，不能证明物理推理结束——无法确认时记录 `unknown`、保留物理容量、禁止自动重发。
-- **账本**：独立 JDBC 任务账本 RunStore（默认关闭），服务启动自动连接数据库、检查并创建必要表，合法租户首次访问按部署模板初始化。SQLite 用于单实例开发；MySQL 由部署方一次性准备专用库及服务账号（账户名 `harness_` 前缀，本库 DML、CREATE、INDEX、REFERENCES、ALTER 权限）。
+- **账本**：独立 JDBC 任务账本 RunStore（默认关闭），服务启动自动连接数据库、检查并创建必要表，合法租户首次访问按部署模板初始化。SQLite 用于单实例开发；MySQL 由部署方一次性准备专用库及服务账号（库名和账户名均无需固定前缀，账号需具备本库 DML、CREATE、INDEX、REFERENCES、ALTER 权限）。
 
 ### 8.2 两种运行方式
 

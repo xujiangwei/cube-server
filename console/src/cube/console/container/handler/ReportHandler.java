@@ -18,6 +18,7 @@ import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.server.handler.ContextHandler;
 import org.json.JSONException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.servlet.ServletException;
@@ -53,6 +54,15 @@ public class ReportHandler extends ContextHandler {
         public void handle(String target, Request request,
                            HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse)
                 throws IOException, ServletException {
+            request.setHandled(true);
+            if (!"POST".equalsIgnoreCase(httpServletRequest.getMethod())) {
+                httpServletResponse.setHeader("Allow", "POST");
+                httpServletResponse.setStatus(HttpStatus.METHOD_NOT_ALLOWED_405);
+                return;
+            }
+            if (httpServletRequest.getCharacterEncoding() == null) {
+                httpServletRequest.setCharacterEncoding("UTF-8");
+            }
             BufferedReader reader = httpServletRequest.getReader();
 
             StringBuilder buf = new StringBuilder();
@@ -66,37 +76,51 @@ public class ReportHandler extends ContextHandler {
 
                 // 获取报告名
                 String name = Report.extractName(reportJson);
+                if (reportJson.getString("reporter").trim().isEmpty()) {
+                    throw new JSONException("Empty reporter");
+                }
+                reportJson.getLong("timestamp");
                 if (LogReport.NAME.equals(name)) {
+                    // 这些报告的构造器会吞掉 JSON 异常，需先校验再入库。
+                    JSONArray lines = reportJson.getJSONArray("lines");
+                    for (int i = 0; i < lines.length(); ++i) {
+                        JSONObject entry = lines.getJSONObject(i);
+                        entry.getInt("level");
+                        entry.getString("tag");
+                        entry.getString("text");
+                        entry.getLong("time");
+                    }
                     LogReport report = new LogReport(reportJson);
                     console.appendLogReport(report);
                 }
                 else if (JVMReport.NAME.equals(name)) {
+                    for (String key : new String[] {"maxMemory", "totalMemory", "freeMemory",
+                            "systemStartTime", "systemDuration"}) {
+                        reportJson.getLong(key);
+                    }
                     JVMReport report = new JVMReport(reportJson);
                     console.appendJVMReport(report);
                 }
                 else if (PerformanceReport.NAME.equals(name)) {
-                    try {
-                        PerformanceReport report = new PerformanceReport(reportJson);
-                        console.appendPerformanceReport(report);
-                    } catch (Exception e) {
-                        Logger.e(this.getClass(), "#handle", e);
-                    }
+                    PerformanceReport report = new PerformanceReport(reportJson);
+                    console.appendPerformanceReport(report);
                 }
                 else if (UnitReport.NAME.equals(name)) {
-                    try {
-                        UnitReport report = new UnitReport(reportJson);
-                        console.appendUnitReport(report);
-                    } catch (Exception e) {
-                        Logger.e(this.getClass(), "#handle", e);
-                    }
+                    reportJson.getJSONArray("units");
+                    UnitReport report = new UnitReport(reportJson);
+                    console.appendUnitReport(report);
+                }
+                else {
+                    throw new JSONException("Unsupported report name: " + name);
                 }
 
                 httpServletResponse.setStatus(HttpStatus.OK_200);
-                request.setHandled(true);
             } catch (JSONException e) {
-                e.printStackTrace();
+                Logger.w(this.getClass(), "Reject invalid report: " + e.getMessage());
                 httpServletResponse.setStatus(HttpStatus.BAD_REQUEST_400);
-                request.setHandled(true);
+            } catch (Exception e) {
+                Logger.e(this.getClass(), "Failed to store report", e);
+                httpServletResponse.setStatus(HttpStatus.INTERNAL_SERVER_ERROR_500);
             }
         }
     }

@@ -18,7 +18,7 @@ import java.util.Properties;
 /**
  * 专用 Harness 存储库的连接配置与准入校验。
  *
- * <p>只接受 dedicated Harness 数据库：库名必须为 {@code harness_} 前缀，
+ * <p>只接受 dedicated Harness 数据库：库名不要求固定前缀，
  * 不存在旧业务库配置回退。dialect 仅支持
  * {@code sqlite} 与 {@code mysql}；SQLite 限定绝对根目录下的固定文件名，
  * MySQL 复用 common 的 MySQLStorage 连接池与连接参数。
@@ -30,7 +30,7 @@ public final class StoreConfig implements AutoCloseable {
     public final String dialect;
 
     /**
-     * 目标库名，必须匹配 harness_[a-z0-9_]{1,48}；SQLite 下同时决定数据文件名。
+     * 目标库名，必须匹配 [a-z0-9_]{1,56}，不要求固定前缀；SQLite 下同时决定数据文件名。
      */
     public final String database;
 
@@ -65,7 +65,7 @@ public final class StoreConfig implements AutoCloseable {
         dialect = p.getProperty("store.dialect", "");
         database = p.getProperty("store.database", "");
         identity = p.getProperty("store.identity", "");
-        if (!database.matches("harness_[a-z0-9_]{1,48}") || !identity.matches("[A-Za-z0-9_-]{16,128}")) {
+        if (!database.matches("[a-z0-9_]{1,56}") || !identity.matches("[A-Za-z0-9_-]{16,128}")) {
             throw new StoreException("STORE_TARGET_REFUSED");
         }
         if (dialect.equals("sqlite")) {

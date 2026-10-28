@@ -179,8 +179,9 @@ public final class Console implements Runnable {
                     + reporter + " -> " + resolution.name);
         }
 
-        // 仅在期望名集合非空时缓存，否则冷启动阶段可能把本该归一的名字误缓存为精确命中
-        if (null != resolution.name && !names.isEmpty()) {
+        // 只缓存实际命中的期望名。已有其它部署不代表当前上报节点已加载，
+        // 缓存未命中的原名会让后续报告永久绕过归一，无法被节点列表查询到。
+        if (null != resolution.name && names.contains(resolution.name)) {
             this.reporterAliases.put(reporter, resolution.name);
         }
 

@@ -23,12 +23,12 @@ store.sqlite.file=C:/private/harness-store/harness_development.db
 
 文件名必须等于 `store.database + .db`，真实父目录必须位于指定 root 内，拒绝数据库文件符号链接。SQLite 使用独立连接、BEGIN IMMEDIATE、foreign_keys、busy_timeout 和 synchronous=FULL；部署范围为单实例开发。
 
-MySQL 由数据库管理员一次性创建专用数据库并配置可访问它的账号。数据库名必须以 `harness_` 开头，只允许小写字母、数字和下划线；账户名不限制前缀或格式，用户名与密码均不能为空。`store.identity` 是部署级数据库身份，首次初始化自动写入库，之后继续匹配校验。服务需要在本库执行 SELECT/INSERT/UPDATE/DELETE/CREATE/INDEX/REFERENCES/ALTER。Harness 不查询 `SHOW GRANTS`，也不因账号具备全局、跨库或角色授权而拒绝连接；实际操作权限由 MySQL 校验。账号配置在同一个 `harness.properties` 中，由服务完成建表和结构自检。
+MySQL 由数据库管理员一次性创建专用数据库并配置可访问它的账号。数据库名不要求固定前缀，只允许 1～56 位小写字母、数字和下划线，例如 `lens_harness`；账户名不限制前缀或格式，用户名与密码均不能为空。`store.identity` 是部署级数据库身份，首次初始化自动写入库，之后继续匹配校验。服务需要在本库执行 SELECT/INSERT/UPDATE/DELETE/CREATE/INDEX/REFERENCES/ALTER。Harness 不查询 `SHOW GRANTS`，也不因账号具备全局、跨库或角色授权而拒绝连接；实际操作权限由 MySQL 校验。账号配置在同一个 `harness.properties` 中，由服务完成建表和结构自检。
 
 ```properties
 store.enabled=true
 store.dialect=mysql
-store.database=harness_dedicated
+store.database=lens_harness
 store.identity=replace-with-private-random-store-identity
 store.mysql.host=db.example.internal
 store.mysql.port=3306

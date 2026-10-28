@@ -20,8 +20,11 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.channels.UnresolvedAddressException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -115,25 +118,29 @@ public class SubmitThread extends Thread {
     /**
      * 上报线程主循环。
      *
-     * <p>循环从队列取报告并发送，队列为空时阻塞等待；线程被中断时退出。</p>
+     * <p>排空新报告后退出。失败报告留到下一次上报再重试。</p>
      */
     @Override
     public void run() {
         HttpClient client = null;
+        boolean ownsRunning = true;
+        Set<Report> attempted = Collections.newSetFromMap(new IdentityHashMap<Report, Boolean>());
         try {
             client = new HttpClient();
             client.setConnectTimeout(CONNECT_TIMEOUT);
             client.start();
 
             while (true) {
-                this.drain(client);
+                this.drain(client, attempted);
 
                 // 先释放标志位再判断队列：若释放瞬间有新报告入队，由本线程继续处理。
                 // 否则该报告会滞留到下一个上报周期（10~60 秒后）才被提交。
+                ownsRunning = false;
                 this.running.set(false);
-                if (this.queue.isEmpty() || !this.running.compareAndSet(false, true)) {
+                if (!this.hasNewReports(attempted) || !this.running.compareAndSet(false, true)) {
                     return;
                 }
+                ownsRunning = true;
             }
         }
         catch (Throwable t) {
@@ -141,7 +148,10 @@ public class SubmitThread extends Thread {
         }
         finally {
             // 必须复位，否则上报链路会永久静默
-            this.running.set(false);
+            // 释放后可能已有新线程接管，不能清除接管线程的运行标志。
+            if (ownsRunning) {
+                this.running.set(false);
+            }
 
             if (null != client) {
                 try {
@@ -155,6 +165,15 @@ public class SubmitThread extends Thread {
         }
     }
 
+    private boolean hasNewReports(Set<Report> attempted) {
+        for (Report report : this.queue) {
+            if (!attempted.contains(report)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 排空队列。失败的报告在重试预算内重新入队尾，留给下一轮提交（不在此轮内热重试），
      * 预算耗尽即丢弃。重试计数保存在 {@link ReportService} 中，跨线程累计。
@@ -164,7 +183,7 @@ public class SubmitThread extends Thread {
      * 都不再发起任何请求，直接丢弃本轮剩余报告。
      * </p>
      */
-    private void drain(HttpClient client) {
+    private void drain(HttpClient client, Set<Report> attempted) {
         List<Report> retryLater = new ArrayList<>();
 
         Report report = null;
@@ -176,6 +195,12 @@ public class SubmitThread extends Thread {
                     // 丢弃
                 }
                 return;
+            }
+
+            // run() 为处理并发入队可能再次排空，不能把本轮失败的报告立即重试。
+            if (!attempted.add(report)) {
+                retryLater.add(report);
+                continue;
             }
 
             int result = this.submit(report, client);
@@ -262,7 +287,7 @@ public class SubmitThread extends Thread {
 
             try {
                 long time = System.currentTimeMillis();
-                ContentResponse response = client.POST(url).content(provider)
+                ContentResponse response = client.POST(url).content(provider, "application/json;charset=UTF-8")
                         .timeout(REQUEST_TIMEOUT, TimeUnit.MILLISECONDS).send();
                 long duration = System.currentTimeMillis() - time;
 
