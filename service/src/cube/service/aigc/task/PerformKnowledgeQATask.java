@@ -11,6 +11,7 @@ import cell.core.talk.Primitive;
 import cell.core.talk.TalkContext;
 import cell.core.talk.dialect.ActionDialect;
 import cell.util.log.Logger;
+import cube.aigc.usage.UsageContext;
 import cube.benchmark.ResponseTime;
 import cube.common.Packet;
 import cube.common.entity.AIGCChannel;
@@ -30,7 +31,9 @@ import org.json.JSONObject;
  */
 public class PerformKnowledgeQATask extends ServiceTask {
 
-    /** 构造任务实例，参数由单元统一注入。 */
+    /**
+     * 构造任务实例，参数由单元统一注入。
+     */
     public PerformKnowledgeQATask(Cellet cellet, TalkContext talkContext, Primitive primitive, ResponseTime responseTime) {
         super(cellet, talkContext, primitive, responseTime);
     }
@@ -62,7 +65,7 @@ public class PerformKnowledgeQATask extends ServiceTask {
                     ? packet.data.getString("baseName") : KnowledgeFramework.DefaultName;
 
             AIGCService service = ((AIGCCellet) this.cellet).getService();
-            cube.aigc.usage.UsageContext accounting=cube.aigc.usage.UsageContext.visitor(service.getToken(tokenCode),"Knowledge",Long.toString(packet.sn));
+            UsageContext accounting = UsageContext.visitor(service.getToken(tokenCode), "Knowledge", Long.toString(packet.sn));
 
             AIGCChannel channel = service.getChannel(channelCode);
             if (null == channel) {
@@ -89,10 +92,9 @@ public class PerformKnowledgeQATask extends ServiceTask {
             // 执行知识库问答
             KnowledgeQAProgress progress = null;
             if (sync) {
-                progress = base.performKnowledgeQA(accounting,channel, query, topK);
-            }
-            else {
-                progress = base.asyncPerformKnowledgeQA(accounting,channel, query, topK,
+                progress = base.performKnowledgeQA(accounting, channel, query, topK);
+            } else {
+                progress = base.asyncPerformKnowledgeQA(accounting, channel, query, topK,
                         new KnowledgeQAListener() {
                             @Override
                             public void onCompleted(AIGCChannel channel, KnowledgeQAResult result) {
@@ -110,8 +112,7 @@ public class PerformKnowledgeQATask extends ServiceTask {
                 this.cellet.speak(this.talkContext,
                         this.makeResponse(dialect, packet, AIGCStateCode.Ok.code, progress.toJSON()));
                 markResponseTime();
-            }
-            else {
+            } else {
                 this.cellet.speak(this.talkContext,
                         this.makeResponse(dialect, packet, AIGCStateCode.Failure.code, packet.data));
                 markResponseTime();

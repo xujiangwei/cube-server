@@ -43,45 +43,35 @@ public class ResourceAnswer {
                 if (HyperlinkResource.TYPE_PAGE.equals(resource.metaType)) {
                     result = Consts.formatUrlPageAnswer(resource.url, TextUtils.extractDomain(resource.url),
                             resource.title, resource.content.length());
-                }
-                else if (HyperlinkResource.TYPE_IMAGE.equals(resource.metaType)) {
+                } else if (HyperlinkResource.TYPE_IMAGE.equals(resource.metaType)) {
                     result = Consts.formatUrlImageAnswer(TextUtils.extractDomain(resource.url),
                             resource.format, resource.width, resource.height,
                             resource.size);
-                }
-                else if (HyperlinkResource.TYPE_PLAIN.equals(resource.metaType)) {
+                } else if (HyperlinkResource.TYPE_PLAIN.equals(resource.metaType)) {
                     result = Consts.formatUrlPlainAnswer(TextUtils.extractDomain(resource.url),
                             resource.numWords, resource.size);
-                }
-                else if (HyperlinkResource.TYPE_VIDEO.equals(resource.metaType)) {
+                } else if (HyperlinkResource.TYPE_VIDEO.equals(resource.metaType)) {
                     result = Consts.formatUrlVideoAnswer(TextUtils.extractDomain(resource.url),
                             resource.size);
-                }
-                else if (HyperlinkResource.TYPE_AUDIO.equals(resource.metaType)) {
+                } else if (HyperlinkResource.TYPE_AUDIO.equals(resource.metaType)) {
                     result = Consts.formatUrlAudioAnswer(TextUtils.extractDomain(resource.url),
                             resource.size);
-                }
-                else if (HyperlinkResource.TYPE_OTHER.equals(resource.metaType)) {
+                } else if (HyperlinkResource.TYPE_OTHER.equals(resource.metaType)) {
                     result = Consts.formatUrlOtherAnswer(TextUtils.extractDomain(resource.url),
                             resource.size);
-                }
-                else {
+                } else {
                     result = Consts.formatUrlFailureAnswer(TextUtils.extractDomain(resource.url),
                             resource.url);
                 }
-            }
-            else if (res instanceof ChartResource) {
+            } else if (res instanceof ChartResource) {
                 ChartResource resource = (ChartResource) res;
                 result = Consts.formatChartAnswer(resource.getTitle());
-            }
-            else if (res instanceof AttachmentResource) {
+            } else if (res instanceof AttachmentResource) {
                 result = Consts.ANSWER_SILENT;
-            }
-            else {
+            } else {
                 result = Consts.ANSWER_NO_CONTENT;
             }
-        }
-        else {
+        } else {
             StringBuilder buf = new StringBuilder();
 
             if (this.complexContext.getResources().get(0) instanceof HyperlinkResource) {
@@ -93,40 +83,33 @@ public class ResourceAnswer {
                         buf.append("* ");
                         buf.append(Consts.formatUrlSomePageAnswer(resource.url));
                         buf.append("\n");
-                    }
-                    else if (HyperlinkResource.TYPE_IMAGE.equals(resource.metaType)) {
+                    } else if (HyperlinkResource.TYPE_IMAGE.equals(resource.metaType)) {
                         buf.append("* ");
                         buf.append(Consts.formatUrlSomeImageAnswer(resource.url));
                         buf.append("\n");
-                    }
-                    else if (HyperlinkResource.TYPE_PLAIN.equals(resource.metaType)) {
+                    } else if (HyperlinkResource.TYPE_PLAIN.equals(resource.metaType)) {
                         buf.append("* ");
                         buf.append(Consts.formatUrlSomePlainAnswer(resource.url));
                         buf.append("\n");
-                    }
-                    else if (HyperlinkResource.TYPE_VIDEO.equals(resource.metaType)) {
+                    } else if (HyperlinkResource.TYPE_VIDEO.equals(resource.metaType)) {
                         buf.append("* ");
                         buf.append(Consts.formatUrlSomeVideoAnswer(resource.url));
                         buf.append("\n");
-                    }
-                    else if (HyperlinkResource.TYPE_AUDIO.equals(resource.metaType)) {
+                    } else if (HyperlinkResource.TYPE_AUDIO.equals(resource.metaType)) {
                         buf.append("* ");
                         buf.append(Consts.formatUrlSomeAudioAnswer(resource.url));
                         buf.append("\n");
-                    }
-                    else if (HyperlinkResource.TYPE_OTHER.equals(resource.metaType)) {
+                    } else if (HyperlinkResource.TYPE_OTHER.equals(resource.metaType)) {
                         buf.append("* ");
                         buf.append(Consts.formatUrlSomeOtherAnswer(resource.url, resource.mimeType));
                         buf.append("\n");
-                    }
-                    else {
+                    } else {
                         buf.append("* ");
                         buf.append(Consts.formatUrlSomeFailureAnswer(resource.url));
                         buf.append("\n");
                     }
                 }
-            }
-            else if (this.complexContext.getResources().get(0) instanceof ChartResource) {
+            } else if (this.complexContext.getResources().get(0) instanceof ChartResource) {
                 buf.append(Consts.formatChartSomeAnswer(this.complexContext.numResources()));
                 buf.append("\n");
                 for (ComplexResource res : this.complexContext.getResources()) {
@@ -135,11 +118,9 @@ public class ResourceAnswer {
                     buf.append(Consts.formatChartSomeOneAnswer(resource.getChart().desc));
                     buf.append("\n");
                 }
-            }
-            else if (this.complexContext.getResources().get(0) instanceof AttachmentResource) {
+            } else if (this.complexContext.getResources().get(0) instanceof AttachmentResource) {
                 buf.append(Consts.ANSWER_SILENT);
-            }
-            else {
+            } else {
                 buf.append(Consts.ANSWER_NO_CONTENT);
             }
 

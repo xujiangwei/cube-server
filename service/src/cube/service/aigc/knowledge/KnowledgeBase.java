@@ -42,10 +42,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class KnowledgeBase {
 
-    /** 知识库为空时的标准应答。 */
+    /**
+     * 知识库为空时的标准应答。
+     */
     public final static String EMPTY_BASE_ANSWER = "您的知识库里没有数据，您可以先向知识库里导入文档或者添加文章，再向我提问。";
 
-    /** 问答时默认召回的片段数量。 */
+    /**
+     * 问答时默认召回的片段数量。
+     */
     public final static int DEFAULT_TOP_K = 10;
 
     private final KnowledgeBaseInfo baseInfo;
@@ -105,6 +109,7 @@ public class KnowledgeBase {
 
     /**
      * 获取知识库侧写。
+     *
      * @return 知识库侧写。
      */
     public KnowledgeProfile getProfile() {
@@ -119,9 +124,10 @@ public class KnowledgeBase {
 
     /**
      * 更新知识库侧写。
-     * @param state 状态。
+     *
+     * @param state   状态。
      * @param maxSize 容量上限。
-     * @param scope 可见范围。
+     * @param scope   可见范围。
      * @return 知识库侧写。
      */
     public KnowledgeProfile updateProfile(int state, long maxSize, KnowledgeScope scope) {
@@ -135,6 +141,7 @@ public class KnowledgeBase {
 
     /**
      * 获取装载的知识库文档。
+     *
      * @return 文档列表；无数据时为空列表。
      */
     public List<KnowledgeDocument> listKnowledgeDocs() {
@@ -374,6 +381,7 @@ public class KnowledgeBase {
 
     /**
      * 获取操作进度。
+     *
      * @return 操作进度对象。
      */
     public KnowledgeProgress getProgress() {
@@ -382,9 +390,10 @@ public class KnowledgeBase {
 
     /**
      * 批量导入知识文档。
+     *
      * @param fileCodeList 源文件码列表。
-     * @param splitter 文本切分策略。
-     * @param listener 进度监听器。
+     * @param splitter     文本切分策略。
+     * @param listener     进度监听器。
      * @return 操作进度对象。
      */
     public KnowledgeProgress batchImportKnowledgeDocuments(List<String> fileCodeList, TextSplitter splitter,
@@ -586,8 +595,9 @@ public class KnowledgeBase {
 
     /**
      * 批量移除知识文档。
+     *
      * @param fileCodeList 源文件码列表。
-     * @param listener 进度监听器。
+     * @param listener     进度监听器。
      * @return 操作进度对象。
      */
     public KnowledgeProgress batchRemoveKnowledgeDocuments(List<String> fileCodeList, KnowledgeProgressListener listener) {
@@ -746,6 +756,7 @@ public class KnowledgeBase {
 
     /**
      * 激活指定知识库文档。
+     *
      * @param doc 文档对象。
      * @return 返回已激活的文档。
      */
@@ -783,6 +794,7 @@ public class KnowledgeBase {
 
     /**
      * 解除指定的知识库文档。
+     *
      * @param doc 文档对象。
      * @return 文档对象。
      */
@@ -810,6 +822,7 @@ public class KnowledgeBase {
 
     /**
      * 返回重置进度。
+     *
      * @return 处理结果。
      */
     public ResetKnowledgeProgress getResetProgress() {
@@ -818,7 +831,8 @@ public class KnowledgeBase {
 
     /**
      * 重置知识仓库。
-     * @param backup backup。
+     *
+     * @param backup   backup。
      * @param listener 进度监听器。
      * @return 处理结果。
      */
@@ -1076,6 +1090,7 @@ public class KnowledgeBase {
 
     /**
      * 删除当前库的所有数据。
+     *
      * @return 满足条件返回 {@code true} 。
      */
     public boolean destroy() {
@@ -1423,6 +1438,7 @@ public class KnowledgeBase {
 
     /**
      * 获取文章列表。
+     *
      * @return 文章列表；无数据时为空列表。
      */
     public List<KnowledgeArticle> listKnowledgeArticles() {
@@ -1457,6 +1473,7 @@ public class KnowledgeBase {
 
     /**
      * 获取已激活的文章。
+     *
      * @return 文章列表；无数据时为空列表。
      */
     private List<KnowledgeArticle> queryActivatedArticles() {
@@ -1498,8 +1515,9 @@ public class KnowledgeBase {
 
     /**
      * 为指定的联系人激活知识库文章。
+     *
      * @param articleIdList 文章 ID 列表。
-     * @param splitter 文本切分策略。
+     * @param splitter      文本切分策略。
      * @return 文章列表；无数据时为空列表。
      */
     public List<KnowledgeArticle> activateKnowledgeArticles(List<Long> articleIdList, TextSplitter splitter) {
@@ -1598,6 +1616,7 @@ public class KnowledgeBase {
 
     /**
      * 查询所有文章分类。
+     *
      * @return 字符串列表。
      */
     public List<String> queryAllArticleCategories() {
@@ -1606,18 +1625,19 @@ public class KnowledgeBase {
 
     /**
      * 同步方式执行知识库 QA
+     *
      * @param channel channel。
-     * @param query 用户提问。
-     * @param topK 召回数量上限。
+     * @param query   用户提问。
+     * @param topK    召回数量上限。
      * @return 问答进度对象。
      */
     public KnowledgeQAProgress performKnowledgeQA(AIGCChannel channel, String query, int topK) {
-        return performKnowledgeQA(cube.aigc.usage.UsageContext.system("Knowledge"),channel,query,topK);
+        return performKnowledgeQA(cube.aigc.usage.UsageContext.system("Knowledge"), channel, query, topK);
     }
 
-    public KnowledgeQAProgress performKnowledgeQA(cube.aigc.usage.UsageContext accounting,AIGCChannel channel,String query,int topK) {
+    public KnowledgeQAProgress performKnowledgeQA(cube.aigc.usage.UsageContext accounting, AIGCChannel channel, String query, int topK) {
         Object mutex = new Object();
-        KnowledgeQAProgress progress = this.asyncPerformKnowledgeQA(accounting,channel, query, topK, new KnowledgeQAListener() {
+        KnowledgeQAProgress progress = this.asyncPerformKnowledgeQA(accounting, channel, query, topK, new KnowledgeQAListener() {
             @Override
             public void onCompleted(AIGCChannel channel, KnowledgeQAResult result) {
                 synchronized (mutex) {
@@ -1651,18 +1671,19 @@ public class KnowledgeBase {
 
     /**
      * 执行知识库 QA
-     * @param channel channel。
-     * @param query 用户提问。
-     * @param topK 召回数量上限。
+     *
+     * @param channel  channel。
+     * @param query    用户提问。
+     * @param topK     召回数量上限。
      * @param listener 进度监听器。
      * @return 问答进度对象。
      */
     public KnowledgeQAProgress asyncPerformKnowledgeQA(AIGCChannel channel, String query, int topK,
                                                        KnowledgeQAListener listener) {
-        return asyncPerformKnowledgeQA(cube.aigc.usage.UsageContext.system("Knowledge"),channel,query,topK,listener);
+        return asyncPerformKnowledgeQA(cube.aigc.usage.UsageContext.system("Knowledge"), channel, query, topK, listener);
     }
 
-    public KnowledgeQAProgress asyncPerformKnowledgeQA(cube.aigc.usage.UsageContext accounting,AIGCChannel channel,String query,int topK,KnowledgeQAListener listener) {
+    public KnowledgeQAProgress asyncPerformKnowledgeQA(cube.aigc.usage.UsageContext accounting, AIGCChannel channel, String query, int topK, KnowledgeQAListener listener) {
         // 如果没有设置知识库文档，返回提示
         boolean noDocument = null == this.resource.docList || this.resource.docList.isEmpty();
         boolean noArticle = null == this.resource.articleList || this.resource.articleList.isEmpty();
@@ -1705,7 +1726,7 @@ public class KnowledgeBase {
                 progress.updateProgress(50);
 
                 progress.setCode(AIGCStateCode.Inferencing.code);
-                GeneratingRecord record = service.syncGenerateText(accounting,unit, prompt,
+                GeneratingRecord record = service.syncGenerateText(accounting, unit, prompt,
                         new GeneratingOption(), null, null);
                 KnowledgeQAResult result = new KnowledgeQAResult(query, prompt, record);
                 result.sources = knowledge.mergeSources();
@@ -1721,12 +1742,13 @@ public class KnowledgeBase {
 
     /**
      * 执行知识库 QA
+     *
      * @param channelCode 通道码。
-     * @param unitName unitName。
-     * @param query 用户提问。
-     * @param topK 召回数量上限。
-     * @param recordList recordList。
-     * @param listener 进度监听器。
+     * @param unitName    unitName。
+     * @param query       用户提问。
+     * @param topK        召回数量上限。
+     * @param recordList  recordList。
+     * @param listener    进度监听器。
      * @return 满足条件返回 {@code true} 。
      */
     public boolean performKnowledgeQA(String channelCode, String unitName, String query, int topK,
@@ -2043,6 +2065,7 @@ public class KnowledgeBase {
 
     /**
      * 处理查询附件。
+     *
      * @param records records。
      * @return 返回仅当次需要处理的文本。
      */
@@ -2566,8 +2589,9 @@ public class KnowledgeBase {
 
     /**
      * 生成对应提问的知识。
+     *
      * @param query 用户提问。
-     * @param topK 召回数量上限。
+     * @param topK  召回数量上限。
      * @return 处理结果。
      */
     public Knowledge generateKnowledge(String query, int topK) {

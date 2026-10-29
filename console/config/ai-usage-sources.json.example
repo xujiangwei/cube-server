@@ -7,7 +7,7 @@
     "port": 3306,
     "database": "cube_aigc",
     "user": "cube_usage_reader",
-    "passwordEnv": "CUBE_AI_USAGE_MYSQL_PASSWORD"
+    "password": "replace-with-read-only-password"
   },
   {
     "name": "harness-local",

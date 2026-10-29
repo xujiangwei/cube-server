@@ -13,13 +13,16 @@ import java.security.MessageDigest;
 import java.sql.*;
 import java.util.*;
 
-/** Current store definition and startup-only construction; readers only verify. */
+/**
+ * Current store definition and startup-only construction; readers only verify.
+ */
 public final class StoreBootstrap {
     // Exact previous mysql.sql digest: only table engine/charset/collation defaults changed.
     private static final String MYSQL_SCHEMA_BEFORE_EXPLICIT_COLLATIONS =
             "e5693c212ea5adaf520264157f04485669498167c201827a616fa6e646d83317";
 
-    private StoreBootstrap() { }
+    private StoreBootstrap() {
+    }
 
     private static String source(StoreConfig config) throws Exception {
         try (InputStream in = StoreBootstrap.class.getResourceAsStream("/store/" + config.dialect + ".sql")) {
@@ -33,7 +36,9 @@ public final class StoreBootstrap {
         }
     }
 
-    /** Stable digest of the current definition, independent of platform line endings. */
+    /**
+     * Stable digest of the current definition, independent of platform line endings.
+     */
     public static String digest(StoreConfig config) throws Exception {
         MessageDigest hash = MessageDigest.getInstance("SHA-256");
         StringBuilder out = new StringBuilder();
@@ -65,7 +70,9 @@ public final class StoreBootstrap {
         return names;
     }
 
-    /** Read-only validation, also used by doctor and JdbcRunStore. */
+    /**
+     * Read-only validation, also used by doctor and JdbcRunStore.
+     */
     public static void verify(Connection c, StoreConfig config) throws Exception {
         schema(statements(config)).verify(c, config, false);
         verifyIdentity(c, config);
@@ -75,7 +82,9 @@ public final class StoreBootstrap {
         verifyIdentity(c, config, false);
     }
 
-    /** Only startup may resume construction from the known previous MySQL definition. */
+    /**
+     * Only startup may resume construction from the known previous MySQL definition.
+     */
     private static boolean verifyIdentity(Connection c, StoreConfig config, boolean allowPreviousMysqlSchema) throws Exception {
         try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(
                 "SELECT singleton,store_id,schema_hash FROM harness_store_identity")) {
@@ -93,7 +102,9 @@ public final class StoreBootstrap {
         }
     }
 
-    /** Service startup constructs and checks the current schema before accepting requests. */
+    /**
+     * Service startup constructs and checks the current schema before accepting requests.
+     */
     public static void selfCheck(StoreConfig config) throws Exception {
         List<String> statements = statements(config);
         StoreSchema expected = schema(statements);
@@ -115,16 +126,20 @@ public final class StoreBootstrap {
                 boolean empty = existing.isEmpty();
                 boolean markerOnly = existing.equals(Collections.singleton("harness_store_identity"));
                 if (empty) execute(c, statements.get(0));
-                else if (!existing.contains("harness_store_identity")) throw new StoreException("STORE_SCHEMA_MISMATCH");
+                else if (!existing.contains("harness_store_identity"))
+                    throw new StoreException("STORE_SCHEMA_MISMATCH");
                 boolean hasIdentity;
                 try (Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT COUNT(*) FROM harness_store_identity")) {
-                    r.next(); hasIdentity = r.getInt(1) != 0;
+                    r.next();
+                    hasIdentity = r.getInt(1) != 0;
                 }
                 if (!hasIdentity) {
                     // MySQL may have stopped between creating the marker table and writing its identity.
                     if (!empty && !markerOnly) throw new StoreException("STORE_IDENTITY_MISMATCH");
                     try (PreparedStatement s = c.prepareStatement("INSERT INTO harness_store_identity VALUES (1,?,?)")) {
-                        s.setString(1, config.identity); s.setString(2, digest(config)); s.executeUpdate();
+                        s.setString(1, config.identity);
+                        s.setString(2, digest(config));
+                        s.executeUpdate();
                     }
                 }
                 boolean updateSchemaHash = verifyIdentity(c, config, true);
@@ -151,7 +166,8 @@ public final class StoreBootstrap {
             } finally {
                 if (config.mysql()) {
                     try (PreparedStatement s = c.prepareStatement("SELECT RELEASE_LOCK(?)")) {
-                        s.setString(1, "harness:" + config.database); s.execute();
+                        s.setString(1, "harness:" + config.database);
+                        s.execute();
                     }
                 }
             }
@@ -159,6 +175,8 @@ public final class StoreBootstrap {
     }
 
     private static void execute(Connection c, String sql) throws SQLException {
-        try (Statement s = c.createStatement()) { s.execute(sql); }
+        try (Statement s = c.createStatement()) {
+            s.execute(sql);
+        }
     }
 }

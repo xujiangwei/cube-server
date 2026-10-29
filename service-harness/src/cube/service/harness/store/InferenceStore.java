@@ -6,6 +6,8 @@
 
 package cube.service.harness.store;
 
+import cube.aigc.usage.UsageContext;
+import cube.aigc.usage.UsageWriter;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -26,15 +28,20 @@ public final class InferenceStore {
      * 共享的权威账本入口；所有读写都经由其短事务执行。
      */
     private final JdbcRunStore store;
-    private final cube.aigc.usage.UsageWriter accounting;
-    public cube.aigc.usage.UsageContext accountingContext(String inference) {
+
+    private final UsageWriter accounting;
+
+    public UsageContext accountingContext(String inference) {
         return store.tx(c -> {
             JSONObject r = first(rows(c, "SELECT r.tenant,r.subject_id,r.run_id FROM harness_inference i JOIN harness_model_job j ON j.job_id=i.job_id JOIN harness_run r ON r.run_id=j.run_id WHERE i.inference_id=?", inference));
             if (r == null) throw new StoreException("INFERENCE_NOT_FOUND");
-            return cube.aigc.usage.UsageContext.run(r.getString("tenant"), Long.parseLong(r.getString("subject_id")), r.getString("run_id"), inference);
+            return UsageContext.run(r.getString("tenant"), Long.parseLong(r.getString("subject_id")), r.getString("run_id"), inference);
         });
     }
-    public void closeAccounting() { accounting.close(); }
+
+    public void closeAccounting() {
+        accounting.close();
+    }
 
     /**
      * MySQL 下的行锁后缀；非 MySQL 为空串，用于串行化跨 JVM 的容量检查。
@@ -339,7 +346,7 @@ public final class InferenceStore {
      */
     public void finish(
             String inference, JSONObject response, String error, boolean actualFinished, String unit) {
-        finish(inference,response,error,actualFinished,unit,response);
+        finish(inference, response, error, actualFinished, unit, response);
     }
 
     public void finish(String inference, JSONObject response, String error, boolean actualFinished, String unit, JSONObject usageEvidence) {
@@ -348,8 +355,12 @@ public final class InferenceStore {
         JSONObject accountingEvidence = cube.aigc.usage.UsageLedger.evidence(inference, tokens == null ? 1 : actualFinished ? 3 : 2, status,
                 tokens == null ? "unknown" : "actual", tokens == null ? null : tokens[0], tokens == null ? null : tokens[1], System.currentTimeMillis());
         JSONObject invocation;
-        try { invocation = store.tx(c -> first(rows(c, "SELECT started_at FROM harness_ai_usage_call WHERE meter_id=?", inference))); }
-        catch (RuntimeException unavailable) { accounting.finish(accountingEvidence); throw unavailable; }
+        try {
+            invocation = store.tx(c -> first(rows(c, "SELECT started_at FROM harness_ai_usage_call WHERE meter_id=?", inference)));
+        } catch (RuntimeException unavailable) {
+            accounting.finish(accountingEvidence);
+            throw unavailable;
+        }
         if (invocation != null) accounting.finish(accountingEvidence);
         String raw = response == null ? null : canonical(response);
         if (raw != null && raw.getBytes(StandardCharsets.UTF_8).length > 65536) {

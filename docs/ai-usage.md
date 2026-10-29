@@ -32,8 +32,7 @@ AI 用量是 Console Web 的功能，登录后从导航「AI 用量」进入 `/a
 | `port` | 整数 | MySQL，默认 `3306` | 数据库端口，范围 `1–65535`。 |
 | `database` | 字符串 | MySQL，必填 | service 或 service-harness 实际使用的数据库名，不是单张表名。当前允许字母、数字和下划线。示例 `cube_aigc` 不是固定值。 |
 | `user` | 字符串 | MySQL，必填 | Console 查询数据库所使用的账号，建议使用只读账号。 |
-| `passwordEnv` | 字符串 | MySQL，可选，推荐 | 保存数据库密码的环境变量名称，例如 `CUBE_AI_USAGE_MYSQL_PASSWORD`；这里填写变量名，不填写密码。环境变量必须对启动 Console 的进程可见。 |
-| `password` | 字符串 | MySQL，可选，默认空字符串 | 直接指定数据库密码。配置了 `passwordEnv` 时优先读取环境变量，不回退到此字段，因此通常只配置两者之一。 |
+| `password` | 字符串 | MySQL，可选，默认空字符串 | 直接指定数据库密码（明文）。配置文件只保存在部署环境，须限制文件权限且不得提交入库。 |
 | `file` | 字符串 | SQLite，必填 | Console 所在机器可访问的、已存在的 SQLite 数据库绝对路径。Windows 推荐写 `C:/cube/service-harness/storage/harness.db`；使用反斜杠时必须按 JSON 写成 `C:\\cube\\service-harness\\storage\\harness.db`。 |
 
 MySQL 数据源不需要 `file`；SQLite 数据源不需要 `host`、`port`、`database`、`user` 或密码字段。此文件不配置 Contact 或域权限；权限由 Console 登录用户在后端校验，结算归属来自数据库中的域与 Contact。
@@ -46,15 +45,9 @@ Console 默认从**进程工作目录**读取 `config/ai-usage-sources.json`。�
 ai.usage.sources=C:/cube/console/config/ai-usage-sources.json
 ```
 
-环境变量密码示例（PowerShell；在同一个终端中随后启动 Console）：
+密码以明文写在配置文件的 `password` 字段里，因此该文件按敏感文件管理：只放在部署机、限制为运行 Console 的账号可读，并且不要提交到代码仓库。修改数据源列表后需要重启 Console；无需为此重启 dispatcher。
 
-```powershell
-$env:CUBE_AI_USAGE_MYSQL_PASSWORD = '<只读账号密码>'
-```
-
-使用系统服务启动 Console 时，应在对应服务的运行环境配置该变量。修改数据源列表后需要重启 Console；无需为此重启 dispatcher。
-
-MySQL 支持远程主机，填写 host、port、database、user，推荐用 passwordEnv 引用 Console 进程环境变量。也支持 password 字段，但配置文件须由部署环境妥善保存。不要把实际凭据提交入库。Console 账号只需要相关四张计量表的 SELECT 权限，不需要 CREATE、ALTER 或写权限。service 账号需要初始化表、索引和更新计量数据的权限。
+MySQL 支持远程主机，填写 host、port、database、user、password。不要把实际凭据提交入库。Console 账号只需要相关四张计量表的 SELECT 权限，不需要 CREATE、ALTER 或写权限。service 账号需要初始化表、索引和更新计量数据的权限。
 
 多个部署共享一个数据库时，可以重复配置，但按库内 `store_id` 去重。AIGC 和 Harness 即使位于同一个物理 MySQL schema，仍是不同的逻辑计量源，两者都需要配置。不要将同一库的多个备份当成独立数据源。
 

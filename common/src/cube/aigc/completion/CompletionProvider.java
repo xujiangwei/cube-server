@@ -15,11 +15,14 @@ import org.json.JSONObject;
  * <p>无需 dispatcher 连接或 HTTP 会话，直接由宿主进程内的实现完成推理。</p>
  */
 public interface CompletionProvider {
-    /** Trusted in-process delegation. Old providers must not silently charge a backend account. */
+    /**
+     * Trusted in-process delegation. Old providers must not silently charge a backend account.
+     */
     default void submitCompletion(String token, String requestId, JSONObject request, long timeoutMillis,
                                   cube.aigc.usage.UsageContext accounting, Listener listener) {
         throw new UnsupportedOperationException("PROVIDER_USAGE_CONTEXT_REQUIRED");
     }
+
     interface Listener {
         /**
          * 接收推理事件。

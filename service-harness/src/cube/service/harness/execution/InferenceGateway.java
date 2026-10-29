@@ -341,8 +341,8 @@ public final class InferenceGateway implements AutoCloseable {
                 if (!code.matches("[A-Z0-9_]{1,128}")) {
                     code = "MODEL_BACKEND_ERROR";
                 }
-                if (!event.optBoolean("modelDispatched",true)) code="MODEL_NOT_DISPATCHED";
-                ledger.finish(id, null, code, event.optBoolean("actualFinished", false), event.optString("unitId", null),event.optJSONObject("payload"));
+                if (!event.optBoolean("modelDispatched", true)) code = "MODEL_NOT_DISPATCHED";
+                ledger.finish(id, null, code, event.optBoolean("actualFinished", false), event.optString("unitId", null), event.optJSONObject("payload"));
             } else if (kind.equals("delta")) {
                 JSONObject chunk = new JSONObject().put("id", id).put("model", model).put("object", "chat.completion.chunk")
                         .put("choices", new JSONArray().put(new JSONObject().put("index", 0)

@@ -93,7 +93,9 @@ public class DataStorage {
             String table = SQLUtils.correctTableName(this.contactTablePrefix + domain);
             List<StorageField[]> rows = this.authStorage.executeQuery("SELECT `name` FROM " + table + " WHERE `id`=" + contactId);
             return rows == null || rows.isEmpty() || rows.get(0)[0].isNullValue() ? "" : rows.get(0)[0].getString();
-        } catch (RuntimeException unavailable) { return ""; }
+        } catch (RuntimeException unavailable) {
+            return "";
+        }
     }
 
     public List<String> queryAllDomains() {
