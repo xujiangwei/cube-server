@@ -25,10 +25,16 @@ import java.util.Collections;
  * 联合发布 staging 工具：只有显式给出的 staging 目录可写，绝不改动源部署目录。
  * <p>prepare 从源部署复制 bin/libs/cellets/config 骨架并写入 .harness-staging 标记
  * （非空且无标记的目录拒绝覆盖，防止误写运行目录）；configure 在标记齐备时
- * 把 Harness Cellet 元素合入 service-with-harness.xml，并拒绝 Harness jar 落到 libs。
+ * 把 Harness Cellet 元素合入 service-with-harness.xml（已有则该条目改指 cellets，
+ * 否则新增一条，保证只存在一个 Harness cellet），并拒绝 Harness jar 落到 libs。
  * staging 与源部署不得互相包含。
  */
 public final class StagingTool {
+    /**
+     * Harness Cellet 的类名：既是 cellet 条目的识别依据，也是写入配置的字面量。
+     */
+    private static final String HARNESS_CELLET = "cube.service.harness.HarnessCellet";
+
     /**
      * 按动作执行 staging：prepare 复制骨架，configure 改写服务 XML。
      *
@@ -81,13 +87,22 @@ public final class StagingTool {
             Document doc = factory.newDocumentBuilder().parse(stage.resolve("config/service-with-harness.xml").toFile());
             NodeList servers = doc.getElementsByTagName("server");
             String port = ((Element) servers.item(0)).getElementsByTagName("port").item(0).getTextContent().trim();
-            Element cellet = doc.createElement("cellet");
-            cellet.setAttribute("port", port);
-            cellet.setAttribute("jar", "cellets/cube-service-harness-3.0.jar");
-            Element cls = doc.createElement("class");
-            cls.setTextContent("cube.service.harness.HarnessCellet");
-            cellet.appendChild(cls);
-            doc.getElementsByTagName("cellets").item(0).appendChild(cellet);
+            Element cellets = (Element) doc.getElementsByTagName("cellets").item(0);
+            // 主部署的 service.xml 已登记 HarnessCellet（jar 由 libs 提供，条目不带 jar 属性）。
+            // staging 的 libs 不含 harness，若原样保留该条目就会加载失败；就地改写其 jar 指向
+            // cellets，而不是追加第二条 —— 两条同名 cellet 会把 HarnessService 重复装进 Kernel。
+            Element existing = findHarnessCellet(cellets);
+            if (existing != null) {
+                existing.setAttribute("jar", "cellets/cube-service-harness-3.0.jar");
+            } else {
+                Element cellet = doc.createElement("cellet");
+                cellet.setAttribute("port", port);
+                cellet.setAttribute("jar", "cellets/cube-service-harness-3.0.jar");
+                Element cls = doc.createElement("class");
+                cls.setTextContent(HARNESS_CELLET);
+                cellet.appendChild(cls);
+                cellets.appendChild(cellet);
+            }
             Transformer transformer = TransformerFactory.newInstance().newTransformer();
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");
             transformer.transform(new DOMSource(doc), new StreamResult(stage.resolve("config/service-with-harness.xml").toFile()));
@@ -97,5 +112,24 @@ public final class StagingTool {
         } else {
             throw new IllegalArgumentException("Unknown staging action");
         }
+    }
+
+    /**
+     * Locate the Harness cellet entry in a &lt;cellets&gt; element.
+     *
+     * @param cellets the {@code <cellets>} element to scan
+     * @return the entry whose first {@code <class>} is {@link #HARNESS_CELLET}, or null when absent
+     */
+    private static Element findHarnessCellet(Element cellets) {
+        NodeList items = cellets.getElementsByTagName("cellet");
+        for (int i = 0; i < items.getLength(); i++) {
+            Element cellet = (Element) items.item(i);
+            NodeList classes = cellet.getElementsByTagName("class");
+            if (classes.getLength() > 0
+                    && HARNESS_CELLET.equals(classes.item(0).getTextContent().trim())) {
+                return cellet;
+            }
+        }
+        return null;
     }
 }

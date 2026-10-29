@@ -4,7 +4,7 @@
 <!-- Cube Server Build File                                                  -->
 <!-- ======================================================================= -->
 
-<project name="cube-server" default="build" basedir=".">
+<project name="cube-server" default="build" basedir="." xmlns:if="ant:if" xmlns:unless="ant:unless">
 
 	<!--property name="java.version" value="8" /-->
 
@@ -32,6 +32,10 @@
 	<property name="build.dir" value="build" />
 
 	<property name="deploy.dir" value="deploy" />
+
+	<!-- Harness 产物文件名。service-harness 与 service-harness-skill 同用 3.0 版本号，
+	     故此处用全名精确匹配，避免 *service-harness* 通配把 skill 包一并带进 libs。 -->
+	<property name="harness.jar.name" value="cube-service-harness-3.0.jar" />
 
 	<target name="init">
 		<mkdir dir="${build.dir}" />
@@ -263,6 +267,11 @@
 	<!-- Deploy all projects                                                 -->
 	<!-- =================================================================== -->
 	<target name="deploy" depends="clean-deploy">
+		<!-- Harness 的 jar 随 libs 一起发放（与 common、service 同目录），
+		     但【不】进 cellets 段 —— 只交付，不自动登记为 cellet。
+		     harness-skill 不随本包发放，它由 service-harness-skill 的 stage 目标单独落盘。
+		     例外：deploy-with-harness 复用本 target 铺 staging 目录，那里 harness 由
+		     cellets 承接（StagingTool 拒绝 libs 出现 harness），故用 harness.only.in.cellets 跳过。 -->
 		<copy todir="${deploy.dir}/libs/">
 			<fileset dir="${build.dir}">
 				<include name="cube-common-*.jar" />
@@ -277,6 +286,10 @@
 				<exclude name="*service-harness*" />
 			</fileset>
 		</copy>
+		<!-- 单独一条：harness 只拷入 libs，绝不进 cellets 段。
+		     harness.only.in.cellets 未定义时该 copy 正常执行；定义后跳过。 -->
+		<copy file="${build.dir}/${harness.jar.name}" todir="${deploy.dir}/libs/"
+			  failonerror="false" unless:true="${harness.only.in.cellets}" />
 		<copy todir="${deploy.dir}/cellets/">
 			<fileset dir="${build.dir}">
 				<include name="cube-service-messaging-*.jar" />
@@ -320,6 +333,18 @@
 		<echo>Reminder: copy ${deploy.dir}/config/psychology.json.template to</echo>
 		<echo>          ${deploy.dir}/config/psychology.local.json and fill in the database settings.</echo>
 
+		<!-- Harness 私有配置模板：service/config/service.xml 里已登记 HarnessCellet，
+		     缺 config/harness.properties 时 HarnessService.start() 会记 ERROR 并拒绝启动
+		     （不阻断 Cell，但 Harness 全程不可用）。真实文件含 worker 凭据，不进仓库，
+		     故只随包发放模板，由运维复制后填写。 -->
+		<copy todir="${deploy.dir}/config/" overwrite="true">
+			<fileset dir="${project-service-harness.dir}/config/">
+				<include name="harness.properties.template" />
+			</fileset>
+		</copy>
+		<echo>Reminder: copy ${deploy.dir}/config/harness.properties.template to</echo>
+		<echo>          ${deploy.dir}/config/harness.properties and fill in worker credentials.</echo>
+
 		<!-- 业务资产：心理学语料/量表/脚本、引导流程、提示词。
 		     Resource 与 Guides 读的是硬编码相对路径（assets/psychology/...），
 		     cell.sh 的工作目录是 deploy/，故必须同步，否则部署形态下
@@ -347,7 +372,6 @@
 				<include name="cube-service-*.jar" />
 				<include name="cube-service-filestorage-*.jar" />
 				<include name="cube-service-fileprocessor-*.jar" />
-				<exclude name="*service-harness*" />
 			</fileset>
 		</delete>
 		<delete failonerror="false" includeemptydirs="true">
@@ -405,8 +429,9 @@
 	<!-- =================================================================== -->
 	<!-- build-debug / build 现已依赖 build-harness-*：构建期接受 JDK 8 及以上
 	     （JDK 9+ 用 release=8 编译，产物字节码恒为 1.8），运行期仍要求 JDK 8（HarnessDoctor 校验）。
-	     部署侧与主链隔离 —— deploy 的 libs 段显式排除 *service-harness*，
-	     harness 由 deploy-with-harness 经 StagingTool 单独落到 cellets/。 -->
+	     交付位置：harness jar 随 deploy 落 deploy/libs/（与 common、service 同目录），
+	     不在 cellets 段登记。deploy-with-harness 是另一条隔离链路，
+	     它额外把同一 jar 落到 staging 的 cellets/ 并写入 cell 配置。 -->
 	<target name="build-harness-debug">
 		<ant dir="service-harness" target="build-debug" inheritall="false" />
 	</target>
@@ -431,6 +456,8 @@
 		</java>
 		<ant antfile="build.xml" target="deploy" inheritall="false">
 			<property name="deploy.dir" location="${harness.stage.dir}"/>
+			<!-- staging 里 harness 由 cellets 承接，libs 段跳过它（StagingTool 会拒绝）。 -->
+			<property name="harness.only.in.cellets" value="true"/>
 		</ant>
 		<ant dir="service-harness" target="stage" inheritall="false">
 			<property name="stage.dir" location="${harness.stage.dir}"/>
