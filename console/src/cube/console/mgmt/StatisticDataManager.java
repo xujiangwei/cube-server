@@ -15,15 +15,7 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 统计数据管理器。
@@ -42,26 +34,36 @@ public class StatisticDataManager {
     // Time Distribution
     public final String ITEM_TD = "TD";
 
-    /** 工作单元在线判定窗口：最近 24 小时内有活动即视为在线。 */
+    /**
+     * 工作单元在线判定窗口：最近 24 小时内有活动即视为在线。
+     */
     private static final long UNIT_ONLINE_WINDOW = 24L * 60 * 60 * 1000L;
 
-    /** 工作单元活跃回溯窗口：用于计算最近活动时间与近期活跃天数。 */
+    /**
+     * 工作单元活跃回溯窗口：用于计算最近活动时间与近期活跃天数。
+     */
     private static final long UNIT_TRAIL_WINDOW = 30L * 24 * 60 * 60 * 1000L;
 
     /**
      * 事件明细的保留天数，必须与 service 侧统计模块的保留期一致。
-     *
+     * <p>
      * 区间超过该天数时，明细已被清理，无法再做区间去重活跃统计。
      */
     private static final long DETAIL_WINDOW_DAYS = 90L;
 
-    /** 工作状态：在线。 */
+    /**
+     * 工作状态：在线。
+     */
     public static final String UNIT_STATE_ONLINE = "online";
 
-    /** 工作状态：离线（回溯窗口内有活动，但当前不在线）。 */
+    /**
+     * 工作状态：离线（回溯窗口内有活动，但当前不在线）。
+     */
     public static final String UNIT_STATE_OFFLINE = "offline";
 
-    /** 工作状态：未激活（回溯窗口内没有任何活动）。 */
+    /**
+     * 工作状态：未激活（回溯窗口内没有任何活动）。
+     */
     public static final String UNIT_STATE_INACTIVE = "inactive";
 
     // 联系人活动事件名，与 service 侧 ContactHook 的取值保持一致
@@ -72,6 +74,7 @@ public class StatisticDataManager {
 
     private DataStorage storage;
     private AIUsageManager aiUsage = new AIUsageManager(new JSONArray());
+
     public JSONObject queryAIUsage(String operation, Map<String, String> params, User user) {
         AIUsageManager.Filter filter = new AIUsageManager.Filter(params, user);
         JSONObject data = aiUsage.query(operation, filter);
@@ -81,7 +84,8 @@ public class StatisticDataManager {
                 JSONObject row = ranks.getJSONObject(i);
                 row.put("contact_name", storage.queryContactName(row.getString("domain"), row.getLong("contact_id")));
             }
-            if (filter.contact != null && !filter.domain.isEmpty()) data.put("contactName", storage.queryContactName(filter.domain, filter.contact));
+            if (filter.contact != null && !filter.domain.isEmpty())
+                data.put("contactName", storage.queryContactName(filter.domain, filter.contact));
         }
         return data;
     }
@@ -144,8 +148,8 @@ public class StatisticDataManager {
      * </ul>
      *
      * @param domain 指定域。
-     * @param from 起始日期（含）。
-     * @param to 结束日期（含）。
+     * @param from   起始日期（含）。
+     * @param to     结束日期（含）。
      * @return 返回区间数据；存储器未就绪时返回 {@code null} 。
      */
     public JSONObject queryStatisticRange(String domain, Calendar from, Calendar to) {
@@ -283,7 +287,7 @@ public class StatisticDataManager {
 
     /**
      * 查询指定域的 AIGC 工作单元概览。
-     *
+     * <p>
      * 工作单元是 ID 十进制位数大于等于 6 且小于 8 位的联系人（例如 <code>Unit-531001</code>），
      * 位数小于 6 位的联系人不是统计对象；「联系人概览」只统计 ID 位数大于等于 8 位的联系人。
      *
@@ -292,8 +296,8 @@ public class StatisticDataManager {
      * {@code Console#queryUnitCapabilities} 归并传入——同一个物理实体上可以注册多个 AIGC 单元，
      * 因此这里挂到行上的是一个能力数组。</p>
      *
-     * @param domain 指定域。
-     * @param calendar 统计日期，按该日 00:00 ~ 24:00 统计日活动。
+     * @param domain        指定域。
+     * @param calendar      统计日期，按该日 00:00 ~ 24:00 统计日活动。
      * @param capabilityMap Key 为物理实体 ID 、Value 为该实体承载的能力列表，由节点上报汇总得到。
      * @return 返回单元概览数据。
      */
@@ -410,12 +414,10 @@ public class StatisticDataManager {
             if (lastActiveTime > 0 && (now - lastActiveTime) <= UNIT_ONLINE_WINDOW) {
                 state = UNIT_STATE_ONLINE;
                 ++onlineCount;
-            }
-            else if (lastActiveTime > 0) {
+            } else if (lastActiveTime > 0) {
                 state = UNIT_STATE_OFFLINE;
                 ++offlineCount;
-            }
-            else {
+            } else {
                 state = UNIT_STATE_INACTIVE;
                 ++inactiveCount;
             }
@@ -499,7 +501,7 @@ public class StatisticDataManager {
 
     /**
      * 计算单个单元在给定区间内的在线时长。
-     *
+     * <p>
      * 口径与 service 侧 {@code StatisticsSystem#calcAOT} 一致：SignIn / Comeback 视为会话开始，
      * SignOut 结束会话，DeviceTimeout 结束会话并扣除 15 秒心跳余量；区间结束时仍未结束的会话
      * 按到区间结束计算。
@@ -531,8 +533,7 @@ public class StatisticDataManager {
                     duration += Math.max(0L, (time - startTime) - 15000L);
                 }
                 startTime = 0;
-            }
-            else if (EVENT_SIGN_OUT.equals(name)) {
+            } else if (EVENT_SIGN_OUT.equals(name)) {
                 if (startTime > 0) {
                     duration += Math.max(0L, time - startTime);
                 }

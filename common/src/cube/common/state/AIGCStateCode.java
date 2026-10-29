@@ -132,7 +132,9 @@ public enum AIGCStateCode {
      */
     ModuleNotLoaded(33),
 
-    /** Durable accounting cannot admit a new model call. Retry after recovery. */
+    /**
+     * Durable accounting cannot admit a new model call. Retry after recovery.
+     */
     UsageUnavailable(34),
 
     /**
@@ -143,11 +145,11 @@ public enum AIGCStateCode {
     /**
      * 未知的状态。
      */
-    Unknown(99)
+    Unknown(99);
 
-    ;
-
-    /** 状态码数值，随协议上报给客户端。 */
+    /**
+     * 状态码数值，随协议上报给客户端。
+     */
     public final int code;
 
     AIGCStateCode(int code) {

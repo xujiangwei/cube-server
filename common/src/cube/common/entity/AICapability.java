@@ -18,22 +18,34 @@ import java.util.List;
  */
 public class AICapability implements JSONable {
 
-    /** 多模态任务。 */
+    /**
+     * 多模态任务。
+     */
     public final static String MultimodalTask = "Multimodal";
 
-    /** 自然语言处理任务。 */
+    /**
+     * 自然语言处理任务。
+     */
     public final static String NaturalLanguageProcessingTask = "NaturalLanguageProcessing";
 
-    /** 计算机视觉任务。 */
+    /**
+     * 计算机视觉任务。
+     */
     public final static String ComputerVisionTask = "ComputerVision";
 
-    /** 音频处理任务。 */
+    /**
+     * 音频处理任务。
+     */
     public final static String AudioProcessingTask = "AudioProcessing";
 
-    /** 数据处理任务。 */
+    /**
+     * 数据处理任务。
+     */
     public final static String DataProcessingTask = "DataProcessing";
 
-    /** 其他处理任务。 */
+    /**
+     * 其他处理任务。
+     */
     public final static String OtherProcessingTask = "OtherProcessing";
 
     private final String name;
@@ -54,8 +66,13 @@ public class AICapability implements JSONable {
     private volatile JSONObject chatCompletion = new JSONObject();
     private volatile int usageProtocol;
 
-    public int getUsageProtocol() { return usageProtocol; }
-    public void setUsageProtocol(int version) { usageProtocol = version; }
+    public int getUsageProtocol() {
+        return usageProtocol;
+    }
+
+    public void setUsageProtocol(int version) {
+        usageProtocol = version;
+    }
 
     public AICapability(String name, String task, String version, List<String> subtasks, String description) {
         this.name = name;
@@ -73,8 +90,7 @@ public class AICapability implements JSONable {
         this.subtasks = new ArrayList<>();
         if (json.has("subtask")) {
             this.subtasks.add(json.getString("subtask"));
-        }
-        else if (json.has("subtasks")) {
+        } else if (json.has("subtasks")) {
             JSONArray array = json.getJSONArray("subtasks");
             for (int i = 0; i < array.length(); ++i) {
                 this.subtasks.add(array.getString(i));
@@ -176,8 +192,7 @@ public class AICapability implements JSONable {
 
         if (this.subtasks.size() == 1) {
             json.put("subtask", this.subtasks.get(0));
-        }
-        else {
+        } else {
             JSONArray array = new JSONArray();
             for (String subtask : this.subtasks) {
                 array.put(subtask);

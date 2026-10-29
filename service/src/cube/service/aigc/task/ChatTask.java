@@ -14,6 +14,8 @@ import cell.util.log.Logger;
 import cube.aigc.AppEvent;
 import cube.aigc.Consts;
 import cube.aigc.ModelConfig;
+import cube.aigc.listener.GenerateTextListener;
+import cube.aigc.usage.UsageContext;
 import cube.benchmark.ResponseTime;
 import cube.common.Language;
 import cube.common.Packet;
@@ -27,7 +29,6 @@ import cube.service.aigc.AIGCCellet;
 import cube.service.aigc.AIGCService;
 import cube.service.aigc.knowledge.KnowledgeBase;
 import cube.service.aigc.knowledge.KnowledgeFramework;
-import cube.aigc.listener.GenerateTextListener;
 import cube.service.aigc.listener.KnowledgeQAListener;
 import cube.service.aigc.listener.TextToImageListener;
 import cube.util.JSONUtils;
@@ -43,7 +44,9 @@ import java.util.List;
  */
 public class ChatTask extends ServiceTask {
 
-    /** 构造任务实例，参数由单元统一注入。 */
+    /**
+     * 构造任务实例，参数由单元统一注入。
+     */
     public ChatTask(Cellet cellet, TalkContext talkContext, Primitive primitive, ResponseTime responseTime) {
         super(cellet, talkContext, primitive, responseTime);
     }
@@ -97,11 +100,13 @@ public class ChatTask extends ServiceTask {
 
         AIGCService service = ((AIGCCellet) this.cellet).getService();
 
-        cube.aigc.usage.UsageContext accounting;
-        try { accounting = cube.aigc.usage.UsageContext.visitor(service.getToken(token), "AIGC", Long.toString(packet.sn)); }
-        catch (RuntimeException invalid) {
+        UsageContext accounting;
+        try {
+            accounting = UsageContext.visitor(service.getToken(token), "AIGC", Long.toString(packet.sn));
+        } catch (RuntimeException invalid) {
             cellet.speak(talkContext, makeResponse(dialect, packet, AIGCStateCode.InconsistentToken.code, new JSONObject()));
-            markResponseTime(); return;
+            markResponseTime();
+            return;
         }
         this.deferMonitoring(false);
         boolean success = false;
@@ -147,67 +152,63 @@ public class ChatTask extends ServiceTask {
                             cellet.speak(talkContext,
                                     makeResponse(dialect, packet, AIGCStateCode.Ok.code, record.toJSON()));
                             markResponseTime();
-                        }
-                        else {
+                        } else {
                             cellet.speak(talkContext,
                                     makeResponse(dialect, packet, AIGCStateCode.UnitError.code, new JSONObject()));
                             markResponseTime();
                         }
                     }
                 });
-            }
-            else {
+            } else {
                 // 执行文本生成
                 success = service.generateText(accounting, channelCode, content, unit, option, recordList, histories,
                         null, categories, recordable, networking, new GenerateTextListener() {
-                    @Override
-                    public void onGenerated(AIGCChannel channel, GeneratingRecord record) {
-                        finishMonitoring("succeeded");
-                        cellet.speak(talkContext,
-                                makeResponse(dialect, packet, AIGCStateCode.Ok.code, record.toJSON()));
-                        markResponseTime();
+                            @Override
+                            public void onGenerated(AIGCChannel channel, GeneratingRecord record) {
+                                finishMonitoring("succeeded");
+                                cellet.speak(talkContext,
+                                        makeResponse(dialect, packet, AIGCStateCode.Ok.code, record.toJSON()));
+                                markResponseTime();
 
-                        // 写入事件
-                        AppEvent appEvent = new AppEvent(AppEvent.Chat, System.currentTimeMillis(),
-                                channel.getAuthToken().getContactId(),
-                                AppEvent.createChatSuccessfulData(record));
-                        if (!service.getStorage().writeAppEvent(appEvent)) {
-                            Logger.w(ChatTask.class, "Writes app event failed (chat) - cid: " +
-                                    channel.getAuthToken().getContactId());
-                        }
-                    }
+                                // 写入事件
+                                AppEvent appEvent = new AppEvent(AppEvent.Chat, System.currentTimeMillis(),
+                                        channel.getAuthToken().getContactId(),
+                                        AppEvent.createChatSuccessfulData(record));
+                                if (!service.getStorage().writeAppEvent(appEvent)) {
+                                    Logger.w(ChatTask.class, "Writes app event failed (chat) - cid: " +
+                                            channel.getAuthToken().getContactId());
+                                }
+                            }
 
-                    @Override
-                    public void onFailed(AIGCChannel channel, AIGCStateCode stateCode) {
-                        finishMonitoring(stateCode == AIGCStateCode.Interrupted || stateCode == AIGCStateCode.Cancelled ? "cancelled" : "failed");
-                        if (stateCode == AIGCStateCode.Interrupted) {
-                            // 被中断
-                            GeneratingRecord record = new GeneratingRecord(unit,
-                                    content, Consts.ANSWER_INTERRUPTED);
-                            cellet.speak(talkContext,
-                                    makeResponse(dialect, packet, AIGCStateCode.Ok.code, record.toJSON()));
-                            markResponseTime();
-                        }
-                        else {
-                            cellet.speak(talkContext,
-                                    makeResponse(dialect, packet, stateCode.code, new JSONObject()));
-                            markResponseTime();
-                        }
+                            @Override
+                            public void onFailed(AIGCChannel channel, AIGCStateCode stateCode) {
+                                finishMonitoring(stateCode == AIGCStateCode.Interrupted || stateCode == AIGCStateCode.Cancelled ? "cancelled" : "failed");
+                                if (stateCode == AIGCStateCode.Interrupted) {
+                                    // 被中断
+                                    GeneratingRecord record = new GeneratingRecord(unit,
+                                            content, Consts.ANSWER_INTERRUPTED);
+                                    cellet.speak(talkContext,
+                                            makeResponse(dialect, packet, AIGCStateCode.Ok.code, record.toJSON()));
+                                    markResponseTime();
+                                } else {
+                                    cellet.speak(talkContext,
+                                            makeResponse(dialect, packet, stateCode.code, new JSONObject()));
+                                    markResponseTime();
+                                }
 
-                        // 写入事件
-                        AppEvent appEvent = new AppEvent(AppEvent.Chat, System.currentTimeMillis(),
-                                channel.getAuthToken().getContactId(),
-                                AppEvent.createChatFailedData(channel.getLastUnitMetaSn(), stateCode,
-                                        content, unit));
-                        if (!service.getStorage().writeAppEvent(appEvent)) {
-                            Logger.w(ChatTask.class, "Writes app event failed (chat) - cid: " +
-                                    channel.getAuthToken().getContactId());
-                        }
-                    }
-                });
+                                // 写入事件
+                                AppEvent appEvent = new AppEvent(AppEvent.Chat, System.currentTimeMillis(),
+                                        channel.getAuthToken().getContactId(),
+                                        AppEvent.createChatFailedData(channel.getLastUnitMetaSn(), stateCode,
+                                                content, unit));
+                                if (!service.getStorage().writeAppEvent(appEvent)) {
+                                    Logger.w(ChatTask.class, "Writes app event failed (chat) - cid: " +
+                                            channel.getAuthToken().getContactId());
+                                }
+                            }
+                        });
             }
-        }
-        else if (pattern.equalsIgnoreCase(Consts.PATTERN_KNOWLEDGE)) {
+        } else if (pattern.equalsIgnoreCase(Consts.PATTERN_KNOWLEDGE)) {
             // 执行知识库问答
             int searchTopK = packet.data.has("searchTopK")
                     ? packet.data.getInt("searchTopK") : 10;
@@ -220,14 +221,12 @@ public class ChatTask extends ServiceTask {
                     baseName = packet.data.getString("base");
                 }
                 knowledgeBase = service.getKnowledgeBase(token, baseName);
-            }
-            else {
+            } else {
                 Logger.d(this.getClass(), "Select knowledge base by category: " + categories.get(0));
                 List<KnowledgeBase> baseList = service.getKnowledgeBaseByCategory(token, categories.get(0));
                 if (!baseList.isEmpty()) {
                     knowledgeBase = baseList.get(0);
-                }
-                else {
+                } else {
                     // 没有找到知识库，使用默认库
                     Logger.w(this.getClass(), "Can NOT find knowledge by category " + categories.get(0));
                     knowledgeBase = service.getKnowledgeBase(token, KnowledgeFramework.DefaultName);
@@ -237,41 +236,41 @@ public class ChatTask extends ServiceTask {
             if (null != knowledgeBase) {
                 success = knowledgeBase.performKnowledgeQA(accounting, channelCode, unit, content, searchTopK, recordList,
                         new KnowledgeQAListener() {
-                    @Override
-                    public void onCompleted(AIGCChannel channel, KnowledgeQAResult result) {
-                        finishMonitoring("succeeded");
-                        cellet.speak(talkContext,
-                                makeResponse(dialect, packet, AIGCStateCode.Ok.code, result.toCompactJSON()));
-                        markResponseTime();
+                            @Override
+                            public void onCompleted(AIGCChannel channel, KnowledgeQAResult result) {
+                                finishMonitoring("succeeded");
+                                cellet.speak(talkContext,
+                                        makeResponse(dialect, packet, AIGCStateCode.Ok.code, result.toCompactJSON()));
+                                markResponseTime();
 
-                        // 写入事件
-                        AppEvent appEvent = new AppEvent(AppEvent.Knowledge, System.currentTimeMillis(),
-                                channel.getAuthToken().getContactId(),
-                                AppEvent.createKnowledgeSuccessfulData(result));
-                        if (!service.getStorage().writeAppEvent(appEvent)) {
-                            Logger.w(ChatTask.class, "Writes app event failed (knowledge) - cid: " +
-                                    channel.getAuthToken().getContactId());
-                        }
-                    }
+                                // 写入事件
+                                AppEvent appEvent = new AppEvent(AppEvent.Knowledge, System.currentTimeMillis(),
+                                        channel.getAuthToken().getContactId(),
+                                        AppEvent.createKnowledgeSuccessfulData(result));
+                                if (!service.getStorage().writeAppEvent(appEvent)) {
+                                    Logger.w(ChatTask.class, "Writes app event failed (knowledge) - cid: " +
+                                            channel.getAuthToken().getContactId());
+                                }
+                            }
 
-                    @Override
-                    public void onFailed(AIGCChannel channel, AIGCStateCode errorCode) {
-                        finishMonitoring(errorCode == AIGCStateCode.Interrupted || errorCode == AIGCStateCode.Cancelled ? "cancelled" : "failed");
-                        cellet.speak(talkContext,
-                                makeResponse(dialect, packet, errorCode.code, new JSONObject()));
-                        markResponseTime();
+                            @Override
+                            public void onFailed(AIGCChannel channel, AIGCStateCode errorCode) {
+                                finishMonitoring(errorCode == AIGCStateCode.Interrupted || errorCode == AIGCStateCode.Cancelled ? "cancelled" : "failed");
+                                cellet.speak(talkContext,
+                                        makeResponse(dialect, packet, errorCode.code, new JSONObject()));
+                                markResponseTime();
 
-                        // 写入事件
-                        AppEvent appEvent = new AppEvent(AppEvent.Knowledge, System.currentTimeMillis(),
-                                channel.getAuthToken().getContactId(),
-                                AppEvent.createKnowledgeFailedData(channel.getLastUnitMetaSn(), errorCode,
-                                        content));
-                        if (!service.getStorage().writeAppEvent(appEvent)) {
-                            Logger.w(ChatTask.class, "Writes app event failed (knowledge) - cid: " +
-                                    channel.getAuthToken().getContactId());
-                        }
-                    }
-                });
+                                // 写入事件
+                                AppEvent appEvent = new AppEvent(AppEvent.Knowledge, System.currentTimeMillis(),
+                                        channel.getAuthToken().getContactId(),
+                                        AppEvent.createKnowledgeFailedData(channel.getLastUnitMetaSn(), errorCode,
+                                                content));
+                                if (!service.getStorage().writeAppEvent(appEvent)) {
+                                    Logger.w(ChatTask.class, "Writes app event failed (knowledge) - cid: " +
+                                            channel.getAuthToken().getContactId());
+                                }
+                            }
+                        });
             }
         }
 

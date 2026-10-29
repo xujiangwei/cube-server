@@ -38,7 +38,9 @@ import java.util.*;
  */
 public class AIGCStorage implements Storagable {
 
-    /** 数据表名：模型配置。 */
+    /**
+     * 数据表名：模型配置。
+     */
     public final static String ITEM_NAME_MODELS = "models";
 
     private final String appConfigTable = "aigc_app_config";
@@ -106,555 +108,555 @@ public class AIGCStorage implements Storagable {
      */
     private final String skillSessionTable = "aigc_skill_session";
 
-    private final StorageField[] appConfigFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] appConfigFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("item", LiteralBase.STRING, new Constraint[] {
+            new StorageField("item", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("value", LiteralBase.STRING, new Constraint[] {
+            new StorageField("value", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("comment", LiteralBase.STRING, new Constraint[] {
+            new StorageField("comment", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("modified", LiteralBase.LONG, new Constraint[] {
+            new StorageField("modified", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             })
     };
 
-    private final StorageField[] appInvitationFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] appInvitationFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("invitation", LiteralBase.STRING, new Constraint[] {
+            new StorageField("invitation", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("token", LiteralBase.STRING, new Constraint[] {
+            new StorageField("token", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("remark", LiteralBase.STRING, new Constraint[] {
+            new StorageField("remark", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             })
     };
 
-    private final StorageField[] appNotificationFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] appNotificationFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY
             }),
-            new StorageField("type", LiteralBase.STRING, new Constraint[] {
+            new StorageField("type", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("state", LiteralBase.INT, new Constraint[] {
+            new StorageField("state", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("title", LiteralBase.STRING, new Constraint[] {
+            new StorageField("title", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("content", LiteralBase.STRING, new Constraint[] {
+            new StorageField("content", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("date", LiteralBase.STRING, new Constraint[] {
+            new StorageField("date", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             })
     };
 
-    private final StorageField[] appEventFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] appEventFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("event", LiteralBase.STRING, new Constraint[] {
+            new StorageField("event", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("time", LiteralBase.STRING, new Constraint[] {
+            new StorageField("time", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("data", LiteralBase.STRING, new Constraint[] {
+            new StorageField("data", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             })
     };
 
-    private final StorageField[] queryAnswerFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] queryAnswerFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("channel", LiteralBase.STRING, new Constraint[] {
+            new StorageField("channel", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("unit", LiteralBase.STRING, new Constraint[] {
+            new StorageField("unit", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("query_cid", LiteralBase.LONG, new Constraint[] {
+            new StorageField("query_cid", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("query_domain", LiteralBase.STRING, new Constraint[] {
+            new StorageField("query_domain", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("query_time", LiteralBase.LONG, new Constraint[] {
+            new StorageField("query_time", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("query_content", LiteralBase.STRING, new Constraint[] {
+            new StorageField("query_content", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("query_files", LiteralBase.STRING, new Constraint[] {
+            new StorageField("query_files", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("answer_cid", LiteralBase.LONG, new Constraint[] {
+            new StorageField("answer_cid", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("answer_time", LiteralBase.LONG, new Constraint[] {
+            new StorageField("answer_time", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("answer_content", LiteralBase.STRING, new Constraint[] {
+            new StorageField("answer_content", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("answer_files", LiteralBase.STRING, new Constraint[] {
+            new StorageField("answer_files", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("thought", LiteralBase.STRING, new Constraint[] {
+            new StorageField("thought", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("context", LiteralBase.STRING, new Constraint[] {
+            new StorageField("context", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
             // 人类反馈的得分
-            new StorageField("feedback", LiteralBase.INT, new Constraint[] {
+            new StorageField("feedback", LiteralBase.INT, new Constraint[]{
                     Constraint.DEFAULT_0
             }),
-            new StorageField("context_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("context_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             })
     };
 
-    private final StorageField[] knowledgeProfileFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] knowledgeProfileFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("domain", LiteralBase.STRING, new Constraint[] {
+            new StorageField("domain", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("state", LiteralBase.INT, new Constraint[] {
+            new StorageField("state", LiteralBase.INT, new Constraint[]{
                     Constraint.DEFAULT_0
             }),
-            new StorageField("max_size", LiteralBase.LONG, new Constraint[] {
+            new StorageField("max_size", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("scope", LiteralBase.STRING, new Constraint[] {
+            new StorageField("scope", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             })
     };
 
-    private final StorageField[] knowledgeFrameFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] knowledgeFrameFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("base", LiteralBase.STRING, new Constraint[] {
+            new StorageField("base", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("display_name", LiteralBase.STRING, new Constraint[] {
+            new StorageField("display_name", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("category", LiteralBase.STRING, new Constraint[] {
+            new StorageField("category", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("unit_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("unit_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             }),
-            new StorageField("store_size", LiteralBase.LONG, new Constraint[] {
+            new StorageField("store_size", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             }),
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             })
     };
 
-    private final StorageField[] knowledgeDocFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] knowledgeDocFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY
             }),
-            new StorageField("domain", LiteralBase.STRING, new Constraint[] {
+            new StorageField("domain", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("file_code", LiteralBase.STRING, new Constraint[] {
+            new StorageField("file_code", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("base", LiteralBase.STRING, new Constraint[] {
+            new StorageField("base", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("file_name", LiteralBase.STRING, new Constraint[] {
+            new StorageField("file_name", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("activated", LiteralBase.INT, new Constraint[] {
+            new StorageField("activated", LiteralBase.INT, new Constraint[]{
                     Constraint.DEFAULT_1
             }),
-            new StorageField("num_segments", LiteralBase.INT, new Constraint[] {
+            new StorageField("num_segments", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("scope", LiteralBase.STRING, new Constraint[] {
+            new StorageField("scope", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             })
     };
 
-    private final StorageField[] knowledgeSegmentFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] knowledgeSegmentFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("doc_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("doc_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("uuid", LiteralBase.STRING, new Constraint[] {
+            new StorageField("uuid", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("content", LiteralBase.STRING, new Constraint[] {
+            new StorageField("content", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("category", LiteralBase.STRING, new Constraint[] {
+            new StorageField("category", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             })
     };
 
-    private final StorageField[] knowledgeArticleFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] knowledgeArticleFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("domain", LiteralBase.STRING, new Constraint[] {
+            new StorageField("domain", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("base", LiteralBase.STRING, new Constraint[] {
+            new StorageField("base", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("category", LiteralBase.STRING, new Constraint[] {
+            new StorageField("category", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("title", LiteralBase.STRING, new Constraint[] {
+            new StorageField("title", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("content", LiteralBase.STRING, new Constraint[] {
+            new StorageField("content", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("summarization", LiteralBase.STRING, new Constraint[] {
+            new StorageField("summarization", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("author", LiteralBase.STRING, new Constraint[] {
+            new StorageField("author", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("year", LiteralBase.INT, new Constraint[] {
+            new StorageField("year", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("month", LiteralBase.INT, new Constraint[] {
+            new StorageField("month", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("date", LiteralBase.INT, new Constraint[] {
+            new StorageField("date", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("scope", LiteralBase.STRING, new Constraint[] {
+            new StorageField("scope", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("activated", LiteralBase.INT, new Constraint[] {
+            new StorageField("activated", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL, Constraint.DEFAULT_0
             }),
-            new StorageField("segments", LiteralBase.INT, new Constraint[] {
+            new StorageField("segments", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL, Constraint.DEFAULT_0
             })
     };
 
-    private final StorageField[] knowledgeParaphraseFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] knowledgeParaphraseFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("parent_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("parent_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             }),
-            new StorageField("category", LiteralBase.STRING, new Constraint[] {
+            new StorageField("category", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("word", LiteralBase.STRING, new Constraint[] {
+            new StorageField("word", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("paraphrase", LiteralBase.STRING, new Constraint[] {
-                    Constraint.NOT_NULL
-            })
-    };
-
-    private final StorageField[] chartFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
-                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
-            }),
-            new StorageField("name", LiteralBase.STRING, new Constraint[] {
-                    Constraint.NOT_NULL
-            }),
-            new StorageField("desc", LiteralBase.STRING, new Constraint[] {
-                    Constraint.NOT_NULL
-            }),
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
-                    Constraint.NOT_NULL
-            }),
-            new StorageField("year", LiteralBase.INT, new Constraint[] {
-                    Constraint.NOT_NULL
-            }),
-            new StorageField("month", LiteralBase.INT, new Constraint[] {
-                    Constraint.NOT_NULL
-            }),
-            new StorageField("date", LiteralBase.INT, new Constraint[] {
-                    Constraint.NOT_NULL
-            }),
-            new StorageField("chart", LiteralBase.STRING, new Constraint[] {
+            new StorageField("paraphrase", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             })
     };
 
-    private final StorageField[] chartAtomFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] chartFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("label", LiteralBase.STRING, new Constraint[] {
+            new StorageField("name", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("year", LiteralBase.STRING, new Constraint[] {
+            new StorageField("desc", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("month", LiteralBase.STRING, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("date", LiteralBase.STRING, new Constraint[] {
+            new StorageField("year", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("value", LiteralBase.INT, new Constraint[] {
+            new StorageField("month", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("value_string", LiteralBase.STRING, new Constraint[] {
+            new StorageField("date", LiteralBase.INT, new Constraint[]{
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("chart", LiteralBase.STRING, new Constraint[]{
+                    Constraint.NOT_NULL
+            })
+    };
+
+    private final StorageField[] chartAtomFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            new StorageField("label", LiteralBase.STRING, new Constraint[]{
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("year", LiteralBase.STRING, new Constraint[]{
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("month", LiteralBase.STRING, new Constraint[]{
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("date", LiteralBase.STRING, new Constraint[]{
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("value", LiteralBase.INT, new Constraint[]{
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("value_string", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
     };
 
-    private final StorageField[] promptWordFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] promptWordFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("title", LiteralBase.STRING, new Constraint[] {
+            new StorageField("title", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("content", LiteralBase.STRING, new Constraint[] {
+            new StorageField("content", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("act", LiteralBase.STRING, new Constraint[] {
+            new StorageField("act", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
     };
 
-    private final StorageField[] promptWordScopeFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] promptWordScopeFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("prompt_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("prompt_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             }),
-            new StorageField("domain", LiteralBase.STRING, new Constraint[] {
+            new StorageField("domain", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             })
     };
 
-    private final StorageField[] usageFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] usageFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL,
             }),
-            new StorageField("model", LiteralBase.STRING, new Constraint[] {
+            new StorageField("model", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("completion_tokens", LiteralBase.LONG, new Constraint[] {
+            new StorageField("completion_tokens", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL, Constraint.DEFAULT_0
             }),
-            new StorageField("prompt_tokens", LiteralBase.LONG, new Constraint[] {
+            new StorageField("prompt_tokens", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL, Constraint.DEFAULT_0
             }),
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL, Constraint.DEFAULT_0
             })
     };
 
-    private final StorageField[] contactPreferenceFields = new StorageField[] {
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] contactPreferenceFields = new StorageField[]{
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY
             }),
-            new StorageField("models", LiteralBase.STRING, new Constraint[] {
+            new StorageField("models", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             })
     };
 
-    private final StorageField[] emotionFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] emotionFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTO_INCREMENT
             }),
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("emotion", LiteralBase.STRING, new Constraint[] {
+            new StorageField("emotion", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 情绪数据来源：语音、文本等
-            new StorageField("source", LiteralBase.STRING, new Constraint[] {
+            new StorageField("source", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("source_data", LiteralBase.STRING, new Constraint[] {
+            new StorageField("source_data", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
     };
 
-    private final StorageField[] voiceDiarizationFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] voiceDiarizationFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY
             }),
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("cid", LiteralBase.LONG, new Constraint[] {
+            new StorageField("cid", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("file_code", LiteralBase.STRING, new Constraint[] {
+            new StorageField("file_code", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("title", LiteralBase.STRING, new Constraint[] {
+            new StorageField("title", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("remark", LiteralBase.STRING, new Constraint[] {
+            new StorageField("remark", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 单位是：毫秒，读取之后，转为：秒，浮点数形式。
-            new StorageField("duration", LiteralBase.LONG, new Constraint[] {
+            new StorageField("duration", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("elapsed", LiteralBase.LONG, new Constraint[] {
+            new StorageField("elapsed", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("analysis", LiteralBase.STRING, new Constraint[] {
+            new StorageField("analysis", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("suggestion", LiteralBase.STRING, new Constraint[] {
+            new StorageField("suggestion", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             })
     };
 
-    private final StorageField[] voiceTrackFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] voiceTrackFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("vid", LiteralBase.LONG, new Constraint[] {
+            new StorageField("vid", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("track", LiteralBase.STRING, new Constraint[] {
+            new StorageField("track", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("label", LiteralBase.STRING, new Constraint[] {
+            new StorageField("label", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("display", LiteralBase.STRING, new Constraint[] {
+            new StorageField("display", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("segment", LiteralBase.STRING, new Constraint[] {
+            new StorageField("segment", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("emotion", LiteralBase.STRING, new Constraint[] {
+            new StorageField("emotion", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("recognition", LiteralBase.STRING, new Constraint[] {
+            new StorageField("recognition", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
     };
 
-    private final StorageField[] voiceIndicatorFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] voiceIndicatorFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("vid", LiteralBase.LONG, new Constraint[] {
+            new StorageField("vid", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 单位是：毫秒，读取之后，转为：秒，浮点数形式。
-            new StorageField("silence_duration", LiteralBase.LONG, new Constraint[] {
+            new StorageField("silence_duration", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("indicator_1", LiteralBase.STRING, new Constraint[] {
+            new StorageField("indicator_1", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("indicator_2", LiteralBase.STRING, new Constraint[] {
+            new StorageField("indicator_2", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("indicator_3", LiteralBase.STRING, new Constraint[] {
+            new StorageField("indicator_3", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("indicator_4", LiteralBase.STRING, new Constraint[] {
+            new StorageField("indicator_4", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("indicator_5", LiteralBase.STRING, new Constraint[] {
+            new StorageField("indicator_5", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             })
     };
 
-    private final StorageField[] counselingRecordingFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] counselingRecordingFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("cid", LiteralBase.LONG, new Constraint[] {
+            new StorageField("cid", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("domain", LiteralBase.STRING, new Constraint[] {
+            new StorageField("domain", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("stream", LiteralBase.STRING, new Constraint[] {
+            new StorageField("stream", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("duration", LiteralBase.LONG, new Constraint[] {
+            new StorageField("duration", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("gender", LiteralBase.STRING, new Constraint[] {
+            new StorageField("gender", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("age", LiteralBase.INT, new Constraint[] {
+            new StorageField("age", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("theme", LiteralBase.STRING, new Constraint[] {
+            new StorageField("theme", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("file_code", LiteralBase.STRING, new Constraint[] {
+            new StorageField("file_code", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             })
     };
@@ -663,46 +665,46 @@ public class AIGCStorage implements Storagable {
      * SKILL 技能定义表的字段。
      * 技能以 name 作为唯一键；scope 为空或 {@code global} 表示全局生效，否则按 domain 隔离。
      */
-    private final StorageField[] skillFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] skillFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("name", LiteralBase.STRING, new Constraint[] {
+            new StorageField("name", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("display_name", LiteralBase.STRING, new Constraint[] {
+            new StorageField("display_name", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("description", LiteralBase.STRING, new Constraint[] {
+            new StorageField("description", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
             // 关键词，JSON 数组字符串
-            new StorageField("keywords", LiteralBase.STRING, new Constraint[] {
+            new StorageField("keywords", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("when_to_use", LiteralBase.STRING, new Constraint[] {
+            new StorageField("when_to_use", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("version", LiteralBase.STRING, new Constraint[] {
+            new StorageField("version", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("enabled", LiteralBase.INT, new Constraint[] {
+            new StorageField("enabled", LiteralBase.INT, new Constraint[]{
                     Constraint.DEFAULT_1
             }),
-            new StorageField("scope", LiteralBase.STRING, new Constraint[] {
+            new StorageField("scope", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
             // 技能正文，超过 MySQL TEXT 上限时自动扩容到 MEDIUMTEXT
-            new StorageField("content", LiteralBase.STRING, new Constraint[] {
+            new StorageField("content", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("source", LiteralBase.STRING, new Constraint[] {
+            new StorageField("source", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("created", LiteralBase.LONG, new Constraint[] {
+            new StorageField("created", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             }),
-            new StorageField("modified", LiteralBase.LONG, new Constraint[] {
+            new StorageField("modified", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             })
     };
@@ -710,38 +712,38 @@ public class AIGCStorage implements Storagable {
     /**
      * SKILL 调用留痕表的字段。
      */
-    private final StorageField[] skillInvocationFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] skillInvocationFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("channel", LiteralBase.STRING, new Constraint[] {
+            new StorageField("channel", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("unit", LiteralBase.STRING, new Constraint[] {
+            new StorageField("unit", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("domain", LiteralBase.STRING, new Constraint[] {
+            new StorageField("domain", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             }),
             // 已注入的技能，JSON 数组字符串
-            new StorageField("skills", LiteralBase.STRING, new Constraint[] {
+            new StorageField("skills", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
             // 明细：每个技能的版本、字符数、是否被截断
-            new StorageField("detail", LiteralBase.STRING, new Constraint[] {
+            new StorageField("detail", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
             // 预算：上下文长度、技能预算、实际占用、剩余
-            new StorageField("budget", LiteralBase.STRING, new Constraint[] {
+            new StorageField("budget", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             })
     };
@@ -750,24 +752,24 @@ public class AIGCStorage implements Storagable {
      * SKILL 会话级技能绑定表的字段。
      * 以 channel 作为唯一键；skills 为 JSON 数组字符串；updated 用于判定绑定是否过期。
      */
-    private final StorageField[] skillSessionFields = new StorageField[] {
-            new StorageField("id", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] skillSessionFields = new StorageField[]{
+            new StorageField("id", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
-            new StorageField("channel", LiteralBase.STRING, new Constraint[] {
+            new StorageField("channel", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("domain", LiteralBase.STRING, new Constraint[] {
+            new StorageField("domain", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             }),
             // 已绑定的技能名称，JSON 数组字符串
-            new StorageField("skills", LiteralBase.STRING, new Constraint[] {
+            new StorageField("skills", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             }),
-            new StorageField("updated", LiteralBase.LONG, new Constraint[] {
+            new StorageField("updated", LiteralBase.LONG, new Constraint[]{
                     Constraint.DEFAULT_0
             })
     };
@@ -1021,9 +1023,9 @@ public class AIGCStorage implements Storagable {
      * @return 配置；不存在返回 {@code null} 。
      */
     public ModelConfig getModelConfig(String modelName) {
-        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, new StorageField[]{
                 new StorageField("value", LiteralBase.STRING)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("item", modelName)
         });
 
@@ -1048,9 +1050,9 @@ public class AIGCStorage implements Storagable {
     public List<ModelConfig> getModelConfigs() {
         List<ModelConfig> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, new StorageField[]{
                 new StorageField("value", LiteralBase.STRING)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("item", ITEM_NAME_MODELS)
         });
         if (result.isEmpty()) {
@@ -1065,7 +1067,7 @@ public class AIGCStorage implements Storagable {
 
         for (int i = 0; i < models.length(); ++i) {
             String model = models.getString(i);
-            result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[] {
+            result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[]{
                     Conditional.createEqualTo("item", model)
             });
 
@@ -1098,7 +1100,7 @@ public class AIGCStorage implements Storagable {
         List<ModelConfig> list = new ArrayList<>();
 
         for (String modelName : modelNames) {
-            List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[] {
+            List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[]{
                     Conditional.createEqualTo("item", modelName.trim())
             });
 
@@ -1127,7 +1129,7 @@ public class AIGCStorage implements Storagable {
      * @return 版本 JSON ；无数据时返回空对象。
      */
     public JSONObject getAppVersion() {
-        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[]{
                 Conditional.createEqualTo("item", "AppVersion")
         });
         if (result.isEmpty()) {
@@ -1146,11 +1148,11 @@ public class AIGCStorage implements Storagable {
      * @return 令牌；无匹配返回 {@code null} 。
      */
     public String readTokenByInvitation(String invitation) {
-        List<StorageField[]> result = this.storage.executeQuery(this.appInvitationTable, new StorageField[] {
-                    new StorageField("token", LiteralBase.STRING)
-            }, new Conditional[] {
-                    Conditional.createEqualTo("invitation", invitation)
-            });
+        List<StorageField[]> result = this.storage.executeQuery(this.appInvitationTable, new StorageField[]{
+                new StorageField("token", LiteralBase.STRING)
+        }, new Conditional[]{
+                Conditional.createEqualTo("invitation", invitation)
+        });
         if (result.isEmpty()) {
             return null;
         }
@@ -1166,7 +1168,7 @@ public class AIGCStorage implements Storagable {
      * @return 写入成功返回 {@code true} 。
      */
     public boolean writeInvitation(String invitation, String token) {
-        return this.storage.executeInsert(this.appInvitationTable, new StorageField[] {
+        return this.storage.executeInsert(this.appInvitationTable, new StorageField[]{
                 new StorageField("invitation", invitation),
                 new StorageField("token", token)
         });
@@ -1184,12 +1186,12 @@ public class AIGCStorage implements Storagable {
         List<AppEvent> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.appEventTable, this.appEventFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("event", eventName),
                         Conditional.createAnd(),
-                        Conditional.createBracket(new Conditional[] {
+                        Conditional.createBracket(new Conditional[]{
                                 Conditional.createGreaterThanEqual(new StorageField("timestamp", startTimestamp)),
                                 Conditional.createAnd(),
                                 Conditional.createLessThanEqual(new StorageField("timestamp", endTimestamp))
@@ -1222,13 +1224,13 @@ public class AIGCStorage implements Storagable {
     public List<AppEvent> readAppEvents(long contactId, String eventName, int limit) {
         List<AppEvent> list = new ArrayList<>();
         List<StorageField[]> result = this.storage.executeQuery(this.appEventTable, this.appEventFields,
-            new Conditional[] {
-                    Conditional.createEqualTo("contact_id", contactId),
-                    Conditional.createAnd(),
-                    Conditional.createEqualTo("event", eventName),
-                    Conditional.createOrderBy("timestamp", true),
-                    Conditional.createLimit(limit)
-            });
+                new Conditional[]{
+                        Conditional.createEqualTo("contact_id", contactId),
+                        Conditional.createAnd(),
+                        Conditional.createEqualTo("event", eventName),
+                        Conditional.createOrderBy("timestamp", true),
+                        Conditional.createLimit(limit)
+                });
         for (StorageField[] fields : result) {
             Map<String, StorageField> data = StorageFields.get(fields);
             JSONObject eventData = JSONStorageUtils.decodeObject(data.get("data").getString());
@@ -1250,7 +1252,7 @@ public class AIGCStorage implements Storagable {
      * @return 写入成功返回 {@code true} 。
      */
     public boolean writeAppEvent(AppEvent appEvent) {
-        return this.storage.executeInsert(this.appEventTable, new StorageField[] {
+        return this.storage.executeInsert(this.appEventTable, new StorageField[]{
                 new StorageField("event", appEvent.event),
                 new StorageField("time", appEvent.time),
                 new StorageField("timestamp", appEvent.timestamp),
@@ -1272,10 +1274,10 @@ public class AIGCStorage implements Storagable {
         List<AIGCChatHistory> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.queryAnswerTable,
-                this.queryAnswerFields, new Conditional[] {
+                this.queryAnswerFields, new Conditional[]{
                         Conditional.createEqualTo("query_cid", contactId),
                         Conditional.createAnd(),
-                        Conditional.createBracket(new Conditional[] {
+                        Conditional.createBracket(new Conditional[]{
                                 Conditional.createIsNull("query_domain"),
                                 Conditional.createOr(),
                                 Conditional.createEqualTo("query_domain", domain)
@@ -1310,8 +1312,7 @@ public class AIGCStorage implements Storagable {
                             files.add(file);
                         }
                         history.queryFileLabels = files;
-                    }
-                    else {
+                    } else {
                         Logger.w(this.getClass(), "#readHistories - `query_files` data error: " + data.get("sn").getLong());
                     }
                 }
@@ -1325,8 +1326,7 @@ public class AIGCStorage implements Storagable {
                             files.add(file);
                         }
                         history.answerFileLabels = files;
-                    }
-                    else {
+                    } else {
                         Logger.w(this.getClass(), "#readHistories - `answer_files` data error: " + data.get("sn").getLong());
                     }
                 }
@@ -1340,8 +1340,7 @@ public class AIGCStorage implements Storagable {
                     if (null != contextJson) {
                         ComplexContext context = new ComplexContext(contextJson);
                         history.context = context;
-                    }
-                    else {
+                    } else {
                         Logger.w(this.getClass(), "#readHistories - `context` data error: " + data.get("sn").getLong());
                     }
                 }
@@ -1368,10 +1367,10 @@ public class AIGCStorage implements Storagable {
         List<AIGCChatHistory> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.queryAnswerTable,
-                this.queryAnswerFields, new Conditional[] {
+                this.queryAnswerFields, new Conditional[]{
                         Conditional.createEqualTo("feedback", feedback),
                         Conditional.createAnd(),
-                        Conditional.createBracket(new Conditional[] {
+                        Conditional.createBracket(new Conditional[]{
                                 Conditional.createIsNull("query_domain"),
                                 Conditional.createOr(),
                                 Conditional.createEqualTo("query_domain", domain)
@@ -1406,8 +1405,7 @@ public class AIGCStorage implements Storagable {
                             files.add(file);
                         }
                         history.queryFileLabels = files;
-                    }
-                    else {
+                    } else {
                         Logger.w(this.getClass(), "#readHistories - `query_files` data error: " + data.get("sn").getLong());
                     }
                 }
@@ -1421,8 +1419,7 @@ public class AIGCStorage implements Storagable {
                             files.add(file);
                         }
                         history.answerFileLabels = files;
-                    }
-                    else {
+                    } else {
                         Logger.w(this.getClass(), "#readHistories - `answer_files` data error: " + data.get("sn").getLong());
                     }
                 }
@@ -1436,8 +1433,7 @@ public class AIGCStorage implements Storagable {
                     if (null != contextJson) {
                         ComplexContext context = new ComplexContext(contextJson);
                         history.context = context;
-                    }
-                    else {
+                    } else {
                         Logger.w(this.getClass(), "#readHistories - `context` data error: " + data.get("sn").getLong());
                     }
                 }
@@ -1463,7 +1459,7 @@ public class AIGCStorage implements Storagable {
         List<AIGCChatHistory> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.queryAnswerTable,
-                this.queryAnswerFields, new Conditional[] {
+                this.queryAnswerFields, new Conditional[]{
                         Conditional.createEqualTo("channel", channelCode),
                         Conditional.createAnd(),
                         Conditional.createGreaterThanEqual(new StorageField("query_time", startTime)),
@@ -1496,8 +1492,7 @@ public class AIGCStorage implements Storagable {
                             files.add(file);
                         }
                         history.queryFileLabels = files;
-                    }
-                    else {
+                    } else {
                         Logger.w(this.getClass(), "#readHistories - `query_files` data error: " + data.get("sn").getLong());
                     }
                 }
@@ -1511,8 +1506,7 @@ public class AIGCStorage implements Storagable {
                             files.add(file);
                         }
                         history.answerFileLabels = files;
-                    }
-                    else {
+                    } else {
                         Logger.w(this.getClass(), "#readHistories - `answer_files` data error: " + data.get("sn").getLong());
                     }
                 }
@@ -1526,8 +1520,7 @@ public class AIGCStorage implements Storagable {
                     if (null != contextJson) {
                         ComplexContext context = new ComplexContext(contextJson);
                         history.context = context;
-                    }
-                    else {
+                    } else {
                         Logger.w(this.getClass(), "#readHistories - `context` data error: " + data.get("sn").getLong());
                     }
                 }
@@ -1563,7 +1556,7 @@ public class AIGCStorage implements Storagable {
             }
         }
 
-        this.storage.executeInsert(this.queryAnswerTable, new StorageField[] {
+        this.storage.executeInsert(this.queryAnswerTable, new StorageField[]{
                 new StorageField("sn", history.sn),
                 new StorageField("channel", history.channelCode),
                 new StorageField("unit", history.unit),
@@ -1595,9 +1588,9 @@ public class AIGCStorage implements Storagable {
      * @return 更新成功返回 {@code true} 。
      */
     public boolean updateHistoryFeedback(long sn, int feedback) {
-        return this.storage.executeUpdate(this.queryAnswerTable, new StorageField[] {
+        return this.storage.executeUpdate(this.queryAnswerTable, new StorageField[]{
                 new StorageField("feedback", feedback)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("sn", sn)
         });
     }
@@ -1611,7 +1604,7 @@ public class AIGCStorage implements Storagable {
         List<Notification> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.appNotificationTable, this.appNotificationFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("state", Notification.STATE_ENABLED)
                 });
 
@@ -1635,7 +1628,7 @@ public class AIGCStorage implements Storagable {
      * @param notification 通知对象。
      */
     public void writeNotification(Notification notification) {
-        this.storage.executeInsert(this.appNotificationTable, new StorageField[] {
+        this.storage.executeInsert(this.appNotificationTable, new StorageField[]{
                 new StorageField("id", notification.id),
                 new StorageField("type", notification.type),
                 new StorageField("state", notification.state),
@@ -1653,7 +1646,7 @@ public class AIGCStorage implements Storagable {
      */
     public KnowledgeProfile readKnowledgeProfile(long contactId) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeProfileTable, this.knowledgeProfileFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId)
                 });
 
@@ -1682,12 +1675,12 @@ public class AIGCStorage implements Storagable {
     public KnowledgeProfile updateKnowledgeProfile(long contactId, String domain, int state, long maxSize,
                                                    KnowledgeScope scope) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeProfileTable, this.knowledgeProfileFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId)
                 });
 
         if (result.isEmpty()) {
-            this.storage.executeInsert(this.knowledgeProfileTable, new StorageField[] {
+            this.storage.executeInsert(this.knowledgeProfileTable, new StorageField[]{
                     new StorageField("contact_id", contactId),
                     new StorageField("domain", domain),
                     new StorageField("state", state),
@@ -1700,11 +1693,11 @@ public class AIGCStorage implements Storagable {
         Map<String, StorageField> data = StorageFields.get(result.get(0));
         long id = data.get("id").getLong();
 
-        this.storage.executeUpdate(this.knowledgeProfileTable, new StorageField[] {
+        this.storage.executeUpdate(this.knowledgeProfileTable, new StorageField[]{
                 new StorageField("state", state),
                 new StorageField("max_size", maxSize),
                 new StorageField("scope", scope.name)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("contact_id", contactId)
         });
 
@@ -1713,6 +1706,7 @@ public class AIGCStorage implements Storagable {
 
     /**
      * 读取联系人的知识库信息。
+     *
      * @param contactId 联系人 ID 。
      * @return 知识库概要列表；无数据时为空列表。
      */
@@ -1720,7 +1714,7 @@ public class AIGCStorage implements Storagable {
         List<KnowledgeBaseInfo> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeFrameTable, this.knowledgeFrameFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId)
                 });
 
@@ -1745,7 +1739,7 @@ public class AIGCStorage implements Storagable {
      */
     public KnowledgeBaseInfo readKnowledgeBaseInfo(long contactId, String baseName) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeFrameTable, this.knowledgeFrameFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("base", baseName)
@@ -1770,7 +1764,7 @@ public class AIGCStorage implements Storagable {
      * @return 删除成功返回 {@code true} 。
      */
     public boolean deleteKnowledgeBaseInfo(long contactId, String baseName) {
-        return this.storage.executeDelete(this.knowledgeFrameTable, new Conditional[] {
+        return this.storage.executeDelete(this.knowledgeFrameTable, new Conditional[]{
                 Conditional.createEqualTo("contact_id", contactId),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("base", baseName)
@@ -1785,11 +1779,11 @@ public class AIGCStorage implements Storagable {
      * @return 更新成功返回 {@code true} 。
      */
     public boolean updateKnowledgeBaseInfo(long contactId, KnowledgeBaseInfo info) {
-        return this.storage.executeUpdate(this.knowledgeFrameTable, new StorageField[] {
+        return this.storage.executeUpdate(this.knowledgeFrameTable, new StorageField[]{
                 new StorageField("display_name", info.displayName),
                 new StorageField("category", info.category),
                 new StorageField("timestamp", info.timestamp)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("contact_id", contactId),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("base", info.name)
@@ -1807,7 +1801,7 @@ public class AIGCStorage implements Storagable {
         List<KnowledgeBaseInfo> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeFrameTable, this.knowledgeFrameFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("category", category)
@@ -1833,13 +1827,13 @@ public class AIGCStorage implements Storagable {
      */
     public boolean writeKnowledgeBaseInfo(KnowledgeBaseInfo info) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeFrameTable,
-                this.knowledgeFrameFields, new Conditional[] {
+                this.knowledgeFrameFields, new Conditional[]{
                         Conditional.createEqualTo("contact_id", info.contactId),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("base", info.name)
                 });
         if (result.isEmpty()) {
-            return this.storage.executeInsert(this.knowledgeFrameTable, new StorageField[] {
+            return this.storage.executeInsert(this.knowledgeFrameTable, new StorageField[]{
                     new StorageField("contact_id", info.contactId),
                     new StorageField("base", info.name),
                     new StorageField("display_name", info.displayName),
@@ -1848,15 +1842,14 @@ public class AIGCStorage implements Storagable {
                     new StorageField("store_size", info.storeSize),
                     new StorageField("timestamp", info.timestamp)
             });
-        }
-        else {
-            return this.storage.executeUpdate(this.knowledgeFrameTable, new StorageField[] {
+        } else {
+            return this.storage.executeUpdate(this.knowledgeFrameTable, new StorageField[]{
                     new StorageField("display_name", info.displayName),
                     new StorageField("unit_id", info.unitId),
                     new StorageField("store_size", info.storeSize),
                     new StorageField("timestamp", info.timestamp),
                     new StorageField("category", info.category)
-            }, new Conditional[] {
+            }, new Conditional[]{
                     Conditional.createEqualTo("contact_id", info.contactId),
                     Conditional.createAnd(),
                     Conditional.createEqualTo("base", info.name)
@@ -1875,7 +1868,7 @@ public class AIGCStorage implements Storagable {
         List<KnowledgeDocument> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, this.knowledgeDocFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("domain", domain),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("base", baseName)
@@ -1906,7 +1899,7 @@ public class AIGCStorage implements Storagable {
         List<KnowledgeDocument> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, this.knowledgeDocFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("domain", domain),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("contact_id", contactId),
@@ -1936,7 +1929,7 @@ public class AIGCStorage implements Storagable {
      */
     public KnowledgeDocument readKnowledgeDoc(String baseName, String fileCode) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, this.knowledgeDocFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("base", baseName),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("file_code", fileCode)
@@ -1960,23 +1953,23 @@ public class AIGCStorage implements Storagable {
      * @param doc 文档对象。
      */
     public void writeKnowledgeDoc(KnowledgeDocument doc) {
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, new StorageField[]{
                 new StorageField("id", LiteralBase.LONG)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("base", doc.baseName),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("file_code", doc.fileCode)
         });
 
         if (!result.isEmpty()) {
-            this.storage.executeDelete(this.knowledgeDocTable, new Conditional[] {
+            this.storage.executeDelete(this.knowledgeDocTable, new Conditional[]{
                     Conditional.createEqualTo("base", doc.baseName),
                     Conditional.createAnd(),
                     Conditional.createEqualTo("file_code", doc.fileCode)
             });
         }
 
-        this.storage.executeInsert(this.knowledgeDocTable, new StorageField[] {
+        this.storage.executeInsert(this.knowledgeDocTable, new StorageField[]{
                 new StorageField("id", doc.getId().longValue()),
                 new StorageField("domain", doc.getDomain().getName()),
                 new StorageField("contact_id", doc.contactId),
@@ -1996,11 +1989,11 @@ public class AIGCStorage implements Storagable {
      * @return 更新成功返回 {@code true} 。
      */
     public boolean updateKnowledgeDoc(KnowledgeDocument doc) {
-        return this.storage.executeUpdate(this.knowledgeDocTable, new StorageField[] {
+        return this.storage.executeUpdate(this.knowledgeDocTable, new StorageField[]{
                 new StorageField("activated", doc.activated ? 1 : 0),
                 new StorageField("num_segments", doc.numSegments),
                 new StorageField("file_name", doc.fileName)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("base", doc.baseName),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("file_code", doc.fileCode)
@@ -2015,7 +2008,7 @@ public class AIGCStorage implements Storagable {
      * @return 删除成功返回 {@code true} 。
      */
     public boolean deleteKnowledgeDoc(String baseName, String fileCode) {
-        return this.storage.executeDelete(this.knowledgeDocTable, new Conditional[] {
+        return this.storage.executeDelete(this.knowledgeDocTable, new Conditional[]{
                 Conditional.createEqualTo("base", baseName),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("file_code", fileCode)
@@ -2048,9 +2041,9 @@ public class AIGCStorage implements Storagable {
 
         List<String[]> codeAndNameList = new ArrayList<>();
         for (StorageField[] fields : result) {
-            String[] data = new String[] {
+            String[] data = new String[]{
                     fields[0].getString(),
-                    fields[1].getString() };
+                    fields[1].getString()};
             codeAndNameList.add(data);
         }
         return codeAndNameList;
@@ -2067,7 +2060,7 @@ public class AIGCStorage implements Storagable {
     public List<KnowledgeSegment> readKnowledgeSegments(long docId, int startIndex, int endIndex) {
         List<KnowledgeSegment> list = new ArrayList<>();
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeSegmentTable,
-                this.knowledgeSegmentFields, new Conditional[] {
+                this.knowledgeSegmentFields, new Conditional[]{
                         Conditional.createEqualTo("doc_id", docId),
                         Conditional.createLimit(startIndex, endIndex - startIndex + 1)
                 });
@@ -2101,7 +2094,7 @@ public class AIGCStorage implements Storagable {
      */
     public void writeKnowledgeSegments(List<KnowledgeSegment> segments) {
         for (KnowledgeSegment segment : segments) {
-            this.storage.executeInsert(this.knowledgeSegmentTable, new StorageField[] {
+            this.storage.executeInsert(this.knowledgeSegmentTable, new StorageField[]{
                     new StorageField("doc_id", segment.docId),
                     new StorageField("uuid", segment.uuid),
                     new StorageField("content", segment.content),
@@ -2117,7 +2110,7 @@ public class AIGCStorage implements Storagable {
      * @return 删除成功返回 {@code true} 。
      */
     public boolean deleteKnowledgeSegments(long docId) {
-        return this.storage.executeDelete(this.knowledgeSegmentTable, new Conditional[] {
+        return this.storage.executeDelete(this.knowledgeSegmentTable, new Conditional[]{
                 Conditional.createEqualTo("doc_id", docId)
         });
     }
@@ -2129,7 +2122,7 @@ public class AIGCStorage implements Storagable {
      * @return 写入成功返回 {@code true} 。
      */
     public boolean writeKnowledgeArticle(KnowledgeArticle article) {
-        return this.storage.executeInsert(this.knowledgeArticleTable, new StorageField[] {
+        return this.storage.executeInsert(this.knowledgeArticleTable, new StorageField[]{
                 new StorageField("id", article.getId().longValue()),
                 new StorageField("domain", article.getDomain().getName()),
                 new StorageField("contact_id", article.contactId),
@@ -2157,9 +2150,9 @@ public class AIGCStorage implements Storagable {
      * @return 更新成功返回 {@code true} 。
      */
     public boolean updateKnowledgeArticleSummarization(long articleId, String summarization) {
-        return this.storage.executeUpdate(this.knowledgeArticleTable, new StorageField[] {
+        return this.storage.executeUpdate(this.knowledgeArticleTable, new StorageField[]{
                 new StorageField("summarization", summarization)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("id", articleId)
         });
     }
@@ -2167,16 +2160,16 @@ public class AIGCStorage implements Storagable {
     /**
      * 更新文章激活状态。
      *
-     * @param articleId  文章 ID 。
-     * @param activated  是否激活。
+     * @param articleId   文章 ID 。
+     * @param activated   是否激活。
      * @param numSegments 段数量。
      * @return 更新成功返回 {@code true} 。
      */
     public boolean updateKnowledgeArticleActivated(long articleId, boolean activated, int numSegments) {
-        return this.storage.executeUpdate(this.knowledgeArticleTable, new StorageField[] {
+        return this.storage.executeUpdate(this.knowledgeArticleTable, new StorageField[]{
                 new StorageField("activated", activated ? 1 : 0),
                 new StorageField("segments", numSegments)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("id", articleId)
         });
     }
@@ -2188,7 +2181,7 @@ public class AIGCStorage implements Storagable {
      * @return 更新后的文章；失败返回 {@code null} 。
      */
     public KnowledgeArticle updateKnowledgeArticle(KnowledgeArticle article) {
-        if (this.storage.executeUpdate(this.knowledgeArticleTable, new StorageField[] {
+        if (this.storage.executeUpdate(this.knowledgeArticleTable, new StorageField[]{
                 new StorageField("base", article.baseName),
                 new StorageField("title", article.title),
                 new StorageField("author", article.author),
@@ -2202,12 +2195,11 @@ public class AIGCStorage implements Storagable {
                 new StorageField("scope", article.scope.name),
                 new StorageField("activated", article.activated ? 1 : 0),
                 new StorageField("segments", article.numSegments)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("id", article.getId().longValue())
         })) {
             return article;
-        }
-        else {
+        } else {
             return null;
         }
     }
@@ -2220,7 +2212,7 @@ public class AIGCStorage implements Storagable {
      */
     public KnowledgeArticle readKnowledgeArticle(long articleId) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("id", articleId)
                 });
         if (result.isEmpty()) {
@@ -2251,7 +2243,7 @@ public class AIGCStorage implements Storagable {
         List<KnowledgeArticle> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("domain", domain),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("contact_id", contactId),
@@ -2288,7 +2280,7 @@ public class AIGCStorage implements Storagable {
         List<KnowledgeArticle> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("domain", domain),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("contact_id", contactId),
@@ -2297,7 +2289,7 @@ public class AIGCStorage implements Storagable {
                         Conditional.createAnd(),
                         Conditional.createEqualTo("title", title),
                         Conditional.createOrderBy("timestamp", true)
-        });
+                });
         for (StorageField[] fields : result) {
             Map<String, StorageField> data = StorageFields.get(fields);
             KnowledgeArticle article = new KnowledgeArticle(data.get("id").getLong(), data.get("domain").getString(),
@@ -2364,7 +2356,7 @@ public class AIGCStorage implements Storagable {
         List<KnowledgeArticle> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("base", baseName),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("category", category),
@@ -2403,7 +2395,7 @@ public class AIGCStorage implements Storagable {
         List<KnowledgeArticle> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("base", baseName),
@@ -2431,20 +2423,21 @@ public class AIGCStorage implements Storagable {
 
     /**
      * 使用关键字匹配文章标题和摘要。
-     * @param domain 域。
+     *
+     * @param domain    域。
      * @param contactId 联系人 ID 。
-     * @param baseName 知识库名称。
-     * @param keyword keyword。
+     * @param baseName  知识库名称。
+     * @param keyword   keyword。
      * @return 文章列表；无数据时为空列表。
      */
     public List<KnowledgeArticle> matchKnowledgeArticles(String domain, long contactId, String baseName, String keyword) {
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("domain", domain),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("base", baseName),
                         Conditional.createAnd(),
-                        Conditional.createBracket(new Conditional[] {
+                        Conditional.createBracket(new Conditional[]{
                                 Conditional.createLike("title", keyword),
                                 Conditional.createOr(),
                                 Conditional.createLike("summarization", keyword)
@@ -2501,6 +2494,7 @@ public class AIGCStorage implements Storagable {
 
     /**
      * 删除知识库文章。
+     *
      * @param idList ID 列表。
      * @return 返回已删除的文章 ID 列表。
      */
@@ -2542,9 +2536,9 @@ public class AIGCStorage implements Storagable {
         List<KnowledgeParaphrase> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.knowledgeParaphraseTable,
-                this.knowledgeParaphraseFields, new Conditional[] {
-                Conditional.createLike("category", category)
-        });
+                this.knowledgeParaphraseFields, new Conditional[]{
+                        Conditional.createLike("category", category)
+                });
         for (StorageField[] fields : result) {
             Map<String, StorageField> data = StorageFields.get(fields);
             KnowledgeParaphrase paraphrase = new KnowledgeParaphrase(data.get("id").getLong(),
@@ -2564,7 +2558,7 @@ public class AIGCStorage implements Storagable {
      */
     public boolean writeKnowledgeParaphrases(List<KnowledgeParaphrase> list) {
         for (KnowledgeParaphrase paraphrase : list) {
-            boolean result = this.storage.executeInsert(this.knowledgeParaphraseTable, new StorageField[] {
+            boolean result = this.storage.executeInsert(this.knowledgeParaphraseTable, new StorageField[]{
                     new StorageField("id", paraphrase.getId().longValue()),
                     new StorageField("parent_id", paraphrase.getParentId()),
                     new StorageField("category", paraphrase.getCategory()),
@@ -2621,7 +2615,7 @@ public class AIGCStorage implements Storagable {
      */
     public Chart readLastChart(String name) {
         List<StorageField[]> result = this.storage.executeQuery(this.chartTable,
-                this.chartFields, new Conditional[] {
+                this.chartFields, new Conditional[]{
                         Conditional.createEqualTo("name", name),
                         Conditional.createOrderBy("timestamp", true),
                         Conditional.createLimit(1)
@@ -2649,7 +2643,7 @@ public class AIGCStorage implements Storagable {
         Date date = new Date(chart.timestamp);
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(date);
-        return this.storage.executeInsert(this.chartTable, new StorageField[] {
+        return this.storage.executeInsert(this.chartTable, new StorageField[]{
                 new StorageField("name", chart.name),
                 new StorageField("desc", chart.desc),
                 new StorageField("timestamp", chart.timestamp),
@@ -2667,7 +2661,7 @@ public class AIGCStorage implements Storagable {
      * @return 删除成功返回 {@code true} 。
      */
     public boolean deleteChart(String name) {
-        return this.storage.executeDelete(this.chartTable, new Conditional[] {
+        return this.storage.executeDelete(this.chartTable, new Conditional[]{
                 Conditional.createEqualTo("name", name)
         });
     }
@@ -2685,7 +2679,7 @@ public class AIGCStorage implements Storagable {
 
         int num = 0;
         for (Atom atom : atomList) {
-            boolean success = this.storage.executeInsert(this.chartAtomTable, new StorageField[] {
+            boolean success = this.storage.executeInsert(this.chartAtomTable, new StorageField[]{
                     new StorageField("label", atom.label),
                     new StorageField("year", atom.year),
                     new StorageField("month", atom.month),
@@ -2713,7 +2707,7 @@ public class AIGCStorage implements Storagable {
 
         int num = 0;
         for (long sn : atomSnList) {
-            boolean success = this.storage.executeDelete(this.chartAtomTable, new Conditional[] {
+            boolean success = this.storage.executeDelete(this.chartAtomTable, new Conditional[]{
                     Conditional.createEqualTo("sn", sn)
             });
 
@@ -2884,25 +2878,26 @@ public class AIGCStorage implements Storagable {
     /**
      * 读取联系人的提示词。
      * 同时读取 contact_id 为 0 的公共提示词。
+     *
      * @param contactId 联系人 ID 。
      * @return 提示词列表；无数据时为空列表。
      */
     public List<PromptRecord> readPrompts(long contactId) {
         List<PromptRecord> promptRecords = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(new String[] {
-            this.promptWordTable, this.promptWordScopeTable
-        }, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQuery(new String[]{
+                this.promptWordTable, this.promptWordScopeTable
+        }, new StorageField[]{
                 new StorageField(this.promptWordTable, "id", LiteralBase.LONG),
                 new StorageField(this.promptWordTable, "title", LiteralBase.STRING),
                 new StorageField(this.promptWordTable, "content", LiteralBase.STRING),
                 new StorageField(this.promptWordTable, "act", LiteralBase.STRING),
                 new StorageField(this.promptWordScopeTable, "contact_id", LiteralBase.LONG)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo(new StorageField(this.promptWordTable, "id", LiteralBase.LONG),
                         new StorageField(this.promptWordScopeTable, "prompt_id", LiteralBase.LONG)),
                 Conditional.createAnd(),
-                Conditional.createBracket(new Conditional[] {
+                Conditional.createBracket(new Conditional[]{
                         Conditional.createEqualTo(new StorageField(this.promptWordScopeTable,
                                 "contact_id", LiteralBase.LONG, contactId)),
                         Conditional.createOr(),
@@ -2930,7 +2925,7 @@ public class AIGCStorage implements Storagable {
      */
     public PromptRecord readPrompt(String title) {
         List<StorageField[]> result = this.storage.executeQuery(this.promptWordTable, this.promptWordFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("title", title)
                 });
 
@@ -2955,42 +2950,40 @@ public class AIGCStorage implements Storagable {
      */
     public boolean writePrompt(PromptRecord promptRecord, long contactId) {
         List<StorageField[]> result = this.storage.executeQuery(this.promptWordTable,
-                this.promptWordFields, new Conditional[] {
+                this.promptWordFields, new Conditional[]{
                         Conditional.createEqualTo("id", promptRecord.id)
                 });
         if (result.isEmpty()) {
             // 插入
-            this.storage.executeInsert(this.promptWordTable, new StorageField[] {
+            this.storage.executeInsert(this.promptWordTable, new StorageField[]{
                     new StorageField("id", promptRecord.id),
                     new StorageField("title", promptRecord.title),
                     new StorageField("content", promptRecord.content),
                     new StorageField("act", promptRecord.act)
             });
-        }
-        else {
+        } else {
             // 更新
-            this.storage.executeUpdate(this.promptWordTable, new StorageField[] {
+            this.storage.executeUpdate(this.promptWordTable, new StorageField[]{
                     new StorageField("title", promptRecord.title),
                     new StorageField("content", promptRecord.content),
                     new StorageField("act", promptRecord.act)
-            }, new Conditional[] {
+            }, new Conditional[]{
                     Conditional.createEqualTo("id", promptRecord.id)
             });
         }
 
         result = this.storage.executeQuery(this.promptWordScopeTable, this.promptWordScopeFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("prompt_id", promptRecord.id),
                         Conditional.createAnd(),
                         Conditional.createEqualTo("contact_id", contactId)
                 });
         if (result.isEmpty()) {
-            return this.storage.executeInsert(this.promptWordScopeTable, new StorageField[] {
+            return this.storage.executeInsert(this.promptWordScopeTable, new StorageField[]{
                     new StorageField("prompt_id", promptRecord.id),
                     new StorageField("contact_id", contactId)
             });
-        }
-        else {
+        } else {
             return true;
         }
     }
@@ -3015,14 +3008,13 @@ public class AIGCStorage implements Storagable {
                         new StorageField("act", promptRecord.act)
                 });
                 idList.add(id);
-            }
-            else {
+            } else {
                 // 更新
-                this.storage.executeUpdate(this.promptWordTable, new StorageField[] {
+                this.storage.executeUpdate(this.promptWordTable, new StorageField[]{
                         new StorageField("content", promptRecord.content),
                         new StorageField("act", promptRecord.act)
-                }, new Conditional[] {
-                            Conditional.createEqualTo("id", record.id)
+                }, new Conditional[]{
+                        Conditional.createEqualTo("id", record.id)
                 });
                 idList.add(record.id);
             }
@@ -3032,7 +3024,7 @@ public class AIGCStorage implements Storagable {
             for (long id : idList) {
                 List<StorageField[]> result = this.storage.executeQuery(this.promptWordScopeTable,
                         this.promptWordScopeFields,
-                        new Conditional[] {
+                        new Conditional[]{
                                 Conditional.createEqualTo("prompt_id", id),
                                 Conditional.createAnd(),
                                 Conditional.createEqualTo("contact_id", contactId)
@@ -3040,7 +3032,7 @@ public class AIGCStorage implements Storagable {
 
                 if (result.isEmpty()) {
                     // 插入新数据
-                    this.storage.executeInsert(this.promptWordScopeTable, new StorageField[] {
+                    this.storage.executeInsert(this.promptWordScopeTable, new StorageField[]{
                             new StorageField("prompt_id", id),
                             new StorageField("contact_id", contactId)
                     });
@@ -3056,11 +3048,11 @@ public class AIGCStorage implements Storagable {
      */
     public void deletePrompts(List<Long> promptIdList) {
         for (long id : promptIdList) {
-            this.storage.executeDelete(this.promptWordTable, new Conditional[] {
+            this.storage.executeDelete(this.promptWordTable, new Conditional[]{
                     Conditional.createEqualTo("id", id)
             });
 
-            this.storage.executeDelete(this.promptWordScopeTable, new Conditional[] {
+            this.storage.executeDelete(this.promptWordScopeTable, new Conditional[]{
                     Conditional.createEqualTo("prompt_id", id)
             });
         }
@@ -3076,16 +3068,16 @@ public class AIGCStorage implements Storagable {
     public int deletePrompt(long contactId, String title) {
         int count = 0;
 
-        List<StorageField[]> result = this.storage.executeQuery(new String[] {
+        List<StorageField[]> result = this.storage.executeQuery(new String[]{
                 this.promptWordTable, this.promptWordScopeTable
-        }, new StorageField[] {
+        }, new StorageField[]{
                 new StorageField(this.promptWordTable, "id", LiteralBase.LONG),
                 new StorageField(this.promptWordScopeTable, "sn", LiteralBase.LONG)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo(new StorageField(this.promptWordTable, "id", LiteralBase.LONG),
                         new StorageField(this.promptWordScopeTable, "prompt_id", LiteralBase.LONG)),
                 Conditional.createAnd(),
-                Conditional.createBracket(new Conditional[] {
+                Conditional.createBracket(new Conditional[]{
                         Conditional.createEqualTo(new StorageField(this.promptWordScopeTable,
                                 "contact_id", LiteralBase.LONG, contactId)),
                         Conditional.createAnd(),
@@ -3101,10 +3093,10 @@ public class AIGCStorage implements Storagable {
         for (StorageField[] fields : result) {
             long promptId = fields[0].getLong();
             long sn = fields[1].getLong();
-            this.storage.executeDelete(this.promptWordTable, new Conditional[] {
+            this.storage.executeDelete(this.promptWordTable, new Conditional[]{
                     Conditional.createEqualTo("id", promptId)
             });
-            this.storage.executeDelete(this.promptWordScopeTable, new Conditional[] {
+            this.storage.executeDelete(this.promptWordScopeTable, new Conditional[]{
                     Conditional.createEqualTo("sn", sn)
             });
 
@@ -3127,7 +3119,7 @@ public class AIGCStorage implements Storagable {
                                           long incrementalCompletion, long incrementalPrompt) {
         Usage usage = this.readUsage(contactId, model);
         if (null == usage) {
-            this.storage.executeInsert(this.usageTable, new StorageField[] {
+            this.storage.executeInsert(this.usageTable, new StorageField[]{
                     new StorageField("contact_id", contactId),
                     new StorageField("model", model),
                     new StorageField("completion_tokens", incrementalCompletion),
@@ -3135,13 +3127,12 @@ public class AIGCStorage implements Storagable {
                     new StorageField("timestamp", System.currentTimeMillis())
             });
             usage = new Usage(model, incrementalPrompt, incrementalCompletion, 0);
-        }
-        else {
-            this.storage.executeUpdate(this.usageTable, new StorageField[] {
+        } else {
+            this.storage.executeUpdate(this.usageTable, new StorageField[]{
                     new StorageField("completion_tokens", incrementalCompletion + usage.outputTokens),
                     new StorageField("prompt_tokens", incrementalPrompt + usage.inputTokens),
                     new StorageField("timestamp", System.currentTimeMillis())
-            }, new Conditional[] {
+            }, new Conditional[]{
                     Conditional.createEqualTo("contact_id", contactId),
                     Conditional.createAnd(),
                     Conditional.createEqualTo("model", model)
@@ -3161,7 +3152,7 @@ public class AIGCStorage implements Storagable {
      * @return 用量；无记录返回 {@code null} 。
      */
     public Usage readUsage(long contactId, String model) {
-        List<StorageField[]> result = this.storage.executeQuery(this.usageTable, this.usageFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.usageTable, this.usageFields, new Conditional[]{
                 Conditional.createEqualTo("contact_id", contactId),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("model", model)
@@ -3184,7 +3175,7 @@ public class AIGCStorage implements Storagable {
      */
     public ContactPreference readContactPreference(long contactId) {
         List<StorageField[]> result = this.storage.executeQuery(this.contactPreferenceTable,
-                this.contactPreferenceFields, new Conditional[] {
+                this.contactPreferenceFields, new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId)
                 });
         if (result.isEmpty()) {
@@ -3212,7 +3203,7 @@ public class AIGCStorage implements Storagable {
      * @return 写入成功返回 {@code true} 。
      */
     public boolean writeEmotionRecord(EmotionRecord emotionRecord) {
-        return this.storage.executeInsert(this.emotionTable, new StorageField[] {
+        return this.storage.executeInsert(this.emotionTable, new StorageField[]{
                 new StorageField("contact_id", emotionRecord.contactId),
                 new StorageField("emotion", emotionRecord.emotion.name()),
                 new StorageField("timestamp", emotionRecord.getTimestamp()),
@@ -3230,7 +3221,7 @@ public class AIGCStorage implements Storagable {
      */
     public List<EmotionRecord> readEmotionRecords(long contactId) {
         List<EmotionRecord> list = new ArrayList<>();
-        List<StorageField[]> result = this.storage.executeQuery(this.emotionTable, this.emotionFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.emotionTable, this.emotionFields, new Conditional[]{
                 Conditional.createEqualTo("contact_id", contactId)
         });
         for (StorageField[] fields : result) {
@@ -3244,8 +3235,7 @@ public class AIGCStorage implements Storagable {
                 JSONObject sourceData = JSONStorageUtils.decodeObject(data.get("source_data").getString());
                 if (null != sourceData) {
                     record.sourceData = sourceData;
-                }
-                else {
+                } else {
                     Logger.w(this.getClass(), "#readEmotionRecords - `source_data` data error: " + data.get("id").getLong());
                 }
             }
@@ -3261,9 +3251,9 @@ public class AIGCStorage implements Storagable {
      * @return 更新成功返回 {@code true} 。
      */
     public boolean updateVoiceDiarizationRemark(VoiceDiarization diarization) {
-        return this.storage.executeUpdate(this.voiceDiarizationTable, new StorageField[] {
+        return this.storage.executeUpdate(this.voiceDiarizationTable, new StorageField[]{
                 new StorageField("remark", diarization.remark)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("id", diarization.getId())
         });
     }
@@ -3275,9 +3265,9 @@ public class AIGCStorage implements Storagable {
      * @return 更新成功返回 {@code true} 。
      */
     public boolean updateVoiceDiarizationAnalysis(VoiceDiarization diarization) {
-        return this.storage.executeUpdate(this.voiceDiarizationTable, new StorageField[] {
+        return this.storage.executeUpdate(this.voiceDiarizationTable, new StorageField[]{
                 new StorageField("analysis", diarization.analysis)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("id", diarization.getId())
         });
     }
@@ -3289,9 +3279,9 @@ public class AIGCStorage implements Storagable {
      * @return 更新成功返回 {@code true} 。
      */
     public boolean updateVoiceDiarizationSuggestion(VoiceDiarization diarization) {
-        return this.storage.executeUpdate(this.voiceDiarizationTable, new StorageField[] {
+        return this.storage.executeUpdate(this.voiceDiarizationTable, new StorageField[]{
                 new StorageField("suggestion", diarization.suggestion)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("id", diarization.getId())
         });
     }
@@ -3307,7 +3297,7 @@ public class AIGCStorage implements Storagable {
         this.deleteVoiceDiarization(diarization.fileCode);
 
         long id = diarization.getId();
-        this.storage.executeInsert(this.voiceDiarizationTable, new StorageField[] {
+        this.storage.executeInsert(this.voiceDiarizationTable, new StorageField[]{
                 new StorageField("id", id),
                 new StorageField("timestamp", diarization.getTimestamp()),
                 new StorageField("cid", diarization.contactId),
@@ -3321,7 +3311,7 @@ public class AIGCStorage implements Storagable {
         });
 
         for (VoiceTrack track : diarization.tracks) {
-            this.storage.executeInsert(this.voiceTrackTable, new StorageField[] {
+            this.storage.executeInsert(this.voiceTrackTable, new StorageField[]{
                     new StorageField("vid", id),
                     new StorageField("track", track.track),
                     new StorageField("label", track.label),
@@ -3356,7 +3346,7 @@ public class AIGCStorage implements Storagable {
      */
     public VoiceDiarization readVoiceDiarization(String fileCode) {
         List<StorageField[]> result = this.storage.executeQuery(this.voiceDiarizationTable, this.voiceDiarizationFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("file_code", fileCode),
                 });
         if (result.isEmpty()) {
@@ -3377,7 +3367,7 @@ public class AIGCStorage implements Storagable {
             voiceDiarization.suggestion = map.get("suggestion").getString();
         }
 
-        List<StorageField[]> trackResult = this.storage.executeQuery(this.voiceTrackTable, this.voiceTrackFields, new Conditional[] {
+        List<StorageField[]> trackResult = this.storage.executeQuery(this.voiceTrackTable, this.voiceTrackFields, new Conditional[]{
                 Conditional.createEqualTo("vid", voiceDiarization.getId())
         });
         for (StorageField[] trackFields : trackResult) {
@@ -3416,7 +3406,7 @@ public class AIGCStorage implements Storagable {
         List<VoiceDiarization> list = new ArrayList<>();
 
         List<StorageField[]> result = this.storage.executeQuery(this.voiceDiarizationTable, this.voiceDiarizationFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("cid", contactId),
                         Conditional.createOrderBy("timestamp", true)
                 });
@@ -3435,25 +3425,25 @@ public class AIGCStorage implements Storagable {
                 voiceDiarization.suggestion = map.get("suggestion").getString();
             }
 
-            List<StorageField[]> trackResult = this.storage.executeQuery(this.voiceTrackTable, this.voiceTrackFields, new Conditional[] {
+            List<StorageField[]> trackResult = this.storage.executeQuery(this.voiceTrackTable, this.voiceTrackFields, new Conditional[]{
                     Conditional.createEqualTo("vid", voiceDiarization.getId())
             });
             for (StorageField[] trackFields : trackResult) {
-               map = StorageFields.get(trackFields);
+                map = StorageFields.get(trackFields);
 
-               JSONObject segmentJson = JSONStorageUtils.decodeObject(map.get("segment").getString());
-               JSONObject emotionJson = JSONStorageUtils.decodeObject(map.get("emotion").getString());
-               JSONObject recognitionJson = JSONStorageUtils.decodeObject(map.get("recognition").getString());
-               if (null == segmentJson || null == emotionJson || null == recognitionJson) {
-                   Logger.w(this.getClass(), "#readVoiceDiarizations - track data error: " + voiceDiarization.getId());
-                   continue;
-               }
+                JSONObject segmentJson = JSONStorageUtils.decodeObject(map.get("segment").getString());
+                JSONObject emotionJson = JSONStorageUtils.decodeObject(map.get("emotion").getString());
+                JSONObject recognitionJson = JSONStorageUtils.decodeObject(map.get("recognition").getString());
+                if (null == segmentJson || null == emotionJson || null == recognitionJson) {
+                    Logger.w(this.getClass(), "#readVoiceDiarizations - track data error: " + voiceDiarization.getId());
+                    continue;
+                }
 
-               VoiceTrack track = new VoiceTrack(map.get("track").getString(), map.get("label").getString(),
-                       map.get("display").getString(),
-                       new VoiceSegment(segmentJson),
-                       new SpeechEmotion(emotionJson),
-                       new SpeechRecognitionInfo(recognitionJson));
+                VoiceTrack track = new VoiceTrack(map.get("track").getString(), map.get("label").getString(),
+                        map.get("display").getString(),
+                        new VoiceSegment(segmentJson),
+                        new SpeechEmotion(emotionJson),
+                        new SpeechRecognitionInfo(recognitionJson));
                 voiceDiarization.tracks.add(track);
             }
 
@@ -3475,7 +3465,7 @@ public class AIGCStorage implements Storagable {
      */
     public boolean deleteVoiceDiarization(String fileCode) {
         List<StorageField[]> result = this.storage.executeQuery(this.voiceDiarizationTable, this.voiceDiarizationFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("file_code", fileCode)
                 });
         if (result.isEmpty()) {
@@ -3485,13 +3475,13 @@ public class AIGCStorage implements Storagable {
         Map<String, StorageField> fields = StorageFields.get(result.get(0));
         long id = fields.get("id").getLong();
 
-        this.storage.executeDelete(this.voiceDiarizationTable, new Conditional[] {
+        this.storage.executeDelete(this.voiceDiarizationTable, new Conditional[]{
                 Conditional.createEqualTo("id", id)
         });
-        this.storage.executeDelete(this.voiceTrackTable, new Conditional[] {
+        this.storage.executeDelete(this.voiceTrackTable, new Conditional[]{
                 Conditional.createEqualTo("vid", id)
         });
-        this.storage.executeDelete(this.voiceIndicatorTable, new Conditional[] {
+        this.storage.executeDelete(this.voiceIndicatorTable, new Conditional[]{
                 Conditional.createEqualTo("vid", id)
         });
         return true;
@@ -3499,7 +3489,7 @@ public class AIGCStorage implements Storagable {
 
     private VoiceIndicator readVoiceIndicator(long voiceId) {
         List<StorageField[]> result = this.storage.executeQuery(this.voiceIndicatorTable, this.voiceIndicatorFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("vid", voiceId)
                 });
         if (result.isEmpty()) {
@@ -3535,9 +3525,9 @@ public class AIGCStorage implements Storagable {
      */
     public String readCounselingRecordingFileCode(String streamName) {
         List<StorageField[]> result = this.storage.executeQuery(this.counselingRecordingTable,
-                new StorageField[] {
+                new StorageField[]{
                         new StorageField("file_code", LiteralBase.STRING)
-                }, new Conditional[] {
+                }, new Conditional[]{
                         Conditional.createEqualTo("stream", streamName)
                 });
 
@@ -3551,14 +3541,14 @@ public class AIGCStorage implements Storagable {
     /**
      * 写入咨询录音记录。
      *
-     * @param authToken 访问令牌。
+     * @param authToken  访问令牌。
      * @param streamName 流名称。
-     * @param timestamp 录音时间戳。
+     * @param timestamp  录音时间戳。
      * @return 写入成功返回 {@code true} 。
      */
     public boolean writeCounselingRecording(AuthToken authToken, String streamName, long timestamp, long duration,
                                             Attribute attribute, ConsultationTheme theme, String fileCode) {
-        return (this.storage.executeInsert(this.counselingRecordingTable, new StorageField[] {
+        return (this.storage.executeInsert(this.counselingRecordingTable, new StorageField[]{
                 new StorageField("cid", authToken.getContactId()),
                 new StorageField("domain", authToken.getDomain()),
                 new StorageField("stream", streamName),
@@ -3579,7 +3569,7 @@ public class AIGCStorage implements Storagable {
      */
     public JSONObject readCounselingRecording(String streamName) {
         List<StorageField[]> storageFields = this.storage.executeQuery(this.counselingRecordingTable,
-                this.counselingRecordingFields, new Conditional[] {
+                this.counselingRecordingFields, new Conditional[]{
                         Conditional.createEqualTo("stream", streamName)
                 });
         if (storageFields.isEmpty()) {
@@ -3610,20 +3600,20 @@ public class AIGCStorage implements Storagable {
                 "http://127.0.0.1:7010/aigc/chat/", parameter);
 
         // 重置列表
-        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, new StorageField[]{
                 new StorageField("value", LiteralBase.STRING)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("item", ITEM_NAME_MODELS)
         });
         if (!result.isEmpty()) {
-            this.storage.executeDelete(this.appConfigTable, new Conditional[] {
+            this.storage.executeDelete(this.appConfigTable, new Conditional[]{
                     Conditional.createEqualTo("item", ITEM_NAME_MODELS)
             });
         }
         JSONArray models = new JSONArray();
         models.put(baize.getName());
         models.put(baize2.getName());
-        this.storage.executeInsert(this.appConfigTable, new StorageField[] {
+        this.storage.executeInsert(this.appConfigTable, new StorageField[]{
                 new StorageField("item", ITEM_NAME_MODELS),
                 new StorageField("value", JSONStorageUtils.encode(models)),
                 new StorageField("comment", "Model List"),
@@ -3633,15 +3623,15 @@ public class AIGCStorage implements Storagable {
         // 字段 value 为模型配置的 JSON string
 
         // Baize
-        result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[] {
+        result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[]{
                 Conditional.createEqualTo("item", baize.getName())
         });
         if (!result.isEmpty()) {
-            this.storage.executeDelete(this.appConfigTable, new Conditional[] {
+            this.storage.executeDelete(this.appConfigTable, new Conditional[]{
                     Conditional.createEqualTo("item", baize.getName())
             });
         }
-        this.storage.executeInsert(this.appConfigTable, new StorageField[] {
+        this.storage.executeInsert(this.appConfigTable, new StorageField[]{
                 new StorageField("item", baize.getName()),
                 new StorageField("value", JSONStorageUtils.encode(baize.toJSON())),
                 new StorageField("comment", "适合大多数场景的通用模型"),
@@ -3649,15 +3639,15 @@ public class AIGCStorage implements Storagable {
         });
 
         // Baize2
-        result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[] {
+        result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[]{
                 Conditional.createEqualTo("item", baize2.getName())
         });
         if (!result.isEmpty()) {
-            this.storage.executeDelete(this.appConfigTable, new Conditional[] {
+            this.storage.executeDelete(this.appConfigTable, new Conditional[]{
                     Conditional.createEqualTo("item", baize2.getName())
             });
         }
-        this.storage.executeInsert(this.appConfigTable, new StorageField[] {
+        this.storage.executeInsert(this.appConfigTable, new StorageField[]{
                 new StorageField("item", baize2.getName()),
                 new StorageField("value", JSONStorageUtils.encode(baize2.toJSON())),
                 new StorageField("comment", "适合复杂场景且速度较快的多模态模型"),
@@ -3734,7 +3724,7 @@ public class AIGCStorage implements Storagable {
         }
 
         List<StorageField[]> result = this.storage.executeQuery(this.skillTable, this.skillFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("name", key)
                 });
         if (result.isEmpty()) {
@@ -3747,7 +3737,7 @@ public class AIGCStorage implements Storagable {
     /**
      * 写入技能。名称已存在时仅在 {@code overwrite} 为 {@code true} 时更新。
      *
-     * @param skill 技能数据。
+     * @param skill     技能数据。
      * @param overwrite 是否覆盖同名技能。
      * @return 返回是否写入了存储器。
      */
@@ -3764,9 +3754,9 @@ public class AIGCStorage implements Storagable {
 
         long now = System.currentTimeMillis();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.skillTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.skillTable, new StorageField[]{
                 new StorageField("id", LiteralBase.LONG)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("name", name)
         });
 
@@ -3780,7 +3770,7 @@ public class AIGCStorage implements Storagable {
             keywords.put(keyword);
         }
 
-        StorageField[] fields = new StorageField[] {
+        StorageField[] fields = new StorageField[]{
                 new StorageField("display_name", (null != skill.displayName) ? skill.displayName : name),
                 new StorageField("description", skill.description),
                 new StorageField("keywords", JSONStorageUtils.encode(keywords)),
@@ -3801,7 +3791,7 @@ public class AIGCStorage implements Storagable {
             return this.storage.executeInsert(this.skillTable, insertFields);
         }
 
-        return this.storage.executeUpdate(this.skillTable, fields, new Conditional[] {
+        return this.storage.executeUpdate(this.skillTable, fields, new Conditional[]{
                 Conditional.createEqualTo("name", name)
         });
     }
@@ -3818,7 +3808,7 @@ public class AIGCStorage implements Storagable {
             return false;
         }
 
-        return this.storage.executeDelete(this.skillTable, new Conditional[] {
+        return this.storage.executeDelete(this.skillTable, new Conditional[]{
                 Conditional.createEqualTo("name", key)
         });
     }
@@ -3834,7 +3824,7 @@ public class AIGCStorage implements Storagable {
             return false;
         }
 
-        return this.storage.executeInsert(this.skillInvocationTable, new StorageField[] {
+        return this.storage.executeInsert(this.skillInvocationTable, new StorageField[]{
                 new StorageField("sn", trace.optLong("sn", 0L)),
                 new StorageField("channel", trace.optString("channel", null)),
                 new StorageField("unit", trace.optString("unit", null)),
@@ -3873,7 +3863,7 @@ public class AIGCStorage implements Storagable {
         }
 
         List<StorageField[]> result = this.storage.executeQuery(this.skillSessionTable, this.skillSessionFields,
-                new Conditional[] {
+                new Conditional[]{
                         Conditional.createEqualTo("channel", channelCode)
                 });
         if (result.isEmpty()) {
@@ -3899,16 +3889,16 @@ public class AIGCStorage implements Storagable {
             skills.put(name);
         }
 
-        StorageField[] fields = new StorageField[] {
+        StorageField[] fields = new StorageField[]{
                 new StorageField("domain", session.domain),
                 new StorageField("contact_id", session.contactId),
                 new StorageField("skills", JSONStorageUtils.encode(skills)),
                 new StorageField("updated", session.updated)
         };
 
-        List<StorageField[]> result = this.storage.executeQuery(this.skillSessionTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQuery(this.skillSessionTable, new StorageField[]{
                 new StorageField("id", LiteralBase.LONG)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("channel", session.channelCode)
         });
 
@@ -3919,7 +3909,7 @@ public class AIGCStorage implements Storagable {
             return this.storage.executeInsert(this.skillSessionTable, insertFields);
         }
 
-        return this.storage.executeUpdate(this.skillSessionTable, fields, new Conditional[] {
+        return this.storage.executeUpdate(this.skillSessionTable, fields, new Conditional[]{
                 Conditional.createEqualTo("channel", session.channelCode)
         });
     }
@@ -3935,7 +3925,7 @@ public class AIGCStorage implements Storagable {
             return false;
         }
 
-        return this.storage.executeDelete(this.skillSessionTable, new Conditional[] {
+        return this.storage.executeDelete(this.skillSessionTable, new Conditional[]{
                 Conditional.createEqualTo("channel", channelCode)
         });
     }
@@ -3951,7 +3941,7 @@ public class AIGCStorage implements Storagable {
             return false;
         }
 
-        return this.storage.executeDelete(this.skillSessionTable, new Conditional[] {
+        return this.storage.executeDelete(this.skillSessionTable, new Conditional[]{
                 Conditional.createLessThan(new StorageField("updated", before))
         });
     }

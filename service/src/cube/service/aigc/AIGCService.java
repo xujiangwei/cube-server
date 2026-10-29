@@ -80,7 +80,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class AIGCService extends AbstractModule implements Generatable, cube.aigc.completion.CompletionProvider {
 
-    /** 服务名称，同时作为单元名与配置段名。 */
+    /**
+     * 服务名称，同时作为单元名与配置段名。
+     */
     public final static String NAME = "AIGC";
 
     private final AIGCCellet cellet;
@@ -1981,9 +1983,10 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
     /**
      * 对历史问答进行评价。
-     * @param token 访问令牌。
+     *
+     * @param token     访问令牌。
      * @param historySN historySN。
-     * @param feedback 反馈值。
+     * @param feedback  反馈值。
      */
     public void evaluate(String token, long historySN, int feedback) {
         AIGCChannel channel = this.getChannelByToken(token);
@@ -2114,7 +2117,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         return generateText(cube.aigc.usage.UsageContext.system("AIGC"), channelCode, content, unitName, option, histories, maxHistories, attachments, categories, recordable, networking, listener);
     }
 
-public boolean generateText(cube.aigc.usage.UsageContext accounting, String channelCode, String content, String unitName, GeneratingOption option,
+    public boolean generateText(cube.aigc.usage.UsageContext accounting, String channelCode, String content, String unitName, GeneratingOption option,
                                 List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
                                 List<String> categories, boolean recordable, boolean networking,
                                 GenerateTextListener listener) {
@@ -2270,79 +2273,81 @@ public boolean generateText(cube.aigc.usage.UsageContext accounting, String chan
         String accountingId = java.util.UUID.randomUUID().toString();
         boolean accountingStarted = false;
         try {
-        AtomicInteger count = increaseUnitCounter(unit.getCapability().getName());
+            AtomicInteger count = increaseUnitCounter(unit.getCapability().getName());
 
-        Packet request = null;
-        ActionDialect dialect = null;
-        long sn = Utils.generateSerialNumber();
-        unit.setRunning(true);
-        try {
-            JSONArray historyArray = new JSONArray();
-            if (null != history) {
-                for (GeneratingRecord record : history) {
-                    historyArray.put(record.toJSON());
+            Packet request = null;
+            ActionDialect dialect = null;
+            long sn = Utils.generateSerialNumber();
+            unit.setRunning(true);
+            try {
+                JSONArray historyArray = new JSONArray();
+                if (null != history) {
+                    for (GeneratingRecord record : history) {
+                        historyArray.put(record.toJSON());
+                    }
                 }
+
+                Contact participant = (null == participantContact) ?
+                        unit.getContact() : participantContact;
+
+                JSONObject data = new JSONObject();
+                data.put("unit", unit.getCapability().getName());
+                data.put("content", prompt);
+                data.put("participant", participant.toCompactJSON());
+                data.put("history", historyArray);
+                data.put("option", (null == option) ? (new GeneratingOption()).toJSON() : option.toJSON());
+
+                request = new Packet(AIGCAction.TextToText.name, data);
+                getStorage().getUsageWriter().begin(accounting, accountingId, unit.getCapability().getName(), unit.getQueryKey(), System.currentTimeMillis());
+                accountingStarted = true;
+                dialect = this.cellet.transmit(unit.getContext(), request.toDialect(),
+                        8 * 60 * 1000, sn);
+                if (null == dialect) {
+                    Logger.w(AIGCService.class, "#syncGenerateText - transmit failed, sn:" + sn
+                            + " - " + unit.getCapability().getName() + "@" + unit.getContact().getId());
+                    // 记录故障
+                    unit.markFailure(AIGCStateCode.UnitError.code, System.currentTimeMillis(), participant.getId());
+                    return null;
+                }
+            } finally {
+                // 实时计数与运行标志同处收口：new Packet / transmit 抛异常时也必须递减，
+                // 否则计数会在异常路径上单调上涨。
+                count.decrementAndGet();
+                unit.setRunning(false);
             }
 
-            Contact participant = (null == participantContact) ?
-                    unit.getContact() : participantContact;
-
-            JSONObject data = new JSONObject();
-            data.put("unit", unit.getCapability().getName());
-            data.put("content", prompt);
-            data.put("participant", participant.toCompactJSON());
-            data.put("history", historyArray);
-            data.put("option", (null == option) ? (new GeneratingOption()).toJSON() : option.toJSON());
-
-            request = new Packet(AIGCAction.TextToText.name, data);
-            getStorage().getUsageWriter().begin(accounting, accountingId, unit.getCapability().getName(), unit.getQueryKey(), System.currentTimeMillis());
-            accountingStarted = true;
-            dialect = this.cellet.transmit(unit.getContext(), request.toDialect(),
-                    8 * 60 * 1000, sn);
-            if (null == dialect) {
-                Logger.w(AIGCService.class, "#syncGenerateText - transmit failed, sn:" + sn
+            Packet response = new Packet(dialect);
+            int stateCode = Packet.extractCode(response);
+            if (stateCode != AIGCStateCode.Ok.code) {
+                Logger.e(AIGCService.class, "#syncGenerateText - failed, state code:" + stateCode
                         + " - " + unit.getCapability().getName() + "@" + unit.getContact().getId());
-                // 记录故障
-                unit.markFailure(AIGCStateCode.UnitError.code, System.currentTimeMillis(), participant.getId());
                 return null;
             }
+            JSONObject payload = Packet.extractDataPayload(response);
+            long[] measured = cube.aigc.usage.UsageTokens.read(payload);
+            if (!accounting.delegated)
+                getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(accountingId, 2, "succeeded",
+                        measured == null ? "unknown" : "actual", measured == null ? null : measured[0], measured == null ? null : measured[1], System.currentTimeMillis()));
+
+            String responseText = "";
+            String thoughtText = "";
+            try {
+                responseText = payload.getString("response");
+                responseText = responseText.trim();
+                thoughtText = payload.getString("thought");
+                thoughtText = thoughtText.trim();
+            } catch (Exception e) {
+                Logger.w(AIGCService.class, "#syncGenerateText - failed, sn:" + sn
+                        + " - " + unit.getCapability().getName() + "@" + unit.getContact().getId());
+                return null;
+            }
+
+            // 过滤中文字符
+            responseText = TextUtils.filterChinese(unit, responseText);
+            return new GeneratingRecord(request.sn, unit.getCapability().getName(), prompt, responseText, thoughtText);
         } finally {
-            // 实时计数与运行标志同处收口：new Packet / transmit 抛异常时也必须递减，
-            // 否则计数会在异常路径上单调上涨。
-            count.decrementAndGet();
-            unit.setRunning(false);
-        }
-
-        Packet response = new Packet(dialect);
-        int stateCode = Packet.extractCode(response);
-        if (stateCode != AIGCStateCode.Ok.code) {
-            Logger.e(AIGCService.class, "#syncGenerateText - failed, state code:" + stateCode
-                    + " - " + unit.getCapability().getName() + "@" + unit.getContact().getId());
-            return null;
-        }
-        JSONObject payload = Packet.extractDataPayload(response);
-        long[] measured = cube.aigc.usage.UsageTokens.read(payload);
-        if (!accounting.delegated) getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(accountingId, 2, "succeeded",
-                measured == null ? "unknown" : "actual", measured == null ? null : measured[0], measured == null ? null : measured[1], System.currentTimeMillis()));
-
-        String responseText = "";
-        String thoughtText = "";
-        try {
-            responseText = payload.getString("response");
-            responseText = responseText.trim();
-            thoughtText = payload.getString("thought");
-            thoughtText = thoughtText.trim();
-        } catch (Exception e) {
-            Logger.w(AIGCService.class, "#syncGenerateText - failed, sn:" + sn
-                    + " - " + unit.getCapability().getName() + "@" + unit.getContact().getId());
-            return null;
-        }
-
-        // 过滤中文字符
-        responseText = TextUtils.filterChinese(unit, responseText);
-        return new GeneratingRecord(request.sn, unit.getCapability().getName(), prompt, responseText, thoughtText);
-        } finally {
-            if (accountingStarted && !accounting.delegated) getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(accountingId, 1, "unknown", "unknown", null, null, System.currentTimeMillis()));
+            if (accountingStarted && !accounting.delegated)
+                getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(accountingId, 1, "unknown", "unknown", null, null, System.currentTimeMillis()));
         }
     }
 
@@ -2408,7 +2413,7 @@ public boolean generateText(cube.aigc.usage.UsageContext accounting, String chan
         final GenerateTextUnitMeta meta = new GenerateTextUnitMeta(this, unit, channel, prompt, option, categories,
                 histories, attachments, listener);
         meta.usageContext = accounting;
-            meta.setMaxHistories(maxHistories);
+        meta.setMaxHistories(maxHistories);
         meta.setOriginalQuery(query);
         meta.setRecordHistoryEnabled(recordable);
         meta.setNetworkingEnabled(false);
@@ -2469,7 +2474,8 @@ public boolean generateText(cube.aigc.usage.UsageContext accounting, String chan
                 Logger.w(AIGCService.class, "#executeMultimodal - Unknown stream: " + streamId);
                 return false;
             }
-            if (!visitor.domain.equals(streamMeta.usageContext.domain) || visitor.contactId != streamMeta.usageContext.contactId) return false;
+            if (!visitor.domain.equals(streamMeta.usageContext.domain) || visitor.contactId != streamMeta.usageContext.contactId)
+                return false;
             unit = streamMeta.unit;
             if (null == unit.getContext() || !unit.getContext().isValid()) {
                 Logger.w(AIGCService.class, "#executeMultimodal - Stream unit is unavailable: " + streamId);
@@ -2567,7 +2573,7 @@ public boolean generateText(cube.aigc.usage.UsageContext accounting, String chan
         return generateImage(cube.aigc.usage.UsageContext.system("AIGC"), channel, text, unitName, listener);
     }
 
-public boolean generateImage(cube.aigc.usage.UsageContext accounting, AIGCChannel channel, String text, String unitName, TextToImageListener listener) {
+    public boolean generateImage(cube.aigc.usage.UsageContext accounting, AIGCChannel channel, String text, String unitName, TextToImageListener listener) {
         if (!this.isStarted()) {
             return false;
         }
@@ -3058,7 +3064,8 @@ public boolean generateImage(cube.aigc.usage.UsageContext accounting, AIGCChanne
      * 音频分类单元 → 解析情绪 → 落情绪记录」。</p>
      * <p>单元选点按 {@link AICapability.AudioProcessing#AudioClassification} 子任务
      * 匹配，与语音识别、说话人分离同一惯例。</p>
-     * @param token 访问令牌。
+     *
+     * @param token    访问令牌。
      * @param fileCode 源文件码。
      * @param listener 进度监听器。
      * @return 满足条件返回 {@code true} 。
@@ -3542,7 +3549,8 @@ public boolean generateImage(cube.aigc.usage.UsageContext accounting, AIGCChanne
         return this.taskExecutor.beginUnitTask(unitName);
     }
 
-    @Override public JSONObject monitoringSnapshot() {
+    @Override
+    public JSONObject monitoringSnapshot() {
         JSONArray workers = new JSONArray();
         for (AIGCUnit unit : this.getAllUnits()) {
             cell.core.talk.TalkContext context = unit.getContext();

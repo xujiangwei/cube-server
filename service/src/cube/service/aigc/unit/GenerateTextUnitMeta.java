@@ -46,46 +46,74 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class GenerateTextUnitMeta extends UnitMeta {
 
-    /** 任务序列号，用于关联请求与结果。 */
+    /**
+     * 任务序列号，用于关联请求与结果。
+     */
     public final long sn;
 
-    /** 所属对话通道。 */
+    /**
+     * 所属对话通道。
+     */
     public final AIGCChannel channel;
 
-    /** 发起请求的联系人。 */
+    /**
+     * 发起请求的联系人。
+     */
     protected Contact participant;
 
-    /** 本轮实际提交给模型的内容。 */
+    /**
+     * 本轮实际提交给模型的内容。
+     */
     protected String content;
 
-    /** 用户原始提问，用于记录与溯源。 */
+    /**
+     * 用户原始提问，用于记录与溯源。
+     */
     protected String originalQuery;
 
-    /** 采样选项，控制温度、长度等生成参数。 */
+    /**
+     * 采样选项，控制温度、长度等生成参数。
+     */
     protected GeneratingOption option;
 
-    /** 知识库分类过滤条件。 */
+    /**
+     * 知识库分类过滤条件。
+     */
     protected List<String> categories;
 
-    /** 需要携带的历史问答。 */
+    /**
+     * 需要携带的历史问答。
+     */
     protected List<GeneratingRecord> histories;
 
-    /** 历史问答的最大轮数。 */
+    /**
+     * 历史问答的最大轮数。
+     */
     protected int maxHistories;
 
-    /** 提问附带的多模态附件。 */
+    /**
+     * 提问附带的多模态附件。
+     */
     protected List<Attachment> attachments;
 
-    /** 生成过程监听器，用于推送流式分片与最终结果。 */
+    /**
+     * 生成过程监听器，用于推送流式分片与最终结果。
+     */
     protected GenerateTextListener listener;
 
-    /** 待写入的对话历史记录。 */
+    /**
+     * 待写入的对话历史记录。
+     */
     protected AIGCChatHistory history;
 
-    /** 是否把本轮问答写入历史，默认启用。 */
+    /**
+     * 是否把本轮问答写入历史，默认启用。
+     */
     protected boolean recordHistoryEnabled = true;
 
-    /** 是否允许联网检索，默认关闭。 */
+    /**
+     * 是否允许联网检索，默认关闭。
+     */
     protected boolean networkingEnabled = false;
 
     /**
@@ -191,20 +219,22 @@ public class GenerateTextUnitMeta extends UnitMeta {
     @Override
     public void process() {
         try {
-        // 实时并发计数：与执行起止严格配对，异常路径同样释放。
-        // 原先在 AIGCService#processGenerateTextMeta 中随「自旋等待 + 派发」维护，
-        // 改为队列派发后迁移到此处，计数含义为「该能力名下正在处理的请求数」。
-        AtomicInteger count = this.service.increaseUnitCounter(this.unit.getCapability().getName());
-        try {
-            this.processInternal();
-        } finally {
-            count.decrementAndGet();
-        }
+            // 实时并发计数：与执行起止严格配对，异常路径同样释放。
+            // 原先在 AIGCService#processGenerateTextMeta 中随「自旋等待 + 派发」维护，
+            // 改为队列派发后迁移到此处，计数含义为「该能力名下正在处理的请求数」。
+            AtomicInteger count = this.service.increaseUnitCounter(this.unit.getCapability().getName());
+            try {
+                this.processInternal();
+            } finally {
+                count.decrementAndGet();
+            }
 
         } catch (IllegalStateException unavailable) {
             this.channel.setProcessing(false);
             this.listener.onFailed(this.channel, AIGCStateCode.UsageUnavailable);
-        } finally { meterUnknown(); }
+        } finally {
+            meterUnknown();
+        }
     }
 
     private void processInternal() {

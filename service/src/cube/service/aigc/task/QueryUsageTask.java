@@ -10,7 +10,6 @@ import cell.core.cellet.Cellet;
 import cell.core.talk.Primitive;
 import cell.core.talk.TalkContext;
 import cell.core.talk.dialect.ActionDialect;
-import cube.aigc.AppEvent;
 import cube.aigc.Usage;
 import cube.auth.AuthToken;
 import cube.benchmark.ResponseTime;
@@ -29,7 +28,9 @@ import java.util.List;
  */
 public class QueryUsageTask extends ServiceTask {
 
-    /** 构造任务实例，参数由单元统一注入。 */
+    /**
+     * 构造任务实例，参数由单元统一注入。
+     */
     public QueryUsageTask(Cellet cellet, TalkContext talkContext, Primitive primitive, ResponseTime responseTime) {
         super(cellet, talkContext, primitive, responseTime);
     }
@@ -74,7 +75,8 @@ public class QueryUsageTask extends ServiceTask {
 
         if (token.getExpiry() <= System.currentTimeMillis() || contactId != token.getContactId() || contactId <= 0) {
             cellet.speak(talkContext, makeResponse(dialect, packet, AIGCStateCode.InconsistentToken.code, new JSONObject()));
-            markResponseTime(); return;
+            markResponseTime();
+            return;
         }
         List<Usage> usages = service.queryContactUsages(contactId);
         if (null == usages) {

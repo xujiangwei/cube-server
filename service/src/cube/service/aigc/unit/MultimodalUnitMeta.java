@@ -32,7 +32,9 @@ import java.util.List;
  */
 public class MultimodalUnitMeta extends UnitMeta {
 
-    /** 任务序列号。 */
+    /**
+     * 任务序列号。
+     */
     public final long sn;
 
     private final AIGCChannel channel;
@@ -44,7 +46,9 @@ public class MultimodalUnitMeta extends UnitMeta {
     private MultimodalOutput output;
     private final String streamMeterId = java.util.UUID.randomUUID().toString();
 
-    /** Called synchronously by the owning Unit, before each physical stream inference. */
+    /**
+     * 在每次物理流推理之前，由拥有单位同步调用。
+     */
     public JSONObject beginSegment(JSONObject payload) {
         long sequence = payload.getLong("sequence");
         if (sequence < 0) throw new IllegalArgumentException("INVALID_SEGMENT_SEQUENCE");
@@ -81,158 +85,156 @@ public class MultimodalUnitMeta extends UnitMeta {
     @Override
     public void process() {
         try {
-        boolean processingReleased = false;
-        try {
-            Logger.d(this.getClass(), "#process - Model: " + this.unit.getCapability().getName());
+            boolean processingReleased = false;
+            try {
+                Logger.d(this.getClass(), "#process - Model: " + this.unit.getCapability().getName());
 
-            // 如果内容是超链接，先下载内容
-            if (this.input.content.toLowerCase().startsWith("http://")
-                    || this.input.content.toLowerCase().startsWith("https://")) {
-                FileLabel fileLabel = this.service.downloadFile(this.channel.getAuthToken(), this.input.content);
-                if (null != fileLabel) {
-                    if (fileLabel.getFileType() == FileType.TEXT || fileLabel.getFileType() == FileType.MD) {
-                        // 文本文件，读取内容进行替换
-                        File file = this.service.loadFile(this.channel.getAuthToken().getDomain(), fileLabel.getFileCode());
-                        if (null != file) {
-                            String fileContent = FileUtils.readTextFile(file.getAbsolutePath());
-                            // 删除临时文件
-                            this.service.deleteFile(this.channel.getAuthToken().getDomain(), fileLabel.getFileCode());
-                            if (null != fileContent) {
-                                this.input.content = fileContent;
-                            }
-                            else {
+                // 如果内容是超链接，先下载内容
+                if (this.input.content.toLowerCase().startsWith("http://")
+                        || this.input.content.toLowerCase().startsWith("https://")) {
+                    FileLabel fileLabel = this.service.downloadFile(this.channel.getAuthToken(), this.input.content);
+                    if (null != fileLabel) {
+                        if (fileLabel.getFileType() == FileType.TEXT || fileLabel.getFileType() == FileType.MD) {
+                            // 文本文件，读取内容进行替换
+                            File file = this.service.loadFile(this.channel.getAuthToken().getDomain(), fileLabel.getFileCode());
+                            if (null != file) {
+                                String fileContent = FileUtils.readTextFile(file.getAbsolutePath());
+                                // 删除临时文件
+                                this.service.deleteFile(this.channel.getAuthToken().getDomain(), fileLabel.getFileCode());
+                                if (null != fileContent) {
+                                    this.input.content = fileContent;
+                                } else {
+                                    this.listener.onFailed(this.channel, AIGCStateCode.FileError);
+                                    return;
+                                }
+                            } else {
                                 this.listener.onFailed(this.channel, AIGCStateCode.FileError);
                                 return;
                             }
+                        } else {
+                            // 其他文件，则直接传给 Unit
+                            this.input.content = fileLabel.getFileCode();
                         }
-                        else {
-                            this.listener.onFailed(this.channel, AIGCStateCode.FileError);
-                            return;
-                        }
-                    }
-                    else {
-                        // 其他文件，则直接传给 Unit
-                        this.input.content = fileLabel.getFileCode();
+                    } else {
+                        this.listener.onFailed(this.channel, AIGCStateCode.FileError);
+                        return;
                     }
                 }
-                else {
-                    this.listener.onFailed(this.channel, AIGCStateCode.FileError);
+
+                // 处理文件
+                List<FileLabel> fileLabelList = new ArrayList<>();
+                for (String fileItem : this.input.fileCodes) {
+                    if (fileItem.startsWith("http")) {
+                        // 下载文件
+                        FileLabel fileLabel = this.service.downloadFile(this.channel.getAuthToken(), fileItem);
+                        if (null != fileLabel) {
+                            fileLabelList.add(fileLabel);
+                        }
+                    } else if (fileItem.startsWith("rtsp") || fileItem.startsWith("rtmp")) {
+                        // RTSP 或 RTMP 视频流
+                        fileLabelList = null;
+                        break;
+                    } else {
+                        // 加载文件
+                        FileLabel fileLabel = this.service.getFile(this.channel.getAuthToken().getDomain(), fileItem);
+                        if (null != fileLabel) {
+                            fileLabelList.add(fileLabel);
+                        }
+                    }
+                }
+
+                // 设置文件标签清单
+                this.input.fileLabels = fileLabelList;
+
+                Packet request = new Packet(AIGCAction.Multimodal.name, this.input.toUnitJson());
+                String operation = input.option == null ? "" : input.option.optString("operation", "").trim();
+                boolean streamControl = "status".equalsIgnoreCase(operation) || "update".equalsIgnoreCase(operation) || "stop".equalsIgnoreCase(operation);
+                boolean streamStart = false;
+                for (String source : input.fileCodes)
+                    if (source.toLowerCase(java.util.Locale.ROOT).startsWith("rtsp://") || source.toLowerCase(java.util.Locale.ROOT).startsWith("rtsps://"))
+                        streamStart = true;
+                if (streamStart && "OmniVL".equals(unit.getCapability().getName())) {
+                    if (unit.getCapability().getUsageProtocol() < 1)
+                        throw new IllegalStateException("AI_USAGE_UNIT_UPGRADE_REQUIRED");
+                    service.getStorage().getUsageWriter().checkAvailable();
+                } else if (!streamControl) meterBegin();
+                ActionDialect dialect = this.service.getCellet().transmit(this.unit.getContext(), request.toDialect(),
+                        3 * 60 * 1000, this.sn);
+                // 处理单元返回
+                if (null == dialect) {
+                    Logger.w(this.getClass(), "#process - return null: " + this.unit.getCapability().getName());
+                    this.listener.onFailed(this.channel, AIGCStateCode.UnitError);
                     return;
                 }
-            }
 
-            // 处理文件
-            List<FileLabel> fileLabelList = new ArrayList<>();
-            for (String fileItem : this.input.fileCodes) {
-                if (fileItem.startsWith("http")) {
-                    // 下载文件
-                    FileLabel fileLabel = this.service.downloadFile(this.channel.getAuthToken(), fileItem);
-                    if (null != fileLabel) {
-                        fileLabelList.add(fileLabel);
+                Packet response = new Packet(dialect);
+                if (Packet.extractCode(response) != AIGCStateCode.Ok.code) {
+                    Logger.w(this.getClass(), "#process - unit failed: " + Packet.extractCode(response));
+                    // 回调错误
+                    this.listener.onFailed(this.channel, AIGCStateCode.Failure);
+                    return;
+                }
+
+                JSONObject payload = Packet.extractDataPayload(response);
+                meterFinish(payload, "succeeded");
+                String responseText = payload.getString("response");
+                String thoughtText = payload.has("thought") ? payload.getString("thought") : "";
+                JSONObject resultPayload = payload.has("resultPayload") ? payload.getJSONObject("resultPayload") : null;
+                Usage usage = null;
+                if (payload.has("performance")) {
+                    usage = new Usage(payload.getJSONObject("performance"));
+                } else if (payload.has("usage")) {
+                    usage = new Usage(payload.getJSONObject("usage"));
+                }
+                this.output = new MultimodalOutput(this.sn, this.unit.getCapability().getName(),
+                        responseText, thoughtText, resultPayload);
+                // 关联用量信息
+                this.output.usage = usage;
+                // 在应答前同步登记路由，不依赖用量信息或 starting 状态。
+                if (null != resultPayload && resultPayload.has("streamId")) {
+                    String streamId = resultPayload.getString("streamId");
+                    EventCenter center = EventCenter.getInstance();
+                    center.putUnitMeta(streamId, this);
+                    String status = resultPayload.optString("status", "");
+                    if ("stopped".equalsIgnoreCase(status) || "failed".equalsIgnoreCase(status)) {
+                        center.markStreamStopped(streamId);
                     }
                 }
-                else if (fileItem.startsWith("rtsp") || fileItem.startsWith("rtmp")) {
-                    // RTSP 或 RTMP 视频流
-                    fileLabelList = null;
-                    break;
-                }
-                else {
-                    // 加载文件
-                    FileLabel fileLabel = this.service.getFile(this.channel.getAuthToken().getDomain(), fileItem);
-                    if (null != fileLabel) {
-                        fileLabelList.add(fileLabel);
-                    }
-                }
-            }
-
-            // 设置文件标签清单
-            this.input.fileLabels = fileLabelList;
-
-            Packet request = new Packet(AIGCAction.Multimodal.name, this.input.toUnitJson());
-            String operation = input.option == null ? "" : input.option.optString("operation", "").trim();
-            boolean streamControl = "status".equalsIgnoreCase(operation) || "update".equalsIgnoreCase(operation) || "stop".equalsIgnoreCase(operation);
-            boolean streamStart = false;
-            for (String source : input.fileCodes) if (source.toLowerCase(java.util.Locale.ROOT).startsWith("rtsp://") || source.toLowerCase(java.util.Locale.ROOT).startsWith("rtsps://")) streamStart = true;
-            if (streamStart && "OmniVL".equals(unit.getCapability().getName())) {
-                if (unit.getCapability().getUsageProtocol() < 1) throw new IllegalStateException("AI_USAGE_UNIT_UPGRADE_REQUIRED");
-                service.getStorage().getUsageWriter().checkAvailable();
-            } else if (!streamControl) meterBegin();
-                ActionDialect dialect = this.service.getCellet().transmit(this.unit.getContext(), request.toDialect(),
-                    3 * 60 * 1000, this.sn);
-            // 处理单元返回
-            if (null == dialect) {
-                Logger.w(this.getClass(), "#process - return null: " + this.unit.getCapability().getName());
-                this.listener.onFailed(this.channel, AIGCStateCode.UnitError);
-                return;
-            }
-
-            Packet response = new Packet(dialect);
-            if (Packet.extractCode(response) != AIGCStateCode.Ok.code) {
-                Logger.w(this.getClass(), "#process - unit failed: " + Packet.extractCode(response));
-                // 回调错误
-                this.listener.onFailed(this.channel, AIGCStateCode.Failure);
-                return;
-            }
-
-            JSONObject payload = Packet.extractDataPayload(response);
-            meterFinish(payload, "succeeded");
-            String responseText = payload.getString("response");
-            String thoughtText = payload.has("thought") ? payload.getString("thought") : "";
-            JSONObject resultPayload = payload.has("resultPayload") ? payload.getJSONObject("resultPayload") : null;
-            Usage usage = null;
-            if (payload.has("performance")) {
-                usage = new Usage(payload.getJSONObject("performance"));
-            }
-            else if (payload.has("usage")) {
-                usage = new Usage(payload.getJSONObject("usage"));
-            }
-            this.output = new MultimodalOutput(this.sn, this.unit.getCapability().getName(),
-                    responseText, thoughtText, resultPayload);
-            // 关联用量信息
-            this.output.usage = usage;
-            // 在应答前同步登记路由，不依赖用量信息或 starting 状态。
-            if (null != resultPayload && resultPayload.has("streamId")) {
-                String streamId = resultPayload.getString("streamId");
-                EventCenter center = EventCenter.getInstance();
-                center.putUnitMeta(streamId, this);
-                String status = resultPayload.optString("status", "");
-                if ("stopped".equalsIgnoreCase(status) || "failed".equalsIgnoreCase(status)) {
-                    center.markStreamStopped(streamId);
-                }
-            }
-            // 客户端收到应答即可提交下一次控制请求。
-            this.channel.setProcessing(false);
-            processingReleased = true;
-            this.listener.onResponse(this.channel, this.output);
-
-            // 更新用量
-            if (null != this.output.usage) {
-                this.service.getExecutor().execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (output.usage.inputTokens != 0 && output.usage.outputTokens != 0) {
-                            Logger.d(MultimodalUnitMeta.class, "Update token usage: " +
-                                    output.usage.inputTokens + "/" + output.usage.outputTokens);
-                            service.getStorage().updateUsage(channel.getAuthToken().getContactId(),
-                                    unit.getCapability().getName(),
-                                    output.usage.outputTokens,
-                                    output.usage.inputTokens);
-                        }
-                    }
-                });
-            }
-        } catch (IllegalStateException unavailable) {
-            Logger.e(this.getClass(), "AI usage storage or protocol unavailable", unavailable);
-            this.listener.onFailed(this.channel, AIGCStateCode.UsageUnavailable);
-        } catch (Exception e) {
-            Logger.e(this.getClass(), "#process", e);
-            this.listener.onFailed(this.channel, AIGCStateCode.IllegalOperation);
-        } finally {
-            if (!processingReleased) {
+                // 客户端收到应答即可提交下一次控制请求。
                 this.channel.setProcessing(false);
-            }
-        }
+                processingReleased = true;
+                this.listener.onResponse(this.channel, this.output);
 
-        } finally { meterUnknown(); }
+                // 更新用量
+                if (null != this.output.usage) {
+                    this.service.getExecutor().execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (output.usage.inputTokens != 0 && output.usage.outputTokens != 0) {
+                                Logger.d(MultimodalUnitMeta.class, "Update token usage: " +
+                                        output.usage.inputTokens + "/" + output.usage.outputTokens);
+                                service.getStorage().updateUsage(channel.getAuthToken().getContactId(),
+                                        unit.getCapability().getName(),
+                                        output.usage.outputTokens,
+                                        output.usage.inputTokens);
+                            }
+                        }
+                    });
+                }
+            } catch (IllegalStateException unavailable) {
+                Logger.e(this.getClass(), "AI usage storage or protocol unavailable", unavailable);
+                this.listener.onFailed(this.channel, AIGCStateCode.UsageUnavailable);
+            } catch (Exception e) {
+                Logger.e(this.getClass(), "#process", e);
+                this.listener.onFailed(this.channel, AIGCStateCode.IllegalOperation);
+            } finally {
+                if (!processingReleased) {
+                    this.channel.setProcessing(false);
+                }
+            }
+
+        } finally {
+            meterUnknown();
+        }
     }
 }

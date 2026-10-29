@@ -33,12 +33,14 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Structured generation has no channel, hidden history, SKILL or tool executor.
+ * 结构化生成没有渠道、隐藏历史、技能或工具执行器。
  */
 public class ChatCompletionService {
     private final cube.monitor.ServiceMetrics generationMetrics = new cube.monitor.ServiceMetrics();
-    public JSONObject monitoringSnapshot() { return generationMetrics.snapshot(); }
 
+    public JSONObject monitoringSnapshot() {
+        return generationMetrics.snapshot();
+    }
 
     private final AIGCService service;
 
@@ -371,7 +373,10 @@ public class ChatCompletionService {
         }
         // Bind control operations to both the token and original dispatcher connection.
         if (pending != null && pending.token.getCode().equals(code) && java.util.Objects.equals(pending.origin, origin)) {
-            synchronized (pending) { pending.cancelledByCaller = true; pending.fail(new CompletionError(504, "request_timeout", "Generation cancelled", null)); }
+            synchronized (pending) {
+                pending.cancelledByCaller = true;
+                pending.fail(new CompletionError(504, "request_timeout", "Generation cancelled", null));
+            }
         }
     }
 
@@ -573,7 +578,8 @@ public class ChatCompletionService {
                     JSONObject usage = result.getJSONObject("usage");
                     long input = CompletionResult.tokens(usage, "prompt_tokens"), output = CompletionResult.tokens(usage, "completion_tokens");
                     meterFinish(new JSONObject().put("usage", usage), "succeeded");
-                    if (!usageContext.delegated) service.getStorage().updateUsage(usageContext.contactId, model.getModel(), output, input);
+                    if (!usageContext.delegated)
+                        service.getStorage().updateUsage(usageContext.contactId, model.getModel(), output, input);
                 } catch (CompletionError e) {
                     fail(e);
                     return;
