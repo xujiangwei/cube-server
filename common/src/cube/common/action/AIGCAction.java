@@ -209,6 +209,9 @@ public enum AIGCAction {
      */
     Multimodal("multimodal"),
 
+    /** Structured image detection and background video detection sessions. */
+    SpecializedDetection("specializedDetection"),
+
     /**
      * 查询多模态请求。
      */

@@ -11,6 +11,10 @@
 
 `/filestorage/operation/*` 与 `/filestorage/file/` 默认返回 `{sn,name,data}` 外壳（`data` 内才是业务数据）。请求头 `x-baize-api-version: v1` 时改为直接返回业务数据；令牌可通过请求头 `x-baize-api-token` 传入而不写在请求体里。`/filestorage/operation/` 下的操作按 URL 后缀区分：`/list`、`/find`、`/delete`、`/modify`。
 
+## 专项检测 SpecializedDetection
+
+专项图片检测使用 `POST /specialized-detection/base/{token}`；视频后台会话使用 `POST /specialized-detection/stream/{token}`，支持 `start/status/stop`。完整协议、PNG 直连回调、Java 配置预算和重启边界见 [专项检测说明](SpecializedDetection.md)，接口条目见 [SpecializedDetection.js](src/SpecializedDetection.js)。
+
 ## 覆盖范围
 
 本文档覆盖 dispatcher 的 AIGC 业务面，以及触点、文件、风控、CV、Forest、Harness 与 `/v1` 兼容层。

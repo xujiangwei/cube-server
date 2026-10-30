@@ -51,7 +51,7 @@ public class MultimodalHandler implements EventListener {
                 JSONObject payload = event.payload;
                 String id = payload.getString("streamId");
                 UnitMeta unitMeta = center.getUnitMeta(id);
-                if (null != unitMeta) {
+                if (unitMeta instanceof MultimodalUnitMeta) {
                     MultimodalUnitMeta multimodalUnitMeta = (MultimodalUnitMeta) unitMeta;
                     Usage usage = new Usage(payload.getJSONObject("performance"));
                     Logger.d(MultimodalUnitMeta.class, "Update token usage: " +

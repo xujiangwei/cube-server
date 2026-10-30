@@ -29,6 +29,7 @@ public class EventCenter {
     private final static EventCenter sInstance = new EventCenter();
 
     private final Map<String, EventListener> listenerMap;
+    private volatile AIGCService service;
 
     private final Map<String, UnitMeta> unitMetaMap;
 
@@ -63,6 +64,7 @@ public class EventCenter {
      * @param service AIGC 服务实例。
      */
     public void start(AIGCService service) {
+        this.service = service;
         MultimodalHandler multimodalHandler = new MultimodalHandler(service);
         this.addListener(Events.StreamStarted, multimodalHandler);
         this.addListener(Events.StreamStopped, multimodalHandler);
@@ -75,6 +77,7 @@ public class EventCenter {
      * <p>移除已注册的监听器并标记停止；重复调用幂等。</p>
      */
     public synchronized void stop() {
+        this.service = null;
         this.removeListener(Events.StreamStarted);
         this.removeListener(Events.StreamStopped);
         this.removeListener(Events.Segment);
@@ -243,8 +246,20 @@ public class EventCenter {
      * @param dialect 事件方言。
      */
     public void notifyEvent(ActionDialect dialect) {
+        this.notifyEvent(null, dialect);
+    }
+
+    /** Retain the physical sender when accepting Unit lifecycle events. */
+    public void notifyEvent(cell.core.talk.TalkContext context, ActionDialect dialect) {
         try {
             Event event = new Event(dialect.getParamAsJson("data"));
+            if ("SpecializedDetection".equals(event.source)) {
+                AIGCService current = service;
+                if (current != null && context != null) current.getSpecializedDetections().event(context, event);
+                return;
+            }
+            UnitMeta meta = getUnitMeta(event.payload.optString("streamId", ""));
+            if (context != null && meta != null && !context.equals(meta.unit.getContext())) return;
             EventListener listener = this.listenerMap.get(event.name);
             if (null != listener) {
                 listener.onEvent(this, event);

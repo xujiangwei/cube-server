@@ -1,0 +1,4 @@
+# Copy into dispatcher/config/dispatcher.properties.
+# Leave headroom beyond the service deadline for transport and error propagation.
+specialized.detection.data.timeout.ms=190000
+specialized.detection.control.timeout.ms=40000

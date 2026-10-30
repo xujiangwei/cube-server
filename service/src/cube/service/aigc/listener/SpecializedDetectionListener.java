@@ -1,0 +1,10 @@
+package cube.service.aigc.listener;
+
+import cube.aigc.SpecializedDetectionException;
+import cube.common.entity.AIGCChannel;
+import cube.common.entity.SpecializedDetectionOutput;
+
+public interface SpecializedDetectionListener {
+    void onResponse(AIGCChannel channel, SpecializedDetectionOutput output);
+    void onFailed(AIGCChannel channel, SpecializedDetectionException error);
+}

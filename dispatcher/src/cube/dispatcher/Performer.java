@@ -885,6 +885,8 @@ public class Performer implements TalkListener, Tickable {
             return this.tryTransmit(director, celletName, actionDialect);
         } catch (cube.dispatcher.aigc.CapabilityUnavailableException e) {
             throw e;
+        } catch (cube.aigc.SpecializedDetectionException e) {
+            throw e;
         } catch (RuntimeException e) {
             Logger.w(this.getClass(), "#tryTransmit - " + celletName, e);
             return false;
@@ -1224,6 +1226,8 @@ public class Performer implements TalkListener, Tickable {
             Thread.currentThread().interrupt();
             return null;
         } catch (cube.dispatcher.aigc.CapabilityUnavailableException e) {
+            throw e;
+        } catch (cube.aigc.SpecializedDetectionException e) {
             throw e;
         } catch (RuntimeException e) {
             Logger.w(this.getClass(), "#syncTransmit - " + celletName, e);

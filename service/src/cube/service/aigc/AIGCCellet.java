@@ -260,7 +260,8 @@ public class AIGCCellet extends AbstractCellet {
             Relay.Context context = (Relay.Context) talkContext;
             return context.owner.transmit(context, dialect, timeout);
         }
-        Responder responder = new Responder(sn, dialect);
+        Responder responder = AIGCAction.SpecializedDetection.name.equals(dialect.getName())
+                ? new Responder(sn, dialect, talkContext) : new Responder(sn, dialect);
         this.responderList.add(responder);
 
         if (!this.speak(talkContext, dialect)) {
@@ -448,9 +449,10 @@ public class AIGCCellet extends AbstractCellet {
 
         if (dialect.containsParam(Responder.NotifierKey)) {
             // 应答阻塞访问
+            this.service.getSpecializedDetections().onResponse(talkContext, dialect);
             this.service.getPluginUnits().complete(talkContext, dialect);
             for (Responder responder : this.responderList) {
-                if (responder.isResponse(dialect)) {
+                if (responder.isResponse(talkContext, dialect)) {
                     responder.notifyResponse(dialect);
                     this.responderList.remove(responder);
                     break;
@@ -520,6 +522,8 @@ public class AIGCCellet extends AbstractCellet {
             // 来自 Dispatcher 的请求
             this.execute(new MultimodalTask(this, talkContext, primitive,
                     this.markResponseTime(action)));
+        } else if (AIGCAction.SpecializedDetection.name.equals(action)) {
+            this.execute(new SpecializedDetectionTask(this, talkContext, primitive, this.markResponseTime(action)));
         }
 //        else if (AIGCAction.QueryMultimodal.name.equals(action)) {
 //            // 来自 Dispatcher 的请求
@@ -736,7 +740,7 @@ public class AIGCCellet extends AbstractCellet {
             this.execute(new Runnable() {
                 @Override
                 public void run() {
-                    EventCenter.getInstance().notifyEvent(dialect);
+                    EventCenter.getInstance().notifyEvent(talkContext, dialect);
                 }
             });
         } else if (AIGCAction.SubmitSegments.name.equals(action)) {

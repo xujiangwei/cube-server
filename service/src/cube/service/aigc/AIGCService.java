@@ -124,6 +124,36 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      * 任务执行器：各能力的任务队列、两层线程池与派发。
      */
     private final AIGCTaskExecutor taskExecutor;
+    private final cube.service.aigc.unit.SpecializedDetectionScheduler specializedDetections;
+
+    public cube.service.aigc.unit.SpecializedDetectionScheduler getSpecializedDetections() { return specializedDetections; }
+    public boolean submitDetectionControl(Runnable job) { return taskExecutor.submitDetectionControl(job); }
+
+    public void executeSpecializedDetection(String tokenCode, String channelCode, SpecializedDetectionInput input,
+            cube.service.aigc.listener.SpecializedDetectionListener listener) {
+        AuthToken token = getToken(tokenCode);
+        if (token == null || token.getExpiry() <= System.currentTimeMillis()) throw cube.aigc.SpecializedDetectionException.unit(22);
+        if (!isStarted()) throw cube.aigc.SpecializedDetectionException.unit(30);
+        if (channelCode == null || channelCode.trim().isEmpty()) throw cube.aigc.SpecializedDetectionException.invalid("channel is required");
+        AIGCChannel channel;
+        synchronized (channelManager) {
+            channel = channelManager.get(channelCode);
+            if (channel == null) {
+                if (channelManager.size() >= ChannelManager.MAX_CHANNEL) throw cube.aigc.SpecializedDetectionException.unit(7);
+                channel = createChannel(token, "Detection-" + channelCode, channelCode, Language.Chinese);
+            }
+        }
+        if (channel == null) throw cube.aigc.SpecializedDetectionException.unit(30);
+        AuthToken owner = channel.getAuthToken();
+        if (!token.getDomain().equals(owner.getDomain()) || token.getContactId() != owner.getContactId())
+            throw cube.aigc.SpecializedDetectionException.unit(25);
+        cube.aigc.usage.UsageContext visitor = cube.aigc.usage.UsageContext.visitor(token, "AIGC", "");
+        cube.service.aigc.unit.SpecializedDetectionScheduler.Reservation reservation = specializedDetections.reserve(input, token);
+        cube.service.aigc.unit.SpecializedDetectionUnitMeta meta = new cube.service.aigc.unit.SpecializedDetectionUnitMeta(
+                this, reservation, channel, input, listener);
+        meta.usageContext = visitor;
+        taskExecutor.submitSpecializedDetection(meta);
+    }
     private final cube.service.aigc.completion.ChatCompletionService completions;
 
     /**
@@ -197,6 +227,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         this.cellet = cellet;
         this.unitScheduler = new UnitScheduler();
         this.taskExecutor = new AIGCTaskExecutor();
+        this.specializedDetections = new cube.service.aigc.unit.SpecializedDetectionScheduler(this);
         this.completions = new cube.service.aigc.completion.ChatCompletionService(this, cellet);
         // 频道创建需要把令牌码解析为访问令牌，这里注入解析器，避免频道管理器反向依赖服务
         this.channelManager = new ChannelManager(cellet, token -> this.getAuthService().getToken(token));
@@ -390,6 +421,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     @Override
     public void stop() {
+        this.specializedDetections.close();
         this.completions.stop();
         Relay relay = Relay.getInstance();
         if (relay != null) relay.close();
@@ -528,6 +560,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             this.configFileLastModified = file.lastModified();
 
             Properties properties = ConfigUtils.readProperties(file.getAbsolutePath());
+            this.specializedDetections.configure(properties);
+            this.taskExecutor.configureDetection(properties);
 
             // 性能配置
             int max = 8;
@@ -1048,6 +1082,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         // Additive extension: v1 discovery clients continue reading their original fields.
         return new JSONObject().put("version", 1).put("instanceId", this.capabilityInstanceId)
                 .put("ready", ready).put("units", units).put("models", models)
+                .put("specializedDetection", this.specializedDetections.snapshot())
                 .put("moduleRoutingVersion", 1).put("modules", modules);
     }
 

@@ -42,6 +42,62 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class AIGCTaskExecutor {
 
+    private java.util.concurrent.ThreadPoolExecutor detectionData, detectionControl;
+    private int detectionDataThreads = 8, detectionDataQueue = 64, detectionControlThreads = 2, detectionControlQueue = 64;
+    private boolean detectionClosed;
+
+    /** Pool sizes apply at initialization; changing them requires a service restart. */
+    public synchronized void configureDetection(java.util.Properties properties) {
+        if (detectionData != null || detectionControl != null) return;
+        detectionDataThreads = detectionSetting(properties, "data.threads", 8);
+        detectionDataQueue = detectionSetting(properties, "data.queue", 64);
+        detectionControlThreads = detectionSetting(properties, "control.threads", 2);
+        detectionControlQueue = detectionSetting(properties, "control.queue", 64);
+    }
+
+    private static int detectionSetting(java.util.Properties p, String key, int fallback) {
+        int value = Integer.parseInt(p.getProperty("specialized.detection." + key, Integer.toString(fallback)));
+        if (value < 1 || value > 1024) throw new IllegalArgumentException("Invalid detection executor setting: " + key);
+        return value;
+    }
+
+    private java.util.concurrent.ThreadPoolExecutor detectionPool(int threads, int queue, String name) {
+        return new java.util.concurrent.ThreadPoolExecutor(threads, threads, 30, java.util.concurrent.TimeUnit.SECONDS,
+                new java.util.concurrent.ArrayBlockingQueue<Runnable>(queue), job -> {
+                    Thread t = new Thread(job, name); t.setDaemon(true); return t;
+                }, new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
+    }
+
+    private synchronized boolean submitDetection(Runnable job, boolean control) {
+        if (detectionClosed) return false;
+        if (control && detectionControl == null) detectionControl = detectionPool(detectionControlThreads, detectionControlQueue, "detection-control");
+        if (!control && detectionData == null) detectionData = detectionPool(detectionDataThreads, detectionDataQueue, "detection-data");
+        try { (control ? detectionControl : detectionData).execute(job); return true; }
+        catch (java.util.concurrent.RejectedExecutionException busy) { return false; }
+    }
+
+    private final class DetectionJob implements Runnable {
+        final SpecializedDetectionUnitMeta meta;
+        DetectionJob(SpecializedDetectionUnitMeta meta) { this.meta = meta; }
+        @Override public void run() {
+            synchronized (runningMetas) { runningMetas.add(meta); }
+            meta.unit.setRunning(true);
+            try { meta.process(); }
+            finally {
+                meta.unit.setRunning(false);
+                synchronized (runningMetas) { runningMetas.remove(meta); }
+            }
+        }
+    }
+
+    public void submitSpecializedDetection(SpecializedDetectionUnitMeta meta) {
+        meta.armDeadline();
+        if (!submitDetection(new DetectionJob(meta), meta.input.isControl()))
+            meta.reject(cube.aigc.SpecializedDetectionException.unit(7));
+    }
+
+    public boolean submitDetectionControl(Runnable job) { return submitDetection(job, true); }
+
     /**
      * 后台线程池的缺省大小。配置文件缺失或未变更时按该值补建，避免线程池恒为空
      * 导致所有异步入口静默失效。
@@ -361,6 +417,13 @@ public class AIGCTaskExecutor {
      * 关闭线程池并释放排队中的排空标记。
      */
     public void shutdown() {
+        synchronized (this) {
+            detectionClosed = true;
+            for (java.util.concurrent.ThreadPoolExecutor pool : new java.util.concurrent.ThreadPoolExecutor[]{detectionData, detectionControl}) {
+                if (pool != null) for (Runnable job : pool.shutdownNow())
+                    if (job instanceof DetectionJob) ((DetectionJob) job).meta.reject(cube.aigc.SpecializedDetectionException.unit(30));
+            }
+        }
         ExecutorService executor = this.backgroundExecutor;
         if (null != executor) {
             executor.shutdown();

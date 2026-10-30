@@ -400,6 +400,8 @@ public class Manager implements Tickable, PerformerListener {
         this.registerHandler(httpServer, new Chat());
         this.registerHandler(httpServer, new MultimodalBase());
         this.registerHandler(httpServer, new MultimodalStream());
+        this.registerHandler(httpServer, new SpecializedDetectionHandler(false));
+        this.registerHandler(httpServer, new SpecializedDetectionHandler(true));
         this.registerHandler(httpServer, new Summarization());
         this.registerHandler(httpServer, new SemanticSearch());
         this.registerHandler(httpServer, new SpeechEmotionRecognition());
@@ -2368,15 +2370,35 @@ public class Manager implements Tickable, PerformerListener {
     }
 
     /**
-     * 发起多模态对话。
-     *
-     * <p>输入可同时包含文本与图像，输出可能是文本、文件或结构化结果。</p>
+     * 调用专项检测；保留单元状态码和 HTTP 错误语义。
      *
      * @param token       访问令牌。
      * @param channelCode 通道码。
-     * @param input       多模态输入。
-     * @return 多模态输出；失败返回 {@code null} 。
+     * @param input       专项检测协议输入。
+     * @return 专项结果；失败抛出 {@link SpecializedDetectionException}。
      */
+    public JSONObject executeSpecializedDetection(String token, String channelCode, SpecializedDetectionInput input) {
+        JSONObject data = new JSONObject().put("channel", channelCode).put("input", input.toJSON());
+        Packet packet = new Packet(AIGCAction.SpecializedDetection.name, data);
+        ActionDialect request = packet.toDialect();
+        request.addParam("token", token);
+        String key = "specialized.detection." + (input.isControl() ? "control" : "data") + ".timeout.ms";
+        Properties config = performer.getProperties();
+        String fallback = input.isControl() ? "40000" : "190000";
+        long timeout = Long.parseLong(config == null ? fallback : config.getProperty(key, fallback));
+        if (timeout < 1 || timeout > 3610000) throw new IllegalArgumentException("Invalid detection gateway timeout");
+        ActionDialect response = syncTransmit(AIGCCellet.NAME, request, timeout);
+        if (response == null) throw SpecializedDetectionException.timeout();
+        Packet reply = new Packet(response);
+        if (!packet.sn.equals(reply.sn) || !packet.name.equals(reply.name))
+            throw new SpecializedDetectionException(31, 502, "INVALID_SERVICE_RESPONSE", "Invalid detection service response");
+        int code = Packet.extractCode(reply);
+        JSONObject result = Packet.extractDataPayload(reply);
+        if (code != 0) throw SpecializedDetectionException.fromJSON(code, result);
+        return result;
+    }
+
+    /** 发起多模态对话，失败返回 {@code null}。 */
     public MultimodalOutput executeMultimodal(String token, String channelCode, MultimodalInput input) {
         JSONObject data = new JSONObject();
         data.put("token", token);

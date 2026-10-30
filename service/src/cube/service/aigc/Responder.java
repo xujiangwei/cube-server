@@ -22,6 +22,19 @@ public class Responder {
     private JSONObject notifier;
 
     private ActionDialect response;
+    private cell.core.talk.TalkContext expectedContext;
+
+    public Responder(long sn, ActionDialect dialect, cell.core.talk.TalkContext context) {
+        this(sn, dialect);
+        this.expectedContext = context;
+    }
+
+    public boolean isResponse(cell.core.talk.TalkContext context, ActionDialect response) {
+        if (expectedContext != null && expectedContext != context
+                && (context == null || expectedContext.getSession() == null || expectedContext.getSession() != context.getSession()))
+            return false;
+        return isResponse(response);
+    }
 
     public Responder(long sn, ActionDialect actionDialect) {
         this.sn = sn;

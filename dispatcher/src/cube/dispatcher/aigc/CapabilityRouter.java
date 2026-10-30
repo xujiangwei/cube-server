@@ -16,6 +16,8 @@ import cube.aigc.completion.CompletionRequest;
 import cube.common.Packet;
 import cube.common.action.AIGCAction;
 import cube.common.entity.AICapability;
+import cube.common.entity.SpecializedDetectionInput;
+import cube.aigc.SpecializedDetectionException;
 import cube.dispatcher.Director;
 import cube.dispatcher.Performer;
 import org.json.JSONArray;
@@ -42,6 +44,8 @@ public final class CapabilityRouter {
     private final Map<Long, PendingChannel> pendingChannels = new HashMap<>();
 
     private final Map<String, Owner> completions = new HashMap<>();
+    private final Map<String, Owner> detectionStreams = new LinkedHashMap<>();
+    private final Map<Long, DetectionPending> detectionPending = new HashMap<>();
 
     private ExecutorService queries;
 
@@ -78,6 +82,8 @@ public final class CapabilityRouter {
         channels.clear();
         pendingChannels.clear();
         completions.clear();
+        detectionStreams.clear();
+        detectionPending.clear();
     }
 
     /**
@@ -118,6 +124,8 @@ public final class CapabilityRouter {
         channels.entrySet().removeIf(e -> e.getValue().source == source);
         completions.entrySet().removeIf(e -> e.getValue().source == source);
         pendingChannels.entrySet().removeIf(e -> e.getValue().owner.source == source);
+        detectionStreams.entrySet().removeIf(e -> e.getValue().source == source);
+        detectionPending.entrySet().removeIf(e -> e.getValue().owner.source == source);
     }
 
     /**
@@ -143,6 +151,8 @@ public final class CapabilityRouter {
         channels.entrySet().removeIf(e -> now - e.getValue().touched > CHANNEL_TTL);
         completions.entrySet().removeIf(e -> now - e.getValue().touched > 60 * 60 * 1000);
         pendingChannels.entrySet().removeIf(e -> now - e.getValue().owner.touched > TTL);
+        detectionStreams.entrySet().removeIf(e -> !e.getValue().live());
+        detectionPending.entrySet().removeIf(e -> !e.getValue().owner.live() || now - e.getValue().owner.touched > 3600000);
     }
 
     private void schedule(Director director, State state, long now) {
@@ -218,6 +228,7 @@ public final class CapabilityRouter {
     public synchronized Director select(ActionDialect dialect) {
         String action = dialect.getName();
         JSONObject data = new Packet(dialect).data;
+        if (AIGCAction.SpecializedDetection.name.equals(action)) return selectDetection(new SpecializedDetectionInput(data.getJSONObject("input")));
         if (AIGCAction.GetCapabilitySnapshot.name.equals(action)) throw unavailable("Internal discovery action");
         if (dialect.containsParam("moduleName")) return selectModule(dialect, action);
         String channel = data.optString("channel", data.optString("code", ""));
@@ -263,6 +274,39 @@ public final class CapabilityRouter {
         Director director = eligible.get((int) Math.floorMod(cursor, (long) eligible.size()));
         cursors.put(key, cursor == Long.MAX_VALUE ? 0 : cursor + 1);
         return director;
+    }
+
+    private Director selectDetection(SpecializedDetectionInput input) {
+        if (input.isControl()) {
+            Owner owner = detectionStreams.get(input.streamId);
+            if (owner == null) throw SpecializedDetectionException.unit(3);
+            if (!owner.live()) throw SpecializedDetectionException.unit(30);
+            return owner.director;
+        }
+        List<Director> eligible = new ArrayList<>();
+        boolean supported = false;
+        for (Director director : candidates()) {
+            JSONObject caps = states.get(director).snapshot.json.optJSONObject("specializedDetection");
+            if (caps == null || caps.optInt("version") != 1) continue;
+            JSONArray providers = caps.optJSONArray("providers");
+            if (providers == null) continue;
+            boolean available = false;
+            for (int i = 0; i < providers.length(); i++) {
+                JSONObject provider = providers.getJSONObject(i);
+                JSONArray profiles = provider.optJSONArray("profiles");
+                boolean matches = false;
+                if (profiles != null) for (int j = 0; j < profiles.length(); j++) matches |= input.profile.equals(profiles.getString(j));
+                if (!matches) continue;
+                supported = true;
+                available |= provider.optInt("start".equals(input.operation) ? "availableSessions" : "availableImages") > 0;
+            }
+            if (available) eligible.add(director);
+        }
+        if (eligible.isEmpty()) throw SpecializedDetectionException.unit(supported ? 7 : 30);
+        String key = "specializedDetection:" + input.operation + ":" + input.profile;
+        long cursor = cursors.getOrDefault(key, 0L);
+        cursors.put(key, cursor == Long.MAX_VALUE ? 0 : cursor + 1);
+        return eligible.get((int) Math.floorMod(cursor, (long) eligible.size()));
     }
 
     private Director selectModule(ActionDialect request, String action) {
@@ -344,6 +388,27 @@ public final class CapabilityRouter {
      * @param request  已发出的请求。
      */
     public synchronized void sent(Director director, Speakable source, ActionDialect request) {
+        if (AIGCAction.SpecializedDetection.name.equals(request.getName())) {
+            Packet packet = new Packet(request);
+            SpecializedDetectionInput input = new SpecializedDetectionInput(packet.data.getJSONObject("input"));
+            State state = states.get(director);
+            if (state == null || state.source != source) throw SpecializedDetectionException.unit(30);
+            if (input.isControl()) {
+                Owner owner = detectionStreams.get(input.streamId);
+                if (owner == null) throw SpecializedDetectionException.unit(3);
+                if (!owner.live() || owner.director != director || owner.source != source) throw SpecializedDetectionException.unit(30);
+            } else {
+                if (!valid(director, System.currentTimeMillis())) throw SpecializedDetectionException.unit(30);
+                JSONObject caps = state.snapshot.json.optJSONObject("specializedDetection");
+                if (caps == null || caps.optInt("version") != 1) throw SpecializedDetectionException.unit(30);
+            }
+            if (!"detect".equals(input.operation)) {
+                if (detectionPending.size() >= 10000 || (!input.isControl() && detectionStreams.size() >= 10000))
+                    throw SpecializedDetectionException.unit(7);
+                detectionPending.put(packet.sn, new DetectionPending(new Owner(director, state, packet.sn), input));
+            }
+            return;
+        }
         boolean channel = AIGCAction.RequestChannel.name.equals(request.getName());
         boolean completion = AIGCAction.ChatCompletion.name.equals(request.getName());
         boolean asr = AIGCAction.AutomaticSpeechRecognition.name.equals(request.getName());
@@ -386,6 +451,8 @@ public final class CapabilityRouter {
      */
     public synchronized void failed(ActionDialect request) {
         long sn = new Packet(request).sn;
+        DetectionPending detection = detectionPending.get(sn);
+        if (detection != null && !"start".equals(detection.input.operation)) detectionPending.remove(sn);
         pendingChannels.remove(sn);
         if (AIGCAction.ChatCompletion.name.equals(request.getName())) {
             String id = new Packet(request).data.getString("requestId");
@@ -403,6 +470,29 @@ public final class CapabilityRouter {
      * @param response 响应方言。
      */
     public synchronized void response(Speakable source, ActionDialect response) {
+        if (AIGCAction.SpecializedDetection.name.equals(response.getName())) {
+            Packet packet = new Packet(response);
+            DetectionPending pending = detectionPending.get(packet.sn);
+            if (pending == null || pending.owner.source != source || !pending.owner.live()) return;
+            detectionPending.remove(packet.sn);
+            if (Packet.extractCode(packet) == 0) {
+                JSONObject payload = Packet.extractDataPayload(packet).optJSONObject("resultPayload");
+                if (payload != null && !payload.optString("streamId").isEmpty()) {
+                    String id = payload.getString("streamId");
+                    if ("start".equals(pending.input.operation)) detectionStreams.putIfAbsent(id, pending.owner);
+                    else if (!id.equals(pending.input.streamId)) return;
+                    Owner owner = detectionStreams.get(id);
+                    if (owner != null && owner.source == source) {
+                        owner.detectionTerminal |= "stopped".equals(payload.optString("status")) || "failed".equals(payload.optString("status"));
+                    }
+                }
+            } else if (Packet.extractCode(packet) == 3 && pending.input.isControl()) {
+                Owner owner = detectionStreams.get(pending.input.streamId);
+                if (owner != null && owner.source == source) owner.detectionTerminal = true;
+            }
+            trimDetectionRoutes(pending.owner);
+            return;
+        }
         if (AIGCAction.ChatCompletionEvent.name.equals(response.getName())) {
             JSONObject event = new Packet(response).data;
             if ("completed".equals(event.optString("kind")) || "error".equals(event.optString("kind"))) {
@@ -417,6 +507,20 @@ public final class CapabilityRouter {
         pendingChannels.remove(packet.sn);
         if (Packet.extractCode(packet) == 0 && pending.owner.live()) {
             channels.put(Packet.extractDataPayload(packet).getString("code"), pending.owner);
+        }
+    }
+
+    private void trimDetectionRoutes(Owner provider) {
+        // A service can own several Python providers, each retaining twenty terminal sessions.
+        JSONObject caps = provider.state.snapshot.json.optJSONObject("specializedDetection");
+        JSONArray nodes = caps == null ? null : caps.optJSONArray("providers");
+        int limit = 20 * Math.max(1, nodes == null ? 1 : nodes.length());
+        int terminals = 0;
+        for (Owner owner : detectionStreams.values()) if (owner.state == provider.state && owner.detectionTerminal) terminals++;
+        Iterator<Owner> iterator = detectionStreams.values().iterator();
+        while (terminals > limit && iterator.hasNext()) {
+            Owner owner = iterator.next();
+            if (owner.state == provider.state && owner.detectionTerminal) { iterator.remove(); terminals--; }
         }
     }
 
@@ -446,6 +550,7 @@ public final class CapabilityRouter {
     }
 
     private final class Owner {
+        boolean detectionTerminal;
         final Director director;
         final State state;
         final Speakable source;
@@ -473,6 +578,12 @@ public final class CapabilityRouter {
         PendingChannel(Owner owner) {
             this.owner = owner;
         }
+    }
+
+    private final class DetectionPending {
+        final Owner owner;
+        final SpecializedDetectionInput input;
+        DetectionPending(Owner owner, SpecializedDetectionInput input) { this.owner = owner; this.input = input; }
     }
 
     private static final class State {
