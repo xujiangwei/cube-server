@@ -209,7 +209,9 @@ public enum AIGCAction {
      */
     Multimodal("multimodal"),
 
-    /** Structured image detection and background video detection sessions. */
+    /**
+     * Structured image detection and background video detection sessions.
+     */
     SpecializedDetection("specializedDetection"),
 
     /**

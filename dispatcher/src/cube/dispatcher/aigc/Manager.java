@@ -136,7 +136,7 @@ public class Manager implements Tickable, PerformerListener {
      *
      * @param performer 执行机。
      * @throws IllegalArgumentException 执行机或其 HTTP 服务器为空。
-     * @throws IllegalStateException 已绑定到另一个执行机。
+     * @throws IllegalStateException    已绑定到另一个执行机。
      */
     public synchronized void start(Performer performer) {
         if (null == performer || null == performer.getHttpServer()) {
@@ -540,7 +540,9 @@ public class Manager implements Tickable, PerformerListener {
         return (null != this.checkAndGetToken(token, device));
     }
 
-    /** Module-owned actions need no central enum; preserve the full response code. */
+    /**
+     * Module-owned actions need no central enum; preserve the full response code.
+     */
     public Packet syncModuleRequest(String token, String module, String action, String requiredUnit,
                                     JSONObject data, long timeoutMs) {
         if (module == null || !module.matches("[a-z][a-z0-9-]{0,63}")
@@ -552,7 +554,8 @@ public class Manager implements Tickable, PerformerListener {
         request.addParam("moduleName", module);
         request.addParam("moduleUnit", requiredUnit == null ? "" : requiredUnit);
         ActionDialect response = this.syncTransmit(AIGCCellet.NAME, request, timeoutMs);
-        if (response == null) throw new cube.aigc.spi.PluginCallException(AIGCStateCode.UnitError, 504, "Module request timed out");
+        if (response == null)
+            throw new cube.aigc.spi.PluginCallException(AIGCStateCode.UnitError, 504, "Module request timed out");
         return new Packet(response);
     }
 
@@ -2398,7 +2401,9 @@ public class Manager implements Tickable, PerformerListener {
         return result;
     }
 
-    /** 发起多模态对话，失败返回 {@code null}。 */
+    /**
+     * 发起多模态对话，失败返回 {@code null}。
+     */
     public MultimodalOutput executeMultimodal(String token, String channelCode, MultimodalInput input) {
         JSONObject data = new JSONObject();
         data.put("token", token);
@@ -2561,9 +2566,9 @@ public class Manager implements Tickable, PerformerListener {
     /**
      * 查询知识库问答进度。
      *
-     * @param token       访问令牌。
-     * @param channel     通道码。
-     * @param baseName    知识库内部名称。
+     * @param token    访问令牌。
+     * @param channel  通道码。
+     * @param baseName 知识库内部名称。
      * @return 问答进度；失败返回 {@code null} 。
      */
     public KnowledgeQAProgress getKnowledgeQAProgress(String token, String channel, String baseName) {
@@ -3555,14 +3560,14 @@ public class Manager implements Tickable, PerformerListener {
      * <p>六个开关分别控制返回内容、章节、思考过程、摘要、评分与关联链接，
      * 按需取用可显著减小响应体积。</p>
      *
-     * @param token    访问令牌。
-     * @param sn       报告序列号。
-     * @param content  是否包含正文。
-     * @param section  是否包含章节。
-     * @param thought  是否包含思考过程。
-     * @param summary  是否包含摘要。
-     * @param rating   是否包含评分。
-     * @param link     是否包含关联链接。
+     * @param token   访问令牌。
+     * @param sn      报告序列号。
+     * @param content 是否包含正文。
+     * @param section 是否包含章节。
+     * @param thought 是否包含思考过程。
+     * @param summary 是否包含摘要。
+     * @param rating  是否包含评分。
+     * @param link    是否包含关联链接。
      * @return 报告片段 JSON ；失败返回 {@code null} 。
      */
     public JSONObject getPsychologyReportPart(String token, long sn, boolean content, boolean section, boolean thought,

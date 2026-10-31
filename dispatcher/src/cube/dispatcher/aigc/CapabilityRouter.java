@@ -11,13 +11,13 @@ import cell.core.talk.dialect.ActionDialect;
 import cell.util.log.Logger;
 import cube.aigc.Consts;
 import cube.aigc.ModelConfig;
+import cube.aigc.SpecializedDetectionException;
 import cube.aigc.completion.CompletionError;
 import cube.aigc.completion.CompletionRequest;
 import cube.common.Packet;
 import cube.common.action.AIGCAction;
 import cube.common.entity.AICapability;
 import cube.common.entity.SpecializedDetectionInput;
-import cube.aigc.SpecializedDetectionException;
 import cube.dispatcher.Director;
 import cube.dispatcher.Performer;
 import org.json.JSONArray;
@@ -228,7 +228,8 @@ public final class CapabilityRouter {
     public synchronized Director select(ActionDialect dialect) {
         String action = dialect.getName();
         JSONObject data = new Packet(dialect).data;
-        if (AIGCAction.SpecializedDetection.name.equals(action)) return selectDetection(new SpecializedDetectionInput(data.getJSONObject("input")));
+        if (AIGCAction.SpecializedDetection.name.equals(action))
+            return selectDetection(new SpecializedDetectionInput(data.getJSONObject("input")));
         if (AIGCAction.GetCapabilitySnapshot.name.equals(action)) throw unavailable("Internal discovery action");
         if (dialect.containsParam("moduleName")) return selectModule(dialect, action);
         String channel = data.optString("channel", data.optString("code", ""));
@@ -295,7 +296,8 @@ public final class CapabilityRouter {
                 JSONObject provider = providers.getJSONObject(i);
                 JSONArray profiles = provider.optJSONArray("profiles");
                 boolean matches = false;
-                if (profiles != null) for (int j = 0; j < profiles.length(); j++) matches |= input.profile.equals(profiles.getString(j));
+                if (profiles != null)
+                    for (int j = 0; j < profiles.length(); j++) matches |= input.profile.equals(profiles.getString(j));
                 if (!matches) continue;
                 supported = true;
                 available |= provider.optInt("start".equals(input.operation) ? "availableSessions" : "availableImages") > 0;
@@ -396,7 +398,8 @@ public final class CapabilityRouter {
             if (input.isControl()) {
                 Owner owner = detectionStreams.get(input.streamId);
                 if (owner == null) throw SpecializedDetectionException.unit(3);
-                if (!owner.live() || owner.director != director || owner.source != source) throw SpecializedDetectionException.unit(30);
+                if (!owner.live() || owner.director != director || owner.source != source)
+                    throw SpecializedDetectionException.unit(30);
             } else {
                 if (!valid(director, System.currentTimeMillis())) throw SpecializedDetectionException.unit(30);
                 JSONObject caps = state.snapshot.json.optJSONObject("specializedDetection");
@@ -516,11 +519,15 @@ public final class CapabilityRouter {
         JSONArray nodes = caps == null ? null : caps.optJSONArray("providers");
         int limit = 20 * Math.max(1, nodes == null ? 1 : nodes.length());
         int terminals = 0;
-        for (Owner owner : detectionStreams.values()) if (owner.state == provider.state && owner.detectionTerminal) terminals++;
+        for (Owner owner : detectionStreams.values())
+            if (owner.state == provider.state && owner.detectionTerminal) terminals++;
         Iterator<Owner> iterator = detectionStreams.values().iterator();
         while (terminals > limit && iterator.hasNext()) {
             Owner owner = iterator.next();
-            if (owner.state == provider.state && owner.detectionTerminal) { iterator.remove(); terminals--; }
+            if (owner.state == provider.state && owner.detectionTerminal) {
+                iterator.remove();
+                terminals--;
+            }
         }
     }
 
@@ -583,7 +590,11 @@ public final class CapabilityRouter {
     private final class DetectionPending {
         final Owner owner;
         final SpecializedDetectionInput input;
-        DetectionPending(Owner owner, SpecializedDetectionInput input) { this.owner = owner; this.input = input; }
+
+        DetectionPending(Owner owner, SpecializedDetectionInput input) {
+            this.owner = owner;
+            this.input = input;
+        }
     }
 
     private static final class State {

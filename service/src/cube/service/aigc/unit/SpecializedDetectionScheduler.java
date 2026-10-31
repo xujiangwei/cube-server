@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
 package cube.service.aigc.unit;
 
 import cell.core.talk.TalkContext;
@@ -5,16 +11,23 @@ import cell.core.talk.dialect.ActionDialect;
 import cube.aigc.SpecializedDetectionException;
 import cube.auth.AuthToken;
 import cube.common.Packet;
-import cube.common.entity.*;
+import cube.common.entity.AIGCUnit;
+import cube.common.entity.SpecializedDetectionInput;
+import cube.common.entity.SpecializedDetectionOutput;
 import cube.service.aigc.AIGCService;
 import cube.service.aigc.event.Event;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
-/** Java admission budgets, scoped to a registered provider connection. Python remains authoritative. */
+/**
+ * Java admission budgets, scoped to a registered provider connection. Python remains authoritative.
+ */
 public final class SpecializedDetectionScheduler {
     private final AIGCService service;
     private final Map<String, Provider> providers = new LinkedHashMap<>();
@@ -30,7 +43,11 @@ public final class SpecializedDetectionScheduler {
         final AIGCUnit unit;
         final TalkContext context;
         int starting, images;
-        Provider(AIGCUnit unit) { this.unit = unit; this.context = unit.getContext(); }
+
+        Provider(AIGCUnit unit) {
+            this.unit = unit;
+            this.context = unit.getContext();
+        }
     }
 
     static final class Session {
@@ -40,8 +57,12 @@ public final class SpecializedDetectionScheduler {
         JSONObject snapshot;
         boolean terminal, polling, orphan;
         long lastPoll;
+
         Session(String id, Provider provider, SpecializedDetectionUnitMeta origin, JSONObject snapshot) {
-            this.id = id; this.provider = provider; this.origin = origin; this.snapshot = snapshot;
+            this.id = id;
+            this.provider = provider;
+            this.origin = origin;
+            this.snapshot = snapshot;
         }
     }
 
@@ -50,17 +71,29 @@ public final class SpecializedDetectionScheduler {
         final Session session;
         final String operation;
         boolean released;
+
         Reservation(Provider provider, Session session, String operation) {
-            this.provider = provider; this.session = session; this.operation = operation;
+            this.provider = provider;
+            this.session = session;
+            this.operation = operation;
         }
-        public AIGCUnit unit() { return provider.unit; }
-        public TalkContext context() { return provider.context; }
+
+        public AIGCUnit unit() {
+            return provider.unit;
+        }
+
+        public TalkContext context() {
+            return provider.context;
+        }
     }
 
-    public SpecializedDetectionScheduler(AIGCService service) { this.service = service; }
+    public SpecializedDetectionScheduler(AIGCService service) {
+        this.service = service;
+    }
 
     public void configure(Properties properties) {
-        Properties copy = new Properties(); copy.putAll(properties);
+        Properties copy = new Properties();
+        copy.putAll(properties);
         // Validate defaults before publishing a hot-reloaded configuration.
         positive(copy, "specialized.detection.max.sessions", 2, 64);
         positive(copy, "specialized.detection.data.timeout.ms", 180000, 3600000);
@@ -86,13 +119,18 @@ public final class SpecializedDetectionScheduler {
     }
 
     private int max(Provider provider) {
-        try { int n = Integer.parseInt(setting(provider, "max.sessions", "2")); return Math.max(1, Math.min(64, n)); }
-        catch (NumberFormatException error) { return 2; }
+        try {
+            int n = Integer.parseInt(setting(provider, "max.sessions", "2"));
+            return Math.max(1, Math.min(64, n));
+        } catch (NumberFormatException error) {
+            return 2;
+        }
     }
 
     private Set<String> profiles(Provider provider) {
         Set<String> result = new HashSet<>();
-        for (String name : setting(provider, "profiles", "uav-fire-smoke,fire-smoke").split(",")) result.add(name.trim());
+        for (String name : setting(provider, "profiles", "uav-fire-smoke,fire-smoke").split(","))
+            result.add(name.trim());
         result.retainAll(Arrays.asList("uav-fire-smoke", "fire-smoke"));
         return result;
     }
@@ -112,14 +150,18 @@ public final class SpecializedDetectionScheduler {
         Iterator<Provider> iterator = providers.values().iterator();
         while (iterator.hasNext()) {
             Provider p = iterator.next();
-            if (!live(p, units)) { removed.add(p); iterator.remove(); }
+            if (!live(p, units)) {
+                removed.add(p);
+                iterator.remove();
+            }
         }
         sessions.values().removeIf(s -> removed.contains(s.provider));
         earlyStops.values().removeIf(removed::contains);
         pending.values().removeIf(meta -> removed.contains(meta.reservation.provider));
-        for (AIGCUnit unit : units) if (SpecializedDetectionInput.UNIT.equals(unit.getCapability().getName())
-                && unit.getContext() != null && unit.getContext().isValid())
-            providers.computeIfAbsent(unit.getQueryKey(), key -> new Provider(unit));
+        for (AIGCUnit unit : units)
+            if (SpecializedDetectionInput.UNIT.equals(unit.getCapability().getName())
+                    && unit.getContext() != null && unit.getContext().isValid())
+                providers.computeIfAbsent(unit.getQueryKey(), key -> new Provider(unit));
     }
 
     private int active(Provider p) {
@@ -131,13 +173,18 @@ public final class SpecializedDetectionScheduler {
     private synchronized void startTimer() {
         if (timer != null || closed) return;
         ScheduledThreadPoolExecutor scheduled = new ScheduledThreadPoolExecutor(1, job -> {
-            Thread t = new Thread(job, "specialized-detection-reconcile"); t.setDaemon(true); return t;
+            Thread t = new Thread(job, "specialized-detection-reconcile");
+            t.setDaemon(true);
+            return t;
         });
         scheduled.setRemoveOnCancelPolicy(true);
         timer = scheduled;
         timer.scheduleWithFixedDelay(() -> {
-            try { reconcile(); }
-            catch (RuntimeException error) { cell.util.log.Logger.w(getClass(), "Detection reconciliation failed", error); }
+            try {
+                reconcile();
+            } catch (RuntimeException error) {
+                cell.util.log.Logger.w(getClass(), "Detection reconciliation failed", error);
+            }
         }, 5, 5, TimeUnit.SECONDS);
     }
 
@@ -149,7 +196,8 @@ public final class SpecializedDetectionScheduler {
 
     public synchronized Reservation reserve(SpecializedDetectionInput input, AuthToken token) {
         if (closed) throw SpecializedDetectionException.unit(30);
-        clean(); startTimer();
+        clean();
+        startTimer();
         if (input.isControl()) {
             Session s = sessions.get(input.streamId);
             if (s == null) throw SpecializedDetectionException.unit(3);
@@ -159,34 +207,49 @@ public final class SpecializedDetectionScheduler {
         }
         List<Provider> candidates = new ArrayList<>();
         boolean supported = false;
-        for (Provider p : providers.values()) if (profiles(p).contains(input.profile)) {
-            supported = true;
-            if ("start".equals(input.operation) ? active(p) + p.starting < max(p) : p.images == 0) candidates.add(p);
-        }
+        for (Provider p : providers.values())
+            if (profiles(p).contains(input.profile)) {
+                supported = true;
+                if ("start".equals(input.operation) ? active(p) + p.starting < max(p) : p.images == 0)
+                    candidates.add(p);
+            }
         if (candidates.isEmpty()) throw SpecializedDetectionException.unit(supported ? 7 : 30);
         // Rotate before sorting, giving equal loads a deterministic round-robin tie break.
         Collections.rotate(candidates, -(int) Math.floorMod(cursor++, (long) candidates.size()));
         candidates.sort(Comparator.comparingInt(p -> active(p) + p.starting + p.images));
         Provider p = candidates.get(0);
-        if ("start".equals(input.operation)) p.starting++; else p.images++;
+        if ("start".equals(input.operation)) p.starting++;
+        else p.images++;
         return new Reservation(p, null, input.operation);
     }
 
-    public synchronized boolean valid(Reservation r) { clean(); return !closed && providers.get(r.provider.unit.getQueryKey()) == r.provider; }
+    public synchronized boolean valid(Reservation r) {
+        clean();
+        return !closed && providers.get(r.provider.unit.getQueryKey()) == r.provider;
+    }
 
     public synchronized void sent(SpecializedDetectionUnitMeta meta) {
         if (!valid(meta.reservation)) throw SpecializedDetectionException.unit(30);
         pending.put(meta.sn, meta);
     }
 
-    /** Called before removing a synchronous responder, including late replies. */
+    /**
+     * Called before removing a synchronous responder, including late replies.
+     */
     public void onResponse(TalkContext context, ActionDialect dialect) {
         if (!"specializedDetection".equals(dialect.getName())) return;
         Packet packet;
-        try { packet = new Packet(dialect); } catch (RuntimeException error) { return; }
+        try {
+            packet = new Packet(dialect);
+        } catch (RuntimeException error) {
+            return;
+        }
         SpecializedDetectionUnitMeta meta;
-        synchronized (this) { meta = pending.get(packet.sn); }
-        if (meta != null && same(context, meta.reservation.context()) && valid(meta.reservation)) meta.captureResponse(packet);
+        synchronized (this) {
+            meta = pending.get(packet.sn);
+        }
+        if (meta != null && same(context, meta.reservation.context()) && valid(meta.reservation))
+            meta.captureResponse(packet);
     }
 
     public synchronized void release(Reservation r) {
@@ -196,17 +259,25 @@ public final class SpecializedDetectionScheduler {
         else if ("detect".equals(r.operation)) r.provider.images = Math.max(0, r.provider.images - 1);
     }
 
-    public synchronized void unsent(SpecializedDetectionUnitMeta meta) { pending.remove(meta.sn); release(meta.reservation); }
+    public synchronized void unsent(SpecializedDetectionUnitMeta meta) {
+        pending.remove(meta.sn);
+        release(meta.reservation);
+    }
 
     public synchronized void forgetControl(SpecializedDetectionUnitMeta meta) {
         // Control timeouts do not create unknown sessions; reconciliation supplies later evidence.
         if (meta.input.isControl()) pending.remove(meta.sn);
     }
 
-    /** Apply only a fully correlated response; uncertain starts keep their reservation. */
+    /**
+     * Apply only a fully correlated response; uncertain starts keep their reservation.
+     */
     public synchronized void completed(SpecializedDetectionUnitMeta meta, int code, JSONObject payload) {
         Reservation r = meta.reservation;
-        if (!valid(r)) { pending.remove(meta.sn); return; }
+        if (!valid(r)) {
+            pending.remove(meta.sn);
+            return;
+        }
         if ("start".equals(r.operation) && code == 0) {
             String id = payload.getString("streamId");
             Session old = sessions.get(id);
@@ -243,7 +314,10 @@ public final class SpecializedDetectionScheduler {
         Iterator<Session> iterator = sessions.values().iterator();
         while (count > 20 && iterator.hasNext()) {
             Session s = iterator.next();
-            if (s.provider == p && s.terminal) { iterator.remove(); count--; }
+            if (s.provider == p && s.terminal) {
+                iterator.remove();
+                count--;
+            }
         }
     }
 
@@ -256,22 +330,27 @@ public final class SpecializedDetectionScheduler {
         Session s = sessions.get(id);
         if (s != null) {
             if (!same(context, s.provider.context)) return;
-            if ("streamStopped".equals(event.name)) { s.terminal = true; trim(s.provider); }
-        } else if ("streamStopped".equals(event.name)) {
-            for (Provider p : providers.values()) if (same(context, p.context) && p.starting > 0) {
-                earlyStops.put(id, p);
-                while (earlyStops.size() > 1024) earlyStops.remove(earlyStops.keySet().iterator().next());
-                break;
+            if ("streamStopped".equals(event.name)) {
+                s.terminal = true;
+                trim(s.provider);
             }
+        } else if ("streamStopped".equals(event.name)) {
+            for (Provider p : providers.values())
+                if (same(context, p.context) && p.starting > 0) {
+                    earlyStops.put(id, p);
+                    while (earlyStops.size() > 1024) earlyStops.remove(earlyStops.keySet().iterator().next());
+                    break;
+                }
         }
     }
 
     public synchronized JSONObject snapshot() {
         clean();
         JSONArray nodes = new JSONArray();
-        for (Provider p : providers.values()) nodes.put(new JSONObject().put("profiles", new JSONArray(profiles(p)))
-                .put("maxSessions", max(p)).put("availableSessions", Math.max(0, max(p) - active(p) - p.starting))
-                .put("activeSessions", active(p)).put("pendingStarts", p.starting).put("availableImages", p.images == 0 ? 1 : 0));
+        for (Provider p : providers.values())
+            nodes.put(new JSONObject().put("profiles", new JSONArray(profiles(p)))
+                    .put("maxSessions", max(p)).put("availableSessions", Math.max(0, max(p) - active(p) - p.starting))
+                    .put("activeSessions", active(p)).put("pendingStarts", p.starting).put("availableImages", p.images == 0 ? 1 : 0));
         return new JSONObject().put("version", 1).put("readiness", "unknown").put("budgetSource", "java-config")
                 .put("providers", nodes);
     }
@@ -284,21 +363,29 @@ public final class SpecializedDetectionScheduler {
             clean();
             late = new ArrayList<>(pending.values());
             long now = System.currentTimeMillis();
-            for (Session s : sessions.values()) if (!s.terminal && !s.polling && now - s.lastPoll >= 5000) {
-                s.polling = true; s.lastPoll = now; poll.add(s);
-            }
+            for (Session s : sessions.values())
+                if (!s.terminal && !s.polling && now - s.lastPoll >= 5000) {
+                    s.polling = true;
+                    s.lastPoll = now;
+                    poll.add(s);
+                }
         }
         for (SpecializedDetectionUnitMeta meta : late) meta.drainLateResponse();
         for (Session s : poll) {
             final long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(
                     positive(config, "specialized.detection.control.timeout.ms", 30000, 3600000));
-            if (!service.submitDetectionControl(() -> poll(s, deadline))) synchronized (this) { s.polling = false; }
+            if (!service.submitDetectionControl(() -> poll(s, deadline))) synchronized (this) {
+                s.polling = false;
+            }
         }
     }
 
     private void poll(Session s, long deadline) {
         try {
-            synchronized (this) { clean(); if (closed || sessions.get(s.id) != s || s.terminal) return; }
+            synchronized (this) {
+                clean();
+                if (closed || sessions.get(s.id) != s || s.terminal) return;
+            }
             JSONObject option = new JSONObject().put("operation", s.orphan ? "stop" : "status").put("streamId", s.id);
             Packet request = new Packet("specializedDetection", new JSONObject().put("unit", SpecializedDetectionInput.UNIT)
                     .put("files", new JSONArray()).put("option", option));
@@ -321,12 +408,19 @@ public final class SpecializedDetectionScheduler {
             }
         } catch (RuntimeException error) {
             cell.util.log.Logger.w(getClass(), "Detection status reconciliation failed");
-        } finally { synchronized (this) { s.polling = false; } }
+        } finally {
+            synchronized (this) {
+                s.polling = false;
+            }
+        }
     }
 
     public synchronized void close() {
         closed = true;
         if (timer != null) timer.shutdownNow();
-        sessions.clear(); providers.clear(); pending.clear(); earlyStops.clear();
+        sessions.clear();
+        providers.clear();
+        pending.clear();
+        earlyStops.clear();
     }
 }

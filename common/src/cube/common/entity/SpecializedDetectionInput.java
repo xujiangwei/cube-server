@@ -1,15 +1,24 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.common.entity;
 
 import cube.aigc.SpecializedDetectionException;
 import cube.common.JSONable;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import java.net.URI;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-/** External detection input. Only owned file codes and RTSP sources cross the API boundary. */
+/**
+ * External detection input. Only owned file codes and RTSP sources cross the API boundary.
+ */
 public final class SpecializedDetectionInput implements JSONable {
     public static final String UNIT = "SpecializedDetection";
     public final String operation;
@@ -37,7 +46,8 @@ public final class SpecializedDetectionInput implements JSONable {
                 if (files.length() != 0) throw SpecializedDetectionException.invalid("Controls require empty files");
                 profile = source = null;
             } else {
-                if ("start".equals(operation)) allowed(option, "operation", "profile", "confidence", "sliced", "callbackUrl", "intervalSeconds", "inferenceFps");
+                if ("start".equals(operation))
+                    allowed(option, "operation", "profile", "confidence", "sliced", "callbackUrl", "intervalSeconds", "inferenceFps");
                 else allowed(option, "operation", "profile", "confidence", "sliced");
                 profile = required(option, "profile");
                 if (!Arrays.asList("fire-smoke", "uav-fire-smoke").contains(profile))
@@ -66,8 +76,11 @@ public final class SpecializedDetectionInput implements JSONable {
                 }
                 streamId = null;
             }
-        } catch (SpecializedDetectionException error) { throw error; }
-        catch (Exception error) { throw SpecializedDetectionException.invalid("Invalid detection input"); }
+        } catch (SpecializedDetectionException error) {
+            throw error;
+        } catch (Exception error) {
+            throw SpecializedDetectionException.invalid("Invalid detection input");
+        }
     }
 
     private static String required(JSONObject json, String key) {
@@ -79,27 +92,45 @@ public final class SpecializedDetectionInput implements JSONable {
 
     private static void allowed(JSONObject json, String... names) {
         Set<String> keys = new HashSet<>(Arrays.asList(names));
-        for (String name : json.keySet()) if (!keys.contains(name))
-            throw SpecializedDetectionException.invalid("Unsupported detection field: " + name);
+        for (String name : json.keySet())
+            if (!keys.contains(name))
+                throw SpecializedDetectionException.invalid("Unsupported detection field: " + name);
     }
 
     private static void number(JSONObject json, String key, double low, double high) {
         if (!json.has(key)) return;
         Object value = json.get(key);
         double n;
-        try { n = value instanceof Boolean ? Double.NaN : Double.parseDouble(value.toString()); }
-        catch (Exception error) { n = Double.NaN; }
+        try {
+            n = value instanceof Boolean ? Double.NaN : Double.parseDouble(value.toString());
+        } catch (Exception error) {
+            n = Double.NaN;
+        }
         if (Double.isNaN(n) || Double.isInfinite(n) || n < low || n > high)
             throw SpecializedDetectionException.invalid("Invalid " + key);
     }
 
-    public boolean isControl() { return "status".equals(operation) || "stop".equals(operation); }
-    public boolean isRtsp() { return source != null && (source.regionMatches(true, 0, "rtsp://", 0, 7) || source.regionMatches(true, 0, "rtsps://", 0, 8)); }
+    public boolean isControl() {
+        return "status".equals(operation) || "stop".equals(operation);
+    }
+
+    public boolean isRtsp() {
+        return source != null && (source.regionMatches(true, 0, "rtsp://", 0, 7) || source.regionMatches(true, 0, "rtsps://", 0, 8));
+    }
+
     public JSONObject toUnitJSON(FileLabel label) {
         JSONArray files = new JSONArray();
         if (source != null) files.put(label == null ? source : label.toJSON());
         return new JSONObject().put("unit", UNIT).put("files", files).put("option", new JSONObject(option.toString()));
     }
-    @Override public JSONObject toJSON() { return toUnitJSON(null); }
-    @Override public JSONObject toCompactJSON() { return toJSON(); }
+
+    @Override
+    public JSONObject toJSON() {
+        return toUnitJSON(null);
+    }
+
+    @Override
+    public JSONObject toCompactJSON() {
+        return toJSON();
+    }
 }

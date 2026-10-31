@@ -31,9 +31,9 @@ import cube.util.FileUtils;
 import cube.util.HttpClientFactory;
 import cube.util.HttpConfig;
 import cube.util.HttpServer;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.json.JSONArray;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -55,10 +55,14 @@ public class Performer implements TalkListener, Tickable {
 
     private final String directorKey = "_director";
 
-    /** 会话服务，负责与各单元建立长连接并收发消息。 */
+    /**
+     * 会话服务，负责与各单元建立长连接并收发消息。
+     */
     protected TalkService talkService;
 
-    /** 单元服务，用于查询已注册单元与端点信息。 */
+    /**
+     * 单元服务，用于查询已注册单元与端点信息。
+     */
     protected CelletService celletService;
 
     private Properties properties;
@@ -204,7 +208,9 @@ public class Performer implements TalkListener, Tickable {
         return this.httpServer;
     }
 
-    /** Runtime connections, including configured peers which are currently disconnected. */
+    /**
+     * Runtime connections, including configured peers which are currently disconnected.
+     */
     public JSONObject getDispatcherSnapshot() {
         JSONArray services = new JSONArray();
         for (Director director : new ArrayList<>(this.directorList)) {
@@ -491,8 +497,8 @@ public class Performer implements TalkListener, Tickable {
     /**
      * 选择节点。
      *
-     * @param context 会话上下文。
-     * @param celletName  Cellet 名称。
+     * @param context    会话上下文。
+     * @param celletName Cellet 名称。
      * @return 返回被选中的导演机。
      */
     private synchronized Director selectDirector(TalkContext context, String celletName) {

@@ -1,9 +1,17 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.common.entity;
 
 import cube.common.JSONable;
 import org.json.JSONObject;
 
-/** Structured detector results, including successful empty detections and stream snapshots. */
+/**
+ * Structured detector results, including successful empty detections and stream snapshots.
+ */
 public final class SpecializedDetectionOutput implements JSONable {
     public final long sn;
     public final JSONObject resultPayload;
@@ -18,6 +26,14 @@ public final class SpecializedDetectionOutput implements JSONable {
                 .put("timestamp", System.currentTimeMillis());
         this.resultPayload = this.json.getJSONObject("resultPayload");
     }
-    @Override public JSONObject toJSON() { return new JSONObject(json.toString()); }
-    @Override public JSONObject toCompactJSON() { return toJSON(); }
+
+    @Override
+    public JSONObject toJSON() {
+        return new JSONObject(json.toString());
+    }
+
+    @Override
+    public JSONObject toCompactJSON() {
+        return toJSON();
+    }
 }

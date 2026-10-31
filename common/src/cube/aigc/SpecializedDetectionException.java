@@ -1,9 +1,17 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.aigc;
 
 import cube.common.state.AIGCStateCode;
 import org.json.JSONObject;
 
-/** A detection failure retains both the Unit code and its HTTP meaning. */
+/**
+ * A detection failure retains both the Unit code and its HTTP meaning.
+ */
 public final class SpecializedDetectionException extends RuntimeException {
     public final int code;
     public final int httpStatus;
@@ -23,14 +31,31 @@ public final class SpecializedDetectionException extends RuntimeException {
     public static SpecializedDetectionException unit(int code) {
         int http;
         switch (AIGCStateCode.parse(code)) {
-            case InvalidParameter: http = 400; break;
-            case NotFound: http = 404; break;
-            case Processing: case Busy: http = 429; break;
-            case NoToken: case InconsistentToken: http = 401; break;
-            case IllegalOperation: http = 403; break;
-            case UnitNoReady: http = 503; break;
-            case FileError: http = 422; break;
-            default: http = 502;
+            case InvalidParameter:
+                http = 400;
+                break;
+            case NotFound:
+                http = 404;
+                break;
+            case Processing:
+            case Busy:
+                http = 429;
+                break;
+            case NoToken:
+            case InconsistentToken:
+                http = 401;
+                break;
+            case IllegalOperation:
+                http = 403;
+                break;
+            case UnitNoReady:
+                http = 503;
+                break;
+            case FileError:
+                http = 422;
+                break;
+            default:
+                http = 502;
         }
         return new SpecializedDetectionException(code, http, "UNIT_REJECTED", "Specialized detection failed (code " + code + ")");
     }

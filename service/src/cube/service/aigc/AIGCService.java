@@ -19,6 +19,8 @@ import cube.aigc.listener.GenerateTextListener;
 import cube.aigc.listener.SpeechModuleListener;
 import cube.aigc.listener.VoiceDiarizationListener;
 import cube.aigc.spi.AIGCHost;
+import cube.aigc.usage.UsageContext;
+import cube.aigc.usage.UsageLedger;
 import cube.auth.AuthConsts;
 import cube.auth.AuthToken;
 import cube.common.Language;
@@ -126,20 +128,28 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     private final AIGCTaskExecutor taskExecutor;
     private final cube.service.aigc.unit.SpecializedDetectionScheduler specializedDetections;
 
-    public cube.service.aigc.unit.SpecializedDetectionScheduler getSpecializedDetections() { return specializedDetections; }
-    public boolean submitDetectionControl(Runnable job) { return taskExecutor.submitDetectionControl(job); }
+    public cube.service.aigc.unit.SpecializedDetectionScheduler getSpecializedDetections() {
+        return specializedDetections;
+    }
+
+    public boolean submitDetectionControl(Runnable job) {
+        return taskExecutor.submitDetectionControl(job);
+    }
 
     public void executeSpecializedDetection(String tokenCode, String channelCode, SpecializedDetectionInput input,
-            cube.service.aigc.listener.SpecializedDetectionListener listener) {
+                                            cube.service.aigc.listener.SpecializedDetectionListener listener) {
         AuthToken token = getToken(tokenCode);
-        if (token == null || token.getExpiry() <= System.currentTimeMillis()) throw cube.aigc.SpecializedDetectionException.unit(22);
+        if (token == null || token.getExpiry() <= System.currentTimeMillis())
+            throw cube.aigc.SpecializedDetectionException.unit(22);
         if (!isStarted()) throw cube.aigc.SpecializedDetectionException.unit(30);
-        if (channelCode == null || channelCode.trim().isEmpty()) throw cube.aigc.SpecializedDetectionException.invalid("channel is required");
+        if (channelCode == null || channelCode.trim().isEmpty())
+            throw cube.aigc.SpecializedDetectionException.invalid("channel is required");
         AIGCChannel channel;
         synchronized (channelManager) {
             channel = channelManager.get(channelCode);
             if (channel == null) {
-                if (channelManager.size() >= ChannelManager.MAX_CHANNEL) throw cube.aigc.SpecializedDetectionException.unit(7);
+                if (channelManager.size() >= ChannelManager.MAX_CHANNEL)
+                    throw cube.aigc.SpecializedDetectionException.unit(7);
                 channel = createChannel(token, "Detection-" + channelCode, channelCode, Language.Chinese);
             }
         }
@@ -154,6 +164,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         meta.usageContext = visitor;
         taskExecutor.submitSpecializedDetection(meta);
     }
+
     private final cube.service.aigc.completion.ChatCompletionService completions;
 
     /**
@@ -2382,20 +2393,20 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             return new GeneratingRecord(request.sn, unit.getCapability().getName(), prompt, responseText, thoughtText);
         } finally {
             if (accountingStarted && !accounting.delegated)
-                getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(accountingId, 1, "unknown", "unknown", null, null, System.currentTimeMillis()));
+                getStorage().getUsageWriter().finish(UsageLedger.evidence(accountingId, 1, "unknown", "unknown", null, null, System.currentTimeMillis()));
         }
     }
 
     /**
      * 生成文本（{@link Generatable} 接口实现，同步方式）。
      *
-     * @param unitName 单元名。
-     * @param prompt   提示词。
-     * @param option   生成参数设置。
-     * @param history  历史记录列表。
+     * @param accounting
+     * @param unitName   单元名。
+     * @param prompt     提示词。
+     * @param option     生成参数设置。
      * @return 返回生成记录；无可用单元或生成失败返回 {@code null}。
      */
-    public GeneratingRecord syncGenerateText(cube.aigc.usage.UsageContext accounting, String unitName, String prompt, GeneratingOption option) {
+    public GeneratingRecord syncGenerateText(UsageContext accounting, String unitName, String prompt, GeneratingOption option) {
         AIGCUnit unit = selectUnitByName(unitName);
         return unit == null ? null : syncGenerateText(accounting, unit, prompt, option, null, null);
     }
@@ -2605,10 +2616,10 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      * 单元非文生图类型返回 {@code false}。
      */
     public boolean generateImage(AIGCChannel channel, String text, String unitName, TextToImageListener listener) {
-        return generateImage(cube.aigc.usage.UsageContext.system("AIGC"), channel, text, unitName, listener);
+        return generateImage(UsageContext.system("AIGC"), channel, text, unitName, listener);
     }
 
-    public boolean generateImage(cube.aigc.usage.UsageContext accounting, AIGCChannel channel, String text, String unitName, TextToImageListener listener) {
+    public boolean generateImage(UsageContext accounting, AIGCChannel channel, String text, String unitName, TextToImageListener listener) {
         if (!this.isStarted()) {
             return false;
         }
