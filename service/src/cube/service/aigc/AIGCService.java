@@ -34,6 +34,7 @@ import cube.core.Kernel;
 import cube.core.Module;
 import cube.file.hook.FileStorageHook;
 import cube.service.aigc.channel.ChannelManager;
+import cube.service.aigc.completion.ChatCompletionService;
 import cube.service.aigc.event.EventCenter;
 import cube.service.aigc.guidance.PromptComposer;
 import cube.service.aigc.guidance.SkillRegistry;
@@ -87,8 +88,14 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     public final static String NAME = "AIGC";
 
+    /**
+     * 服务所属的 Cellet 实例，负责单元通信与业务模块装载。
+     */
     private final AIGCCellet cellet;
 
+    /**
+     * 本实例的唯一标识，用于在能力快照中区分同一服务的多个部署实例。
+     */
     private final String capabilityInstanceId = UUID.randomUUID().toString();
 
     /**
@@ -105,17 +112,10 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     private final UnitScheduler unitScheduler;
 
-    private final PluginUnitInvoker pluginUnits =
-            new cube.service.aigc.unit.PluginUnitInvoker(this);
-
     /**
-     * 获取插件单元调用器。
-     *
-     * @return 插件单元调用器实例。
+     * 插件单元调用器：把单元建立/注销事件转发给已装载的 AIGC 业务模块。
      */
-    public PluginUnitInvoker getPluginUnits() {
-        return this.pluginUnits;
-    }
+    private final PluginUnitInvoker pluginUnits = new PluginUnitInvoker(this);
 
     /**
      * 频道管理器：频道的创建、查询、保活与回收。
@@ -126,49 +126,19 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      * 任务执行器：各能力的任务队列、两层线程池与派发。
      */
     private final AIGCTaskExecutor taskExecutor;
-    private final cube.service.aigc.unit.SpecializedDetectionScheduler specializedDetections;
-
-    public cube.service.aigc.unit.SpecializedDetectionScheduler getSpecializedDetections() {
-        return specializedDetections;
-    }
-
-    public boolean submitDetectionControl(Runnable job) {
-        return taskExecutor.submitDetectionControl(job);
-    }
-
-    public void executeSpecializedDetection(String tokenCode, String channelCode, SpecializedDetectionInput input,
-                                            cube.service.aigc.listener.SpecializedDetectionListener listener) {
-        AuthToken token = getToken(tokenCode);
-        if (token == null || token.getExpiry() <= System.currentTimeMillis())
-            throw cube.aigc.SpecializedDetectionException.unit(22);
-        if (!isStarted()) throw cube.aigc.SpecializedDetectionException.unit(30);
-        if (channelCode == null || channelCode.trim().isEmpty())
-            throw cube.aigc.SpecializedDetectionException.invalid("channel is required");
-        AIGCChannel channel;
-        synchronized (channelManager) {
-            channel = channelManager.get(channelCode);
-            if (channel == null) {
-                if (channelManager.size() >= ChannelManager.MAX_CHANNEL)
-                    throw cube.aigc.SpecializedDetectionException.unit(7);
-                channel = createChannel(token, "Detection-" + channelCode, channelCode, Language.Chinese);
-            }
-        }
-        if (channel == null) throw cube.aigc.SpecializedDetectionException.unit(30);
-        AuthToken owner = channel.getAuthToken();
-        if (!token.getDomain().equals(owner.getDomain()) || token.getContactId() != owner.getContactId())
-            throw cube.aigc.SpecializedDetectionException.unit(25);
-        cube.aigc.usage.UsageContext visitor = cube.aigc.usage.UsageContext.visitor(token, "AIGC", "");
-        cube.service.aigc.unit.SpecializedDetectionScheduler.Reservation reservation = specializedDetections.reserve(input, token);
-        cube.service.aigc.unit.SpecializedDetectionUnitMeta meta = new cube.service.aigc.unit.SpecializedDetectionUnitMeta(
-                this, reservation, channel, input, listener);
-        meta.usageContext = visitor;
-        taskExecutor.submitSpecializedDetection(meta);
-    }
-
-    private final cube.service.aigc.completion.ChatCompletionService completions;
 
     /**
-     * Key 是 Stream name
+     * 专用检测调度器：准入预算、会话归属与状态协调。
+     */
+    private final SpecializedDetectionScheduler specializedDetections;
+
+    /**
+     * OpenAI / Claude 兼容层服务，承载 {@code /v1} 入口的模型与会话编排。
+     */
+    private final ChatCompletionService completions;
+
+    /**
+     * 待回收的语音流接收器：Key 是流名称（Stream name）。
      */
     private final Map<String, List<VoiceStreamSink>> waitingVoiceStreamSinks;
 
@@ -196,10 +166,19 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     private AbstractModule fileStorage;
 
+    /**
+     * AIGC 存储器。引导线程打开成功后才可用，停止服务时置空。
+     */
     private AIGCStorage storage;
 
+    /**
+     * 文本分词器，供分词接口、TF-IDF 分析与词云共用。
+     */
     private final Tokenizer tokenizer;
 
+    /**
+     * AIGC 插件系统，在 {@link #start()} 中创建并注册各业务钩子的插件实例。
+     */
     private AIGCPluginSystem pluginSystem;
 
     /**
@@ -208,7 +187,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     public final File workingPath = new File("storage/tmp/");
 
     /**
-     * 是否通过中继（Relay）访问，仅用于本地测试
+     * 是否通过中继（Relay）访问，仅用于本地测试。
      */
     public boolean useRelay = false;
 
@@ -231,9 +210,17 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      * 配置文件最后修改时间。
      */
     private long configFileLastModified = 0;
-    // 配置文件上一次检测事件
+
+    /**
+     * 上一次检测配置文件的时间戳（毫秒），用于限制热加载的检测频率。
+     */
     private long configFileLastTime = 0;
 
+    /**
+     * 构造门面实例。仅在 Cellet 装配阶段调用，各组件在此一次性建好。
+     *
+     * @param cellet 服务所属的 Cellet 实例。
+     */
     public AIGCService(AIGCCellet cellet) {
         this.cellet = cellet;
         this.unitScheduler = new UnitScheduler();
@@ -245,6 +232,80 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         this.waitingVoiceStreamSinks = new ConcurrentHashMap<>();
         this.speechModuleListeners = new CopyOnWriteArrayList<>();
         this.tokenizer = new Tokenizer();
+    }
+
+    /**
+     * 获取插件单元调用器。
+     *
+     * @return 插件单元调用器实例。
+     */
+    public PluginUnitInvoker getPluginUnits() {
+        return this.pluginUnits;
+    }
+
+    /**
+     * 获取专用检测调度器。
+     *
+     * @return 调度器实例
+     */
+    public SpecializedDetectionScheduler getSpecializedDetections() {
+        return specializedDetections;
+    }
+
+    /**
+     * 提交到检测控制线程池执行，与数据线程池相互隔离。
+     *
+     * @param job 待执行任务
+     * @return 任务被接受返回 true
+     */
+    public boolean submitDetectionControl(Runnable job) {
+        return taskExecutor.submitDetectionControl(job);
+    }
+
+    /**
+     * 执行一次专用检测请求。校验令牌与通道归属后预留容量，并提交到检测线程池。
+     *
+     * @param tokenCode   令牌码
+     * @param channelCode 通道码
+     * @param input       检测输入
+     * @param listener    结果监听器
+     * @throws SpecializedDetectionException 令牌无效、服务未启动、通道越权或容量不足时抛出
+     */
+    public void executeSpecializedDetection(String tokenCode, String channelCode, SpecializedDetectionInput input,
+                                            SpecializedDetectionListener listener) {
+        AuthToken token = getToken(tokenCode);
+        if (token == null || token.getExpiry() <= System.currentTimeMillis()) {
+            throw SpecializedDetectionException.unit(22);
+        }
+        if (!isStarted()) {
+            throw SpecializedDetectionException.unit(30);
+        }
+        if (channelCode == null || channelCode.trim().isEmpty()) {
+            throw SpecializedDetectionException.invalid("channel is required");
+        }
+        AIGCChannel channel;
+        synchronized (channelManager) {
+            channel = channelManager.get(channelCode);
+            if (channel == null) {
+                if (channelManager.size() >= ChannelManager.MAX_CHANNEL) {
+                    throw SpecializedDetectionException.unit(7);
+                }
+                channel = createChannel(token, "Detection-" + channelCode, channelCode, Language.Chinese);
+            }
+        }
+        if (channel == null) {
+            throw SpecializedDetectionException.unit(30);
+        }
+        AuthToken owner = channel.getAuthToken();
+        if (!token.getDomain().equals(owner.getDomain()) || token.getContactId() != owner.getContactId()) {
+            throw SpecializedDetectionException.unit(25);
+        }
+        UsageContext visitor = cube.aigc.usage.UsageContext.visitor(token, "AIGC", "");
+        SpecializedDetectionScheduler.Reservation reservation = specializedDetections.reserve(input, token);
+        SpecializedDetectionUnitMeta meta = new SpecializedDetectionUnitMeta(
+                this, reservation, channel, input, listener);
+        meta.usageContext = visitor;
+        taskExecutor.submitSpecializedDetection(meta);
     }
 
     /**
@@ -435,7 +496,9 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         this.specializedDetections.close();
         this.completions.stop();
         Relay relay = Relay.getInstance();
-        if (relay != null) relay.close();
+        if (relay != null) {
+            relay.close();
+        }
         // 关闭两层线程池：后台短任务池 + 单元排空池
         this.taskExecutor.shutdown();
 
@@ -521,137 +584,6 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     }
 
     /**
-     * 等待指定模块进入就绪状态。
-     *
-     * <p>启动期存在模块顺序依赖：AIGC 需要授权、联系人、文件存储等模块先就绪才能注册插件钩子。
-     * 原实现在三处各写了一遍「自旋 100ms + {@code printStackTrace}」，此处收敛为一处，
-     * 并把异常输出换成结构化日志（等待语义保持不变）。</p>
-     *
-     * @param module 待等待的模块；为 {@code null} 时视为无需等待。
-     * @param name   模块名，仅用于日志。
-     */
-    private static void awaitModuleReady(AbstractModule module, String name) {
-        if (null == module) {
-            return;
-        }
-
-        while (!module.isStarted()) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Logger.w(AIGCService.class, "#awaitModuleReady - Interrupted while waiting for " + name);
-            }
-        }
-    }
-
-    /**
-     * 读取并应用服务配置（{@code config/aigc.properties}，支持热加载）。
-     *
-     * <p>覆盖：线程池规模与类型、各模型上下文长度下限、单元权重（{@code unit.weight.<cid>}）、
-     * 网络搜索器、SKILL 技能（经 {@link #loadSkillConfig(Properties)}）、中继（Relay）开关。
-     * 配置文件不存在或内容未变时补建默认线程池，保证异步入口可用。</p>
-     */
-    private void loadConfig() {
-        try {
-            File file = new File("config/aigc.properties");
-            if (!file.exists()) {
-                file = new File("aigc.properties");
-            }
-
-            if (this.configFileLastModified == file.lastModified()) {
-//                if (Logger.isDebugLevel()) {
-//                    Logger.d(this.getClass(), "#loadConfig - File not modified");
-//                }
-                // 配置文件不存在时 lastModified() 与初值同为 0，首次加载会直接走到这里，
-                // 线程池便一直为空、所有异步入口静默失效——此处补建默认线程池。
-                this.taskExecutor.createExecutor(8, "fixed");
-                return;
-            }
-
-            this.configFileLastModified = file.lastModified();
-
-            Properties properties = ConfigUtils.readProperties(file.getAbsolutePath());
-            this.specializedDetections.configure(properties);
-            this.taskExecutor.configureDetection(properties);
-
-            // 性能配置
-            int max = 8;
-            try {
-                max = Integer.parseInt(properties.getProperty("threadpool.max", "32"));
-            } catch (Exception e) {
-                // Nothing
-            }
-            this.taskExecutor.createExecutor(max, properties.getProperty("threadpool.type", "fixed"));
-
-            // 上下文长度限制
-            ModelConfig.EXTRA_LONG_CONTEXT_LIMIT = Math.max(Integer.parseInt(
-                            properties.getProperty("context.length",
-                                    Integer.toString(ModelConfig.EXTRA_LONG_CONTEXT_LIMIT))),
-                    ModelConfig.EXTRA_LONG_CONTEXT_LIMIT);
-            ModelConfig.BAIZE_CONTEXT_LIMIT = Math.max(Integer.parseInt(
-                            properties.getProperty("context.length.baize",
-                                    Integer.toString(ModelConfig.BAIZE_CONTEXT_LIMIT))),
-                    ModelConfig.BAIZE_CONTEXT_LIMIT);
-            ModelConfig.BAIZE_2_CONTEXT_LIMIT = Math.max(Integer.parseInt(
-                            properties.getProperty("context.length.baize2",
-                                    Integer.toString(ModelConfig.BAIZE_2_CONTEXT_LIMIT))),
-                    ModelConfig.BAIZE_2_CONTEXT_LIMIT);
-
-            // Unit 权重
-            Iterator<Object> keyIter = properties.keySet().iterator();
-            while (keyIter.hasNext()) {
-                String key = keyIter.next().toString();
-                if (key.startsWith("unit.weight.")) {
-                    String[] seg = key.split("\\.");
-                    if (seg.length == 3) {
-                        try {
-                            long cid = Long.parseLong(seg[2]);
-                            double weight = Double.parseDouble(properties.getProperty(key, "1.0"));
-                            this.unitScheduler.setWeight(cid, weight);
-                            Logger.i(this.getClass(), "AI Service - Unit weight: " + cid + " - " + weight);
-                        } catch (Exception e) {
-                            // Nothing
-                        }
-                    }
-                }
-            }
-
-            // 网络搜索配置
-            if (properties.containsKey("page.reader.url") || properties.containsKey("page.searcher")) {
-                Explorer.getInstance().config(properties.getProperty("page.searcher", "baidu"));
-                Logger.i(this.getClass(), "AI Service - Page searcher: "
-                        + Explorer.getInstance().getSearcherName());
-            }
-
-            // SKILL 技能
-            this.loadSkillConfig(properties);
-
-            // 是否启用中继（Relay）
-            Relay relay;
-            try {
-                relay = Relay.configure(properties);
-            } catch (IllegalArgumentException e) {
-                Logger.e(this.getClass(), "#loadConfig - " + e.getMessage());
-                relay = Relay.getInstance();
-            }
-            this.useRelay = relay != null;
-            if (relay != null) {
-                // 添加单元
-                this.unitScheduler.fillFromRelay(relay);
-            }
-        } catch (IOException e) {
-            Logger.e(this.getClass(), "#loadConfig - Load config properties error", e);
-        }
-
-        Logger.i(this.getClass(), "AI Service - Context length: " + ModelConfig.EXTRA_LONG_CONTEXT_LIMIT);
-        Logger.i(this.getClass(), "AI Service - Baize context limit: " + ModelConfig.BAIZE_CONTEXT_LIMIT);
-        Logger.i(this.getClass(), "AI Service - Baize2 context limit: " + ModelConfig.BAIZE_2_CONTEXT_LIMIT);
-        if (this.useRelay) {
-            Logger.i(this.getClass(), "AI Service - Relay URL: " + Relay.getInstance().getUrl());
-        }
-    }
-
-    /**
      * 业务模块是否处于降级状态。
      *
      * <p>供健康检查与运维查询：降级表示该业务域当前不可用，
@@ -717,171 +649,12 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     }
 
     /**
-     * 加载 SKILL 技能、提示词编排与 Token 估算相关配置。
-     *
-     * <p>技能相关配置：</p>
-     * <ul>
-     *     <li>{@code skills.path}：技能种子目录，多个使用逗号分隔，相对工作目录；
-     *         技能以存储器（DB）为准，目录仅用于引导与兜底；</li>
-     *     <li>{@code skills.cache.ttl}：缓存刷新间隔（毫秒），多实例部署下 DB 变更最长在该间隔后生效；</li>
-     *     <li>{@code skills.seed}：启动时是否把种子目录的技能导入存储器（幂等）；</li>
-     *     <li>{@code skills.seed.overwrite}：导入时是否覆盖存储器中的同名技能；</li>
-     *     <li>{@code skills.auto} / {@code skills.auto.limit}：是否按技能声明的 keywords 自动装载，以及单次上限；</li>
-     *     <li>{@code skills.catalog}：是否在提示词中注入技能目录（可用技能清单）；</li>
-     *     <li>{@code skills.session} / {@code skills.session.ttl} / {@code skills.session.cache.ttl}：
-     *         会话级技能绑定的开关、生存时间与本地缓存时间。</li>
-     * </ul>
-     *
-     * <p>提示词编排与 Token 估算配置：</p>
-     * <ul>
-     *     <li>{@code prompt.composer}：是否启用分段编排；</li>
-     *     <li>{@code prompt.output.reserve.ratio}：为模型输出预留的上下文比例（%）；</li>
-     *     <li>{@code prompt.catalog.ratio} / {@code prompt.skill.ratio} / {@code prompt.retrieval.ratio}
-     *         / {@code prompt.history.ratio}：各弹性段的预算占比（%）；</li>
-     *     <li>{@code token.chars.per.token} / {@code token.calibration.alpha}：Token 估算初值与校准平滑系数。</li>
-     * </ul>
-     *
-     * @param properties 配置文件内容。
-     */
-    private void loadSkillConfig(Properties properties) {
-        List<File> skillPaths = new ArrayList<>();
-        String pathValue = properties.getProperty("skills.path", SkillRegistry.DEFAULT_SKILLS_PATH);
-        for (String path : pathValue.split(",")) {
-            String trimmed = path.trim();
-            if (!trimmed.isEmpty()) {
-                skillPaths.add(new File(trimmed));
-            }
-        }
-
-        long cacheTtl = getLong(properties, "skills.cache.ttl", SkillRegistry.DEFAULT_CACHE_TTL);
-        boolean seed = Boolean.parseBoolean(properties.getProperty("skills.seed", "false"));
-        boolean seedOverwrite = Boolean.parseBoolean(properties.getProperty("skills.seed.overwrite", "false"));
-
-        SkillRegistry.getInstance().configure(skillPaths, cacheTtl, seed, seedOverwrite);
-
-        // 技能的自动装载与目录注入
-        this.skillAuto = Boolean.parseBoolean(properties.getProperty("skills.auto", "true"));
-        this.skillAutoLimit = getInt(properties, "skills.auto.limit", 2);
-        this.skillCatalog = Boolean.parseBoolean(properties.getProperty("skills.catalog", "true"));
-
-        // 会话级技能绑定
-        boolean sessionEnabled = Boolean.parseBoolean(properties.getProperty("skills.session", "true"));
-        long sessionTtl = getLong(properties, "skills.session.ttl", SkillSessionStore.DEFAULT_TTL);
-        long sessionCacheTtl = getLong(properties, "skills.session.cache.ttl",
-                SkillSessionStore.DEFAULT_CACHE_TTL);
-        SkillSessionStore.getInstance().configure(sessionEnabled, sessionTtl, sessionCacheTtl);
-
-        // 提示词编排
-        PromptComposer.Policy policy = new PromptComposer.Policy();
-        policy.outputReservePercent = getInt(properties, "prompt.output.reserve.ratio",
-                policy.outputReservePercent);
-        policy.catalogPercent = getInt(properties, "prompt.catalog.ratio", policy.catalogPercent);
-        policy.skillsPercent = getInt(properties, "prompt.skill.ratio", policy.skillsPercent);
-        policy.retrievalPercent = getInt(properties, "prompt.retrieval.ratio", policy.retrievalPercent);
-        policy.historyPercent = getInt(properties, "prompt.history.ratio", policy.historyPercent);
-        boolean composerEnabled = Boolean.parseBoolean(properties.getProperty("prompt.composer", "true"));
-        PromptComposer.getInstance().configure(composerEnabled, policy);
-
-        // Token 估算与校准
-        double charsPerToken = getDouble(properties, "token.chars.per.token",
-                TokenEstimator.DEFAULT_CHARS_PER_TOKEN);
-        double alpha = getDouble(properties, "token.calibration.alpha", TokenEstimator.DEFAULT_ALPHA);
-        TokenEstimator.getInstance().configure(charsPerToken, alpha);
-
-        Logger.i(this.getClass(), "AI Service - Skills path: " + skillPaths
-                + " - cache TTL: " + cacheTtl + "ms"
-                + " - seed: " + seed);
-        Logger.i(this.getClass(), "AI Service - Skill auto: " + this.skillAuto
-                + " (limit " + this.skillAutoLimit + ")"
-                + " - catalog: " + this.skillCatalog
-                + " - session binding: " + sessionEnabled + " (ttl " + sessionTtl + "ms)");
-        Logger.i(this.getClass(), "AI Service - Prompt composer: " + composerEnabled
-                + " - ratios(catalog/skill/retrieval/history): "
-                + policy.catalogPercent + "/" + policy.skillsPercent + "/"
-                + policy.retrievalPercent + "/" + policy.historyPercent
-                + " - output reserve: " + policy.outputReservePercent + "%"
-                + " - chars/token: " + TokenEstimator.getInstance().getCharsPerToken());
-    }
-
-    /**
-     * 读取整型配置项。
-     *
-     * @param properties   配置项集合。
-     * @param key          配置键。
-     * @param defaultValue 默认值。
-     * @return 值缺失或非法时返回默认值。
-     */
-    private static int getInt(Properties properties, String key, int defaultValue) {
-        try {
-            String value = properties.getProperty(key);
-            return (null != value) ? Integer.parseInt(value.trim()) : defaultValue;
-        } catch (Exception e) {
-            return defaultValue;
-        }
-    }
-
-    /**
-     * 读取长整型配置项。
-     *
-     * @param properties   配置项集合。
-     * @param key          配置键。
-     * @param defaultValue 默认值。
-     * @return 值缺失或非法时返回默认值。
-     */
-    private static long getLong(Properties properties, String key, long defaultValue) {
-        try {
-            String value = properties.getProperty(key);
-            return (null != value) ? Long.parseLong(value.trim()) : defaultValue;
-        } catch (Exception e) {
-            return defaultValue;
-        }
-    }
-
-    /**
-     * 读取浮点型配置项。
-     *
-     * @param properties   配置项集合。
-     * @param key          配置键。
-     * @param defaultValue 默认值。
-     * @return 值缺失或非法时返回默认值。
-     */
-    private static double getDouble(Properties properties, String key, double defaultValue) {
-        try {
-            String value = properties.getProperty(key);
-            return (null != value) ? Double.parseDouble(value.trim()) : defaultValue;
-        } catch (Exception e) {
-            return defaultValue;
-        }
-    }
-
-    /**
      * 获取服务所在的 Cellet。
      *
      * @return 返回 Cellet 实例。
      */
     public AIGCCellet getCellet() {
         return this.cellet;
-    }
-
-    /**
-     * 获取宿主能力接口。
-     *
-     * <p>报告生成编排（绘画报告、量表报告、量表读取）属心理学业务，实现体在
-     * 宿主运行时（需队列与工作线程，模块拿不到这些设施），经
-     * {@link AIGCHost} 转发给门面，从而门面不直接引用业务场景单例。</p>
-     *
-     * <p>⚠️ 每次现取、不缓存为字段：SPI 的 host 实现在 {@code install()} 阶段
-     * 构造，而本方法可能在 cellet 装配完成前被调用，缓存会拿到 {@code null}。</p>
-     *
-     * @return 返回宿主能力接口；未装配时返回 <code>null</code>。
-     */
-    private AIGCHost getHost() {
-        AIGCCellet theCellet = this.cellet;
-        if (null == theCellet) {
-            return null;
-        }
-
-        return theCellet.getAIGCHost();
     }
 
     /**
@@ -927,38 +700,6 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     }
 
     /**
-     * 获取授权服务模块。
-     *
-     * <p>启动时已解析并缓存；若尚未缓存（启动竞态）则回退到 Kernel 查找并补缓存。</p>
-     *
-     * @return 返回授权服务模块。
-     */
-    private AuthService getAuthService() {
-        AuthService module = this.authService;
-        if (null == module) {
-            module = (AuthService) this.getKernel().getModule(AuthService.NAME);
-            this.authService = module;
-        }
-        return module;
-    }
-
-    /**
-     * 获取文件存储模块。
-     *
-     * <p>该模块允许未部署，因此仅在解析到实例时才缓存，避免把「暂时缺失」固化成永久缺失。</p>
-     *
-     * @return 返回文件存储模块；未部署时返回 {@code null}。
-     */
-    private AbstractModule getFileStorage() {
-        AbstractModule module = this.fileStorage;
-        if (null == module) {
-            module = this.getKernel().getModule("FileStorage");
-            this.fileStorage = module;
-        }
-        return module;
-    }
-
-    /**
      * 获取 SKILL 技能注册表。技能以存储器（DB）为准，多实例共享同一份定义。
      *
      * @return 返回技能注册表。
@@ -996,6 +737,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
     /**
      * 是否按技能声明的 keywords 自动装载技能。
+     *
+     * @return 启用自动装载返回 {@code true}。
      */
     public boolean isSkillAutoEnabled() {
         return this.skillAuto;
@@ -1003,6 +746,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
     /**
      * 单次自动装载的技能数量上限。
+     *
+     * @return 返回上限值。
      */
     public int getSkillAutoLimit() {
         return this.skillAutoLimit;
@@ -1010,6 +755,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
     /**
      * 是否在提示词中注入技能目录。
+     *
+     * @return 注入技能目录返回 {@code true}。
      */
     public boolean isSkillCatalogEnabled() {
         return this.skillCatalog;
@@ -1078,17 +825,24 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                 }
             }
             List<ModelConfig> configs = this.getModelConfigs();
-            if (configs == null) ready = false;
-            else for (ModelConfig model : configs) {
-                models.put(new JSONObject().put("id", model.getModel()).put("unit", model.getUnitName()));
+            if (configs == null) {
+                ready = false;
+            } else {
+                for (ModelConfig model : configs) {
+                    models.put(new JSONObject().put("id", model.getModel()).put("unit", model.getUnitName()));
+                }
             }
         }
         JSONArray modules = new JSONArray();
         cube.service.aigc.spi.ModuleRegistry registry = this.cellet == null ? null : this.cellet.getModuleRegistry();
-        if (registry != null) for (cube.aigc.spi.ActionModule module : registry.getModules()) {
-            JSONArray actions = new JSONArray();
-            for (cube.aigc.spi.ActionBinding binding : module.getActions()) actions.put(binding.action);
-            modules.put(new JSONObject().put("name", module.getName()).put("actions", actions));
+        if (registry != null) {
+            for (cube.aigc.spi.ActionModule module : registry.getModules()) {
+                JSONArray actions = new JSONArray();
+                for (cube.aigc.spi.ActionBinding binding : module.getActions()) {
+                    actions.put(binding.action);
+                }
+                modules.put(new JSONObject().put("name", module.getName()).put("actions", actions));
+            }
         }
         // Additive extension: v1 discovery clients continue reading their original fields.
         return new JSONObject().put("version", 1).put("instanceId", this.capabilityInstanceId)
@@ -1138,6 +892,19 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         completions.generateInternal(token, requestId, request, timeoutMillis, listener);
     }
 
+    /**
+     * 提交一次兼容层生成请求，并显式指定用量记账上下文。
+     *
+     * <p>与上一重载的区别仅在记账来源：调用方已在更外层完成身份解析，
+     * 直接传入 {@link UsageContext} 以免重复解析令牌。</p>
+     *
+     * @param token         访问令牌。
+     * @param requestId     请求 ID 。
+     * @param request       请求载荷。
+     * @param timeoutMillis 超时时间，单位毫秒。
+     * @param accounting    用量记账上下文。
+     * @param listener      事件回调。
+     */
     @Override
     public void submitCompletion(String token, String requestId, JSONObject request, long timeoutMillis,
                                  cube.aigc.usage.UsageContext accounting, cube.aigc.completion.CompletionProvider.Listener listener) {
@@ -1581,88 +1348,6 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                 }
             }
         }
-    }
-
-    /**
-     * 更新用户的个人知识记忆（异步）。
-     *
-     * <p>把用户档案（含会员信息）渲染为 Markdown，写入其个人知识库中标题为
-     * {@link User#KnowledgeTitle} 的文章；不存在则创建并激活，存在则更新后重新激活。
-     * 个人知识库不存在时会先创建。</p>
-     *
-     * @param authToken 访问令牌。
-     * @param user      用户。
-     */
-    private void updatePersonalKnowledgeBase(AuthToken authToken, User user) {
-        KnowledgeBase base = this.getKnowledgeFramework().getKnowledgeBase(user.getId(), User.KnowledgeBaseName);
-        if (null == base) {
-            this.getKnowledgeFramework().newKnowledgeBase(authToken.getCode(), User.KnowledgeBaseName,
-                    User.KnowledgeBaseDisplayName, "Profile", KnowledgeScope.Private);
-
-            base = this.getKnowledgeFramework().getKnowledgeBase(user.getId(), User.KnowledgeBaseName);
-            if (null == base) {
-                Logger.e(this.getClass(), "#updatePersonalKnowledgeBase - Failed: " + user.getId());
-                return;
-            }
-
-            KnowledgeProfile profile = base.getProfile();
-            Logger.d(this.getClass(), "#updatePersonalKnowledgeBase - New personal base: " + user.getId() + " - " +
-                    profile.scope.name + "/" + profile.maxSize + "/" + profile.state);
-        }
-
-        final KnowledgeBase knowledgeBase = base;
-        this.taskExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                if (Logger.isDebugLevel()) {
-                    Logger.d(this.getClass(), "#updatePersonalKnowledgeBase - " + user.getId() +
-                            " - " + knowledgeBase.getName());
-                }
-
-                StringBuilder markdown = new StringBuilder();
-                markdown.append(user.markdown());
-                Membership membership = ContactManager.getInstance().getMembershipSystem().getMembership(
-                        authToken.getDomain(), user.getId(), Membership.STATE_NORMAL);
-                markdown.append(UserProfileRenderer.makeMembership(user, membership));
-
-                Calendar calendar = Calendar.getInstance();
-                calendar.setTimeInMillis(System.currentTimeMillis());
-
-                List<KnowledgeArticle> articleList = knowledgeBase.getKnowledgeArticlesByTitle(User.KnowledgeTitle);
-                if (articleList.isEmpty()) {
-                    if (Logger.isDebugLevel()) {
-                        Logger.d(this.getClass(), "#updatePersonalKnowledgeBase - create profile data: "
-                                + authToken.getContactId());
-                    }
-
-                    KnowledgeArticle article = new KnowledgeArticle(authToken.getDomain(), authToken.getContactId(),
-                            User.KnowledgeBaseName,
-                            "Profile", User.KnowledgeTitle, markdown.toString(), user.getName(),
-                            calendar.get(Calendar.YEAR),
-                            calendar.get(Calendar.MONTH) + 1,
-                            calendar.get(Calendar.DATE),
-                            System.currentTimeMillis(), KnowledgeScope.Private);
-                    // 添加
-                    article = knowledgeBase.appendKnowledgeArticle(article);
-                    // 激活
-                    knowledgeBase.activateKnowledgeArticles(Collections.singletonList(article.getId()),
-                            TextSplitter.None);
-                } else {
-                    if (Logger.isDebugLevel()) {
-                        Logger.d(this.getClass(), "#updatePersonalKnowledgeBase - update profile data: "
-                                + authToken.getContactId());
-                    }
-
-                    KnowledgeArticle article = articleList.get(0);
-                    article.content = markdown.toString();
-                    // 更新
-                    knowledgeBase.updateKnowledgeArticle(article);
-                    // 激活
-                    knowledgeBase.activateKnowledgeArticles(Collections.singletonList(article.getId()),
-                            TextSplitter.None);
-                }
-            }
-        });
     }
 
     /**
@@ -2163,6 +1848,27 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         return generateText(cube.aigc.usage.UsageContext.system("AIGC"), channelCode, content, unitName, option, histories, maxHistories, attachments, categories, recordable, networking, listener);
     }
 
+    /**
+     * 生成文本内容（频道异步方式），并显式指定用量记账上下文。
+     *
+     * <p>与上一重载的唯一区别是记账来源：调用方已完成身份解析时直接传入
+     * {@link UsageContext}，无需宿主按系统身份兜底。其余校验与调度逻辑一致。</p>
+     *
+     * @param accounting   用量记账上下文。
+     * @param channelCode  频道代码。
+     * @param content      内容。
+     * @param unitName     单元名。
+     * @param option       生成参数设置。
+     * @param histories    历史记录列表。
+     * @param maxHistories 最大历史记录数量。
+     * @param attachments  附件信息。
+     * @param categories   分类信息。
+     * @param recordable   是否记录到库。
+     * @param networking   是否进行联网操作。
+     * @param listener     监听器。
+     * @return 任务受理返回 {@code true}；服务未就绪、内容超限、频道不存在或
+     * 正在处理、无可用单元返回 {@code false}。
+     */
     public boolean generateText(cube.aigc.usage.UsageContext accounting, String channelCode, String content, String unitName, GeneratingOption option,
                                 List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
                                 List<String> categories, boolean recordable, boolean networking,
@@ -2314,6 +2020,21 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         return syncGenerateText(cube.aigc.usage.UsageContext.system("AIGC"), unit, prompt, option, history, participantContact);
     }
 
+    /**
+     * 同步方式生成文本（底层实现），并显式指定用量记账上下文。
+     *
+     * <p>与上一重载的实现完全一致，区别只在记账来源：由调用方传入
+     * {@link UsageContext}，避免宿主按系统身份兜底。记账在请求发出前
+     * {@code begin}，成功时按实测 Token 收口，异常路径按「未知」收口。</p>
+     *
+     * @param accounting         用量记账上下文。
+     * @param unit               单元。
+     * @param prompt             提示词。
+     * @param option             生成参数设置。
+     * @param history            历史记录列表。
+     * @param participantContact 参与方联系人，为 {@code null} 时使用单元所属联系人。
+     * @return 返回生成记录；传输失败、状态码非 Ok 或应答缺字段返回 {@code null}。
+     */
     public GeneratingRecord syncGenerateText(cube.aigc.usage.UsageContext accounting, AIGCUnit unit, String prompt, GeneratingOption option,
                                              List<GeneratingRecord> history, Contact participantContact) {
         String accountingId = java.util.UUID.randomUUID().toString();
@@ -2371,9 +2092,10 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             }
             JSONObject payload = Packet.extractDataPayload(response);
             long[] measured = cube.aigc.usage.UsageTokens.read(payload);
-            if (!accounting.delegated)
+            if (!accounting.delegated) {
                 getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(accountingId, 2, "succeeded",
                         measured == null ? "unknown" : "actual", measured == null ? null : measured[0], measured == null ? null : measured[1], System.currentTimeMillis()));
+            }
 
             String responseText = "";
             String thoughtText = "";
@@ -2392,15 +2114,18 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             responseText = TextUtils.filterChinese(unit, responseText);
             return new GeneratingRecord(request.sn, unit.getCapability().getName(), prompt, responseText, thoughtText);
         } finally {
-            if (accountingStarted && !accounting.delegated)
+            if (accountingStarted && !accounting.delegated) {
                 getStorage().getUsageWriter().finish(UsageLedger.evidence(accountingId, 1, "unknown", "unknown", null, null, System.currentTimeMillis()));
+            }
         }
     }
 
     /**
-     * 生成文本（{@link Generatable} 接口实现，同步方式）。
+     * 同步方式生成文本，并显式指定用量记账上下文。
      *
-     * @param accounting
+     * <p>按单元名选点后走同步链路，供已完成身份解析、需要自行指定记账来源的调用方使用。</p>
+     *
+     * @param accounting 用量记账上下文。
      * @param unitName   单元名。
      * @param prompt     提示词。
      * @param option     生成参数设置。
@@ -2411,6 +2136,17 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         return unit == null ? null : syncGenerateText(accounting, unit, prompt, option, null, null);
     }
 
+    /**
+     * 生成文本（{@link Generatable} 接口实现，同步方式）。
+     *
+     * <p>不带用量记账上下文的简化入口，内部按系统身份记账。</p>
+     *
+     * @param unitName 单元名。
+     * @param prompt   提示词。
+     * @param option   生成参数设置。
+     * @param history  历史记录列表。
+     * @return 返回生成记录；无可用单元或生成失败返回 {@code null}。
+     */
     @Override
     public GeneratingRecord generateText(String unitName, String prompt, GeneratingOption option,
                                          List<GeneratingRecord> history) {
@@ -2442,6 +2178,25 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         generateText(cube.aigc.usage.UsageContext.system("AIGC"), channel, unit, query, prompt, option, histories, maxHistories, attachments, categories, recordable, listener);
     }
 
+    /**
+     * 生成文本（频道异步方式，调用方自带单元），并显式指定用量记账上下文。
+     *
+     * <p>与上一重载的区别仅在于记账来源由调用方给出。单元为 {@code null} 时
+     * 异步回调失败，避免在调用方线程上阻塞。</p>
+     *
+     * @param accounting   用量记账上下文。
+     * @param channel      频道。
+     * @param unit         单元；为 {@code null} 时异步回调失败。
+     * @param query        原始提问（用于记录）。
+     * @param prompt       提示词。
+     * @param option       生成参数设置。
+     * @param histories    历史记录列表。
+     * @param maxHistories 最大历史记录数量。
+     * @param attachments  附件信息。
+     * @param categories   分类信息。
+     * @param recordable   是否记录到库。
+     * @param listener     监听器。
+     */
     public void generateText(cube.aigc.usage.UsageContext accounting, AIGCChannel channel, AIGCUnit unit, String query, String prompt, GeneratingOption option,
                              List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
                              List<String> categories, boolean recordable, GenerateTextListener listener) {
@@ -2520,8 +2275,11 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                 Logger.w(AIGCService.class, "#executeMultimodal - Unknown stream: " + streamId);
                 return false;
             }
-            if (!visitor.domain.equals(streamMeta.usageContext.domain) || visitor.contactId != streamMeta.usageContext.contactId)
+            if (!visitor.domain.equals(streamMeta.usageContext.domain)
+                    || visitor.contactId != streamMeta.usageContext.contactId) {
+                Logger.w(AIGCService.class, "#executeMultimodal - Stream is NOT owned by the visitor: " + streamId);
                 return false;
+            }
             unit = streamMeta.unit;
             if (null == unit.getContext() || !unit.getContext().isValid()) {
                 Logger.w(AIGCService.class, "#executeMultimodal - Stream unit is unavailable: " + streamId);
@@ -2619,6 +2377,20 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         return generateImage(UsageContext.system("AIGC"), channel, text, unitName, listener);
     }
 
+    /**
+     * 文本生成图片（频道实例方式），并显式指定用量记账上下文。
+     *
+     * <p>与上一重载的区别仅在于记账来源由调用方给出；受理后单元名必须是
+     * 文生图单元，否则立即释放频道处理标志并拒绝。</p>
+     *
+     * @param accounting 用量记账上下文。
+     * @param channel    频道。
+     * @param text       提示词。
+     * @param unitName   单元名。
+     * @param listener   监听器。
+     * @return 任务受理返回 {@code true}；服务未就绪、频道正在处理、无单元或
+     * 单元非文生图类型返回 {@code false}。
+     */
     public boolean generateImage(UsageContext accounting, AIGCChannel channel, String text, String unitName, TextToImageListener listener) {
         if (!this.isStarted()) {
             return false;
@@ -3549,16 +3321,6 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     }
 
     /**
-     * 按访问令牌获取频道。中继（Relay）模式下允许按需创建频道。
-     *
-     * @param authToken 访问令牌。
-     * @return 返回频道，未找到返回 {@code null}。
-     */
-    private AIGCChannel getChannel(AuthToken authToken) {
-        return this.channelManager.get(authToken, this.useRelay);
-    }
-
-    /**
      * 从外部链接下载文件到文件存储服务。
      *
      * @param authToken 访问令牌。
@@ -3595,6 +3357,14 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         return this.taskExecutor.beginUnitTask(unitName);
     }
 
+    /**
+     * 输出服务监控快照（{@code monitoringSnapshot} 协议实现）。
+     *
+     * <p>汇总两类运行态：一是全部 AI 单元的连接与忙闲状态（{@code workers}），
+     * 二是兼容层的作业队列快照（{@code jobs}，仅当兼容层服务已装配时输出）。</p>
+     *
+     * @return 返回监控快照 JSON。
+     */
     @Override
     public JSONObject monitoringSnapshot() {
         JSONArray workers = new JSONArray();
@@ -3608,7 +3378,423 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                     .put("ready", connected).put("busy", unit.isRunning()));
         }
         JSONObject result = new JSONObject().put("workers", workers);
-        if (this.getCompletions() != null) result.put("jobs", this.getCompletions().monitoringSnapshot());
+        if (this.getCompletions() != null) {
+            result.put("jobs", this.getCompletions().monitoringSnapshot());
+        }
         return result;
+    }
+
+    /**
+     * 等待指定模块进入就绪状态。
+     *
+     * <p>启动期存在模块顺序依赖：AIGC 需要授权、联系人、文件存储等模块先就绪才能注册插件钩子。
+     * 原实现在三处各写了一遍「自旋 100ms + {@code printStackTrace}」，此处收敛为一处，
+     * 并把异常输出换成结构化日志（等待语义保持不变）。</p>
+     *
+     * @param module 待等待的模块；为 {@code null} 时视为无需等待。
+     * @param name   模块名，仅用于日志。
+     */
+    private static void awaitModuleReady(AbstractModule module, String name) {
+        if (null == module) {
+            return;
+        }
+
+        while (!module.isStarted()) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Logger.w(AIGCService.class, "#awaitModuleReady - Interrupted while waiting for " + name);
+            }
+        }
+    }
+
+    /**
+     * 读取并应用服务配置（{@code config/aigc.properties}，支持热加载）。
+     *
+     * <p>覆盖：线程池规模与类型、各模型上下文长度下限、单元权重（{@code unit.weight.<cid>}）、
+     * 网络搜索器、SKILL 技能（经 {@link #loadSkillConfig(Properties)}）、中继（Relay）开关。
+     * 配置文件不存在或内容未变时补建默认线程池，保证异步入口可用。</p>
+     */
+    private void loadConfig() {
+        try {
+            File file = new File("config/aigc.properties");
+            if (!file.exists()) {
+                file = new File("aigc.properties");
+            }
+
+            if (this.configFileLastModified == file.lastModified()) {
+//                if (Logger.isDebugLevel()) {
+//                    Logger.d(this.getClass(), "#loadConfig - File not modified");
+//                }
+                // 配置文件不存在时 lastModified() 与初值同为 0，首次加载会直接走到这里，
+                // 线程池便一直为空、所有异步入口静默失效——此处补建默认线程池。
+                this.taskExecutor.createExecutor(8, "fixed");
+                return;
+            }
+
+            this.configFileLastModified = file.lastModified();
+
+            Properties properties = ConfigUtils.readProperties(file.getAbsolutePath());
+            this.specializedDetections.configure(properties);
+            this.taskExecutor.configureDetection(properties);
+
+            // 性能配置
+            int max = 8;
+            try {
+                max = Integer.parseInt(properties.getProperty("threadpool.max", "32"));
+            } catch (Exception e) {
+                // Nothing
+            }
+            this.taskExecutor.createExecutor(max, properties.getProperty("threadpool.type", "fixed"));
+
+            // 上下文长度限制
+            ModelConfig.EXTRA_LONG_CONTEXT_LIMIT = Math.max(Integer.parseInt(
+                            properties.getProperty("context.length",
+                                    Integer.toString(ModelConfig.EXTRA_LONG_CONTEXT_LIMIT))),
+                    ModelConfig.EXTRA_LONG_CONTEXT_LIMIT);
+            ModelConfig.BAIZE_CONTEXT_LIMIT = Math.max(Integer.parseInt(
+                            properties.getProperty("context.length.baize",
+                                    Integer.toString(ModelConfig.BAIZE_CONTEXT_LIMIT))),
+                    ModelConfig.BAIZE_CONTEXT_LIMIT);
+            ModelConfig.BAIZE_2_CONTEXT_LIMIT = Math.max(Integer.parseInt(
+                            properties.getProperty("context.length.baize2",
+                                    Integer.toString(ModelConfig.BAIZE_2_CONTEXT_LIMIT))),
+                    ModelConfig.BAIZE_2_CONTEXT_LIMIT);
+
+            // Unit 权重
+            Iterator<Object> keyIter = properties.keySet().iterator();
+            while (keyIter.hasNext()) {
+                String key = keyIter.next().toString();
+                if (key.startsWith("unit.weight.")) {
+                    String[] seg = key.split("\\.");
+                    if (seg.length == 3) {
+                        try {
+                            long cid = Long.parseLong(seg[2]);
+                            double weight = Double.parseDouble(properties.getProperty(key, "1.0"));
+                            this.unitScheduler.setWeight(cid, weight);
+                            Logger.i(this.getClass(), "AI Service - Unit weight: " + cid + " - " + weight);
+                        } catch (Exception e) {
+                            // Nothing
+                        }
+                    }
+                }
+            }
+
+            // 网络搜索配置
+            if (properties.containsKey("page.reader.url") || properties.containsKey("page.searcher")) {
+                Explorer.getInstance().config(properties.getProperty("page.searcher", "baidu"));
+                Logger.i(this.getClass(), "AI Service - Page searcher: "
+                        + Explorer.getInstance().getSearcherName());
+            }
+
+            // SKILL 技能
+            this.loadSkillConfig(properties);
+
+            // 是否启用中继（Relay）
+            Relay relay;
+            try {
+                relay = Relay.configure(properties);
+            } catch (IllegalArgumentException e) {
+                Logger.e(this.getClass(), "#loadConfig - " + e.getMessage());
+                relay = Relay.getInstance();
+            }
+            this.useRelay = relay != null;
+            if (relay != null) {
+                // 添加单元
+                this.unitScheduler.fillFromRelay(relay);
+            }
+        } catch (IOException e) {
+            Logger.e(this.getClass(), "#loadConfig - Load config properties error", e);
+        }
+
+        Logger.i(this.getClass(), "AI Service - Context length: " + ModelConfig.EXTRA_LONG_CONTEXT_LIMIT);
+        Logger.i(this.getClass(), "AI Service - Baize context limit: " + ModelConfig.BAIZE_CONTEXT_LIMIT);
+        Logger.i(this.getClass(), "AI Service - Baize2 context limit: " + ModelConfig.BAIZE_2_CONTEXT_LIMIT);
+        if (this.useRelay) {
+            Logger.i(this.getClass(), "AI Service - Relay URL: " + Relay.getInstance().getUrl());
+        }
+    }
+
+    /**
+     * 加载 SKILL 技能、提示词编排与 Token 估算相关配置。
+     *
+     * <p>技能相关配置：</p>
+     * <ul>
+     *     <li>{@code skills.path}：技能种子目录，多个使用逗号分隔，相对工作目录；
+     *         技能以存储器（DB）为准，目录仅用于引导与兜底；</li>
+     *     <li>{@code skills.cache.ttl}：缓存刷新间隔（毫秒），多实例部署下 DB 变更最长在该间隔后生效；</li>
+     *     <li>{@code skills.seed}：启动时是否把种子目录的技能导入存储器（幂等）；</li>
+     *     <li>{@code skills.seed.overwrite}：导入时是否覆盖存储器中的同名技能；</li>
+     *     <li>{@code skills.auto} / {@code skills.auto.limit}：是否按技能声明的 keywords 自动装载，以及单次上限；</li>
+     *     <li>{@code skills.catalog}：是否在提示词中注入技能目录（可用技能清单）；</li>
+     *     <li>{@code skills.session} / {@code skills.session.ttl} / {@code skills.session.cache.ttl}：
+     *         会话级技能绑定的开关、生存时间与本地缓存时间。</li>
+     * </ul>
+     *
+     * <p>提示词编排与 Token 估算配置：</p>
+     * <ul>
+     *     <li>{@code prompt.composer}：是否启用分段编排；</li>
+     *     <li>{@code prompt.output.reserve.ratio}：为模型输出预留的上下文比例（%）；</li>
+     *     <li>{@code prompt.catalog.ratio} / {@code prompt.skill.ratio} / {@code prompt.retrieval.ratio}
+     *         / {@code prompt.history.ratio}：各弹性段的预算占比（%）；</li>
+     *     <li>{@code token.chars.per.token} / {@code token.calibration.alpha}：Token 估算初值与校准平滑系数。</li>
+     * </ul>
+     *
+     * @param properties 配置文件内容。
+     */
+    private void loadSkillConfig(Properties properties) {
+        List<File> skillPaths = new ArrayList<>();
+        String pathValue = properties.getProperty("skills.path", SkillRegistry.DEFAULT_SKILLS_PATH);
+        for (String path : pathValue.split(",")) {
+            String trimmed = path.trim();
+            if (!trimmed.isEmpty()) {
+                skillPaths.add(new File(trimmed));
+            }
+        }
+
+        long cacheTtl = getLong(properties, "skills.cache.ttl", SkillRegistry.DEFAULT_CACHE_TTL);
+        boolean seed = Boolean.parseBoolean(properties.getProperty("skills.seed", "false"));
+        boolean seedOverwrite = Boolean.parseBoolean(properties.getProperty("skills.seed.overwrite", "false"));
+
+        SkillRegistry.getInstance().configure(skillPaths, cacheTtl, seed, seedOverwrite);
+
+        // 技能的自动装载与目录注入
+        this.skillAuto = Boolean.parseBoolean(properties.getProperty("skills.auto", "true"));
+        this.skillAutoLimit = getInt(properties, "skills.auto.limit", 2);
+        this.skillCatalog = Boolean.parseBoolean(properties.getProperty("skills.catalog", "true"));
+
+        // 会话级技能绑定
+        boolean sessionEnabled = Boolean.parseBoolean(properties.getProperty("skills.session", "true"));
+        long sessionTtl = getLong(properties, "skills.session.ttl", SkillSessionStore.DEFAULT_TTL);
+        long sessionCacheTtl = getLong(properties, "skills.session.cache.ttl",
+                SkillSessionStore.DEFAULT_CACHE_TTL);
+        SkillSessionStore.getInstance().configure(sessionEnabled, sessionTtl, sessionCacheTtl);
+
+        // 提示词编排
+        PromptComposer.Policy policy = new PromptComposer.Policy();
+        policy.outputReservePercent = getInt(properties, "prompt.output.reserve.ratio",
+                policy.outputReservePercent);
+        policy.catalogPercent = getInt(properties, "prompt.catalog.ratio", policy.catalogPercent);
+        policy.skillsPercent = getInt(properties, "prompt.skill.ratio", policy.skillsPercent);
+        policy.retrievalPercent = getInt(properties, "prompt.retrieval.ratio", policy.retrievalPercent);
+        policy.historyPercent = getInt(properties, "prompt.history.ratio", policy.historyPercent);
+        boolean composerEnabled = Boolean.parseBoolean(properties.getProperty("prompt.composer", "true"));
+        PromptComposer.getInstance().configure(composerEnabled, policy);
+
+        // Token 估算与校准
+        double charsPerToken = getDouble(properties, "token.chars.per.token",
+                TokenEstimator.DEFAULT_CHARS_PER_TOKEN);
+        double alpha = getDouble(properties, "token.calibration.alpha", TokenEstimator.DEFAULT_ALPHA);
+        TokenEstimator.getInstance().configure(charsPerToken, alpha);
+
+        Logger.i(this.getClass(), "AI Service - Skills path: " + skillPaths
+                + " - cache TTL: " + cacheTtl + "ms"
+                + " - seed: " + seed);
+        Logger.i(this.getClass(), "AI Service - Skill auto: " + this.skillAuto
+                + " (limit " + this.skillAutoLimit + ")"
+                + " - catalog: " + this.skillCatalog
+                + " - session binding: " + sessionEnabled + " (ttl " + sessionTtl + "ms)");
+        Logger.i(this.getClass(), "AI Service - Prompt composer: " + composerEnabled
+                + " - ratios(catalog/skill/retrieval/history): "
+                + policy.catalogPercent + "/" + policy.skillsPercent + "/"
+                + policy.retrievalPercent + "/" + policy.historyPercent
+                + " - output reserve: " + policy.outputReservePercent + "%"
+                + " - chars/token: " + TokenEstimator.getInstance().getCharsPerToken());
+    }
+
+    /**
+     * 读取整型配置项。
+     *
+     * @param properties   配置项集合。
+     * @param key          配置键。
+     * @param defaultValue 默认值。
+     * @return 值缺失或非法时返回默认值。
+     */
+    private static int getInt(Properties properties, String key, int defaultValue) {
+        try {
+            String value = properties.getProperty(key);
+            return (null != value) ? Integer.parseInt(value.trim()) : defaultValue;
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * 读取长整型配置项。
+     *
+     * @param properties   配置项集合。
+     * @param key          配置键。
+     * @param defaultValue 默认值。
+     * @return 值缺失或非法时返回默认值。
+     */
+    private static long getLong(Properties properties, String key, long defaultValue) {
+        try {
+            String value = properties.getProperty(key);
+            return (null != value) ? Long.parseLong(value.trim()) : defaultValue;
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * 读取浮点型配置项。
+     *
+     * @param properties   配置项集合。
+     * @param key          配置键。
+     * @param defaultValue 默认值。
+     * @return 值缺失或非法时返回默认值。
+     */
+    private static double getDouble(Properties properties, String key, double defaultValue) {
+        try {
+            String value = properties.getProperty(key);
+            return (null != value) ? Double.parseDouble(value.trim()) : defaultValue;
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * 获取宿主能力接口。
+     *
+     * <p>报告生成编排（绘画报告、量表报告、量表读取）属心理学业务，实现体在
+     * 宿主运行时（需队列与工作线程，模块拿不到这些设施），经
+     * {@link AIGCHost} 转发给门面，从而门面不直接引用业务场景单例。</p>
+     *
+     * <p>⚠️ 每次现取、不缓存为字段：SPI 的 host 实现在 {@code install()} 阶段
+     * 构造，而本方法可能在 cellet 装配完成前被调用，缓存会拿到 {@code null}。</p>
+     *
+     * @return 返回宿主能力接口；未装配时返回 <code>null</code>。
+     */
+    private AIGCHost getHost() {
+        AIGCCellet theCellet = this.cellet;
+        if (null == theCellet) {
+            return null;
+        }
+
+        return theCellet.getAIGCHost();
+    }
+
+    /**
+     * 获取授权服务模块。
+     *
+     * <p>启动时已解析并缓存；若尚未缓存（启动竞态）则回退到 Kernel 查找并补缓存。</p>
+     *
+     * @return 返回授权服务模块。
+     */
+    private AuthService getAuthService() {
+        AuthService module = this.authService;
+        if (null == module) {
+            module = (AuthService) this.getKernel().getModule(AuthService.NAME);
+            this.authService = module;
+        }
+        return module;
+    }
+
+    /**
+     * 获取文件存储模块。
+     *
+     * <p>该模块允许未部署，因此仅在解析到实例时才缓存，避免把「暂时缺失」固化成永久缺失。</p>
+     *
+     * @return 返回文件存储模块；未部署时返回 {@code null}。
+     */
+    private AbstractModule getFileStorage() {
+        AbstractModule module = this.fileStorage;
+        if (null == module) {
+            module = this.getKernel().getModule("FileStorage");
+            this.fileStorage = module;
+        }
+        return module;
+    }
+
+    /**
+     * 更新用户的个人知识记忆（异步）。
+     *
+     * <p>把用户档案（含会员信息）渲染为 Markdown，写入其个人知识库中标题为
+     * {@link User#KnowledgeTitle} 的文章；不存在则创建并激活，存在则更新后重新激活。
+     * 个人知识库不存在时会先创建。</p>
+     *
+     * @param authToken 访问令牌。
+     * @param user      用户。
+     */
+    private void updatePersonalKnowledgeBase(AuthToken authToken, User user) {
+        KnowledgeBase base = this.getKnowledgeFramework().getKnowledgeBase(user.getId(), User.KnowledgeBaseName);
+        if (null == base) {
+            this.getKnowledgeFramework().newKnowledgeBase(authToken.getCode(), User.KnowledgeBaseName,
+                    User.KnowledgeBaseDisplayName, "Profile", KnowledgeScope.Private);
+
+            base = this.getKnowledgeFramework().getKnowledgeBase(user.getId(), User.KnowledgeBaseName);
+            if (null == base) {
+                Logger.e(this.getClass(), "#updatePersonalKnowledgeBase - Failed: " + user.getId());
+                return;
+            }
+
+            KnowledgeProfile profile = base.getProfile();
+            Logger.d(this.getClass(), "#updatePersonalKnowledgeBase - New personal base: " + user.getId() + " - " +
+                    profile.scope.name + "/" + profile.maxSize + "/" + profile.state);
+        }
+
+        final KnowledgeBase knowledgeBase = base;
+        this.taskExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                if (Logger.isDebugLevel()) {
+                    Logger.d(this.getClass(), "#updatePersonalKnowledgeBase - " + user.getId() +
+                            " - " + knowledgeBase.getName());
+                }
+
+                StringBuilder markdown = new StringBuilder();
+                markdown.append(user.markdown());
+                Membership membership = ContactManager.getInstance().getMembershipSystem().getMembership(
+                        authToken.getDomain(), user.getId(), Membership.STATE_NORMAL);
+                markdown.append(UserProfileRenderer.makeMembership(user, membership));
+
+                Calendar calendar = Calendar.getInstance();
+                calendar.setTimeInMillis(System.currentTimeMillis());
+
+                List<KnowledgeArticle> articleList = knowledgeBase.getKnowledgeArticlesByTitle(User.KnowledgeTitle);
+                if (articleList.isEmpty()) {
+                    if (Logger.isDebugLevel()) {
+                        Logger.d(this.getClass(), "#updatePersonalKnowledgeBase - create profile data: "
+                                + authToken.getContactId());
+                    }
+
+                    KnowledgeArticle article = new KnowledgeArticle(authToken.getDomain(), authToken.getContactId(),
+                            User.KnowledgeBaseName,
+                            "Profile", User.KnowledgeTitle, markdown.toString(), user.getName(),
+                            calendar.get(Calendar.YEAR),
+                            calendar.get(Calendar.MONTH) + 1,
+                            calendar.get(Calendar.DATE),
+                            System.currentTimeMillis(), KnowledgeScope.Private);
+                    // 添加
+                    article = knowledgeBase.appendKnowledgeArticle(article);
+                    // 激活
+                    knowledgeBase.activateKnowledgeArticles(Collections.singletonList(article.getId()),
+                            TextSplitter.None);
+                } else {
+                    if (Logger.isDebugLevel()) {
+                        Logger.d(this.getClass(), "#updatePersonalKnowledgeBase - update profile data: "
+                                + authToken.getContactId());
+                    }
+
+                    KnowledgeArticle article = articleList.get(0);
+                    article.content = markdown.toString();
+                    // 更新
+                    knowledgeBase.updateKnowledgeArticle(article);
+                    // 激活
+                    knowledgeBase.activateKnowledgeArticles(Collections.singletonList(article.getId()),
+                            TextSplitter.None);
+                }
+            }
+        });
+    }
+
+    /**
+     * 按访问令牌获取频道。中继（Relay）模式下允许按需创建频道。
+     *
+     * @param authToken 访问令牌。
+     * @return 返回频道，未找到返回 {@code null}。
+     */
+    private AIGCChannel getChannel(AuthToken authToken) {
+        return this.channelManager.get(authToken, this.useRelay);
     }
 }

@@ -2379,6 +2379,7 @@ public class Manager implements Tickable, PerformerListener {
      * @param channelCode 通道码。
      * @param input       专项检测协议输入。
      * @return 专项结果；失败抛出 {@link SpecializedDetectionException}。
+     * @throws SpecializedDetectionException 网关超时或服务端返回错误时抛出
      */
     public JSONObject executeSpecializedDetection(String token, String channelCode, SpecializedDetectionInput input) {
         JSONObject data = new JSONObject().put("channel", channelCode).put("input", input.toJSON());
@@ -2390,15 +2391,22 @@ public class Manager implements Tickable, PerformerListener {
         String fallback = Integer.toString(input.isControl() ? cube.aigc.SpecializedDetectionDefaults.GATEWAY_CONTROL_TIMEOUT_MS
                 : cube.aigc.SpecializedDetectionDefaults.GATEWAY_DATA_TIMEOUT_MS);
         long timeout = Long.parseLong(config == null ? fallback : config.getProperty(key, fallback));
-        if (timeout < 1 || timeout > 3610000) throw new IllegalArgumentException("Invalid detection gateway timeout");
+        if (timeout < 1 || timeout > 3610000) {
+            throw new IllegalArgumentException("Invalid detection gateway timeout");
+        }
         ActionDialect response = syncTransmit(AIGCCellet.NAME, request, timeout);
-        if (response == null) throw SpecializedDetectionException.timeout();
+        if (response == null) {
+            throw SpecializedDetectionException.timeout();
+        }
         Packet reply = new Packet(response);
-        if (!packet.sn.equals(reply.sn) || !packet.name.equals(reply.name))
+        if (!packet.sn.equals(reply.sn) || !packet.name.equals(reply.name)) {
             throw new SpecializedDetectionException(31, 502, "INVALID_SERVICE_RESPONSE", "Invalid detection service response");
+        }
         int code = Packet.extractCode(reply);
         JSONObject result = Packet.extractDataPayload(reply);
-        if (code != 0) throw SpecializedDetectionException.fromJSON(code, result);
+        if (code != 0) {
+            throw SpecializedDetectionException.fromJSON(code, result);
+        }
         return result;
     }
 

@@ -255,7 +255,9 @@ public class EventCenter {
             Event event = new Event(dialect.getParamAsJson("data"));
             if ("SpecializedDetection".equals(event.source)) {
                 AIGCService current = service;
-                if (current != null && context != null) current.getSpecializedDetections().event(context, event);
+                if (current != null && context != null) {
+                    current.getSpecializedDetections().event(context, event);
+                }
                 return;
             }
             UnitMeta meta = getUnitMeta(event.payload.optString("streamId", ""));

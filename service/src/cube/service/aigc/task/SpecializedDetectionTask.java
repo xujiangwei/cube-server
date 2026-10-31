@@ -23,24 +23,42 @@ import org.json.JSONObject;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Authenticated service endpoint; detector errors survive the dispatcher hop.
+ * 需要鉴权的服务端任务入口，检测器的错误会原样穿过 dispatcher 转发。
  */
 public final class SpecializedDetectionTask extends ServiceTask {
+    /**
+     * 是否已回复，保证同一请求只回复一次。
+     */
     private final AtomicBoolean responded = new AtomicBoolean();
 
+    /**
+     * 构造方法。
+     *
+     * @param cellet    所属 Cellet
+     * @param context   通信上下文
+     * @param primitive 原始数据
+     * @param time      响应时间统计
+     */
     public SpecializedDetectionTask(AIGCCellet cellet, TalkContext context, Primitive primitive, ResponseTime time) {
         super(cellet, context, primitive, time);
     }
 
+    /**
+     * 执行检测请求，并把各类异常转换为结构化错误回复。
+     */
     @Override
     public void run() {
         ActionDialect dialect = new ActionDialect(primitive);
         Packet packet = new Packet(dialect);
         try {
             String token = getTokenCode(dialect);
-            if (token == null) throw SpecializedDetectionException.unit(22);
+            if (token == null) {
+                throw SpecializedDetectionException.unit(22);
+            }
             String channel = packet.data.getString("channel");
-            if (channel.trim().isEmpty()) throw SpecializedDetectionException.invalid("channel is required");
+            if (channel.trim().isEmpty()) {
+                throw SpecializedDetectionException.invalid("channel is required");
+            }
             SpecializedDetectionInput input = new SpecializedDetectionInput(packet.data.getJSONObject("input"));
             ((AIGCCellet) cellet).getService().executeSpecializedDetection(token, channel, input, new SpecializedDetectionListener() {
                 @Override
@@ -62,10 +80,25 @@ public final class SpecializedDetectionTask extends ServiceTask {
         }
     }
 
+    /**
+     * 回复失败结果。
+     *
+     * @param dialect 请求动作
+     * @param packet  请求包
+     * @param error   失败原因
+     */
     private void fail(ActionDialect dialect, Packet packet, SpecializedDetectionException error) {
         reply(dialect, packet, error.code, new JSONObject().put("error", error.toJSON()));
     }
 
+    /**
+     * 回复结果，保证同一请求只回复一次。
+     *
+     * @param dialect 请求动作
+     * @param packet  请求包
+     * @param code    状态码
+     * @param data    响应数据
+     */
     private void reply(ActionDialect dialect, Packet packet, int code, JSONObject data) {
         if (responded.compareAndSet(false, true)) {
             cellet.speak(talkContext, makeResponse(dialect, packet, code, data));

@@ -40,7 +40,6 @@
 ## 验证入口（JDK 8）
 
 - `verify/src/cube/monitor/ServiceMetricsTest.java`：可控时钟、队列/并发、终态幂等、RPS/P95、窗口淘汰、流式拆分、控制命令与 worker/上游重连、真实 Task 执行器桥接。
-- `verify/src/cube/monitor/ServiceReportIntegrationTest.java`：真实 Task → Daemon → ReportService HTTP → console 查询，包含未安装 Contact 的场景。
 - `verify/src/cube/monitor/ServiceActionMonitoringTest.java`：真实 SPI 延迟/流式/旧模块、异常、取消与终态幂等。
 - `service/src/cube/service/test/ChatCompletionServiceTest.java`：生成、断连、超时、取消、重复/迟到事件、12 单元与物理 reservation。
 - `service-harness/test/cube/service/harness/test/RunStoreTest.java`：真实 SQLite 提交/回滚、响应丢失、幂等与终态的监控一致性。

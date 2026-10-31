@@ -43,28 +43,62 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class AIGCTaskExecutor {
 
-    private java.util.concurrent.ThreadPoolExecutor detectionData, detectionControl;
-    private int detectionDataThreads = SpecializedDetectionDefaults.DATA_THREADS,
-            detectionDataQueue = SpecializedDetectionDefaults.DATA_QUEUE,
-            detectionControlThreads = SpecializedDetectionDefaults.CONTROL_THREADS,
-            detectionControlQueue = SpecializedDetectionDefaults.CONTROL_QUEUE;
+    /** 检测数据线程池。 */
+    private java.util.concurrent.ThreadPoolExecutor detectionData;
+    /** 检测控制线程池。 */
+    private java.util.concurrent.ThreadPoolExecutor detectionControl;
+    /** 检测数据线程数。 */
+    private int detectionDataThreads = SpecializedDetectionDefaults.DATA_THREADS;
+    /** 检测数据队列容量。 */
+    private int detectionDataQueue = SpecializedDetectionDefaults.DATA_QUEUE;
+    /** 检测控制线程数。 */
+    private int detectionControlThreads = SpecializedDetectionDefaults.CONTROL_THREADS;
+    /** 检测控制队列容量。 */
+    private int detectionControlQueue = SpecializedDetectionDefaults.CONTROL_QUEUE;
+    /** 检测线程池是否已关闭。 */
     private boolean detectionClosed;
 
-    /** Pool sizes apply at initialization; changing them requires a service restart. */
+    /**
+     * 配置检测线程池容量。线程池尺寸在初始化时生效，变更后需重启服务。
+     *
+     * @param properties 配置项
+     * @throws IllegalArgumentException 当配置值越界时抛出
+     */
     public synchronized void configureDetection(java.util.Properties properties) {
-        if (detectionData != null || detectionControl != null) return;
+        if (detectionData != null || detectionControl != null) {
+            return;
+        }
         detectionDataThreads = detectionSetting(properties, "data.threads", SpecializedDetectionDefaults.DATA_THREADS);
         detectionDataQueue = detectionSetting(properties, "data.queue", SpecializedDetectionDefaults.DATA_QUEUE);
         detectionControlThreads = detectionSetting(properties, "control.threads", SpecializedDetectionDefaults.CONTROL_THREADS);
         detectionControlQueue = detectionSetting(properties, "control.queue", SpecializedDetectionDefaults.CONTROL_QUEUE);
     }
 
+    /**
+     * 读取检测线程池配置项。
+     *
+     * @param p        配置项集合
+     * @param key      配置键
+     * @param fallback 缺省值
+     * @return 校验通过的配置值
+     * @throws IllegalArgumentException 当配置值不在 [1, 1024] 区间内时抛出
+     */
     private static int detectionSetting(java.util.Properties p, String key, int fallback) {
         int value = Integer.parseInt(p.getProperty("specialized.detection." + key, Integer.toString(fallback)));
-        if (value < 1 || value > 1024) throw new IllegalArgumentException("Invalid detection executor setting: " + key);
+        if (value < 1 || value > 1024) {
+            throw new IllegalArgumentException("Invalid detection executor setting: " + key);
+        }
         return value;
     }
 
+    /**
+     * 创建检测线程池，使用有界队列与拒绝策略，队列满时直接拒绝而非阻塞调用方。
+     *
+     * @param threads 线程数
+     * @param queue   队列容量
+     * @param name    线程名前缀
+     * @return 线程池
+     */
     private java.util.concurrent.ThreadPoolExecutor detectionPool(int threads, int queue, String name) {
         return new java.util.concurrent.ThreadPoolExecutor(threads, threads, 30, java.util.concurrent.TimeUnit.SECONDS,
                 new java.util.concurrent.ArrayBlockingQueue<Runnable>(queue), job -> {
@@ -72,17 +106,45 @@ public class AIGCTaskExecutor {
                 }, new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
     }
 
+    /**
+     * 提交检测任务到对应的线程池，线程池按需创建。
+     *
+     * @param job     任务
+     * @param control 是否为控制类任务
+     * @return 接受返回 true，线程池已关闭或队列已满返回 false
+     */
     private synchronized boolean submitDetection(Runnable job, boolean control) {
-        if (detectionClosed) return false;
-        if (control && detectionControl == null) detectionControl = detectionPool(detectionControlThreads, detectionControlQueue, "detection-control");
-        if (!control && detectionData == null) detectionData = detectionPool(detectionDataThreads, detectionDataQueue, "detection-data");
-        try { (control ? detectionControl : detectionData).execute(job); return true; }
-        catch (java.util.concurrent.RejectedExecutionException busy) { return false; }
+        if (detectionClosed) {
+            return false;
+        }
+        if (control && detectionControl == null) {
+            detectionControl = detectionPool(detectionControlThreads, detectionControlQueue, "detection-control");
+        }
+        if (!control && detectionData == null) {
+            detectionData = detectionPool(detectionDataThreads, detectionDataQueue, "detection-data");
+        }
+        try {
+            (control ? detectionControl : detectionData).execute(job);
+            return true;
+        } catch (java.util.concurrent.RejectedExecutionException busy) {
+            return false;
+        }
     }
 
+    /**
+     * 检测任务包装，执行期间把单元标记为运行中，并在结束时复位。
+     */
     private final class DetectionJob implements Runnable {
+        /** 请求元数据。 */
         final SpecializedDetectionUnitMeta meta;
+
+        /**
+         * 构造方法。
+         *
+         * @param meta 请求元数据
+         */
         DetectionJob(SpecializedDetectionUnitMeta meta) { this.meta = meta; }
+
         @Override public void run() {
             synchronized (runningMetas) { runningMetas.add(meta); }
             meta.unit.setRunning(true);
@@ -94,12 +156,24 @@ public class AIGCTaskExecutor {
         }
     }
 
+    /**
+     * 提交一次专用检测请求，线程池已满时直接拒绝并释放预留。
+     *
+     * @param meta 请求元数据
+     */
     public void submitSpecializedDetection(SpecializedDetectionUnitMeta meta) {
         meta.armDeadline();
-        if (!submitDetection(new DetectionJob(meta), meta.input.isControl()))
+        if (!submitDetection(new DetectionJob(meta), meta.input.isControl())) {
             meta.reject(cube.aigc.SpecializedDetectionException.unit(7));
+        }
     }
 
+    /**
+     * 提交检测控制任务。
+     *
+     * @param job 任务
+     * @return 接受返回 true
+     */
     public boolean submitDetectionControl(Runnable job) { return submitDetection(job, true); }
 
     /**
@@ -424,8 +498,13 @@ public class AIGCTaskExecutor {
         synchronized (this) {
             detectionClosed = true;
             for (java.util.concurrent.ThreadPoolExecutor pool : new java.util.concurrent.ThreadPoolExecutor[]{detectionData, detectionControl}) {
-                if (pool != null) for (Runnable job : pool.shutdownNow())
-                    if (job instanceof DetectionJob) ((DetectionJob) job).meta.reject(cube.aigc.SpecializedDetectionException.unit(30));
+                if (pool != null) {
+                    for (Runnable job : pool.shutdownNow()) {
+                        if (job instanceof DetectionJob) {
+                            ((DetectionJob) job).meta.reject(cube.aigc.SpecializedDetectionException.unit(30));
+                        }
+                    }
+                }
             }
         }
         ExecutorService executor = this.backgroundExecutor;

@@ -14,10 +14,20 @@ import java.nio.file.*;
 import java.util.Collections;
 import java.util.concurrent.*;
 
-/** Optional real SHM test. Args: python executable, Python project root, bridge script. */
+/**
+ * 可选的真实 SHM 联调测试。参数依次为：Python 可执行文件、Python 工程根目录、桥接脚本。
+ */
 public final class SpecializedDetectionShmTest {
+    /**
+     * 测试入口。
+     *
+     * @param args 依次为 Python 可执行文件、Python 工程根目录、桥接脚本
+     * @throws Exception 启动或联调失败时抛出
+     */
     public static void main(String[] args) throws Exception {
-        if (args.length != 3) throw new IllegalArgumentException("python Python-project-root bridge.py");
+        if (args.length != 3) {
+            throw new IllegalArgumentException("python Python-project-root bridge.py");
+        }
         int port; try (ServerSocket socket = new ServerSocket(0)) { port = socket.getLocalPort(); }
         Nucleus nucleus = new Nucleus(); Bridge cellet = new Bridge(); Process python = null;
         Path log = Files.createTempFile("specialized-shm-", ".log");
@@ -26,7 +36,7 @@ public final class SpecializedDetectionShmTest {
             SpecializedDetectionTest.check(nucleus.getCelletService().installCellet(cellet), "cellet installed");
             SpecializedDetectionTest.check(nucleus.getTalkService().startServer("127.0.0.1", port) != null, "SHM listening");
             SpecializedDetectionTest.check(nucleus.getCelletService().activateCellet(port, cellet), "cellet activated");
-            // Cell's acceptor rejects connections during its three-second startup safe lock.
+            // Cell 的接收器在启动后的三秒安全锁内会拒绝连接。
             Thread.sleep(3200);
             python = new ProcessBuilder(args[0], "-u", args[2], args[1], Integer.toString(port))
                     .redirectErrorStream(true).redirectOutput(log.toFile()).start();
@@ -46,18 +56,42 @@ public final class SpecializedDetectionShmTest {
             SpecializedDetectionTest.check(python.waitFor(10, TimeUnit.SECONDS) && python.exitValue() == 0, "Python clean shutdown: " + log);
             System.out.println("SpecializedDetectionShmTest: " + SpecializedDetectionTest.assertions + " assertions passed; dummy only, no weights/camera");
         } finally {
-            if (python != null && python.isAlive()) python.destroyForcibly();
+            if (python != null && python.isAlive()) {
+                python.destroyForcibly();
+            }
             EventCenter.getInstance().stop();cellet.service.getSpecializedDetections().close();
             cellet.service.executor.shutdown();cellet.service.storage.close();nucleus.destroy();cube.core.AbstractCellet.halt();
         }
     }
+
+    /**
+     * 发起一次检测调用。
+     *
+     * @param cellet 桥接 Cellet
+     * @param input  检测输入 JSON
+     * @return 可等待的结果对象
+     */
     private static SpecializedDetectionTest.Reply invoke(Bridge cellet, org.json.JSONObject input) {
         SpecializedDetectionTest.Reply reply = new SpecializedDetectionTest.Reply();
         cellet.service.executeSpecializedDetection("token", "channel", new SpecializedDetectionInput(input), reply); return reply;
     }
+
+    /**
+     * 把单元连接转接到假服务的桥接 Cellet。
+     */
     static final class Bridge extends AIGCCellet {
+        /** 假服务实例。 */
         final SpecializedDetectionTest.FakeService service;
-        final CountDownLatch ready = new CountDownLatch(1); volatile TalkContext context;
+        /** 桥接就绪信号。 */
+        final CountDownLatch ready = new CountDownLatch(1);
+        /** 最近一次通信上下文。 */
+        volatile TalkContext context;
+
+        /**
+         * 构造方法。
+         *
+         * @throws Exception 反射注入服务失败时抛出
+         */
         Bridge() throws Exception {
             service = new SpecializedDetectionTest.FakeService(this);
             Field field = AIGCCellet.class.getDeclaredField("service");field.setAccessible(true);field.set(this, service);

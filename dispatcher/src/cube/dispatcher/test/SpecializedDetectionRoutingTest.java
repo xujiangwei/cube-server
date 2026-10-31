@@ -22,11 +22,25 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** Actual Performer routing, Manager and HTTP handlers against simulated service connections. */
+/**
+ * 专用检测的路由测试。用模拟的服务连接验证真实的 Performer 路由、Manager 与 HTTP 端点。
+ */
 public final class SpecializedDetectionRoutingTest {
-    static final String TOKEN="0123456789abcdef0123456789abcdef", OTHER="abcdef0123456789abcdef0123456789";
+    /** 合法令牌。 */
+    static final String TOKEN="0123456789abcdef0123456789abcdef";
+    /** 另一个合法令牌，归属不同的联系人。 */
+    static final String OTHER="abcdef0123456789abcdef0123456789";
+    /** 合法的 64 位文件码。 */
     static final String FILE=String.join("",Collections.nCopies(64,"a"));
+    /** 断言计数。 */
     static int assertions;
+
+    /**
+     * 测试入口，先验证路由与控制归属，再验证 HTTP 端点。
+     *
+     * @param args 未使用
+     * @throws Exception 用例执行失败时抛出
+     */
     public static void main(String[] args)throws Exception {
         try(Fixture f=new Fixture()) {
             Node old=f.add("legacy",false), a=f.add("a",true), b=f.add("b",true);
@@ -53,6 +67,11 @@ public final class SpecializedDetectionRoutingTest {
         http(); System.out.println("SpecializedDetectionRoutingTest: "+assertions+" assertions passed");
     }
 
+    /**
+     * 验证 HTTP 端点：令牌校验、入参校验、错误码映射、超时与默认超时配置。
+     *
+     * @throws Exception 用例执行失败时抛出
+     */
     static void http()throws Exception {
         try(Fixture f=new Fixture()) {
             f.add("http-a",true);f.add("http-b",true);
@@ -90,10 +109,29 @@ public final class SpecializedDetectionRoutingTest {
         }
     }
 
+    /**
+     * 经 Performer 发起一次同步检测调用。
+     *
+     * @param f     测试夹具
+     * @param token 访问令牌
+     * @param input 检测输入
+     * @return 响应数据载荷
+     */
     static JSONObject invoke(Fixture f,String token,JSONObject input){
         Packet p=new Packet("specializedDetection",new JSONObject().put("channel","channel").put("input",input));ActionDialect d=p.toDialect();d.addParam("token",token);
         ActionDialect response=f.performer.syncTransmit("AIGC",d,2000);check(response!=null,"service responded");return Packet.extractDataPayload(new Packet(response));
     }
+    /**
+     * 发送 HTTP 检测请求，并断言响应状态码与错误结构。
+     *
+     * @param root   HTTP 根地址
+     * @param stream 是否走 stream 端点
+     * @param token  访问令牌
+     * @param input  检测输入
+     * @param status 期望的 HTTP 状态码
+     * @return 响应 JSON
+     * @throws Exception 请求失败时抛出
+     */
     static JSONObject post(String root,boolean stream,String token,JSONObject input,int status)throws Exception {
         HttpURLConnection c=(HttpURLConnection)new URL(root+"/specialized-detection/"+(stream?"stream/":"base/")+token).openConnection();
         c.setRequestMethod("POST");c.setDoOutput(true);c.setConnectTimeout(3000);c.setReadTimeout(5000);c.setRequestProperty("Content-Type","application/json");
@@ -108,39 +146,149 @@ public final class SpecializedDetectionRoutingTest {
             }
         }finally{c.disconnect();}
     }
+    /**
+     * 构造图像检测输入。
+     *
+     * @return 输入 JSON
+     */
     static JSONObject image(){return new JSONObject().put("files",new JSONArray().put(FILE)).put("option",new JSONObject().put("profile","fire-smoke"));}
+
+    /**
+     * 构造视频流启动输入。
+     *
+     * @return 输入 JSON
+     */
     static JSONObject start(){return image().put("files",new JSONArray().put("rtsp://127.0.0.1/test")).put("option",new JSONObject().put("operation","start").put("profile","fire-smoke").put("callbackUrl","http://localhost/callback"));}
+
+    /**
+     * 构造控制类输入。
+     *
+     * @param operation 操作，取值为 status 或 stop
+     * @param id        流标识
+     * @return 输入 JSON
+     */
     static JSONObject control(String operation,String id){return new JSONObject().put("files",new JSONArray()).put("option",new JSONObject().put("operation",operation).put("streamId",id));}
+
+    /**
+     * 反射读取实例字段。
+     *
+     * @param o    目标对象
+     * @param name 字段名
+     * @return 字段值
+     * @throws Exception 字段不存在或访问失败时抛出
+     */
     static Object field(Object o,String name)throws Exception{Field f=o.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(o);}
+
+    /**
+     * 反射写入实例字段。
+     *
+     * @param o     目标对象
+     * @param name  字段名
+     * @param value 字段值
+     * @throws Exception 字段不存在或访问失败时抛出
+     */
     static void set(Object o,String name,Object value)throws Exception{Field f=o.getClass().getDeclaredField(name);f.setAccessible(true);f.set(o,value);}
+
+    /**
+     * 断言调用抛出指定状态码的检测异常。
+     *
+     * @param code 期望的状态码
+     * @param job  被测调用
+     */
     static void expect(int code,Runnable job){try{job.run();throw new AssertionError("Expected "+code);}catch(SpecializedDetectionException e){check(e.code==code,"route code "+code);}}
-    static void check(boolean value,String name){if(!value)throw new AssertionError(name);assertions++;}
+
+    /**
+     * 断言为真并累加断言计数。
+     *
+     * @param value 断言条件
+     * @param name  断言描述
+     */
+    static void check(boolean value,String name){
+        if(!value){
+            throw new AssertionError(name);
+        }
+        assertions++;
+    }
+
+    /**
+     * 仅启用 AIGC Cellet 的测试作用域。
+     */
     static final class TestScope extends Scope{TestScope(){cellets.add("AIGC");}}
+    /**
+     * 测试夹具：构造真实的 Performer 与能力路由器，并按需注册模拟节点。
+     */
     static final class Fixture implements AutoCloseable {
+        /** 被测 Performer，令牌校验与超时透传由匿名子类模拟。 */
         final Performer performer=new Performer(new Nucleus()) {
             final HttpServer http=new HttpServer();
             final Properties config=new Properties();
             @Override public Properties getProperties(){return config;}
             @Override public HttpServer getHttpServer(){return http;}
             @Override public ActionDialect syncTransmit(String cellet,ActionDialect request,long timeout){
-                if(AIGCAction.SpecializedDetection.name.equals(request.getName()))lastTimeout=timeout;
+                if(AIGCAction.SpecializedDetection.name.equals(request.getName())){
+                    lastTimeout=timeout;
+                }
                 return super.syncTransmit(cellet,request,timeout);
             }
             @Override public ActionDialect syncTransmit(String cellet,ActionDialect request){
-                if(!AIGCAction.CheckToken.name.equals(request.getName()))return super.syncTransmit(cellet,request);
+                if(!AIGCAction.CheckToken.name.equals(request.getName())){
+                    return super.syncTransmit(cellet,request);
+                }
                 String code=new Packet(request).data.optString("token",TOKEN);long now=System.currentTimeMillis();
                 JSONObject data=new JSONObject().put("token",new AuthToken(code,"domain","app",TOKEN.equals(code)?1L:2L,now,now+3600000,false).toJSON()).put("contact",new Contact(1L,"domain","test").toJSON());
                 return new Packet(request.getParamAsLong("sn"),request.getName(),new JSONObject().put("code",0).put("data",data)).toDialect();
             }
         };
-        int port;volatile int error;volatile boolean silent;volatile long lastTimeout;volatile String lastProfile;
+        /** 节点端口偏移量。 */
+        int port;
+        /** 下一次单元响应的状态码。 */
+        volatile int error;
+        /** 是否不回复。 */
+        volatile boolean silent;
+        /** 最近一次检测请求的超时时间。 */
+        volatile long lastTimeout;
+        /** 最近一次请求携带的检测配置。 */
+        volatile String lastProfile;
+
+        /**
+         * 构造并启动能力路由器。
+         */
         Fixture(){performer.getCapabilityRouter().start();}
+
+        /**
+         * 注册一个模拟节点并接入能力路由。
+         *
+         * @param name    节点名称
+         * @param enabled 是否声明检测能力
+         * @return 节点对象
+         */
         Node add(String name,boolean enabled){Director d=performer.addDirector("127.0.0.1",6300+port++,"127.0.0.1",6080,new TestScope());Node n=new Node(this,d,name,enabled);d.speaker=n.speaker;performer.getCapabilityRouter().connected(d,n.speaker);return n;}
+
         public void close(){performer.getCapabilityRouter().stop();}
     }
+    /**
+     * 模拟的检测节点，通过动态代理应答能力快照与检测请求。
+     */
     static final class Node {
-        final Director director;final Speakable speaker;final String name;final AtomicInteger calls=new AtomicInteger();
+        /** 所属执行机。 */
+        final Director director;
+        /** 会话端点。 */
+        final Speakable speaker;
+        /** 节点名称，用于断言路由结果。 */
+        final String name;
+        /** 业务请求计数。 */
+        final AtomicInteger calls=new AtomicInteger();
+        /** 流标识到令牌的归属表。 */
         final Map<String,String> owners=new ConcurrentHashMap<>();
+
+        /**
+         * 构造方法。
+         *
+         * @param f       测试夹具
+         * @param d       所属执行机
+         * @param name    节点名称
+         * @param enabled 是否声明检测能力
+         */
         Node(Fixture f,Director d,String name,boolean enabled){this.director=d;this.name=name;
             speaker=(Speakable)java.lang.reflect.Proxy.newProxyInstance(Speakable.class.getClassLoader(),new Class<?>[]{Speakable.class},(proxy,method,args)->{
                 switch(method.getName()) {
@@ -150,14 +298,26 @@ public final class SpecializedDetectionRoutingTest {
                         ActionDialect request=(ActionDialect)args[1];Packet p=new Packet(request);JSONObject data;int code=0;
                         if(AIGCAction.GetCapabilitySnapshot.name.equals(p.name)){
                             data=CapabilityRoutingTest.snapshot(name,new JSONArray().put(CapabilityRoutingTest.unit("SpecializedDetection","Detection",false,false)));
-                            if(enabled)data.put("specializedDetection",new JSONObject().put("version",1).put("providers",new JSONArray().put(new JSONObject().put("availableSessions",2).put("availableImages",1))));
+                            if(enabled){
+                                data.put("specializedDetection",new JSONObject().put("version",1).put("providers",new JSONArray().put(new JSONObject().put("availableSessions",2).put("availableImages",1))));
+                            }
                         } else {
-                            calls.incrementAndGet();if(f.silent)return true;
+                            calls.incrementAndGet();
+                            if(f.silent){
+                                return true;
+                            }
                             JSONObject option=p.data.getJSONObject("input").getJSONObject("option");String op=option.optString("operation","detect");
                             f.lastProfile=option.optString("profile",null);
                             String id=option.optString("streamId",name+"-"+p.sn);String token=request.getParamAsString("token");code=f.error;
-                            if("start".equals(op))owners.put(id,token);
-                            else if(!"detect".equals(op)){if(!owners.containsKey(id))code=3;else if(!owners.get(id).equals(token))code=25;}
+                            if("start".equals(op)){
+                                owners.put(id,token);
+                            } else if(!"detect".equals(op)){
+                                if(!owners.containsKey(id)){
+                                    code=3;
+                                }else if(!owners.get(id).equals(token)){
+                                    code=25;
+                                }
+                            }
                             JSONObject body="detect".equals(op)?new JSONObject().put("profile","fire-smoke").put("width",1).put("height",1).put("refs",new JSONArray()):new JSONObject().put("streamId",id).put("status","stop".equals(op)?"stopping":"running");
                             data=new JSONObject().put("response","").put("thought","").put("resultPayload",body).put("performance",new JSONObject().put("inputTokens",0).put("outputTokens",0)).put("service",name);
                         }
