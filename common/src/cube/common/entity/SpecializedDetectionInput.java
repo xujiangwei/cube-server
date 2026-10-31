@@ -7,6 +7,7 @@
 package cube.common.entity;
 
 import cube.aigc.SpecializedDetectionException;
+import cube.aigc.SpecializedDetectionProfile;
 import cube.common.JSONable;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -50,10 +51,9 @@ public final class SpecializedDetectionInput implements JSONable {
                     allowed(option, "operation", "profile", "confidence", "sliced", "callbackUrl", "intervalSeconds", "inferenceFps");
                 else allowed(option, "operation", "profile", "confidence", "sliced");
                 profile = required(option, "profile");
-                if (!Arrays.asList("fire-smoke", "uav-fire-smoke").contains(profile))
-                    throw SpecializedDetectionException.invalid("Unknown detection profile");
+                // Profile availability is decided by Python, including profiles newer than Java.
                 if (option.has("sliced") && (!(option.get("sliced") instanceof Boolean)
-                        || (option.getBoolean("sliced") && !"uav-fire-smoke".equals(profile))))
+                        || (option.getBoolean("sliced") && !SpecializedDetectionProfile.UavFireSmoke.name.equals(profile))))
                     throw SpecializedDetectionException.invalid("sliced is supported only for uav-fire-smoke");
                 number(option, "confidence", 0, 1);
                 number(option, "intervalSeconds", 0, 86400);

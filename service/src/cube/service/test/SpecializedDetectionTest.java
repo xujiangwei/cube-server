@@ -23,15 +23,15 @@ public final class SpecializedDetectionTest {
     static int assertions;
     static final String FILE = String.join("", Collections.nCopies(64, "a"));
     public static void main(String[] args) throws Exception {
-        validation(); images(); streams(); reservationAndQueues(); timeoutAndLateReply(); retention(); configurationAndFailures();
+        validation(); defaults(); images(); streams(); reservationAndQueues(); timeoutAndLateReply(); retention(); configurationAndFailures();
         System.out.println("SpecializedDetectionTest: " + assertions + " assertions passed");
     }
 
     static void validation() {
-        for (String profile : Arrays.asList("fire-smoke", "uav-fire-smoke"))
+        for (String profile : Arrays.asList("fire-smoke", "uav-fire-smoke", "future-profile"))
             check(new SpecializedDetectionInput(image(profile)).operation.equals("detect"), "default operation");
         for (JSONObject value : Arrays.asList(
-                image("other"), image("fire-smoke").put("files", new JSONArray().put("C:/private/image.png")),
+                image(""), image("fire-smoke").put("files", new JSONArray().put("C:/private/image.png")),
                 image("fire-smoke").put("files", new JSONArray().put(new JSONObject().put("fileCode", FILE))),
                 image("fire-smoke").put("files", new JSONArray().put("https://example.org/a.png")),
                 image("fire-smoke").put("option", new JSONObject().put("profile", "fire-smoke").put("sliced", true)),
@@ -43,6 +43,24 @@ public final class SpecializedDetectionTest {
         SpecializedDetectionInput copy = new SpecializedDetectionInput(source);
         source.getJSONObject("option").put("profile", "wrong");
         check(copy.toJSON().getJSONObject("option").getString("profile").equals("uav-fire-smoke"), "input copied");
+    }
+
+    static void defaults() throws Exception {
+        try (Fixture f = new Fixture(1)) {
+            for (int i = 0; i < 2; i++) {
+                check(f.service.getSpecializedDetections().timeout(new SpecializedDetectionInput(image("fire-smoke"))) == 180000, "default data deadline");
+                check(f.service.getSpecializedDetections().timeout(new SpecializedDetectionInput(control("status", "s"))) == 30000, "default control deadline");
+                JSONObject provider = f.service.getSpecializedDetections().snapshot().getJSONArray("providers").getJSONObject(0);
+                check(provider.getInt("maxSessions") == 2 && provider.getInt("availableImages") == 1, "default provider budgets");
+                check(!provider.has("profiles"), "snapshot does not declare profile support");
+                check((Integer) field(f.service.executor, "detectionDataThreads") == 8
+                        && (Integer) field(f.service.executor, "detectionDataQueue") == 64
+                        && (Integer) field(f.service.executor, "detectionControlThreads") == 2
+                        && (Integer) field(f.service.executor, "detectionControlQueue") == 64, "default executor budgets");
+                f.service.getSpecializedDetections().configure(new Properties());
+                f.service.executor.configureDetection(new Properties());
+            }
+        }
     }
 
     static void images() throws Exception {
@@ -192,9 +210,19 @@ public final class SpecializedDetectionTest {
         try (Fixture f = new Fixture(1)) {
             Properties p = new Properties();
             p.setProperty("specialized.detection.node.domain.100.max.sessions", "1");
+            // Obsolete declarations must not restrict requests to the Python provider.
+            p.setProperty("specialized.detection.profiles", "uav-fire-smoke");
             p.setProperty("specialized.detection.node.domain.100.profiles", "uav-fire-smoke");
             f.service.getSpecializedDetections().configure(p);
-            expect(30, () -> f.invoke(start()));
+            f.invoke(image("fire-smoke")).success();
+            for (String profile : Arrays.asList("uav-fire-smoke", "future-profile")) {
+                f.cellet.code = 1;
+                JSONObject unsupported = start(); unsupported.getJSONObject("option").put("profile", profile);
+                f.invoke(unsupported).error(1, 400);
+                check(f.cellet.requests.get(f.cellet.requests.size() - 1).data.getJSONObject("option").getString("profile").equals(profile), "unsupported profile reaches Python unchanged");
+                check(available(f) == 1, "unsupported profile releases start capacity");
+            }
+            f.cellet.code = 0;
             JSONObject uav = start(); uav.getJSONObject("option").put("profile", "uav-fire-smoke");
             Reply s = f.invoke(uav); s.success(); expect(7, () -> f.invoke(uav));
             f.cellet.code = 3; f.invoke(control("status", s.id())).error(3, 404);

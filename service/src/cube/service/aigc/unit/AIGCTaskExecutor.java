@@ -8,6 +8,7 @@ package cube.service.aigc.unit;
 
 import cell.util.CachedQueueExecutor;
 import cell.util.log.Logger;
+import cube.aigc.SpecializedDetectionDefaults;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -43,16 +44,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AIGCTaskExecutor {
 
     private java.util.concurrent.ThreadPoolExecutor detectionData, detectionControl;
-    private int detectionDataThreads = 8, detectionDataQueue = 64, detectionControlThreads = 2, detectionControlQueue = 64;
+    private int detectionDataThreads = SpecializedDetectionDefaults.DATA_THREADS,
+            detectionDataQueue = SpecializedDetectionDefaults.DATA_QUEUE,
+            detectionControlThreads = SpecializedDetectionDefaults.CONTROL_THREADS,
+            detectionControlQueue = SpecializedDetectionDefaults.CONTROL_QUEUE;
     private boolean detectionClosed;
 
     /** Pool sizes apply at initialization; changing them requires a service restart. */
     public synchronized void configureDetection(java.util.Properties properties) {
         if (detectionData != null || detectionControl != null) return;
-        detectionDataThreads = detectionSetting(properties, "data.threads", 8);
-        detectionDataQueue = detectionSetting(properties, "data.queue", 64);
-        detectionControlThreads = detectionSetting(properties, "control.threads", 2);
-        detectionControlQueue = detectionSetting(properties, "control.queue", 64);
+        detectionDataThreads = detectionSetting(properties, "data.threads", SpecializedDetectionDefaults.DATA_THREADS);
+        detectionDataQueue = detectionSetting(properties, "data.queue", SpecializedDetectionDefaults.DATA_QUEUE);
+        detectionControlThreads = detectionSetting(properties, "control.threads", SpecializedDetectionDefaults.CONTROL_THREADS);
+        detectionControlQueue = detectionSetting(properties, "control.queue", SpecializedDetectionDefaults.CONTROL_QUEUE);
     }
 
     private static int detectionSetting(java.util.Properties p, String key, int fallback) {

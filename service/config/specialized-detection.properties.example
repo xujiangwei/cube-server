@@ -1,15 +1,14 @@
-# Copy these settings into service/config/aigc.properties. JDK 8.
-# Admission budgets only: align with Python profiles/max_sessions; readiness remains unknown.
-specialized.detection.profiles=fire-smoke,uav-fire-smoke
-specialized.detection.max.sessions=2
-specialized.detection.data.threads=8
-specialized.detection.data.queue=64
-specialized.detection.control.threads=2
-specialized.detection.control.queue=64
+# Optional overrides for service/config/aigc.properties. JDK 8.
+# No specialized detection properties are required; built-in defaults are shown below.
+# Admission budgets only; Python determines profile support, readiness and actual capacity.
+# specialized.detection.max.sessions=2
+# specialized.detection.data.threads=8
+# specialized.detection.data.queue=64
+# specialized.detection.control.threads=2
+# specialized.detection.control.queue=64
 # End-to-end service deadlines include queueing and file preparation, in milliseconds.
-specialized.detection.data.timeout.ms=180000
-specialized.detection.control.timeout.ms=30000
+# specialized.detection.data.timeout.ms=180000
+# specialized.detection.control.timeout.ms=30000
 # Optional per-domain/contact override (replace example.com and 10001).
 # specialized.detection.node.example.com.10001.max.sessions=1
-# specialized.detection.node.example.com.10001.profiles=fire-smoke
 # Thread/queue changes require a service restart. No session recovery after restart.

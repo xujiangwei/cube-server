@@ -24,7 +24,7 @@ Content-Type: application/json
 
 `unit` 可省略；`option.operation` 默认为 `detect`。`files` 必须恰好包含一个已经上传完成的文件码（64 位字母数字）。Java 查询文件并验证域和所有者，再转换为 FileLabel 发送给 Python。外部请求不接收 FileLabel 对象、本地路径或 HTTP 媒体地址，不额外下载 HTTP 媒体。
 
-`profile` 必填，只支持 `fire-smoke` 和 `uav-fire-smoke`，且必须在目标实例的 Java 配置中启用。`confidence` 可省略，省略时使用 Python 配置；范围为 `[0,1]`。`sliced` 为布尔值，默认 `false`，仅 `uav-fire-smoke` 可设为 `true`。Python 使用 640 切片、20% 重叠并恢复到原图坐标；具体推理行为以 Python 部署为准。
+`profile` 必填，为非空字符串。已知 profiles 统一记录在 Java 枚举 `cube.aigc.SpecializedDetectionProfile` 中，目前包含 `fire-smoke`（常规火焰烟雾）和 `uav-fire-smoke`（无人机火焰烟雾），后续新增时扩展此枚举。枚举用于汇总说明，不作为部署能力声明或请求白名单；Java 将 profile 交给 Python 判断，Python 不支持时返回其对应状态（当前为 `InvalidParameter(1)` / HTTP 400）。`confidence` 可省略，省略时使用 Python 配置；范围为 `[0,1]`。`sliced` 为布尔值，默认 `false`，仅 `uav-fire-smoke` 可设为 `true`。Python 使用 640 切片、20% 重叠并恢复到原图坐标；具体推理行为以 Python 部署为准。
 
 成功示例（无检测也算成功）：
 
@@ -98,9 +98,9 @@ with Image.open("callback.png") as image:
 
 service 默认数据池 8 线程、64 个排队名额，控制池 2 线程、64 个排队名额。每实例最多一个图片在途请求，默认两个后台会话；`starting/running/reconnecting/stopping` 均占用预算。队列满或容量不足返回 `Processing(7)`。数据期限默认 180 秒，控制期限默认 30 秒，包含排队与文件准备；dispatcher 默认分别等待 190 秒和 40 秒，以便返回 service 的错误。
 
-配置示例见 [service 配置](../../service/config/specialized-detection.properties.example) 和 [dispatcher 配置](../../dispatcher/config/specialized-detection.properties.example)，分别复制到 `aigc.properties` 和 `dispatcher.properties`。全局设置 `specialized.detection.profiles`、`specialized.detection.max.sessions`；按域和联系人覆盖格式为 `specialized.detection.node.<domain>.<contactId>.profiles` / `.max.sessions`。线程和排队名额变更需要重启 service。
+部署 specialized detection 单元无需向 `aigc.properties` 或 `dispatcher.properties` 添加任何专项配置，未设置参数时自动使用上述默认值，由 `cube.aigc.SpecializedDetectionDefaults` 统一定义。需要调整时，可参考 [service 可选配置](../../service/config/specialized-detection.properties.example) 和 [dispatcher 可选配置](../../dispatcher/config/specialized-detection.properties.example)。会话预算可通过全局 `specialized.detection.max.sessions` 或按域和联系人 `specialized.detection.node.<domain>.<contactId>.max.sessions` 覆盖。线程和排队名额变更需要重启 service。
 
-这些配置仅代表 **Java 调度预算**，必须与 Python 的 profiles、max_sessions 等部署配置对齐。能力快照中的 `specializedDetection.version=1` 只表示 service 实现了本 action；摘要标明 `readiness=unknown`、`budgetSource=java-config`，并不宣称知道 Python 模型就绪状态或实际推理队列容量。Python 返回的忙碌、未就绪与参数错误仍是最终结果。dispatcher 排除未明确支持该 action 的旧 service。
+这些配置仅代表 **Java 调度预算**，Python 的实际容量限制仍然生效。Java 不再读取全局或按节点的 profiles 配置，能力快照也不声明 providers 的 profiles；service 和 dispatcher 按连接和可用预算分配请求，不按 profile 筛选实例。能力快照中的 `specializedDetection.version=1` 只表示 service 实现了本 action；摘要标明 `readiness=unknown`、`budgetSource=java-config`，并不宣称知道 Python 模型就绪状态或实际推理队列容量。Python 返回的忙碌、未就绪与参数错误仍是最终结果。dispatcher 排除未明确支持该 action 的旧 service。
 
 视频启动和控制只统计请求，不将其当作逐帧推理计量。控制始终回到原 service 和 Python 连接，不因能力快照过期或活动会话长时间闲置而改派。连接替换后旧路由失效，不把会话迁到新进程；Java/service/dispatcher 重启后不恢复会话。
 

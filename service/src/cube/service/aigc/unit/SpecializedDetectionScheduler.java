@@ -9,6 +9,7 @@ package cube.service.aigc.unit;
 import cell.core.talk.TalkContext;
 import cell.core.talk.dialect.ActionDialect;
 import cube.aigc.SpecializedDetectionException;
+import cube.aigc.SpecializedDetectionDefaults;
 import cube.auth.AuthToken;
 import cube.common.Packet;
 import cube.common.entity.AIGCUnit;
@@ -95,9 +96,9 @@ public final class SpecializedDetectionScheduler {
         Properties copy = new Properties();
         copy.putAll(properties);
         // Validate defaults before publishing a hot-reloaded configuration.
-        positive(copy, "specialized.detection.max.sessions", 2, 64);
-        positive(copy, "specialized.detection.data.timeout.ms", 180000, 3600000);
-        positive(copy, "specialized.detection.control.timeout.ms", 30000, 3600000);
+        positive(copy, "specialized.detection.max.sessions", SpecializedDetectionDefaults.MAX_SESSIONS, 64);
+        positive(copy, "specialized.detection.data.timeout.ms", SpecializedDetectionDefaults.DATA_TIMEOUT_MS, 3600000);
+        positive(copy, "specialized.detection.control.timeout.ms", SpecializedDetectionDefaults.CONTROL_TIMEOUT_MS, 3600000);
         config = copy;
     }
 
@@ -109,7 +110,7 @@ public final class SpecializedDetectionScheduler {
 
     public long timeout(SpecializedDetectionInput input) {
         return positive(config, "specialized.detection." + (input.isControl() ? "control" : "data") + ".timeout.ms",
-                input.isControl() ? 30000 : 180000, 3600000);
+                input.isControl() ? SpecializedDetectionDefaults.CONTROL_TIMEOUT_MS : SpecializedDetectionDefaults.DATA_TIMEOUT_MS, 3600000);
     }
 
     private String setting(Provider provider, String key, String fallback) {
@@ -120,19 +121,11 @@ public final class SpecializedDetectionScheduler {
 
     private int max(Provider provider) {
         try {
-            int n = Integer.parseInt(setting(provider, "max.sessions", "2"));
+            int n = Integer.parseInt(setting(provider, "max.sessions", Integer.toString(SpecializedDetectionDefaults.MAX_SESSIONS)));
             return Math.max(1, Math.min(64, n));
         } catch (NumberFormatException error) {
-            return 2;
+            return SpecializedDetectionDefaults.MAX_SESSIONS;
         }
-    }
-
-    private Set<String> profiles(Provider provider) {
-        Set<String> result = new HashSet<>();
-        for (String name : setting(provider, "profiles", "uav-fire-smoke,fire-smoke").split(","))
-            result.add(name.trim());
-        result.retainAll(Arrays.asList("uav-fire-smoke", "fire-smoke"));
-        return result;
     }
 
     static boolean same(TalkContext a, TalkContext b) {
@@ -206,14 +199,10 @@ public final class SpecializedDetectionScheduler {
             return new Reservation(s.provider, s, input.operation);
         }
         List<Provider> candidates = new ArrayList<>();
-        boolean supported = false;
         for (Provider p : providers.values())
-            if (profiles(p).contains(input.profile)) {
-                supported = true;
-                if ("start".equals(input.operation) ? active(p) + p.starting < max(p) : p.images == 0)
-                    candidates.add(p);
-            }
-        if (candidates.isEmpty()) throw SpecializedDetectionException.unit(supported ? 7 : 30);
+            if ("start".equals(input.operation) ? active(p) + p.starting < max(p) : p.images == 0)
+                candidates.add(p);
+        if (candidates.isEmpty()) throw SpecializedDetectionException.unit(providers.isEmpty() ? 30 : 7);
         // Rotate before sorting, giving equal loads a deterministic round-robin tie break.
         Collections.rotate(candidates, -(int) Math.floorMod(cursor++, (long) candidates.size()));
         candidates.sort(Comparator.comparingInt(p -> active(p) + p.starting + p.images));
@@ -348,8 +337,7 @@ public final class SpecializedDetectionScheduler {
         clean();
         JSONArray nodes = new JSONArray();
         for (Provider p : providers.values())
-            nodes.put(new JSONObject().put("profiles", new JSONArray(profiles(p)))
-                    .put("maxSessions", max(p)).put("availableSessions", Math.max(0, max(p) - active(p) - p.starting))
+            nodes.put(new JSONObject().put("maxSessions", max(p)).put("availableSessions", Math.max(0, max(p) - active(p) - p.starting))
                     .put("activeSessions", active(p)).put("pendingStarts", p.starting).put("availableImages", p.images == 0 ? 1 : 0));
         return new JSONObject().put("version", 1).put("readiness", "unknown").put("budgetSource", "java-config")
                 .put("providers", nodes);
@@ -373,7 +361,7 @@ public final class SpecializedDetectionScheduler {
         for (SpecializedDetectionUnitMeta meta : late) meta.drainLateResponse();
         for (Session s : poll) {
             final long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(
-                    positive(config, "specialized.detection.control.timeout.ms", 30000, 3600000));
+                    positive(config, "specialized.detection.control.timeout.ms", SpecializedDetectionDefaults.CONTROL_TIMEOUT_MS, 3600000));
             if (!service.submitDetectionControl(() -> poll(s, deadline))) synchronized (this) {
                 s.polling = false;
             }

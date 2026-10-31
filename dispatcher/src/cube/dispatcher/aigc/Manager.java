@@ -2387,7 +2387,8 @@ public class Manager implements Tickable, PerformerListener {
         request.addParam("token", token);
         String key = "specialized.detection." + (input.isControl() ? "control" : "data") + ".timeout.ms";
         Properties config = performer.getProperties();
-        String fallback = input.isControl() ? "40000" : "190000";
+        String fallback = Integer.toString(input.isControl() ? cube.aigc.SpecializedDetectionDefaults.GATEWAY_CONTROL_TIMEOUT_MS
+                : cube.aigc.SpecializedDetectionDefaults.GATEWAY_DATA_TIMEOUT_MS);
         long timeout = Long.parseLong(config == null ? fallback : config.getProperty(key, fallback));
         if (timeout < 1 || timeout > 3610000) throw new IllegalArgumentException("Invalid detection gateway timeout");
         ActionDialect response = syncTransmit(AIGCCellet.NAME, request, timeout);

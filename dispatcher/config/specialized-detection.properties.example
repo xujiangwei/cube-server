@@ -1,4 +1,5 @@
-# Copy into dispatcher/config/dispatcher.properties.
+# Optional overrides for dispatcher/config/dispatcher.properties.
+# No specialized detection properties are required; built-in defaults are shown below.
 # Leave headroom beyond the service deadline for transport and error propagation.
-specialized.detection.data.timeout.ms=190000
-specialized.detection.control.timeout.ms=40000
+# specialized.detection.data.timeout.ms=190000
+# specialized.detection.control.timeout.ms=40000

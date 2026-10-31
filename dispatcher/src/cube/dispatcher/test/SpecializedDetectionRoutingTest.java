@@ -64,12 +64,22 @@ public final class SpecializedDetectionRoutingTest {
             try {
                 manager.start(f.performer);server.start();String root="http://127.0.0.1:"+connector.getLocalPort();
                 JSONObject detected=post(root,false,TOKEN,image(),200);
+                check(f.lastTimeout==190000,"default gateway data deadline without properties");
                 check(detected.getJSONObject("resultPayload").getJSONArray("refs").length()==0,"direct success without content");
                 JSONObject started=post(root,true,TOKEN,start(),200);String id=started.getJSONObject("resultPayload").getString("streamId");
                 JSONObject status=post(root,true,TOKEN,control("status",id),200);
+                check(f.lastTimeout==40000,"default gateway control deadline without properties");
                 check(status.getString("service").equals(started.getString("service")),"HTTP start immediately pinned");
                 post(root,true,OTHER,control("stop",id),403);
                 for(int[] pair:new int[][]{{1,400},{3,404},{7,429},{30,503},{31,502},{32,422}}){f.error=pair[0];JSONObject error=post(root,false,TOKEN,image(),pair[1]).getJSONObject("error");check(error.getInt("code")==pair[0],"Python code preserved");}
+                for(String profile:Arrays.asList("uav-fire-smoke","future-profile")) {
+                    f.error=1;JSONObject unsupported=image();unsupported.getJSONObject("option").put("profile",profile);
+                    JSONObject error=post(root,false,TOKEN,unsupported,400).getJSONObject("error");
+                    check(error.getInt("code")==1&&profile.equals(f.lastProfile),"Python rejects unsupported profile through HTTP");
+                    unsupported=start();unsupported.getJSONObject("option").put("profile",profile);
+                    post(root,true,TOKEN,unsupported,400);
+                    check(profile.equals(f.lastProfile),"unsupported start reaches service");
+                }
                 f.error=0;post(root,false,TOKEN,start(),400);post(root,true,TOKEN,image(),400);
                 post(root,false,TOKEN,image().put("files",new JSONArray().put("/etc/private.png")),400);
                 post(root,true,TOKEN,control("status","unknown"),404);
@@ -112,6 +122,10 @@ public final class SpecializedDetectionRoutingTest {
             final Properties config=new Properties();
             @Override public Properties getProperties(){return config;}
             @Override public HttpServer getHttpServer(){return http;}
+            @Override public ActionDialect syncTransmit(String cellet,ActionDialect request,long timeout){
+                if(AIGCAction.SpecializedDetection.name.equals(request.getName()))lastTimeout=timeout;
+                return super.syncTransmit(cellet,request,timeout);
+            }
             @Override public ActionDialect syncTransmit(String cellet,ActionDialect request){
                 if(!AIGCAction.CheckToken.name.equals(request.getName()))return super.syncTransmit(cellet,request);
                 String code=new Packet(request).data.optString("token",TOKEN);long now=System.currentTimeMillis();
@@ -119,7 +133,7 @@ public final class SpecializedDetectionRoutingTest {
                 return new Packet(request.getParamAsLong("sn"),request.getName(),new JSONObject().put("code",0).put("data",data)).toDialect();
             }
         };
-        int port;volatile int error;volatile boolean silent;
+        int port;volatile int error;volatile boolean silent;volatile long lastTimeout;volatile String lastProfile;
         Fixture(){performer.getCapabilityRouter().start();}
         Node add(String name,boolean enabled){Director d=performer.addDirector("127.0.0.1",6300+port++,"127.0.0.1",6080,new TestScope());Node n=new Node(this,d,name,enabled);d.speaker=n.speaker;performer.getCapabilityRouter().connected(d,n.speaker);return n;}
         public void close(){performer.getCapabilityRouter().stop();}
@@ -136,10 +150,11 @@ public final class SpecializedDetectionRoutingTest {
                         ActionDialect request=(ActionDialect)args[1];Packet p=new Packet(request);JSONObject data;int code=0;
                         if(AIGCAction.GetCapabilitySnapshot.name.equals(p.name)){
                             data=CapabilityRoutingTest.snapshot(name,new JSONArray().put(CapabilityRoutingTest.unit("SpecializedDetection","Detection",false,false)));
-                            if(enabled)data.put("specializedDetection",new JSONObject().put("version",1).put("providers",new JSONArray().put(new JSONObject().put("profiles",new JSONArray().put("fire-smoke").put("uav-fire-smoke")).put("availableSessions",2).put("availableImages",1))));
+                            if(enabled)data.put("specializedDetection",new JSONObject().put("version",1).put("providers",new JSONArray().put(new JSONObject().put("availableSessions",2).put("availableImages",1))));
                         } else {
                             calls.incrementAndGet();if(f.silent)return true;
                             JSONObject option=p.data.getJSONObject("input").getJSONObject("option");String op=option.optString("operation","detect");
+                            f.lastProfile=option.optString("profile",null);
                             String id=option.optString("streamId",name+"-"+p.sn);String token=request.getParamAsString("token");code=f.error;
                             if("start".equals(op))owners.put(id,token);
                             else if(!"detect".equals(op)){if(!owners.containsKey(id))code=3;else if(!owners.get(id).equals(token))code=25;}

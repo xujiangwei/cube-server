@@ -15,7 +15,7 @@
  * @apiBody {String[]} input.files 一个上传完成的 64 位文件码；不接受本地路径、HTTP 媒体地址或 FileLabel 对象。
  * @apiBody {Object} input.option 检测参数。
  * @apiBody {String} [input.option.operation=detect] 图片操作。
- * @apiBody {String="fire-smoke","uav-fire-smoke"} input.option.profile 检测 profile。
+ * @apiBody {String} input.option.profile 非空检测 profile；已知值 fire-smoke、uav-fire-smoke 由 Java SpecializedDetectionProfile 枚举汇总，实际支持情况由 Python 判断，不支持返回对应状态（当前 code=1 / HTTP 400）。
  * @apiBody {Number} [input.option.confidence] 阈值 [0,1]，省略时使用 Python 配置。
  * @apiBody {Boolean} [input.option.sliced=false] 仅 uav-fire-smoke 可启用。
  * @apiSuccess {Number} sn Java 单元请求关联号。
@@ -43,7 +43,7 @@
  * @apiBody {String[]} input.files start 为一个视频文件码或 RTSP(S) 地址，status/stop 为 []。
  * @apiBody {Object} input.option start 参数或控制参数。
  * @apiBody {String="start","status","stop"} input.option.operation 操作。
- * @apiBody {String} [input.option.profile] start 必填，fire-smoke 或 uav-fire-smoke。
+ * @apiBody {String} [input.option.profile] start 必填，已知值 fire-smoke、uav-fire-smoke；实际支持情况由 Python 判断，Java 无需配置 profiles。
  * @apiBody {String} [input.option.callbackUrl] start 必填，HTTP(S) PNG 接收地址。
  * @apiBody {Number} [input.option.confidence] start 阈值 [0,1]。
  * @apiBody {Boolean} [input.option.sliced=false] start 可选，仅无人机 profile 可启用。

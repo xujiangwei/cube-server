@@ -285,7 +285,7 @@ public final class CapabilityRouter {
             return owner.director;
         }
         List<Director> eligible = new ArrayList<>();
-        boolean supported = false;
+        boolean registered = false;
         for (Director director : candidates()) {
             JSONObject caps = states.get(director).snapshot.json.optJSONObject("specializedDetection");
             if (caps == null || caps.optInt("version") != 1) continue;
@@ -294,18 +294,14 @@ public final class CapabilityRouter {
             boolean available = false;
             for (int i = 0; i < providers.length(); i++) {
                 JSONObject provider = providers.getJSONObject(i);
-                JSONArray profiles = provider.optJSONArray("profiles");
-                boolean matches = false;
-                if (profiles != null)
-                    for (int j = 0; j < profiles.length(); j++) matches |= input.profile.equals(profiles.getString(j));
-                if (!matches) continue;
-                supported = true;
+                registered = true;
                 available |= provider.optInt("start".equals(input.operation) ? "availableSessions" : "availableImages") > 0;
             }
             if (available) eligible.add(director);
         }
-        if (eligible.isEmpty()) throw SpecializedDetectionException.unit(supported ? 7 : 30);
-        String key = "specializedDetection:" + input.operation + ":" + input.profile;
+        if (eligible.isEmpty()) throw SpecializedDetectionException.unit(registered ? 7 : 30);
+        // Profile strings are forwarded to Python; do not retain a cursor for each caller-supplied value.
+        String key = "specializedDetection:" + input.operation;
         long cursor = cursors.getOrDefault(key, 0L);
         cursors.put(key, cursor == Long.MAX_VALUE ? 0 : cursor + 1);
         return eligible.get((int) Math.floorMod(cursor, (long) eligible.size()));
