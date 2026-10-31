@@ -128,3 +128,7 @@ docs/2026-10-25-service-forest-design.md
 
 docs/forestry
 docs/forestry.zip
+
+# REST API documentation reader dependencies and temporary build directories.
+docs/rest-api/node_modules/
+docs/rest-api/.output-*/

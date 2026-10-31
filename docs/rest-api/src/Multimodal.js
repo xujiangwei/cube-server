@@ -17,7 +17,8 @@
  *                     <li>Vision Inference - 视觉推理任务，单元名称：<code>OmniMultimodal</code></li>
  *                     <li>Fine-Grained Perception - 细粒度图像感知任务，单元名称：<code>OmniPerception</code></li>
  *                 </ul>
- *                 <p><code>OmniGround</code> 专注于根据提示词分析和识别图像。</p>
+ *                 <p><code>OmniGround</code> 专注于根据提示词分析和识别图像，也支持通过 <code>ground_gui</code> 在界面截图中定位按钮、输入框、图标等 GUI 元素。将截图的文件码或 URL 放入 <code>input.files</code>，在 <code>input.content</code> 中描述目标元素，并显式指定 <code>input.unit="OmniGround"</code> 和 <code>input.option.task="ground_gui"</code>。</p>
+ *                 <p><code>ground_gui</code> 的 <code>input.option.output</code> 默认为 <code>box</code>，定位框见 <code>resultPayload.refs[].boxes</code>；设为 <code>point</code> 时，定位点见 <code>resultPayload.refs[].points</code>。结构化结果使用原图像素坐标，可结合 <code>resultPayload.width</code>、<code>resultPayload.height</code> 换算到显示尺寸。该任务返回元素位置，不执行点击或输入操作。下方 GUI 应答中的坐标仅作示例，实际结果以输入截图和模型输出为准。</p>
  *                 <p><code>OmniVL</code> 专注于分析视频并提取关键信息。</p>
  *                 <p><code>OmniMultimodal</code> 专注于基于视觉信息进行推理和判断，适用于复杂场景。该模型支持使用语音进行输入，输入语音文件必须为 .wav 或 .mp3 格式。</p>
  *                 <p><code>OmniPerception</code> 专注于单张图片的细粒度目标检测、目标定位、目标计数、推理检测、区域描述、区域文字识别和视觉问答。</p>
@@ -41,7 +42,7 @@
  *                   <code>ground_multi</code> - 检测并定位多个目标<br/>
  *                   <code>ground_text</code> - 请找到标有指定描述的文本<br/>
  *                   <code>detect_text</code> - 检测所有文本<br/>
- *                   <code>ground_gui</code> - GUI元素检测<br/>
+ *                   <code>ground_gui</code> - 根据描述定位界面截图中的 GUI 元素，支持边界框或定位点输出<br/>
  *                   <code>point</code> - 点检测。
  *                   <hr/>
  *                   <code>OmniPerception</code> 的任务名称。<br/>
@@ -53,7 +54,7 @@
  *                   <code>region_ocr</code> - 识别指定区域中的文字。<br/>
  *                   <code>vqa</code> - 针对整张图片进行视觉问答。
  * @apiBody {String} [input.option.mode] 指定的任务模式。<br/><code>hybrid</code> - 默认平衡模式。<br/><code>fast</code> - 快速模式，适合低延迟或规则场景。<br/><code>slow</code> - 精准模式，适合离线高精度或复杂场景。
- * @apiBody {String} [input.option.output] 指定的GUI任务输出模式（仅在GroundGui任务中有效）。<code>box</code>表示输出边界框，<code>point</code>表示输出位置。
+ * @apiBody {String} [input.option.output=box] <code>OmniGround</code> 的 <code>ground_gui</code> 任务输出模式。<code>box</code> 表示输出边界框（<code>resultPayload.refs[].boxes</code>），<code>point</code> 表示输出定位点（<code>resultPayload.refs[].points</code>）。
  * @apiBody {String} [input.option.lang=zh] <code>OmniPerception</code> 内置任务模板的语言。支持 <code>zh</code> 和 <code>en</code>。
  * @apiBody {Array} [input.option.bboxList] 候选边界框列表，每个元素使用原图像素坐标 <code>[x1, y1, x2, y2]</code>，最多 100 个。定位类任务省略时由服务端自动生成候选框；<code>brief_region_caption</code> 和 <code>region_ocr</code> 应显式提供；<code>vqa</code> 不允许提供该字段。
  * @apiBody {Number[]} [input.option.targetRegionIndexes] 需要处理的候选框索引列表，索引从 0 开始。仅用于 <code>brief_region_caption</code> 和 <code>region_ocr</code>，使用这两个任务时必填。
@@ -98,6 +99,38 @@
  *         }
  *     }
  * 
+ * @apiParamExample {json} OmniGround - ground_gui 边界框示例
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniGround",
+ *             "content": "界面右上角的搜索按钮",
+ *             "files": [
+ *                 "https://my.domain.com/images/screenshot.png"
+ *             ],
+ *             "option": {
+ *                 "task": "ground_gui",
+ *                 "output": "box"
+ *             }
+ *         }
+ *     }
+ *
+ * @apiParamExample {json} OmniGround - ground_gui 定位点示例
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniGround",
+ *             "content": "界面右上角的搜索按钮",
+ *             "files": [
+ *                 "https://my.domain.com/images/screenshot.png"
+ *             ],
+ *             "option": {
+ *                 "task": "ground_gui",
+ *                 "output": "point"
+ *             }
+ *         }
+ *     }
+ *
  * @apiParamExample {json} OmniVL 任务示例
  *     {
  *         "channel": "mnxRSaLdPuHEVaKX",
@@ -250,9 +283,9 @@
  * @apiSuccess {String} thought 多模态模型生成的思路。
  * @apiSuccess {Object} resultPayload 经过多模态模型处理后的结果数据。
  * @apiSuccess {Array} resultPayload.refs 结果参考数据列表。
- * @apiSuccess {String} resultPayload.refs.content 结果参考数据的文本内容。
- * @apiSuccess {Array} resultPayload.refs.boxes 结果参考数据的边界框列表。
- * @apiSuccess {Array} resultPayload.refs.points 结果参考数据的点列表。
+ * @apiSuccess {String} resultPayload.refs.content 结果参考数据的文本内容。<code>OmniGround</code> 输出未包含文本标签时为空字符串。
+ * @apiSuccess {Array} resultPayload.refs.boxes 结果参考数据的边界框列表，每项为原图像素坐标 <code>{x1,y1,x2,y2}</code>，分别表示左上角和右下角。<code>ground_gui</code> 的 <code>box</code> 模式从此字段读取定位框。
+ * @apiSuccess {Array} resultPayload.refs.points 结果参考数据的点列表，每项为原图像素坐标 <code>{x,y}</code>。<code>ground_gui</code> 的 <code>point</code> 模式从此字段读取定位点。
  * @apiSuccess {Number} resultPayload.width 输入图片的宽度。
  * @apiSuccess {Number} resultPayload.height 输入图片的高度。
  * @apiSuccess {Object} usage 本次请求的使用情况。
@@ -297,6 +330,52 @@
  *         }
  *     }
  * 
+ * @apiSuccessExample {json} OmniGround - ground_gui 边界框应答示例
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736205,
+ *         "timestamp": 1788425020947,
+ *         "unit": "OmniGround",
+ *         "answer": "<box><800><100><900><200></box>",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "refs": [{
+ *                 "content": "",
+ *                 "boxes": [{
+ *                     "x1": 1536.0,
+ *                     "y1": 108.0,
+ *                     "x2": 1728.0,
+ *                     "y2": 216.0
+ *                 }],
+ *                 "points": []
+ *             }],
+ *             "width": 1920,
+ *             "height": 1080
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniGround - ground_gui 定位点应答示例
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736206,
+ *         "timestamp": 1788425020947,
+ *         "unit": "OmniGround",
+ *         "answer": "<box><850><150></box>",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "refs": [{
+ *                 "content": "",
+ *                 "boxes": [],
+ *                 "points": [{
+ *                     "x": 1632.0,
+ *                     "y": 162.0
+ *                 }]
+ *             }],
+ *             "width": 1920,
+ *             "height": 1080
+ *         }
+ *     }
+ *
  * @apiSuccessExample {json} OmniPerception - detection 应答示例
  *     HTTP/1.1 200 OK
  *     {

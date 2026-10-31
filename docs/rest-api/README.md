@@ -13,7 +13,16 @@
 
 ## 专项检测 SpecializedDetection
 
-专项图片检测使用 `POST /specialized-detection/base/{token}`；视频后台会话使用 `POST /specialized-detection/stream/{token}`，支持 `start/status/stop`。完整协议、PNG 直连回调、Java 配置预算和重启边界见 [专项检测说明](SpecializedDetection.md)，接口条目见 [SpecializedDetection.js](src/SpecializedDetection.js)。
+专项检测使用 dispatcher 业务 REST 地址，先创建调用者所属频道；图片和视频文件须先上传并取得文件码。成功直接返回业务 JSON，失败返回 `{"error":{"state":HTTP状态码,"code":Unit状态码,"reason":"...","message":"..."}}`。
+
+| 接口 | 用途 | 生成页面 |
+| --- | --- | --- |
+| `POST /specialized-detection/base/{token}` | 图片火焰、烟雾检测 | [专项图片检测](output/index.html#api-SpecializedDetection-SpecializedDetectionImage) |
+| `POST /specialized-detection/stream/{token}` | 视频文件或 RTSP(S) 后台检测，支持 `start/status/stop` | [专项视频后台会话](output/index.html#api-SpecializedDetection-SpecializedDetectionStream) |
+
+部署无需在 `aigc.properties` 或 `dispatcher.properties` 中添加专项配置，也无需声明支持的 profiles。默认数据池 8 线程、控制池 2 线程，各有 64 个排队名额；每个 Python 实例最多一个图片在途请求、两个后台会话。service 的数据/控制期限分别为 180/30 秒，dispatcher 分别等待 190/40 秒。已知 profiles 为 `fire-smoke`、`uav-fire-smoke`，由 Java `SpecializedDetectionProfile` 枚举统一汇总；实际支持情况由 Python 在请求时判断，不支持时返回对应状态，当前为 code `1` / HTTP `400`。
+
+请求与应答、PNG 直连回调和重启边界统一见 [专项检测接口](output/index.html#api-SpecializedDetection)。
 
 ## 覆盖范围
 
@@ -23,9 +32,17 @@
 
 以下端点属于业务面但尚未编写条目，需要时按源码补：`/aigc/chart/`（说话人视图）、`/aigc/cot/`、`/aigc/painting/label`、`/aigc/psychology/painting`、`/aigc/psychology/report/page`、`/aigc/psychology/report/remark`、`/aigc/psychology/report/state`、`/aigc/copilot/{apply,dispose,sheet}`、`/aigc/stream/{apply,stop,caption,strategy}`、`/aigc/speech/analysis`、`/aigc/speech/diarization/opt/`、`/aigc/facial/expression`、`/aigc/context/inference`、`/aigc/component/event`、`/aigc/queue/`、`/aigc/search/result/`、`/aigc/stop/`、`/aigc/knowledge/{doc,segment,backup,article,article/category,generate}`、`/app/{chat,change,config,customer,schedule,session,evaluate,inject,keepalive,membership,user/modify,user/profile,user/signout,verify,version,asciiart,emotion,wordcloud}`、`/cv/{object/detect,estimation/pose,estimation/hand,clippaper}`。
 
+## GUI 元素定位 OmniGround
+
+使用 dispatcher 的 `POST /multimodal/base/{token}` 调用 `ground_gui`，可在界面截图中定位按钮、输入框、图标等元素。先创建频道并取得频道码，将截图上传后的文件码或服务端可访问的图片 URL 放入 `input.files`，用 `input.content` 描述目标元素，指定 `input.unit="OmniGround"`、`input.option.task="ground_gui"`。
+
+`input.option.output` 默认为 `box`，从 `resultPayload.refs[].boxes` 读取边界框；设为 `point` 时，从 `resultPayload.refs[].points` 读取定位点。结果使用原图像素坐标，图片尺寸见 `resultPayload.width`、`resultPayload.height`。该接口直接返回业务 JSON；GUI 定位只返回位置，不执行点击或输入操作。
+
+两种模式的完整请求及应答示例见 [多模态数据推理](output/index.html#api-Multimodal-多模态数据推理)。示例中的令牌、频道码和截图地址应替换为实际值。
+
 ## 森林场景 OmniForest
 
-森林场景用于检测图片中的树冠，获取树冠数量和位置。接口参数及完整应答示例见 [Forest.js](src/Forest.js)，生成页面见 [森林场景接口文档](output/index.html#api-Forest)。
+森林场景用于检测图片中的树冠，获取树冠数量和位置。接口参数及完整应答示例见 [森林场景接口文档](output/index.html#api-Forest)。
 
 推荐调用顺序：
 
@@ -102,27 +119,51 @@ Content-Type: application/json
 
 ## Harness 资源任务
 
-Harness 的 18 个业务接口已纳入 apiDoc，接口源码见 [Harness.js](src/Harness.js)，生成页面见 [Harness 接口文档](output/index.html#api-Harness)。部署、认证、存储与接入流程见 [service-harness 说明](../../service-harness/README.md)，覆盖任务、控制/审批、文件/产物、反馈、trace 与 SSE。
+Harness 的 18 个业务接口见 [Harness 接口文档](output/index.html#api-Harness)，覆盖任务、控制/审批、文件/产物、反馈、trace 与 SSE。部署、认证、存储与接入流程见工程中的 `service-harness/README.md`。
 
 业务统一使用 dispatcher 地址，经 SHM 长连接访问 service；健康与运维单独配置 service HTTP 地址。兼容模型 API 与 Harness 任务 API 复用已有 Cube 用户 token；各服务地址分别配置，Console 登录凭据独立。
 
 ### 生成 API 文档
 
-在本目录运行 `./build.ps1`（Windows，需 Node.js/npm），或 `./build.sh`（Linux/macOS，需 Node.js 和 apiDoc）。构建会扫描 `src/` 中全部接口注释，生成 `output/index.html` 并应用文档主题；导航中的 **Forest**、**Harness**、**Compatibility** 为对应 `src/*.js` 的分组。
+只需安装 **Node.js 18 或更新版本（含 npm）**，然后在本目录执行一个脚本：
 
-生成后需手工同步到 dispatcher 才能通过 `/doc/api/` 访问：
-
-``` bash
-rsync -a --delete output/ ../../dispatcher/assets/doc/
+```powershell
+# Windows PowerShell
+./build.ps1
 ```
 
-`output/` 与 `dispatcher/assets/doc/` 均为构建产物，仓库内的版本可能落后于 `src/`（`/doc/api/` 提供的就是 `dispatcher/assets/doc/`），改动接口注释后请重新生成并同步。
+```bash
+# Linux / macOS
+./build.sh
+```
+
+脚本自动安装锁定的构建依赖（首次运行需要联网，依赖未变时复用），解析 `src/*.js` 中的 apiDoc 注释，生成 `output/`，并同步到 `dispatcher/assets/doc/`。无需全局安装 apiDoc，也无需手工复制。运行 dispatcher 后，继续通过 **`/doc/api/`** 或 **`/doc/api/index.html`** 阅读；也可以直接打开 `output/index.html`。
+
+页面提供分组概览和单接口详情，只加载当前接口正文。左侧搜索覆盖名称、路径、方法、摘要与参数名，支持组合查询（如 `POST detection`、`callbackUrl specialized`）、方法和分组筛选、中文输入、`↑/↓` 选择与 `Enter` 打开；`/` 或 `Ctrl/Cmd+K` 聚焦搜索，`Esc` 返回目录。已有 `#api-分组-接口名` 链接保持可用，浏览器前进、后退及刷新均可定位。
+
+每个接口默认显示一个请求和响应示例，其他示例按需展开。页面右上角可打印当前接口，`output/print.html` 提供完整静态打印视图；跨接口查找请使用全局搜索，浏览器自带查找覆盖当前加载的正文。专项检测与其他接口统一从阅读器的分组目录进入。
+
+仅生成预览而不更新 dispatcher 时，Windows 使用 `./build.ps1 -NoSync`，Linux/macOS 使用 `./build.sh --no-sync`。`npm run build` 与默认脚本相同，生成并同步；`npm test` 验证搜索与内容完整性，`npm run test:browser` 验证浏览器交互（默认使用本机 Chrome/Edge；其他环境可先运行 `npx playwright install chromium`，或通过 `CUBE_DOCS_BROWSER` 指定浏览器可执行文件）。
+
+目录用途如下：
+
+| 目录 / 文件 | 用途 |
+| --- | --- |
+| `src/` | 当前接口说明的 apiDoc 注释源码 |
+| `reader/` | 新版阅读器、构建器与验证脚本 |
+| `README.md` | 仓库内的文档说明与构建指南 |
+| `apidoc.json`、`package.json`、`package-lock.json` | 当前文档元信息和锁定的构建依赖 |
+| `build.ps1`、`build.sh` | 新版一键构建入口 |
+| `output/` | 生成好的可发布文件，可将整个目录直接部署到静态站点 |
+| `old/` | 旧版页面、主题、配置与构建脚本归档，默认构建不使用也不发布 |
+
+`output/` 和 `dispatcher/assets/doc/` 均由构建脚本管理，每次构建会清理过期及非产物文件，确保两个目录只包含统一阅读器、接口内容、浏览器资源和完整打印页。`README.md` 仅在仓库内阅读，不构建独立 HTML。接口注释源码、构建脚本、依赖与构建清单均不复制到发布目录。请在上述源码目录中修改文档，再执行构建；不要手工编辑发布目录或在其中存放其他文件。
 
 ## OpenAI 与 Claude SDK 兼容
 
 dispatcher 提供 `/v1/chat/completions`、`/v1/messages`、`/v1/models` 与 `/v1/models/:model`。使用 Cube Token 和现有模型 ID，支持文本、图片、客户端函数工具和真实 SSE；无需创建频道。
 
-接口索引与字段说明见 [Compatibility.js](src/Compatibility.js)。开关为 `dispatcher/config/dispatcher.properties` 中的 `completion.rest.enabled`（默认 `true`；设为 `false` 时 `/v1` 全段返回 404），超时与缓冲见同文件 `completion.rest.*`。
+接口索引与字段说明见 [OpenAI 与 Claude 兼容接口](output/index.html#api-Compatibility)。开关为 `dispatcher/config/dispatcher.properties` 中的 `completion.rest.enabled`（默认 `true`；设为 `false` 时 `/v1` 全段返回 404），超时与缓冲见同文件 `completion.rest.*`。
 
 ## 以对话方式进行绘画解读
 

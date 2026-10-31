@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([switch]$NoSync)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -10,10 +10,10 @@ if ($null -eq $nodeCommand) {
     throw 'Node.js was not found. Install Node.js and ensure node.exe is available on PATH.'
 }
 
-$npxCommand = Get-Command npx.cmd -CommandType Application -All -ErrorAction SilentlyContinue |
+$npmCommand = Get-Command npm.cmd -CommandType Application -All -ErrorAction SilentlyContinue |
     Select-Object -First 1
-if ($null -eq $npxCommand) {
-    throw 'npx was not found. Install npm and ensure npx.cmd is available on PATH.'
+if ($null -eq $npmCommand) {
+    throw 'npm was not found. Install Node.js 18+ with npm and ensure npm.cmd is available on PATH.'
 }
 
 $locationPushed = $false
@@ -21,18 +21,19 @@ try {
     Push-Location -LiteralPath $PSScriptRoot
     $locationPushed = $true
 
-    Write-Host 'Make Baize Server API documents...'
-    & $npxCommand.Path --yes apidoc@0.53.1 -i src -o output
-    $apiDocExitCode = $LASTEXITCODE
-    if ($apiDocExitCode -ne 0) {
-        throw "apiDoc generation failed with exit code $apiDocExitCode."
+    # Reinstall only when the locked dependency set changes or dependencies are missing.
+    $lockHash = (Get-FileHash -LiteralPath 'package-lock.json' -Algorithm SHA256).Hash
+    $stamp = 'node_modules/.cube-docs-lock'
+    if (!(Test-Path -LiteralPath $stamp) -or (Get-Content -LiteralPath $stamp -Raw).Trim() -ne $lockHash) {
+        & $npmCommand.Path ci --include=dev --ignore-scripts --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw 'Documentation dependency installation failed.' }
+        Set-Content -LiteralPath $stamp -Value $lockHash -NoNewline
     }
-
-    Write-Host 'Applying modern theme...'
-    & $nodeCommand.Path apidoc-theme/apply.mjs output
-    $themeExitCode = $LASTEXITCODE
-    if ($themeExitCode -ne 0) {
-        throw "Theme application failed with exit code $themeExitCode."
+    Write-Host 'Building API documentation reader...'
+    if ($NoSync) { & $nodeCommand.Path reader/build.mjs --no-sync }
+    else { & $nodeCommand.Path reader/build.mjs }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Documentation build failed with exit code $LASTEXITCODE."
     }
 }
 finally {
