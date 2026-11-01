@@ -26,7 +26,7 @@
  * @apiBody {Number{0-1}} [scoreThreshold] 树冠置信度阈值，取值范围为 <code>0</code> 至 <code>1</code>（含边界）。省略时使用服务默认值，通常为 <code>0.3</code>。必须传数值类型。
  *
  * @apiExample {url} 请求地址
- *     http://localhost:7010/aigc/forest/detect/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     http://211.157.179.37:7010/aigc/forest/detect/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
  *
  * @apiParamExample {json} 使用默认阈值
  *     {
@@ -151,6 +151,28 @@
  *             "message": "Forest request queue is full or stopping"
  *         }
  *     }
+ *
+ * @apiExample {http} 完整请求：按默认阈值检测已上传图片
+ *     POST http://211.157.179.37:7010/aigc/forest/detect/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "fileCode": "UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHlbzAxepzvKBXapMJJZcNkOXiZpEx"
+ *     }
+ *
+ * @apiExample {javascript} 将检测框换算为图片展示区域的坐标
+ *     // result 为接口响应 JSON，displayWidth 为页面上的图片宽度（等比缩放）。
+ *     function getTreeBoxes(result, displayWidth) {
+ *         const payload = result.data.resultPayload;
+ *         const scale = displayWidth / payload.width;
+ *         return payload.refs.flatMap(region => region.boxes.map(box => ({
+ *             x: box.x1 * scale,
+ *             y: box.y1 * scale,
+ *             width: (box.x2 - box.x1) * scale,
+ *             height: (box.y2 - box.y1) * scale
+ *         })));
+ *     }
+ *     // 若图片容器有留白，再给 x、y 加上图片在容器内的偏移。
  */
 
 
@@ -160,18 +182,17 @@
  * @apiGroup Forest
  * @apiVersion 1.0.0
  *
- * @apiDescription 查询森林场景当前支持的操作、图片限制、默认阈值和服务可用状态。建议在进入检测页面或批量提交图片前调用，并据此校验待上传的图片。
- *                 <p>当 <code>ready=true</code> 且 <code>availableCapacity&gt;0</code> 时，可提交检测请求；<code>ready=false</code> 时提示服务暂不可用；<code>ready=true</code> 且 <code>availableCapacity=0</code> 时提示服务繁忙并稍后查询。</p>
- *                 <p><code>online=true</code> 仅表示存在在线服务实例，是否可提交检测应结合 <code>ready</code> 和 <code>availableCapacity</code> 判断。能力查询成功不代表检测一定成功，可用容量可能变化，客户端仍需处理检测接口的 <code>429</code>、<code>503</code> 等应答。</p>
- *                 <p>本接口使用 GET，无需请求体。返回 <code>code=0</code> 表示查询成功，即使此时没有可用检测服务也可能查询成功。</p>
- *
+ * @apiDescription 查询树冠检测支持的图片格式、大小限制、默认置信度阈值及当前可用状态。可用于上传前校验图片，并决定何时提交检测。
+ *                 <p>先检查 <code>formats</code>、<code>maxBytes</code> 和 <code>maxPixels</code>，超限图片应压缩或缩小后上传。<code>maxFiles=1</code> 表示每个检测请求只提交一张图片；批量处理时分别上传、提交。</p>
+ *                 <p><code>ready=true</code> 且 <code>availableCapacity&gt;0</code> 时可提交检测；<code>ready=false</code> 时提示服务暂不可用；已就绪但容量为 <code>0</code> 时提示繁忙并稍后查询。状态会随请求变化，提交检测时仍需处理 <code>429</code>、<code>503</code>。</p>
+ *                 <p>本接口使用 GET，无需请求体。<code>code=0</code> 表示查询成功，是否能够检测仍需查看上述状态。<code>providerStatuses</code> 等明细可在联系服务提供方排查问题时使用，普通检测页面读取汇总字段即可。</p>
  * @apiParam {String} token 授权令牌。
  *
  * @apiHeader {String} [x-baize-api-device] 客户端设备名，使用获取令牌时的设备信息。
  * @apiHeader {String} [x-baize-api-platform] 客户端平台，使用获取令牌时的平台信息。
  *
  * @apiExample {url} 请求示例
- *     http://localhost:7010/aigc/forest/capability/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     http://211.157.179.37:7010/aigc/forest/capability/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
  *
  * @apiSuccess {Number} code 状态码，<code>0</code> 表示查询成功。
  * @apiSuccess {Object} data 能力信息。
@@ -188,7 +209,19 @@
  * @apiSuccess {Boolean} data.ready 是否存在已就绪的检测服务。为 <code>true</code> 时仍需检查可用容量。
  * @apiSuccess {Number} data.readyProviders 已就绪的服务实例数，包含正在处理请求的实例。
  * @apiSuccess {Number} data.availableCapacity 当前可用的检测容量，<code>0</code> 表示暂时没有空闲容量。
- * @apiSuccess {Object[]} data.providerStatuses 服务实例的状态明细，包含 <code>contactId</code>、<code>domain</code>、<code>state</code>、<code>stage</code>、<code>ready</code>、<code>error</code> 及容量等信息，可用于展示状态或排查不可用原因。没有在线实例时为空数组。
+ * @apiSuccess {Object[]} data.providerStatuses 服务节点状态明细，用于排查不可用原因；调用方通常只需读取顶层 ready 和 availableCapacity。没有在线节点时为空数组。
+ * @apiSuccess {Number} data.providerStatuses.contactId 服务节点的触点标识，仅供诊断关联。
+ * @apiSuccess {String} data.providerStatuses.domain 实例所属域。
+ * @apiSuccess {String} data.providerStatuses.state 实例报告的运行状态；缺失或过期时为 unknown。
+ * @apiSuccess {String} data.providerStatuses.stage 初始化或运行阶段；缺失或过期时为 unknown。
+ * @apiSuccess {Boolean} data.providerStatuses.ready 该实例是否已就绪。
+ * @apiSuccess {String/Null} data.providerStatuses.error 实例错误说明；无错误时为空字符串或 null。
+ * @apiSuccess {String[]} data.providerStatuses.actions 实例报告的操作列表。
+ * @apiSuccess {Number} data.providerStatuses.maxConcurrency 实例报告的并发上限。
+ * @apiSuccess {Number} data.providerStatuses.inFlight 该服务节点正在处理的请求数。
+ * @apiSuccess {Number} data.providerStatuses.availableCapacity 该服务节点当前可接收的检测请求数。
+ * @apiSuccess {String[]} data.providerStatuses.activeRequests 实例报告的活动请求标识列表。
+ * @apiSuccess {Number} data.providerStatuses.updatedAt 节点状态最近更新的 Unix 毫秒时间戳；尚无状态记录时为 0。
  * @apiSuccess {String} data.readiness 状态信息标识，当前为 <code>reported</code>。
  * @apiSuccess {String} data.mode 检测模式标识，当前为 <code>tile</code>。调用检测接口时无需传入。
  *
@@ -247,6 +280,38 @@
  *         "code": 30,
  *         "data": {
  *             "message": "Forest capability unavailable"
+ *         }
+ *     }
+ *
+ * @apiExample {http} 请求地址与请求头
+ *     GET http://211.157.179.37:7010/aigc/forest/capability/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *
+ * @apiSuccessExample {json} 查询成功但检测暂不可用：稍后查询，暂缓提交图片
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "code": 0,
+ *         "data": {
+ *             "plugin": "OmniForest",
+ *             "unit": "OmniForest",
+ *             "actions": [
+ *                 "detection"
+ *             ],
+ *             "formats": [
+ *                 "jpeg",
+ *                 "png"
+ *             ],
+ *             "maxFiles": 1,
+ *             "maxBytes": 20971520,
+ *             "maxPixels": 20000000,
+ *             "scoreThreshold": 0.3,
+ *             "online": false,
+ *             "providers": 0,
+ *             "ready": false,
+ *             "readyProviders": 0,
+ *             "availableCapacity": 0,
+ *             "providerStatuses": [],
+ *             "readiness": "reported",
+ *             "mode": "tile"
  *         }
  *     }
  */

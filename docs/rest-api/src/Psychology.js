@@ -30,6 +30,23 @@
  * @apiSuccess {String} [theme] 报告主题。
  * @apiSuccess {Number} [queuePosition] 报告所在的执行队列位置。当报告状态为<code>7</code>、<code>8</code>正在生成时，该数据表示报告等待执行的队列位置。当值为<code>1</code>时表示排在第一个位置，依此类推。当值为<code>-1</code>时表示没有在队列中，报告已经进入推理阶段。
  * @apiSuccess {Object} [fileLabel] 报告使用的文件。
+ * @apiSuccess {Number} fileLabel.id 文件标签 ID。
+ * @apiSuccess {String} fileLabel.domain 文件所属域。
+ * @apiSuccess {String} fileLabel.fileCode 上传完成的文件码，后续文件接口使用该值。
+ * @apiSuccess {Number} fileLabel.ownerId 文件所有者的触点 ID。
+ * @apiSuccess {String} fileLabel.fileName 原始文件名。
+ * @apiSuccess {Number} fileLabel.fileSize 文件大小，单位：字节。
+ * @apiSuccess {Number} fileLabel.lastModified 原文件最后修改时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} fileLabel.completedTime 上传完成时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} fileLabel.expiryTime 文件到期时间，Unix 毫秒时间戳。
+ * @apiSuccess {String} fileLabel.fileType 文件类型的扩展名，如 jpg、mp3、pdf。
+ * @apiSuccess {String} [fileLabel.md5] 文件内容的 MD5 摘要。
+ * @apiSuccess {String} [fileLabel.sha1] 文件内容的 SHA-1 摘要。
+ * @apiSuccess {String} [fileLabel.fileURL] HTTP 文件访问地址。
+ * @apiSuccess {String} [fileLabel.fileSecureURL] HTTPS 文件访问地址。
+ * @apiSuccess {String} [fileLabel.directURL] 存在时返回的文件直连地址，精简表示可省略。
+ * @apiSuccess {String} [fileLabel.externalURL] 文件的外部来源地址。
+ * @apiSuccess {Object} [fileLabel.context] 业务自定义键值对象，键为字符串，值可为任意 JSON 值；无固定子字段，例如 {"scene":"inspection"}。
  * @apiSuccess {String} [reference] 报告使用的参考标准。
  * @apiSuccess {String} [summary] 报告概述。
  * @apiSuccess {String} [keyFeatureDescription] 关键特征描述（Markdown格式）。
@@ -46,11 +63,39 @@
  * @apiSuccess {Number} [evaluation.accelerator.evaluations.negativeScore] 指标负分得分。
  * @apiSuccess {Boolean} [evaluation.hesitating] 绘画内容可用信息是否较少，从而影响到评估结果。如果该变量为 <code>true</code> ，则不建议使用该结果的 <code>attention</code> 结论。
  * @apiSuccess {Object} [evaluation.factorSet] 测验的各效验因子集合。
- * @apiSuccess {Array}  [evaluation.factorSet.symptoms] 症状因子数组。
- * @apiSuccess {Array}  [evaluation.factorSet.personalities] 人格因子数组。
- * @apiSuccess {Array}  [evaluation.factorSet.affects] 情绪因子数组。
- * @apiSuccess {Array}  [evaluation.additionScales] 附加推荐量表列表。
- * @apiSuccess {Array}  [evaluation.keyFeatures] 关键特征列表。
+ * @apiSuccess {Object[]}  [evaluation.factorSet.symptoms] 症状因子数组。
+ * @apiSuccess {String} evaluation.factorSet.symptoms.name 因子名称标识。
+ * @apiSuccess {Number} evaluation.factorSet.symptoms.value 该因子的数值。
+ * @apiSuccess {Object[]}  [evaluation.factorSet.personalities] 人格因子数组。
+ * @apiSuccess {String} evaluation.factorSet.personalities.name 因子名称标识。
+ * @apiSuccess {Number} evaluation.factorSet.personalities.value 该因子的数值。
+ * @apiSuccess {Object[]}  [evaluation.factorSet.affects] 情绪因子数组。
+ * @apiSuccess {String} evaluation.factorSet.affects.name 因子名称标识。
+ * @apiSuccess {Number} evaluation.factorSet.affects.value 该因子的数值。
+ * @apiSuccess {Object[]}  [evaluation.additionScales] 附加推荐量表列表。
+ * @apiSuccess {Number} evaluation.additionScales.sn 量表实例序号。
+ * @apiSuccess {Number} evaluation.additionScales.contactId 量表所属触点 ID。
+ * @apiSuccess {String} evaluation.additionScales.name 量表标识。
+ * @apiSuccess {String} evaluation.additionScales.displayName 量表显示名称。
+ * @apiSuccess {String} evaluation.additionScales.instruction 量表填写说明。
+ * @apiSuccess {Number} evaluation.additionScales.timestamp 量表创建时间，Unix 毫秒时间戳。
+ * @apiSuccess {Object} [evaluation.additionScales.attribute] 受测者属性。
+ * @apiSuccess {String} evaluation.additionScales.attribute.gender 性别标识。
+ * @apiSuccess {Number} evaluation.additionScales.attribute.age 年龄，单位：岁。
+ * @apiSuccess {String} evaluation.additionScales.attribute.role 受测者角色。
+ * @apiSuccess {String} evaluation.additionScales.attribute.language 报告语言标识 cn 或 en。
+ * @apiSuccess {Boolean} evaluation.additionScales.attribute.strict 是否使用严格评测模式。
+ * @apiSuccess {Object} [evaluation.additionScales.result] 量表完成后返回的结果。
+ * @apiSuccess {Boolean} evaluation.additionScales.result.complete 量表是否已完成。
+ * @apiSuccess {String} [evaluation.additionScales.result.content] 量表结论文本。
+ * @apiSuccess {Object} [evaluation.additionScales.result.score] 按量表因子键索引的评分映射；键由量表定义，每项包含 name（String）、value（因子值）和 level（{level:Number,prefix:String}），例如 {"total":{"name":"总分","value":20,"level":{"level":1,"prefix":"有"}}}。
+ * @apiSuccess {Object[]}  [evaluation.keyFeatures] 关键特征列表。
+ * @apiSuccess {String} evaluation.keyFeatures.name 关键特征名称。
+ * @apiSuccess {String} evaluation.keyFeatures.description 特征说明。
+ * @apiSuccess {Object[]} evaluation.keyFeatures.indicators 该特征关联的指标得分。
+ * @apiSuccess {String} evaluation.keyFeatures.indicators.indicator 指标名称。
+ * @apiSuccess {Number} evaluation.keyFeatures.indicators.value 指标得分。
+ * @apiSuccess {Number} evaluation.keyFeatures.indicators.weight 指标权重。
  * @apiSuccess {Array}  [evaluation.representationList] 绘画表征列表。
  * @apiSuccess {Object} [evaluation.representationList.knowledgeStrategy] 表征对应的知识策略。
  * @apiSuccess {String} [evaluation.representationList.knowledgeStrategy.comment] 知识策略的评论文本。
@@ -58,6 +103,11 @@
  * @apiSuccess {Number} [evaluation.representationList.negativeCorrelation] 负相关强度。
  * @apiSuccess {String} [evaluation.representationList.description] 表征描述文本。
  * @apiSuccess {Object} [evaluation.attribute] 评测使用的受测者属性。
+ * @apiSuccess {String} evaluation.attribute.gender 性别标识。
+ * @apiSuccess {Number} evaluation.attribute.age 年龄，单位：岁。
+ * @apiSuccess {String} evaluation.attribute.role 受测者角色。
+ * @apiSuccess {String} evaluation.attribute.language 报告语言标识 cn 或 en。
+ * @apiSuccess {Boolean} evaluation.attribute.strict 是否使用严格评测模式。
  * @apiSuccess {Number} [evaluation.attention] 评估结果对应的关注等级。
  * @apiSuccess {Array}  [reportTextList] 报告文本列表。
  * @apiSuccess {String} [reportTextList.indicator] 报告内容对应的指标名称。
@@ -164,10 +214,9 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 使用绘画/量表生成心理评测报告。
- *                 <br/>生成绘画报告前，绘画文件使用文件上传接口进行文件上传。
- *                 <br/>生成量表报告时，量表需要完成答案提交。
- *                 <br/>该接口是非阻塞接口，服务器会将该请求放入队列执行，接口返回报告相关信息。使用<code>生成心理评测报告（查询）</code>接口来查询报告生成结果和进度。
+ * @apiDescription 根据绘画或已完成作答的量表生成心理评测报告。绘画先上传并取得文件码；量表先生成实例并提交全部答案。按两种请求示例提供相应参数。
+ *                 <p>提交后保存返回的报告 <code>sn</code>，调用“查询（获取）心理评测报告信息”获取进度与内容。<code>state=7</code> 或 <code>8</code> 时继续等待，<code>0</code> 时读取报告；其他值按状态说明处理。量表实例序号与报告序号分别保存。</p>
+ *                 <p>需要完整报告时使用报告查询接口；只展示摘要或正文时可使用“获取报告指定部分信息”。长响应示例保留代表性指标，实际指标数量以返回结果为准。</p>
  *
  * @apiParam {String} token 授权令牌。
  * 
@@ -243,6 +292,7 @@
  *         }
  *     }
  * 
+ *
  * @apiSuccessExample {json} 量表评测报告应答示例
  *     HTTP/1.1 200 OK
  *     {
@@ -259,25 +309,42 @@
  *         "finished": false,
  *         "finishedTimestamp": 0,
  *         "state": 7,
- *         "factors": [{
- *             "name": "Somatization",
- *             "score": 0.6666666666666666,
- *             "displayName": "躯体化症状",
- *             "suggestion": "",
- *             "description": ""
- *         }, {
- *             "name": "Obsession",
- *             "score": 1,
- *             "displayName": "强迫症状",
- *             "suggestion": "",
- *             "description": ""
- *         },
- *         ... ]
+ *         "factors": [
+ *             {
+ *                 "name": "Somatization",
+ *                 "score": 0.6666666666666666,
+ *                 "displayName": "躯体化症状",
+ *                 "suggestion": "",
+ *                 "description": ""
+ *             },
+ *             {
+ *                 "name": "Obsession",
+ *                 "score": 1,
+ *                 "displayName": "强迫症状",
+ *                 "suggestion": "",
+ *                 "description": ""
+ *             }
+ *         ]
  *     }
- * 
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 提交请求错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/psychology/report/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "theme": "HTP",
+ *         "attribute": {
+ *             "gender": "male",
+ *             "age": 24,
+ *             "language": "cn",
+ *             "strict": false
+ *         },
+ *         "fileCode": "AIjoFDlzyphCHatmTRmoPMhxAwgEXFahaYVpazWLyZTGoySNYxVFBRNYpMsaGLDK",
+ *         "adjust": false
+ *     }
  */
 
 
@@ -287,8 +354,9 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 查询（获取）心理评测报告信息。
- *                 <br/>该接口用于查询报告的生成进度和报告数据。
+ * @apiDescription 查询报告生成进度与内容。提供 <code>sn</code> 查询单份报告；不提供 sn 时使用 <code>page</code>、<code>size</code>、<code>desc</code> 等参数分页查询，页码从 0 开始。
+ *                 <p><code>state=7</code> 或 <code>8</code> 时继续查询，<code>0</code> 表示报告已就绪，其他值按状态说明处理。绘画报告与量表报告包含不同的结果字段，分别参考下方示例。</p>
+ *                 <p>需要 Markdown 全文时设置 <code>markdown=true</code>。下方完成结果仅保留代表性条目；批量查询用于列表展示，详细内容按单份报告查询。</p>
  *
  * @apiParam {String} token 授权令牌。
  * 
@@ -302,9 +370,15 @@
  * @apiUse Report_Response
  * 
  * @apiSuccess {Number} total 查询条件的总记录数。
- * @apiSuccess {Array} list 满足查询条件的当前分页的数据数组。
+ * @apiSuccess {Object[]} list 分页查询时返回的报告对象数组；每项采用本接口下方的单报告字段结构（sn、attribute、state、evaluation 等），可选扩展字段按报告状态和请求参数返回。
+ * @apiSuccess {Number} list.sn 报告序号。
+ * @apiSuccess {String} list.name 报告名称。
+ * @apiSuccess {Number} list.state 报告状态，0 表示完成。
+ * @apiSuccess {Number} list.timestamp 报告创建时间，Unix 毫秒时间戳。
  * @apiSuccess {Number} page 当前分页的页索引。
  * 
+ *
+ *
  * @apiSuccessExample {json} 应答示例-查询指定序号绘画报告
  *     HTTP/1.1 200 OK
  *     {
@@ -325,7 +399,7 @@
  *         "suggestion": {
  *             "title": "寻求就医",
  *             "description": "心理疾病的种类繁多，症状各异，就医后，医生会通过详细的病史询问...",
- *             "action": "PsychiatryDepartment"   
+ *             "action": "PsychiatryDepartment"
  *         },
  *         "contactId": 22003303,
  *         "finished": true,
@@ -378,7 +452,8 @@
  *                         "positiveScore": 2.8813999999999997,
  *                         "negativeScore": 0.5744,
  *                         "value": 4
- *                     }, {
+ *                     },
+ *                     {
  *                         "indicator": "自信",
  *                         "hit": 4,
  *                         "rate": {
@@ -388,7 +463,8 @@
  *                         "positiveScore": 1.5883,
  *                         "negativeScore": 0.6295,
  *                         "value": 2
- *                     }, {
+ *                     },
+ *                     {
  *                         "indicator": "理想主义",
  *                         "hit": 2,
  *                         "rate": {
@@ -398,8 +474,7 @@
  *                         "positiveScore": 1.1381999999999999,
  *                         "negativeScore": 0,
  *                         "value": 2
- *                     },
- *                     ...
+ *                     }
  *                 ]
  *             },
  *             "attention": 0,
@@ -410,31 +485,40 @@
  *                     {
  *                         "name": "somatization",
  *                         "value": 2.0138607025146484
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "obsession",
  *                         "value": 1.7619595527648926
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "interpersonal",
  *                         "value": 1.769364833831787
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "depression",
  *                         "value": 1.9514126777648926
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "anxiety",
  *                         "value": 2.0437886714935303
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "hostile",
  *                         "value": 2.4450478553771973
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "horror",
  *                         "value": 2.2604403495788574
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "paranoid",
  *                         "value": 1.9085214138031006
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "psychosis",
  *                         "value": 2.133737564086914
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "sleepDiet",
  *                         "value": 2.2604622840881348
  *                     }
@@ -443,7 +527,8 @@
  *                     {
  *                         "name": "positive",
  *                         "value": 24.815996170043945
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "negative",
  *                         "value": 21.090620040893555
  *                     }
@@ -452,16 +537,20 @@
  *                     {
  *                         "name": "obligingness",
  *                         "value": 5.890892028808594
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "conscientiousness",
  *                         "value": 6.12178897857666
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "extraversion",
  *                         "value": 4.995666027069092
- *                     }, {
+ *                     },
+ *                     {
  *                         "name": "achievement",
  *                         "value": 6.226171970367432
- *                     },  {
+ *                     },
+ *                     {
  *                         "name": "neuroticism",
  *                         "value": 4.877026557922363
  *                     }
@@ -475,15 +564,15 @@
  *                     "positiveCorrelation": 1,
  *                     "description": "具有情感稳定",
  *                     "negativeCorrelation": 1
- *                 }, {
+ *                 },
+ *                 {
  *                     "knowledgeStrategy": {
  *                         "comment": "社交需求"
  *                     },
  *                     "positiveCorrelation": 2,
  *                     "description": "明显社交需求",
  *                     "negativeCorrelation": 0
- *                 },
- *                 ...
+ *                 }
  *             ],
  *             "attribute": {
  *                 "gender": "male",
@@ -498,55 +587,50 @@
  *                 "name": "Developer",
  *                 "displayName": "开发者",
  *                 "description": "你是良师益友的开发者，你的性格特点是...",
- *                 "scores": [{
- *                     "name": "宜人性",
- *                     "code": "Obligingness",
- *                     "score": 7.13,
- *                     "paraphrase": "宜人性考察个体对他人所持的态度，包括同理心、信任、利他...",
- *                     "content": "高宜人性的人有同情心，能理解他人，相信人性本善，乐于助人...",
- *                     "annotation": {
- *                         "lowDisadvantages": [
- *                             "以自我为中心。",
- *                             ...
- *                         ],
- *                         "lowAdvantages": [
- *                             "讲求实际。",
- *                             ...
- *                         ],
- *                         "highAdvantages": [
- *                             "有同情心、关心别人。",
- *                             ...
- *                         ],
- *                         "highDisadvantages": [
- *                             "过于天真、易受骗。",
- *                             ...
- *                         ]
+ *                 "scores": [
+ *                     {
+ *                         "name": "宜人性",
+ *                         "code": "Obligingness",
+ *                         "score": 7.13,
+ *                         "paraphrase": "宜人性考察个体对他人所持的态度，包括同理心、信任、利他...",
+ *                         "content": "高宜人性的人有同情心，能理解他人，相信人性本善，乐于助人...",
+ *                         "annotation": {
+ *                             "lowDisadvantages": [
+ *                                 "以自我为中心。"
+ *                             ],
+ *                             "lowAdvantages": [
+ *                                 "讲求实际。"
+ *                             ],
+ *                             "highAdvantages": [
+ *                                 "有同情心、关心别人。"
+ *                             ],
+ *                             "highDisadvantages": [
+ *                                 "过于天真、易受骗。"
+ *                             ]
+ *                         }
+ *                     },
+ *                     {
+ *                         "name": "尽责性",
+ *                         "code": "Conscientiousness",
+ *                         "score": 8.09,
+ *                         "paraphrase": "尽责性反映个体自我控制的程度，有具体评估个体在行为上的条理性...",
+ *                         "content": "高尽责性的人有责任感，喜欢制订计划，办事有条有理、一丝不苟...",
+ *                         "annotation": {
+ *                             "lowDisadvantages": [
+ *                                 "责任心不强、不谨慎。"
+ *                             ],
+ *                             "lowAdvantages": [
+ *                                 "有创造性。"
+ *                             ],
+ *                             "highAdvantages": [
+ *                                 "有计划、未雨绸缪。"
+ *                             ],
+ *                             "highDisadvantages": [
+ *                                 "独裁主义。"
+ *                             ]
+ *                         }
  *                     }
- *                 }, {
- *                     "name": "尽责性",
- *                     "code": "Conscientiousness",
- *                     "score": 8.09,
- *                     "paraphrase": "尽责性反映个体自我控制的程度，有具体评估个体在行为上的条理性...",
- *                     "content": "高尽责性的人有责任感，喜欢制订计划，办事有条有理、一丝不苟...",
- *                     "annotation": {
- *                         "lowDisadvantages": [
- *                             "责任心不强、不谨慎。",
- *                             ...
- *                         ],
- *                         "lowAdvantages": [
- *                             "有创造性。",
- *                             ...
- *                         ],
- *                         "highAdvantages": [
- *                             "有计划、未雨绸缪。",
- *                             ...
- *                         ],
- *                         "highDisadvantages": [
- *                             "独裁主义。",
- *                             ...
- *                         ]
- *                     }
- *                 }, ...]
+ *                 ]
  *             }
  *         },
  *         "dimensionScore": {
@@ -615,12 +699,11 @@
  *                 "title": "理想主义者",
  *                 "report": "你可能在日常的生活中...",
  *                 "suggestion": "应当积极地参与到..."
- *             },
- *             ...
+ *             }
  *         ],
- *         "markdown": "# 一般报告\n\n> 男    24岁\n> 2024-04-24 11:26:18..."
+ *         "markdown": "# 一般报告\n\n> 男    24岁\n> 2024-04-24 11:26:18...",
+ *         "finishedTimestamp": 1713929183941
  *     }
- *
  * @apiSuccessExample {json} 应答示例-查询指定序号绘画报告（正在生成报告）
  *     HTTP/1.1 200 OK
  *     {
@@ -655,6 +738,8 @@
  *         }
  *     }
  * 
+ *
+ *
  * @apiSuccessExample {json} 应答示例-查询指定序号量表报告
  *     HTTP/1.1 200 OK
  *     {
@@ -685,28 +770,58 @@
  *                 "displayName": "强迫症状",
  *                 "description": "您没有明显强迫症状...",
  *                 "suggestion": "您没有明显强迫症状，请继续保持。"
- *              },
- *              ...
+ *             }
  *         ]
  *     }
- * 
+ *
  * @apiSuccessExample {json} 应答示例-批量查询结果
  *     HTTP/1.1 200 OK
  *     {
  *         "total": 2,
  *         "page": 0,
- *         "list": [{
- *             "sn": 2642761518,
- *             "contactId": 22003303,
- *             ...
- *         }, {
- *             ...
- *         }]
+ *         "list": [
+ *             {
+ *                 "sn": 1119207859,
+ *                 "theme": "Generic",
+ *                 "name": "AXL-20240731178843",
+ *                 "attribute": {
+ *                     "gender": "male",
+ *                     "age": 24,
+ *                     "language": "cn",
+ *                     "strict": false
+ *                 },
+ *                 "state": 0,
+ *                 "contactId": 22003303,
+ *                 "finished": true,
+ *                 "timestamp": 1713929178941,
+ *                 "finishedTimestamp": 1713929183941
+ *             },
+ *             {
+ *                 "sn": 2960942553,
+ *                 "contactId": 22003303,
+ *                 "name": "AXL-20240731178843",
+ *                 "attribute": {
+ *                     "gender": "male",
+ *                     "strict": false,
+ *                     "language": "cn",
+ *                     "age": 29
+ *                 },
+ *                 "finished": true,
+ *                 "finishedTimestamp": 1722416990942,
+ *                 "state": 0,
+ *                 "timestamp": 1722416990677
+ *             }
+ *         ]
  *     }
- *
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 提交请求错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     GET http://211.157.179.37:7010/aigc/psychology/report/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG?sn=1119207859&markdown=true
+ *
+ * @apiParamExample {http} 分页列出已完成报告
+ *     GET http://211.157.179.37:7010/aigc/psychology/report/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG?page=0&size=10&desc=true&state=0
  */
 
 
@@ -716,8 +831,8 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 获取报告指定部分信息。
- *                 <br/>该接口可按照指定内容获取报告数据。
+ * @apiDescription 按需读取报告正文、摘要、分段内容或链接，适合按页面展示需要减少响应体积。<code>sn</code> 使用报告序号；至少将需要展示的内容开关设为 <code>true</code>。
+ *                 <p>例如正文页使用 <code>content=true</code>，摘要卡片使用 <code>summary=true&amp;rating=true</code>。<code>state=7</code> 或 <code>8</code> 时继续等待，<code>0</code> 时读取所请求的内容；正文及部分说明采用 Markdown 格式。</p>
  *
  * @apiParam {String} token 授权令牌。
  * 
@@ -737,27 +852,58 @@
  *                            <p><code>9</code>：<span class="default-value">发生故障</span></p>
  * @apiSuccess {Number} timestamp 报告的时间戳。报告未就绪时同样返回。
  * @apiSuccess {String} [content] 报告内容，格式：Markdown 。仅当 <code>state</code> 为 <code>0</code> 且请求了 <code>content</code> 时返回。
- * @apiSuccess {Array}  [sections] 报告分段内容列表，格式：Markdown 。仅当 <code>state</code> 为 <code>0</code> 且请求了 <code>section</code> 时返回。
+ * @apiSuccess {Object[]} [sections] 报告分段对象列表；report、suggestion 为 Markdown 文本。仅当 <code>state</code> 为 <code>0</code> 且请求了 <code>section</code> 时返回。
+ * @apiSuccess {String} sections.indicator 报告段落对应的指标名称。
+ * @apiSuccess {String} sections.title 段落标题。
+ * @apiSuccess {String} sections.report 段落报告正文，按访问权限裁剪。
+ * @apiSuccess {String} sections.suggestion 该指标的建议文本，按访问权限裁剪。
+ * @apiSuccess {Object} sections.rate 指标评级。
+ * @apiSuccess {Number} sections.rate.value 评级数值。
+ * @apiSuccess {String} sections.rate.displayName 评级文字说明。
  * @apiSuccess {String} [thought] 报告推理思维文本内容，格式：Markdown 。仅当 <code>state</code> 为 <code>0</code> 且请求了 <code>thought</code> 时返回。
  * @apiSuccess {String} [summary] 报告摘要，格式：Markdown 。请求了 <code>summary</code> 时返回。
- * @apiSuccess {Object} [rating] 评分与关注点数据。请求了 <code>rating</code> 时返回。
+ * @apiSuccess {String} [rating] 评分、关注等级与建议，格式：Markdown。请求了 <code>rating</code> 时返回，内容按访问权限裁剪。
  * @apiSuccess {String} [link] 报告在线页面链接。请求了 <code>link</code> 时返回；链接指向 <code>/aigc/psychology/report/page</code>。
  * 
- * @apiSuccessExample {json} 应答示例
+ *
+ *
+ * @apiSuccessExample {json} 正文与分段内容（代表性段落）
  *     HTTP/1.1 200 OK
  *     {
  *         "sn": 1671400196,
  *         "state": 0,
- *         "content": "根据您提供的绘画图片...",
+ *         "timestamp": 1793322000000,
+ *         "content": "# 评测报告\n\n请结合近期生活情况阅读本报告。",
  *         "sections": [
- *             ...
- *         ],
- *         "thought": "我看到的绘画画面的特征如下：\n* 画面的画幅占画布整体面积较大。该特征说明受测人有以下心理特征：具有自我存在，具有外向，具有防御性。..."
+ *             {
+ *                 "indicator": "人际关系",
+ *                 "title": "人际关系",
+ *                 "report": "你倾向于保留独立空间。",
+ *                 "suggestion": "可尝试与信任的人交流近期感受。",
+ *                 "rate": {
+ *                     "value": 3,
+ *                     "displayName": "中等"
+ *                 }
+ *             }
+ *         ]
  *     }
- * 
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 提交请求错误。
+ *
+ * @apiSuccessExample {json} 报告仍在处理
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 1671400196,
+ *         "state": 7,
+ *         "timestamp": 1793322000000
+ *     }
+ *
+ * @apiParamExample {http} 仅查询摘要与评级
+ *     GET http://211.157.179.37:7010/aigc/psychology/report/part/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG?sn=1671400196&summary=true&rating=true
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     GET http://211.157.179.37:7010/aigc/psychology/report/part/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG?sn=1671400196&content=true&section=true
  */
 
 
@@ -767,7 +913,8 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 停止已经提交的心理学报告生成任务。该接口将正在排队执行的的生成任务从队列里移除，如果报告已经完成生成或者正在推理则无法停止。
+ * @apiDescription 尝试停止已提交、尚未开始生成的报告任务，<code>sn</code> 使用报告序号。适合用户在等待阶段取消任务。
+ *                 <p>已经完成或已经开始生成的任务无法停止。调用后按应答状态更新界面，必要时再次查询报告，确认最终状态。</p>
  *
  * @apiParam {String} token 授权令牌。
  * 
@@ -817,6 +964,14 @@
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 没有符合要求的报告任务。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/psychology/stop/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "sn": 1119207859
+ *     }
  */
 
 
@@ -849,6 +1004,14 @@
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 提交请求错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/psychology/check/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "fileCode": "qxplztvpmoyuZatmTRmoPMfHOGKuNPWnEGRNMDgzmHVuWySNYxZRHhHYrSMcuNLq"
+ *     }
  */
 
 
@@ -858,8 +1021,9 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  * 
- * @apiDescription 重置或重算指定报告的部分数据。
- * 
+ * @apiDescription 调整已生成绘画报告的关注等级。<code>sn</code> 使用报告序号；提供 <code>attention</code> 时设置指定等级，省略时重新计算关注等级。
+ *                 <p>本接口用于关注等级调整。成功后返回更新后的报告数据，展示时读取 <code>attention.level</code> 与 <code>attention.desc</code>，按需重新查询报告页面。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiBody {Number} sn 待操作报告序号。
@@ -878,6 +1042,43 @@
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 提交请求错误。
+ *
+ * @apiParamExample {json} 设置为一般关注
+ *     {
+ *         "sn": 3245827114,
+ *         "attention": 1
+ *     }
+ *
+ * @apiSuccessExample {json} 更新后的报告（代表性结果字段）
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 3245827114,
+ *         "theme": "Generic",
+ *         "name": "AXL-20240731178843",
+ *         "attribute": {
+ *             "gender": "male",
+ *             "age": 24,
+ *             "language": "cn",
+ *             "strict": false
+ *         },
+ *         "state": 0,
+ *         "attention": {
+ *             "level": 1,
+ *             "desc": "一般关注"
+ *         },
+ *         "contactId": 22003303,
+ *         "finished": true,
+ *         "timestamp": 1713929178941,
+ *         "finishedTimestamp": 1713929183941
+ *     }
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/psychology/report/reset/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "sn": 3245827114
+ *     }
  */
 
 
@@ -887,8 +1088,9 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 获取可用的量表清单。
- * 
+ * @apiDescription 查询可供生成的量表名称与显示名，适合构建量表选择页面。
+ *                 <p>将清单中的 <code>name</code> 传给“生成量表”；清单里的名称与生成后返回的实例 <code>sn</code> 用途不同。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiSuccess {Number} total 总数量。
@@ -913,6 +1115,9 @@
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 数据错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     GET http://211.157.179.37:7010/aigc/psychology/scales/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
  */
 
 
@@ -922,8 +1127,9 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 根据量表名生成量表实例。
- * 
+ * @apiDescription 选择量表名称，并提供受测人年龄与性别，创建一次作答所用的量表实例。量表名应来自“获取可用的量表清单”。
+ *                 <p>保存返回的实例 <code>sn</code>，按 <code>sections[].questions[]</code> 渲染题目与选项，使用“提交量表的答题卡”保存作答。示例保留一个章节中的一道题，真实题目与选项数量以实际返回为准。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiBody {String} name 指定量表名。
@@ -939,6 +1145,7 @@
  * 
  * @apiUse Scale_Response
  * 
+ *
  * @apiSuccessExample {json} 应答示例
  *     HTTP/1.1 200 OK
  *     {
@@ -953,31 +1160,47 @@
  *             "strict": false
  *         },
  *         "timestamp": 1716371198762,
- *         "sections": [{
- *             "title": "第一部分",
- *             "content": "哪一答案最接近地描述了你通常的思考和行为方式。",
- *             "questions": [{
- *                 "sn": 1,
- *                 "choice": "single",
- *                 "content": "当你某日想去某个地方，你会____？",
- *                 "answers": [{
- *                     "sn": 1,
- *                     "code": "A",
- *                     "content": "A. 计划好将做的事情以及何时做",
- *                     "chosen": false
- *                 }, {
- *                     "sn": 1,
- *                     "code": "B",
- *                     "content": "B. 什么都不想就去",
- *                     "chosen": false
- *                 }]
- *             }, ... ]
- *         }, ... ]
+ *         "sections": [
+ *             {
+ *                 "title": "第一部分",
+ *                 "content": "哪一答案最接近地描述了你通常的思考和行为方式。",
+ *                 "questions": [
+ *                     {
+ *                         "sn": 1,
+ *                         "choice": "single",
+ *                         "content": "当你某日想去某个地方，你会____？",
+ *                         "answers": [
+ *                             {
+ *                                 "sn": 1,
+ *                                 "code": "A",
+ *                                 "content": "A. 计划好将做的事情以及何时做",
+ *                                 "chosen": false
+ *                             },
+ *                             {
+ *                                 "sn": 1,
+ *                                 "code": "B",
+ *                                 "content": "B. 什么都不想就去",
+ *                                 "chosen": false
+ *                             }
+ *                         ]
+ *                     }
+ *                 ]
+ *             }
+ *         ]
  *     }
- * 
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 数据错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/psychology/scales/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "name": "P-91",
+ *         "gender": "male",
+ *         "age": 29
+ *     }
  */
 
 
@@ -987,14 +1210,16 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 获取已经生成的量表数据。
- * 
+ * @apiDescription 通过量表实例序号 <code>sn</code> 读取题目、选项和已经保存的作答，用于继续答题或回看结果。
+ *                 <p>用选项的 <code>chosen</code> 恢复选择状态；存在 <code>result</code> 时检查 <code>result.complete</code>，再展示计算结果。示例保留一个章节中的一道题，真实数据应遍历全部章节与题目。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiQuery {Number} sn 已生成的量表实例的序号。
  * 
  * @apiUse Scale_Response
  * 
+ *
  * @apiSuccessExample {json} 应答示例
  *     HTTP/1.1 200 OK
  *     {
@@ -1009,28 +1234,35 @@
  *             "strict": false
  *         },
  *         "timestamp": 1716371198762,
- *         "sections": [{
- *             "title": "第一部分",
- *             "content": "哪一答案最接近地描述了你通常的思考和行为方式。",
- *             "questions": [{
- *                 "sn": 1,
- *                 "choice": "single",
- *                 "content": "当你某日想去某个地方，你会____？",
- *                 "answers": [{
- *                     "sn": 1,
- *                     "code": "A",
- *                     "content": "A. 计划好将做的事情以及何时做",
- *                     "chosen": false
- *                 }, {
- *                     "sn": 1,
- *                     "code": "B",
- *                     "content": "B. 什么都不想就去",
- *                     "chosen": false
- *                 }]
- *             }, ... ]
- *         }, ... ]
+ *         "sections": [
+ *             {
+ *                 "title": "第一部分",
+ *                 "content": "哪一答案最接近地描述了你通常的思考和行为方式。",
+ *                 "questions": [
+ *                     {
+ *                         "sn": 1,
+ *                         "choice": "single",
+ *                         "content": "当你某日想去某个地方，你会____？",
+ *                         "answers": [
+ *                             {
+ *                                 "sn": 1,
+ *                                 "code": "A",
+ *                                 "content": "A. 计划好将做的事情以及何时做",
+ *                                 "chosen": false
+ *                             },
+ *                             {
+ *                                 "sn": 1,
+ *                                 "code": "B",
+ *                                 "content": "B. 什么都不想就去",
+ *                                 "chosen": false
+ *                             }
+ *                         ]
+ *                     }
+ *                 ]
+ *             }
+ *         ]
  *     }
- * 
+ *
  * @apiSuccessExample {json} 应答示例-带评测结果数据
  *     HTTP/1.1 200 OK
  *     {
@@ -1045,26 +1277,33 @@
  *             "strict": false
  *         },
  *         "timestamp": 1716371198762,
- *         "sections": [{
- *             "title": "第一部分",
- *             "content": "哪一答案最接近地描述了你通常的思考和行为方式。",
- *             "questions": [{
- *                 "sn": 1,
- *                 "choice": "single",
- *                 "content": "当你某日想去某个地方，你会____？",
- *                 "answers": [{
- *                     "sn": 1,
- *                     "code": "A",
- *                     "content": "A. 计划好将做的事情以及何时做",
- *                     "chosen": true
- *                 }, {
- *                     "sn": 1,
- *                     "code": "B",
- *                     "content": "B. 什么都不想就去",
- *                     "chosen": false
- *                 }]
- *             }, ... ]
- *         }, ... ],
+ *         "sections": [
+ *             {
+ *                 "title": "第一部分",
+ *                 "content": "哪一答案最接近地描述了你通常的思考和行为方式。",
+ *                 "questions": [
+ *                     {
+ *                         "sn": 1,
+ *                         "choice": "single",
+ *                         "content": "当你某日想去某个地方，你会____？",
+ *                         "answers": [
+ *                             {
+ *                                 "sn": 1,
+ *                                 "code": "A",
+ *                                 "content": "A. 计划好将做的事情以及何时做",
+ *                                 "chosen": true
+ *                             },
+ *                             {
+ *                                 "sn": 1,
+ *                                 "code": "B",
+ *                                 "content": "B. 什么都不想就去",
+ *                                 "chosen": false
+ *                             }
+ *                         ]
+ *                     }
+ *                 ]
+ *             }
+ *         ],
  *         "result": {
  *             "complete": true,
  *             "content": "**性格类型** ：总经理（ESTJ）\n\n...",
@@ -1104,11 +1343,12 @@
  *             }
  *         }
  *     }
- * 
- * 
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 数据错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     GET http://211.157.179.37:7010/aigc/psychology/scale/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG?sn=613095974
  */
 
 
@@ -1118,8 +1358,10 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 提交量表的答题卡，并返回结果。提交的答题卡答案会记录到数据库中，如果提交的答题卡不完整，则不返回量表的计算结果。
- * 
+ * @apiDescription 保存指定量表实例的作答并获取当前评测结果。先生成量表或获取量表数据，顶层 <code>sn</code> 使用量表实例序号，<code>answers[].sn</code> 使用题目序号，<code>choice</code> 使用该题返回的选项编码。
+ *                 <p>可以提交部分答案，<code>complete=false</code> 表示尚未答完，此时不生成完整计算结果；收集全部题目答案后再确认 <code>complete=true</code>。题目与选项须以实际量表为准，示例中的三题仅展示提交格式。</p>
+ *                 <p>完整作答后如需生成文字报告，再调用“生成心理评测报告”，传入量表实例序号；报告接口返回新的报告序号，用它查询报告。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiBody {Number} sn 量表实例的序号。
@@ -1127,21 +1369,26 @@
  * @apiBody {Number} answers.sn 答案序号。
  * @apiBody {String} answers.choice 该答案被选中的答案代码。
  * 
- * @apiParamExample {json} 请求示例
+ *
+ *
+ * @apiParamExample {json} 部分作答：前三题的提交格式
  *     {
  *         "sn": 613095974,
- *         "answers": [{
- *             "sn": 1,
- *             "choice": "A"
- *         }, {
- *             "sn": 2,
- *             "choice": "B"
- *         }, {
- *             "sn": 3,
- *             "choice": "B"
- *         }, ... ]
+ *         "answers": [
+ *             {
+ *                 "sn": 1,
+ *                 "choice": "A"
+ *             },
+ *             {
+ *                 "sn": 2,
+ *                 "choice": "B"
+ *             },
+ *             {
+ *                 "sn": 3,
+ *                 "choice": "B"
+ *             }
+ *         ]
  *     }
- * 
  * @apiSuccess {Boolean} complete 是否已完成答题。
  * @apiSuccess {String} [content] 测验结果内容描述。
  * @apiSuccess {Object} [score] 量表相关项计分。
@@ -1156,7 +1403,9 @@
  *                                          <p><code>4</code>：<span class="default-value">重度</span></p>
  * @apiSuccess {String} [score.level.prefix] 相关项得分的等级前缀。
  * 
- * @apiSuccessExample {json} 应答示例
+ *
+ *
+ * @apiSuccessExample {json} 全部作答后的结果结构（分值因子节选）
  *     HTTP/1.1 200 OK
  *     {
  *         "complete": true,
@@ -1201,14 +1450,40 @@
  *                 },
  *                 "name": "敌对性症状",
  *                 "value": 0.6666666666666666
- *             },
- *             ...
+ *             }
  *         }
  *     }
- * 
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 数据错误。
+ *
+ * @apiSuccessExample {json} 尚未完成全部题目
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "complete": false
+ *     }
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/psychology/scale/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "sn": 613095974,
+ *         "answers": [
+ *             {
+ *                 "sn": 1,
+ *                 "choice": "A"
+ *             },
+ *             {
+ *                 "sn": 2,
+ *                 "choice": "B"
+ *             },
+ *             {
+ *                 "sn": 3,
+ *                 "choice": "B"
+ *             }
+ *         ]
+ *     }
  */
 
 
@@ -1273,7 +1548,24 @@
  * @apiSuccess {String} date 该对话的日期时间描述。
  * @apiSuccess {String} company 该对话所属的机构名称。
  * @apiSuccess {Number} timestamp 该对话的时间戳。
- * @apiSuccess {Array}  [queryFileLabels] 本次对话关联的输入文件标签列表。
+ * @apiSuccess {Object[]}  [queryFileLabels] 本次对话关联的输入文件标签列表。
+ * @apiSuccess {Number} queryFileLabels.id 文件标签 ID。
+ * @apiSuccess {String} queryFileLabels.domain 文件所属域。
+ * @apiSuccess {String} queryFileLabels.fileCode 上传完成的文件码，后续文件接口使用该值。
+ * @apiSuccess {Number} queryFileLabels.ownerId 文件所有者的触点 ID。
+ * @apiSuccess {String} queryFileLabels.fileName 原始文件名。
+ * @apiSuccess {Number} queryFileLabels.fileSize 文件大小，单位：字节。
+ * @apiSuccess {Number} queryFileLabels.lastModified 原文件最后修改时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} queryFileLabels.completedTime 上传完成时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} queryFileLabels.expiryTime 文件到期时间，Unix 毫秒时间戳。
+ * @apiSuccess {String} queryFileLabels.fileType 文件类型的扩展名，如 jpg、mp3、pdf。
+ * @apiSuccess {String} [queryFileLabels.md5] 文件内容的 MD5 摘要。
+ * @apiSuccess {String} [queryFileLabels.sha1] 文件内容的 SHA-1 摘要。
+ * @apiSuccess {String} [queryFileLabels.fileURL] HTTP 文件访问地址。
+ * @apiSuccess {String} [queryFileLabels.fileSecureURL] HTTPS 文件访问地址。
+ * @apiSuccess {String} [queryFileLabels.directURL] 存在时返回的文件直连地址，精简表示可省略。
+ * @apiSuccess {String} [queryFileLabels.externalURL] 文件的外部来源地址。
+ * @apiSuccess {Object} [queryFileLabels.context] 业务自定义键值对象，键为字符串，值可为任意 JSON 值；无固定子字段，例如 {"scene":"inspection"}。
  * @apiSuccess {Object} context 上下文。
  * @apiSuccess {Number} context.id 上下文数据的 ID 。
  * @apiSuccess {String} context.domain 上下文所属的域。
@@ -1327,12 +1619,12 @@
  *                 "completedTime": 1733447662913,
  *                 "fileCode": "yEryPsWMYphCHatmTRmoPMvlSKqyfJCFkchtgjgFYVfKQaAzmnbVHHboRYwquJJY",
  *                 "ownerId": 22003303,
- *                 "fileSecureURL": "https://localhost:7017/filestorage/file/?fc=yEryPsWMYphCHatmTRmoPMvlSKqyfJCFkchtgjgFYVfKQaAzmnbVHHboRYwquJJY&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=jpg",
+ *                 "fileSecureURL": "https://211.157.179.37:7017/filestorage/file/?fc=yEryPsWMYphCHatmTRmoPMvlSKqyfJCFkchtgjgFYVfKQaAzmnbVHHboRYwquJJY&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=jpg",
  *                 "sha1": "6ed780c20f5d2dde1d3f7d333495b5dcc4b03bf3",
  *                 "fileSize": 3397892,
  *                 "domain": "default_domain",
  *                 "expiryTime": 3310247662913,
- *                 "fileURL": "http://localhost:7010/filestorage/file/?fc=yEryPsWMYphCHatmTRmoPMvlSKqyfJCFkchtgjgFYVfKQaAzmnbVHHboRYwquJJY&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=jpg",
+ *                 "fileURL": "http://211.157.179.37:7010/filestorage/file/?fc=yEryPsWMYphCHatmTRmoPMvlSKqyfJCFkchtgjgFYVfKQaAzmnbVHHboRYwquJJY&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=jpg",
  *                 "id": 641150805,
  *                 "lastModified": 1733447657006,
  *                 "fileType": "jpg",
@@ -1376,12 +1668,12 @@
  *                 "completedTime": 1733447662913,
  *                 "fileCode": "yEryPsWMYphCHatmTRmoPMvlSKqyfJCFkchtgjgFYVfKQaAzmnbVHHboRYwquJJY",
  *                 "ownerId": 22003303,
- *                 "fileSecureURL": "https://localhost:7017/filestorage/file/?fc=yEryPsWMYphCHatmTRmoPMvlSKqyfJCFkchtgjgFYVfKQaAzmnbVHHboRYwquJJY&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=jpg",
+ *                 "fileSecureURL": "https://211.157.179.37:7017/filestorage/file/?fc=yEryPsWMYphCHatmTRmoPMvlSKqyfJCFkchtgjgFYVfKQaAzmnbVHHboRYwquJJY&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=jpg",
  *                 "sha1": "6ed780c20f5d2dde1d3f7d333495b5dcc4b03bf3",
  *                 "fileSize": 3397892,
  *                 "domain": "default_domain",
  *                 "expiryTime": 3310247662913,
- *                 "fileURL": "http://localhost:7010/filestorage/file/?fc=yEryPsWMYphCHatmTRmoPMvlSKqyfJCFkchtgjgFYVfKQaAzmnbVHHboRYwquJJY&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=jpg",
+ *                 "fileURL": "http://211.157.179.37:7010/filestorage/file/?fc=yEryPsWMYphCHatmTRmoPMvlSKqyfJCFkchtgjgFYVfKQaAzmnbVHHboRYwquJJY&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=jpg",
  *                 "id": 641150805,
  *                 "lastModified": 1733447657006,
  *                 "fileType": "jpg",
@@ -1394,6 +1686,21 @@
  * @apiError 400 参数错误。
  * @apiError 401 令牌错误。
  * @apiError 404 数据错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/psychology/converse/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "channelCode": "mnxRSaLdPuHEVaKA",
+ *         "relations": [
+ *             {
+ *                 "name": "张伟",
+ *                 "reportSn": 3694234996
+ *             }
+ *         ],
+ *         "query": "这个人目前的状态对工作有什么影响？"
+ *     }
  */
 
 
@@ -1403,9 +1710,9 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 根据不同的主题生成综合型测评内容。<br/>
- *                 该接口调用成功后返回任务的<code>sn</code>，通过该<code>sn</code>调用查询接口查询生成结果。
- * 
+ * @apiDescription 根据主题组织多份受测信息，生成综合测评内容。按主题要求提供绘画与选项等数据，参与人的姓名、属性、文件码和选择应各自对应。
+ *                 <p>保存本接口返回的任务 <code>sn</code>，调用对应的查询接口获取结果。该任务序号与源绘画报告、量表实例的序号分别保存，查询时不要混用。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiBody {String} theme 测评主题。
@@ -1484,17 +1791,17 @@
  *                 "completedTime": 1749263561240,
  *                 "fileCode": "nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq",
  *                 "ownerId": 22003303,
- *                 "fileSecureURL": "https://192.168.0.110:7017/filestorage/file/?fc=nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
+ *                 "fileSecureURL": "https://211.157.179.37:7017/filestorage/file/?fc=nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
  *                 "sha1": "9b1eddbb41a63673cde918d3df258feb1e5db02c",
  *                 "fileSize": 9780382,
  *                 "domain": "default_domain",
  *                 "expiryTime": 3326063561240,
- *                 "fileURL": "http://192.168.0.110:7010/filestorage/file/?fc=nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
+ *                 "fileURL": "http://211.157.179.37:7010/filestorage/file/?fc=nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
  *                 "id": 3058081652,
  *                 "lastModified": 1749263544177,
  *                 "fileType": "png",
  *                 "md5": "1ddffe6f33dbeac7d2cba66a93df55e4"
- *             }],          
+ *             }],
  *             "choices": [
  *                 "战场",
  *                 "旋律",
@@ -1513,12 +1820,12 @@
  *                 "completedTime": 1749263612902,
  *                 "fileCode": "suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS",
  *                 "ownerId": 22003303,
- *                 "fileSecureURL": "https://192.168.0.110:7017/filestorage/file/?fc=suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
+ *                 "fileSecureURL": "https://211.157.179.37:7017/filestorage/file/?fc=suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
  *                 "sha1": "0bff84d75a61b49ce1a4f19210aacf3fa5d82dcc",
  *                 "fileSize": 12484530,
  *                 "domain": "default_domain",
  *                 "expiryTime": 3326063612902,
- *                 "fileURL": "http://192.168.0.110:7010/filestorage/file/?fc=suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
+ *                 "fileURL": "http://211.157.179.37:7010/filestorage/file/?fc=suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
  *                 "id": 1764616229,
  *                 "lastModified": 1749263592306,
  *                 "fileType": "png",
@@ -1535,6 +1842,46 @@
  * @apiError 400 系统故障。
  * @apiError 401 令牌无效。
  * @apiError 403 参数格式错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/psychology/comprehensive/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "theme": "SRBC",
+ *         "comprehensives": [
+ *             {
+ *                 "name": "受测人1",
+ *                 "attribute": {
+ *                     "gender": "male",
+ *                     "age": 29
+ *                 },
+ *                 "fileCodes": [
+ *                     "nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq"
+ *                 ],
+ *                 "choices": [
+ *                     "战场",
+ *                     "旋律",
+ *                     "影子"
+ *                 ]
+ *             },
+ *             {
+ *                 "name": "受测人2",
+ *                 "attribute": {
+ *                     "gender": "female",
+ *                     "age": 26
+ *                 },
+ *                 "fileCodes": [
+ *                     "suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS"
+ *                 ],
+ *                 "choices": [
+ *                     "港湾",
+ *                     "灯火",
+ *                     "影子"
+ *                 ]
+ *             }
+ *         ]
+ *     }
  */
 
 /**
@@ -1543,8 +1890,9 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 查询综合型主题测评内容。
- * 
+ * @apiDescription 查询对应执行接口创建的生成任务，<code>sn</code> 使用该执行接口返回的任务序号。
+ *                 <p><code>state=7</code> 或 <code>8</code> 时稍后重查；<code>state=0</code> 时展示生成内容，其他值按任务异常处理。长响应示例保留代表性章节，实际展示应遍历全部返回内容。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiQuery {Number} sn 报告序号。
@@ -1567,12 +1915,34 @@
  * @apiSuccess {String} comprehensives.name 参与测评的受测人名称。
  * @apiSuccess {String} [comprehensives.role] 参与测评的受测人角色。
  * @apiSuccess {Object} comprehensives.attribute 参与测评的受测人属性信息。
+ * @apiSuccess {String} comprehensives.attribute.gender 性别标识。
+ * @apiSuccess {Number} comprehensives.attribute.age 年龄，单位：岁。
+ * @apiSuccess {String} comprehensives.attribute.role 受测者角色。
+ * @apiSuccess {String} comprehensives.attribute.language 报告语言标识 cn 或 en。
+ * @apiSuccess {Boolean} comprehensives.attribute.strict 是否使用严格评测模式。
  * @apiSuccess {Array}  comprehensives.choices 参与测评的受测人选择的关键词数组。
  * @apiSuccess {Array}  comprehensives.sections 该受测人的测评结果段落。
  * @apiSuccess {String} [comprehensives.sections.indicator] 该受测人的测评分类指标名称。
  * @apiSuccess {String} comprehensives.sections.title 该受测人的指标标题。
  * @apiSuccess {Array}  comprehensives.sections.contents 该受测人的指标内容数组。
- * @apiSuccess {Array}  comprehensives.files 该受测人的关联文件数组。（数据格式参看文件标签）
+ * @apiSuccess {Object[]}  comprehensives.files 该受测人的关联文件数组。（数据格式参看文件标签）
+ * @apiSuccess {Number} comprehensives.files.id 文件标签 ID。
+ * @apiSuccess {String} comprehensives.files.domain 文件所属域。
+ * @apiSuccess {String} comprehensives.files.fileCode 上传完成的文件码，后续文件接口使用该值。
+ * @apiSuccess {Number} comprehensives.files.ownerId 文件所有者的触点 ID。
+ * @apiSuccess {String} comprehensives.files.fileName 原始文件名。
+ * @apiSuccess {Number} comprehensives.files.fileSize 文件大小，单位：字节。
+ * @apiSuccess {Number} comprehensives.files.lastModified 原文件最后修改时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} comprehensives.files.completedTime 上传完成时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} comprehensives.files.expiryTime 文件到期时间，Unix 毫秒时间戳。
+ * @apiSuccess {String} comprehensives.files.fileType 文件类型的扩展名，如 jpg、mp3、pdf。
+ * @apiSuccess {String} [comprehensives.files.md5] 文件内容的 MD5 摘要。
+ * @apiSuccess {String} [comprehensives.files.sha1] 文件内容的 SHA-1 摘要。
+ * @apiSuccess {String} [comprehensives.files.fileURL] HTTP 文件访问地址。
+ * @apiSuccess {String} [comprehensives.files.fileSecureURL] HTTPS 文件访问地址。
+ * @apiSuccess {String} [comprehensives.files.directURL] 存在时返回的文件直连地址，精简表示可省略。
+ * @apiSuccess {String} [comprehensives.files.externalURL] 文件的外部来源地址。
+ * @apiSuccess {Object} [comprehensives.files.context] 业务自定义键值对象，键为字符串，值可为任意 JSON 值；无固定子字段，例如 {"scene":"inspection"}。
  * @apiSuccess {Array}  comprehensives.scales 该受测人的关联量表数组。（数据格式参看量表）
  * @apiSuccess {Number} comprehensives.scales.contactId 量表所属的触点ID 。
  * @apiSuccess {String} comprehensives.scales.name 量表名称。
@@ -1581,6 +1951,7 @@
  * @apiSuccess {Number} comprehensives.scales.sn 量表序号。
  * @apiSuccess {Number} comprehensives.scales.timestamp 量表创建时的时间戳。
  * 
+ *
  * @apiSuccessExample {json} 应答示例
  *     HTTP/1.1 200 OK
  *     {
@@ -1591,180 +1962,217 @@
  *         "finished": true,
  *         "elapsed": 165480,
  *         "summary": "你们的爱情像一场温柔而复杂的拉锯战，充满了抓与逃、依赖与自由的矛盾...",
- *         "sections": [{
- *             "title": "双人潜意识合盘——融合区（你们共同潜意识的基石）",
- *             "contents": [
- *                 "你们的关系就像一首动人的交响乐，时而激昂，时而温柔，充满了张力与共鸣。榕树和蒲公英看似截然不同..."
- *             ]
- *         }],
- *         "comprehensives": [{
- *             "name": "受测人1",
- *             "attribute": {
- *                 "gender": "male",
- *                 "language": "cn",
- *                 "strict": false,
- *                 "age": 29
+ *         "sections": [
+ *             {
+ *                 "title": "双人潜意识合盘——融合区（你们共同潜意识的基石）",
+ *                 "contents": [
+ *                     "你们的关系就像一首动人的交响乐，时而激昂，时而温柔，充满了张力与共鸣。榕树和蒲公英看似截然不同..."
+ *                 ]
+ *             }
+ *         ],
+ *         "comprehensives": [
+ *             {
+ *                 "name": "受测人1",
+ *                 "attribute": {
+ *                     "gender": "male",
+ *                     "language": "cn",
+ *                     "strict": false,
+ *                     "age": 29
+ *                 },
+ *                 "choices": [
+ *                     "战场",
+ *                     "旋律",
+ *                     "影子"
+ *                 ],
+ *                 "sections": [
+ *                     {
+ *                         "indicator": "Dandelion",
+ *                         "title": "蒲公英型",
+ *                         "contents": [
+ *                             "你们的关系洒脱不羁，彼此保持着适度的独立与自由。虽然你们乐于给予对方广阔的发展空间，但这种开放式的相处方式也可能使感情显得不够稳固，难以建立深厚的情感纽带。"
+ *                         ]
+ *                     },
+ *                     {
+ *                         "title": "你隐藏的期待，TA并未察觉",
+ *                         "contents": [
+ *                             "作为蒲公英型的你，外表洒脱不羁，像一阵风一样来去自由，但内心深处其实渴望有一个能让自己安心停靠的港湾..."
+ *                         ]
+ *                     }
+ *                 ],
+ *                 "files": [
+ *                     {
+ *                         "fileName": "painting_20250607_01.jpg",
+ *                         "completedTime": 1749263561240,
+ *                         "fileCode": "nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq",
+ *                         "ownerId": 22003303,
+ *                         "fileSecureURL": "https://211.157.179.37:7017/filestorage/file/?fc=nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
+ *                         "sha1": "9b1eddbb41a63673cde918d3df258feb1e5db02c",
+ *                         "fileSize": 9780382,
+ *                         "domain": "default_domain",
+ *                         "expiryTime": 3326063561240,
+ *                         "fileURL": "http://211.157.179.37:7010/filestorage/file/?fc=nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
+ *                         "id": 3058081652,
+ *                         "lastModified": 1749263544177,
+ *                         "fileType": "png",
+ *                         "md5": "1ddffe6f33dbeac7d2cba66a93df55e4"
+ *                     }
+ *                 ],
+ *                 "scales": [
+ *                     {
+ *                         "contactId": 22003303,
+ *                         "displayName": "Subconscious Relationship Between a Couple",
+ *                         "instruction": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。",
+ *                         "scoringScript": "",
+ *                         "name": "SRBC",
+ *                         "sn": 1299731740,
+ *                         "sections": [
+ *                             {
+ *                                 "questions": [
+ *                                     {
+ *                                         "sn": 1,
+ *                                         "choice": "multiple",
+ *                                         "prompt": "",
+ *                                         "inferenceResult": "",
+ *                                         "content": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。",
+ *                                         "questionContent": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。",
+ *                                         "hidden": false,
+ *                                         "inference": "",
+ *                                         "answerContent": "",
+ *                                         "answers": [
+ *                                             {
+ *                                                 "code": "1",
+ *                                                 "sn": 1,
+ *                                                 "content": "港湾",
+ *                                                 "chosen": false
+ *                                             },
+ *                                             {
+ *                                                 "code": "2",
+ *                                                 "sn": 1,
+ *                                                 "content": "战场",
+ *                                                 "chosen": true
+ *                                             },
+ *                                             {
+ *                                                 "code": "3",
+ *                                                 "sn": 1,
+ *                                                 "content": "舞台",
+ *                                                 "chosen": false
+ *                                             }
+ *                                         ]
+ *                                     }
+ *                                 ],
+ *                                 "title": "",
+ *                                 "content": ""
+ *                             }
+ *                         ],
+ *                         "timestamp": 1773912803217
+ *                     }
+ *                 ]
  *             },
- *             "choices": [
- *                 "战场",
- *                 "旋律",
- *                 "影子"
- *             ],
- *             "sections": [{
- *                 "indicator": "Dandelion",
- *                 "title": "蒲公英型",
- *                 "contents": [
- *                     "你们的关系洒脱不羁，彼此保持着适度的独立与自由。虽然你们乐于给予对方广阔的发展空间，但这种开放式的相处方式也可能使感情显得不够稳固，难以建立深厚的情感纽带。"
+ *             {
+ *                 "name": "受测人2",
+ *                 "attribute": {
+ *                     "gender": "female",
+ *                     "language": "cn",
+ *                     "strict": false,
+ *                     "age": 26
+ *                 },
+ *                 "choices": [
+ *                     "港湾",
+ *                     "灯火",
+ *                     "影子"
+ *                 ],
+ *                 "sections": [
+ *                     {
+ *                         "indicator": "BanyanTree",
+ *                         "title": "榕树型",
+ *                         "contents": [
+ *                             "你们的爱如同榕树般，独木成林，根系相互交织，彼此紧密依存。你们习惯了共生，热衷于分享生活的点滴，但偶尔也会因过度的依恋而失去各自的私人空间。"
+ *                         ]
+ *                     },
+ *                     {
+ *                         "title": "你隐藏的期待，TA并未察觉",
+ *                         "contents": [
+ *                             "作为榕树型的你，外表看似依赖又温暖，渴望与对方紧密相连，但内心深处其实藏着一个未被言说的期待——你渴望被更深地看见..."
+ *                         ]
+ *                     }
+ *                 ],
+ *                 "files": [
+ *                     {
+ *                         "fileName": "painting_20250607_02jpg",
+ *                         "completedTime": 1749263612902,
+ *                         "fileCode": "suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS",
+ *                         "ownerId": 22003303,
+ *                         "fileSecureURL": "https://211.157.179.37:7017/filestorage/file/?fc=suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
+ *                         "sha1": "0bff84d75a61b49ce1a4f19210aacf3fa5d82dcc",
+ *                         "fileSize": 12484530,
+ *                         "domain": "default_domain",
+ *                         "expiryTime": 3326063612902,
+ *                         "fileURL": "http://211.157.179.37:7010/filestorage/file/?fc=suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
+ *                         "id": 1764616229,
+ *                         "lastModified": 1749263592306,
+ *                         "fileType": "png",
+ *                         "md5": "80e41c112327f58c875091390a1a550f"
+ *                     }
+ *                 ],
+ *                 "scales": [
+ *                     {
+ *                         "contactId": 22003303,
+ *                         "displayName": "Subconscious Relationship Between a Couple",
+ *                         "instruction": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。",
+ *                         "scoringScript": "",
+ *                         "name": "SRBC",
+ *                         "sn": 4124029206,
+ *                         "sections": [
+ *                             {
+ *                                 "questions": [
+ *                                     {
+ *                                         "questionContent": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。",
+ *                                         "hidden": false,
+ *                                         "inference": "",
+ *                                         "answerContent": "",
+ *                                         "answers": [
+ *                                             {
+ *                                                 "code": "1",
+ *                                                 "sn": 1,
+ *                                                 "content": "港湾",
+ *                                                 "chosen": true
+ *                                             },
+ *                                             {
+ *                                                 "code": "2",
+ *                                                 "sn": 1,
+ *                                                 "content": "战场",
+ *                                                 "chosen": false
+ *                                             },
+ *                                             {
+ *                                                 "code": "3",
+ *                                                 "sn": 1,
+ *                                                 "content": "舞台",
+ *                                                 "chosen": false
+ *                                             }
+ *                                         ],
+ *                                         "sn": 1,
+ *                                         "choice": "multiple",
+ *                                         "prompt": "",
+ *                                         "inferenceResult": "",
+ *                                         "content": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。"
+ *                                     }
+ *                                 ],
+ *                                 "title": "",
+ *                                 "content": ""
+ *                             }
+ *                         ],
+ *                         "timestamp": 1773912803224
+ *                     }
  *                 ]
- *             }, {
- *                 "title": "你隐藏的期待，TA并未察觉",
- *                 "contents": [
- *                     "作为蒲公英型的你，外表洒脱不羁，像一阵风一样来去自由，但内心深处其实渴望有一个能让自己安心停靠的港湾..."
- *                 ]
- *             }],
- *             "files": [{
- *                 "fileName": "painting_20250607_01.jpg",
- *                 "completedTime": 1749263561240,
- *                 "fileCode": "nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq",
- *                 "ownerId": 22003303,
- *                 "fileSecureURL": "https://192.168.0.110:7017/filestorage/file/?fc=nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
- *                 "sha1": "9b1eddbb41a63673cde918d3df258feb1e5db02c",
- *                 "fileSize": 9780382,
- *                 "domain": "default_domain",
- *                 "expiryTime": 3326063561240,
- *                 "fileURL": "http://192.168.0.110:7010/filestorage/file/?fc=nspmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcLDQyIwNMRlhLlNItGGkETJq&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
- *                 "id": 3058081652,
- *                 "lastModified": 1749263544177,
- *                 "fileType": "png",
- *                 "md5": "1ddffe6f33dbeac7d2cba66a93df55e4"
- *             }],
- *             "scales": [{
- *                 "contactId": 22003303,
- *                 "displayName": "Subconscious Relationship Between a Couple",
- *                 "instruction": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。",
- *                 "scoringScript": "",
- *                 "name": "SRBC",
- *                 "sn": 1299731740,
- *                 "sections": [{
- *                     "questions": [{
- *                         "sn": 1,
- *                         "choice": "multiple",
- *                         "prompt": "",
- *                         "inferenceResult": "",
- *                         "content": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。",
- *                         "questionContent": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。",
- *                         "hidden": false,
- *                         "inference": "",
- *                         "answerContent": "",
- *                         "answers": [{
- *                             "code": "1",
- *                             "sn": 1,
- *                             "content": "港湾",
- *                             "chosen": false
- *                         }, {
- *                             "code": "2",
- *                             "sn": 1,
- *                             "content": "战场",
- *                             "chosen": true
- *                         }, {
- *                             "code": "3",
- *                             "sn": 1,
- *                             "content": "舞台",
- *                             "chosen": false
- *                         }, ...]
- *                     }],
- *                     "title": "",
- *                     "content": ""
- *                 }],
- *                 "timestamp": 1773912803217
- *             }]
- *         }, {
- *             "name": "受测人2",
- *             "attribute": {
- *                 "gender": "female",
- *                 "language": "cn",
- *                 "strict": false,
- *                 "age": 26
- *             },
- *             "choices": [
- *                 "港湾",
- *                 "灯火",
- *                 "影子"
- *             ],
- *             "sections": [{
- *                 "indicator": "BanyanTree",
- *                 "title": "榕树型",
- *                 "contents": [
- *                     "你们的爱如同榕树般，独木成林，根系相互交织，彼此紧密依存。你们习惯了共生，热衷于分享生活的点滴，但偶尔也会因过度的依恋而失去各自的私人空间。"
- *                 ]
- *             }, {
- *                 "title": "你隐藏的期待，TA并未察觉",
- *                 "contents": [
- *                     "作为榕树型的你，外表看似依赖又温暖，渴望与对方紧密相连，但内心深处其实藏着一个未被言说的期待——你渴望被更深地看见..."
- *                 ]
- *             }],
- *             "files": [{
- *                 "fileName": "painting_20250607_02jpg",
- *                 "completedTime": 1749263612902,
- *                 "fileCode": "suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS",
- *                 "ownerId": 22003303,
- *                 "fileSecureURL": "https://192.168.0.110:7017/filestorage/file/?fc=suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
- *                 "sha1": "0bff84d75a61b49ce1a4f19210aacf3fa5d82dcc",
- *                 "fileSize": 12484530,
- *                 "domain": "default_domain",
- *                 "expiryTime": 3326063612902,
- *                 "fileURL": "http://192.168.0.110:7010/filestorage/file/?fc=suuAxsWMYphCHatmTRmoPMvlSKqyfJCpOEZzctsvcNTcgsejcbxLVXxWpKMaQHXS&token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&type=png",
- *                 "id": 1764616229,
- *                 "lastModified": 1749263592306,
- *                 "fileType": "png",
- *                 "md5": "80e41c112327f58c875091390a1a550f"
- *             }],
- *             "scales": [{
- *                 "contactId": 22003303,
- *                 "displayName": "Subconscious Relationship Between a Couple",
- *                 "instruction": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。",
- *                 "scoringScript": "",
- *                 "name": "SRBC",
- *                 "sn": 4124029206,
- *                 "sections": [{
- *                     "questions": [{
- *                         "questionContent": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。",
- *                         "hidden": false,
- *                         "inference": "",
- *                         "answerContent": "",
- *                         "answers": [{
- *                             "code": "1",
- *                             "sn": 1,
- *                             "content": "港湾",
- *                             "chosen": true
- *                         }, {
- *                             "code": "2",
- *                             "sn": 1,
- *                             "content": "战场",
- *                             "chosen": false
- *                         }, {
- *                             "code": "3",
- *                             "sn": 1,
- *                             "content": "舞台",
- *                             "chosen": false
- *                         }, ...],
- *                         "sn": 1,
- *                         "choice": "multiple",
- *                         "prompt": "",
- *                         "inferenceResult": "",
- *                         "content": "请从以下12个词语中，直觉选择3个最符合你们关系氛围的词。"
- *                     }],
- *                     "title": "",
- *                     "content": ""
- *                 }],
- *                 "timestamp": 1773912803224
- *             }]
- *         }]
+ *             }
+ *         ]
  *     }
- * 
  * @apiError 400 系统故障。
  * @apiError 401 令牌无效。
  * @apiError 403 参数格式错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     GET http://211.157.179.37:7010/aigc/psychology/comprehensive/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG?sn=782225854
  */
 
 
@@ -1774,10 +2182,9 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 以模板化方式生成绘画内容里指定的分析指标的测评报告。例如：使用 <code>depression</code> 模板生成针对抑郁倾向指标的分析结果。<br/>
- *                 该接口对于报告内容会进行通俗化描述，以便通俗化阅读。<br/>
- *                 该接口调用成功后返回任务的<code>sn</code>，通过该<code>sn</code>调用查询接口查询推理结果。
- * 
+ * @apiDescription 根据绘画生成指定分析指标的文字报告。先上传绘画取得 fileCode，提供受测属性 attribute、绘画主题 theme 与模板名 templateName；例如 depression 模板用于抑郁倾向分析。
+ *                 <p>保存本接口返回的任务 <code>sn</code>，调用对应的查询接口获取结果。该任务序号与源绘画报告、量表实例的序号分别保存，查询时不要混用。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiBody {Object} attribute 受测人信息。
@@ -1833,6 +2240,20 @@
  * @apiError 400 系统故障。
  * @apiError 401 令牌无效。
  * @apiError 403 参数格式错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/psychology/template/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "attribute": {
+ *             "age": 31,
+ *             "gender": "male"
+ *         },
+ *         "theme": "HTP",
+ *         "templateName": "depression",
+ *         "fileCode": "ntpmAGrMYphCHatmTRmoPMvlSKqyfJCpOEZzSvkveLDQyIwNMRlhLlNItGGkEJLi"
+ *     }
  */
 
 /**
@@ -1841,8 +2262,9 @@
  * @apiGroup Psychology
  * @apiVersion 1.0.0
  *
- * @apiDescription 查询以模板化方式生成绘画内容里指定的分析指标的测评报告。
- * 
+ * @apiDescription 查询对应执行接口创建的生成任务，<code>sn</code> 使用该执行接口返回的任务序号。
+ *                 <p><code>state=7</code> 或 <code>8</code> 时稍后重查；<code>state=0</code> 时展示生成内容，其他值按任务异常处理。长响应示例保留代表性章节，实际展示应遍历全部返回内容。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiQuery {Number} sn 报告序号。
@@ -1919,4 +2341,7 @@
  * @apiError 400 系统故障。
  * @apiError 401 令牌无效。
  * @apiError 403 参数格式错误。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     GET http://211.157.179.37:7010/aigc/psychology/template/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG?sn=985740654
  */

@@ -5,8 +5,25 @@
 
 /**
  * @apiDefine GenerativeRecordAsAttachment
- * @apiBody {Array} [records.object.queryAdditions] 与<code>queryFileLabels</code>参数二选一。附加推理文本内容。如果文本内容超过模型上下文窗口长度将自动截断超出的文本内容。
- * @apiBody {Array} [records.object.queryFileLabels] 与<code>queryAdditions</code>参数二选一。附加推理文件的 <code>FileLabel</code> 对象。使用文件上传接口上传文件后，获得该文件的 <code>FileLabel</code> 对象。
+ * @apiBody {String[]} [records.queryAdditions] 与<code>queryFileLabels</code>参数二选一。附加推理文本内容。如果文本内容超过模型上下文窗口长度将自动截断超出的文本内容。
+ * @apiBody {Object[]} [records.queryFileLabels] 与<code>queryAdditions</code>参数二选一。附加推理文件的 <code>FileLabel</code> 对象。使用文件上传接口上传文件后，获得该文件的 <code>FileLabel</code> 对象。
+ * @apiBody {Number} records.queryFileLabels.id 文件标签 ID。
+ * @apiBody {String} records.queryFileLabels.domain 文件所属域。
+ * @apiBody {String} records.queryFileLabels.fileCode 上传完成的文件码，后续文件接口使用该值。
+ * @apiBody {Number} records.queryFileLabels.ownerId 文件所有者的触点 ID。
+ * @apiBody {String} records.queryFileLabels.fileName 原始文件名。
+ * @apiBody {Number} records.queryFileLabels.fileSize 文件大小，单位：字节。
+ * @apiBody {Number} records.queryFileLabels.lastModified 原文件最后修改时间，Unix 毫秒时间戳。
+ * @apiBody {Number} records.queryFileLabels.completedTime 上传完成时间，Unix 毫秒时间戳。
+ * @apiBody {Number} records.queryFileLabels.expiryTime 文件到期时间，Unix 毫秒时间戳。
+ * @apiBody {String} records.queryFileLabels.fileType 文件类型的扩展名，如 jpg、mp3、pdf。
+ * @apiBody {String} [records.queryFileLabels.md5] 文件内容的 MD5 摘要。
+ * @apiBody {String} [records.queryFileLabels.sha1] 文件内容的 SHA-1 摘要。
+ * @apiBody {String} [records.queryFileLabels.fileURL] HTTP 文件访问地址。
+ * @apiBody {String} [records.queryFileLabels.fileSecureURL] HTTPS 文件访问地址。
+ * @apiBody {String} [records.queryFileLabels.directURL] 存在时返回的文件直连地址，精简表示可省略。
+ * @apiBody {String} [records.queryFileLabels.externalURL] 文件的外部来源地址。
+ * @apiBody {Object} [records.queryFileLabels.context] 业务自定义键值对象，键为字符串，值可为任意 JSON 值；无固定子字段，例如 {"scene":"inspection"}。
  */
 
 
@@ -16,7 +33,8 @@
  * @apiGroup Natural_Language_Processing
  * @apiVersion 1.0.0
  *
- * @apiDescription 对指定文本执行分词，返回词条数组。该接口为同步接口，由 AIGC 服务的分词器直接处理，不经过大模型推理。
+ * @apiDescription 将中文文本拆分为词语数组，适合关键词预处理、检索词拆分或文本统计。提交需要处理的原文，在本次请求中读取结果。
+ *                 <p>结果保留文本中的词语顺序；具体切分方式以返回数组为准，不宜将词数直接视为字符数。</p>
  *
  * @apiParam {String} token 授权令牌。
  *
@@ -31,17 +49,37 @@
  * @apiSuccess {String[]} result 分词结果数组。
  * @apiSuccess {Number} elapsed 分词耗时，单位：毫秒。
  *
+ *
  * @apiSuccessExample {json} 应答示例
  *     HTTP/1.1 200 OK
  *     {
- *         "total": 6,
- *         "result": ["时信", "魔方", "是", "一款", "面向", "开发者"],
+ *         "total": 11,
+ *         "result": [
+ *             "时信",
+ *             "魔方",
+ *             "是",
+ *             "一款",
+ *             "面向",
+ *             "开发者",
+ *             "的",
+ *             "实时",
+ *             "协作",
+ *             "开发",
+ *             "框架"
+ *         ],
  *         "elapsed": 3
  *     }
- *
  * @apiError 400 分词执行失败。
  * @apiError 401 Token 无效。
  * @apiError 403 请求体解析失败或缺少 <code>text</code> 字段。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/nlp/segmentation/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "text": "时信魔方是一款面向开发者的实时协作开发框架"
+ *     }
  */
 
 
@@ -51,7 +89,8 @@
  * @apiGroup Natural_Language_Processing
  * @apiVersion 1.0.0
  *
- * @apiDescription 在知识库问答语料中按语义检索与查询内容相关的问答对。服务端最长等待 90 秒。
+ * @apiDescription 在知识库问答数据中检索与输入语义接近的问答对，适合查找相似问题与已有回答。
+ *                 <p>先确认目标知识库已有可用数据，再提交搜索条件。单次请求最长等待约 90 秒，客户端应设置足够的超时时间；没有匹配项时按空结果展示。</p>
  *
  * @apiParam {String} token 授权令牌。
  *
@@ -86,6 +125,21 @@
  * @apiError 400 检索执行失败。
  * @apiError 401 Token 无效。
  * @apiError 403 请求体解析失败或缺少 <code>query</code> 字段。
+ *
+ * @apiSuccessExample {json} 没有匹配的问答对
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "query": "什么是固态电池",
+ *         "result": []
+ *     }
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/nlp/semantic/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "query": "什么是固态电池"
+ *     }
  */
 
 
@@ -95,7 +149,8 @@
  * @apiGroup Natural_Language_Processing
  * @apiVersion 1.0.0
  *
- * @apiDescription 生成文本的内容摘要。
+ * @apiDescription 为输入文本生成简要摘要，可用于文章概览、会议内容提要或长文本阅读辅助。
+ *                 <p>将完整原文放入 <code>text</code>，从本次应答的 <code>summarization</code> 字段读取摘要。该接口不提供摘要长度参数，需要明确字数或格式时可使用“文本内容生成与推理”。</p>
  *
  * @apiParam {String} token 授权令牌。
  *
@@ -119,6 +174,14 @@
  * @apiError 403 参数错误。
  * @apiError 404 任务参数不完整。
  * @apiError 406 接口拒绝请求。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/nlp/summarization/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "text": "时信魔方是一款面向开发者的实时协作开发框架，旨在帮助开发者快速建立基础的实时协作能力，让开发者能够集中精力解决用户的复杂业务需求，提高用户满意度。时信魔方框架结构采用了分层设计，包括用户界面层、业务逻辑层、数据存储层和框架管理层。"
+ *     }
  */
 
 
@@ -138,12 +201,9 @@
  * @apiBody {String} content 发送给模型的对话内容。内容长度受限于所选择模型的限制，不同模型可接收的内容长度不同。长度超限时返回错误。
  * @apiBody {String} [unit] 可选参数。指定需要使用的模型名称。支持<code>Baize</code>和<code>Baize2</code> 两个模型，默认值：<code>Baize</code>。
  * @apiBody {Object} [option] 可选参数。指定模型的工作参数。
- * @apiBody {Number} [option.temperature] 可选参数。指定 <code>Temperature</code> 参数。默认值：<code>0.3</code>。<br/>
- *                   该参数控制着生成的随机性。较高的温度值会增加文本的多样性和创造性，但可能会牺牲一些准确性或连贯性。具体地，<code>temperature</code> 会调整概率输出的 <b>softmax</b> 概率分布，如果 <code>temperature</code> 的值为<code>1</code>，则没有任何调整；如果其值比<code>1</code>大，则会生成更加随机的文本；如果其值比<code>1</code>小，则生成的文本更加保守。
- * @apiBody {Number} [option.topP] 可选参数。指定 <code>Top P</code> 参数。默认值：<code>0.85</code>。<br/>
- *                   单步累计采用阈值，值越大越多 <b>token</b> 会被考虑。如果累计概率已经超过0.85，剩下的 token 不会被考虑。
- * @apiBody {Number} [option.topK] 可选参数。指定 <code>Top K</code> 参数。默认值：<code>5</code>。<br/>
- *                   单步采用 <b>token</b> 的数量，值越大采用 <b>token</b> 会越多。单步中最多考虑的 <b>token</b> 数量。
+ * @apiBody {Number} [option.temperature] 控制生成内容的随机性，默认 0.3。需要较稳定的问答时使用较低值，创作和改写时可适当提高；支持范围以所选模型为准。
+ * @apiBody {Number} [option.topP] 控制输出多样性，默认 0.85。通常保留默认值；调参时建议先调整 temperature，再按生成效果调整。
+ * @apiBody {Number} [option.topK] 控制候选内容的范围，默认 5；需要更丰富表达时可适当增加，具体支持情况以所选模型为准。
  * @apiBody {Number} [option.repetitionPenalty] 可选参数。指定 <code>Repetition Penalty</code> 参数。默认值：<code>1.05</code>。<br/>
  *                   重复惩罚值，值越大越不会生成重复 <b>token</b> 。较高的值意味着更强的惩罚，生成的文本中将出现更少的重复。如果取值为<code>0</code>，则没有惩罚，生成的文本可能包含大量重复的内容。
  * @apiBody {Number} [option.maxNewTokens] 可选参数。指定 <code>Max New Tokens</code> 参数。默认值：<code>2048</code>。<br/>
@@ -198,7 +258,101 @@
  * @apiSuccess {Object} context 回复的上下文数据。
  * @apiSuccess {Number} context.id 上下文数据的 ID 。
  * @apiSuccess {Boolean} context.simplex 是否是单一上下文描述。
- * @apiSuccess {Array} context.resources 上下文关联的资源清单。
+ * @apiSuccess {Object[]} context.resources 上下文关联的资源列表；按 subject 区分结构，无关联资源时为 []。
+ * @apiSuccess {Number} context.resources.sn 资源序列号。
+ * @apiSuccess {String} context.resources.subject 资源类型：File、Hyperlink、Attachment、Chart 或 Widget。
+ * @apiSuccess {Object} [context.resources.fileLabel] subject=File 时的文件标签；此类型不使用 payload。
+ * @apiSuccess {Number} [context.resources.fileLabel.id] 文件标签 ID。
+ * @apiSuccess {String} [context.resources.fileLabel.domain] 文件所属域。
+ * @apiSuccess {String} [context.resources.fileLabel.fileCode] 上传完成的文件码，后续文件接口使用该值。
+ * @apiSuccess {Number} [context.resources.fileLabel.ownerId] 文件所有者的触点 ID。
+ * @apiSuccess {String} [context.resources.fileLabel.fileName] 原始文件名。
+ * @apiSuccess {Number} [context.resources.fileLabel.fileSize] 文件大小，单位：字节。
+ * @apiSuccess {Number} [context.resources.fileLabel.lastModified] 原文件最后修改时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} [context.resources.fileLabel.completedTime] 上传完成时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} [context.resources.fileLabel.expiryTime] 文件到期时间，Unix 毫秒时间戳。
+ * @apiSuccess {String} [context.resources.fileLabel.fileType] 文件类型的扩展名，如 jpg、mp3、pdf。
+ * @apiSuccess {String} [context.resources.fileLabel.md5] 文件内容的 MD5 摘要。
+ * @apiSuccess {String} [context.resources.fileLabel.sha1] 文件内容的 SHA-1 摘要。
+ * @apiSuccess {String} [context.resources.fileLabel.fileURL] HTTP 文件访问地址。
+ * @apiSuccess {String} [context.resources.fileLabel.fileSecureURL] HTTPS 文件访问地址。
+ * @apiSuccess {String} [context.resources.fileLabel.directURL] 存在时返回的文件直连地址，精简表示可省略。
+ * @apiSuccess {String} [context.resources.fileLabel.externalURL] 文件的外部来源地址。
+ * @apiSuccess {Object} [context.resources.fileLabel.context] 业务自定义键值对象，键为字符串，值可为任意 JSON 值；无固定子字段，例如 {"scene":"inspection"}。
+ * @apiSuccess {Object} [context.resources.payload] 非 File 类型的资源内容。下面各组子字段仅在对应 subject 下出现；例如附件资源为 {"attachments":[{"id":1671400196,"type":"Report"}]}。
+ * @apiSuccess {String} [context.resources.payload.url] subject=Hyperlink 时的资源 URL。
+ * @apiSuccess {String} [context.resources.payload.site] subject=Hyperlink 时的站点名称。
+ * @apiSuccess {String} [context.resources.payload.metaType] subject=Hyperlink 时的媒体类型标识。
+ * @apiSuccess {String} [context.resources.payload.mimeType] subject=Hyperlink 时的 MIME 类型。
+ * @apiSuccess {String} [context.resources.payload.title] subject=Hyperlink 时可返回的标题；subject=Chart 时为图表资源标题。
+ * @apiSuccess {String} [context.resources.payload.content] subject=Hyperlink 时可返回的正文。
+ * @apiSuccess {String} [context.resources.payload.illustration] subject=Hyperlink 时可返回的摘要说明。
+ * @apiSuccess {Number} [context.resources.payload.numWords] subject=Hyperlink 时可返回的正文字符数。
+ * @apiSuccess {String} [context.resources.payload.path] subject=Hyperlink 时可返回的服务端存储路径。
+ * @apiSuccess {Number} [context.resources.payload.size] subject=Hyperlink 时可返回的资源字节数。
+ * @apiSuccess {String} [context.resources.payload.format] subject=Hyperlink 且资源为图片时的格式。
+ * @apiSuccess {Number} [context.resources.payload.width] 图片资源宽度，单位：像素。
+ * @apiSuccess {Number} [context.resources.payload.height] 图片资源高度，单位：像素。
+ * @apiSuccess {String} [context.resources.payload.thumbnail] 图片资源的缩略图地址。
+ * @apiSuccess {Object[]} [context.resources.payload.attachments] subject=Attachment 时的附件列表；每项至少含 id 和 type。
+ * @apiSuccess {Number} context.resources.payload.attachments.id 附件 ID；type=Report 时即报告序号。
+ * @apiSuccess {String} context.resources.payload.attachments.type 附件类型，如 Report、Thing、Card。
+ * @apiSuccess {Object} [context.resources.payload.attachments.fileLabel] Report 附件关联的文件标签（若存在）。
+ * @apiSuccess {Number} [context.resources.payload.attachments.fileLabel.id] 文件标签 ID。
+ * @apiSuccess {String} [context.resources.payload.attachments.fileLabel.domain] 文件所属域。
+ * @apiSuccess {String} [context.resources.payload.attachments.fileLabel.fileCode] 上传完成的文件码，后续文件接口使用该值。
+ * @apiSuccess {Number} [context.resources.payload.attachments.fileLabel.ownerId] 文件所有者的触点 ID。
+ * @apiSuccess {String} [context.resources.payload.attachments.fileLabel.fileName] 原始文件名。
+ * @apiSuccess {Number} [context.resources.payload.attachments.fileLabel.fileSize] 文件大小，单位：字节。
+ * @apiSuccess {Number} [context.resources.payload.attachments.fileLabel.lastModified] 原文件最后修改时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} [context.resources.payload.attachments.fileLabel.completedTime] 上传完成时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} [context.resources.payload.attachments.fileLabel.expiryTime] 文件到期时间，Unix 毫秒时间戳。
+ * @apiSuccess {String} [context.resources.payload.attachments.fileLabel.fileType] 文件类型的扩展名，如 jpg、mp3、pdf。
+ * @apiSuccess {String} [context.resources.payload.attachments.fileLabel.md5] 文件内容的 MD5 摘要。
+ * @apiSuccess {String} [context.resources.payload.attachments.fileLabel.sha1] 文件内容的 SHA-1 摘要。
+ * @apiSuccess {String} [context.resources.payload.attachments.fileLabel.fileURL] HTTP 文件访问地址。
+ * @apiSuccess {String} [context.resources.payload.attachments.fileLabel.fileSecureURL] HTTPS 文件访问地址。
+ * @apiSuccess {String} [context.resources.payload.attachments.fileLabel.directURL] 存在时返回的文件直连地址，精简表示可省略。
+ * @apiSuccess {String} [context.resources.payload.attachments.fileLabel.externalURL] 文件的外部来源地址。
+ * @apiSuccess {Object} [context.resources.payload.attachments.fileLabel.context] 业务自定义键值对象，键为字符串，值可为任意 JSON 值；无固定子字段，例如 {"scene":"inspection"}。
+ * @apiSuccess {String} [context.resources.payload.attachments.content] Thing 附件的正文。
+ * @apiSuccess {Object[]} [context.resources.payload.attachments.actions] Thing 附件可返回的操作按钮。
+ * @apiSuccess {Number} context.resources.payload.attachments.actions.id 按钮 ID。
+ * @apiSuccess {String} context.resources.payload.attachments.actions.name 控件名。
+ * @apiSuccess {Boolean} context.resources.payload.attachments.actions.disposable 是否为一次性控件。
+ * @apiSuccess {String} context.resources.payload.attachments.actions.text 按钮显示文本。
+ * @apiSuccess {Boolean} context.resources.payload.attachments.actions.loading 当前固定为 false。
+ * @apiSuccess {Object} [context.resources.payload.chart] subject=Chart 时的图表配置，字段如下。
+ * @apiSuccess {String} context.resources.payload.chart.name 图表名称。
+ * @apiSuccess {String} context.resources.payload.chart.desc 图表说明。
+ * @apiSuccess {Number} context.resources.payload.chart.timestamp 图表时间，Unix 毫秒时间戳。
+ * @apiSuccess {Object} [context.resources.payload.chart.title] 可选标题配置，遵循 ECharts title 选项；键和值由图表配置定义，例如 {"text":"统计","left":"center"}。
+ * @apiSuccess {Object} [context.resources.payload.chart.legend] 可选图例配置。
+ * @apiSuccess {String} context.resources.payload.chart.legend.orient 图例方向。
+ * @apiSuccess {Number} context.resources.payload.chart.legend.bottom 图例距底部的位置，当前为 10。
+ * @apiSuccess {String[]} context.resources.payload.chart.legend.data 图例名称列表。
+ * @apiSuccess {Object[]} context.resources.payload.chart.xAxis 坐标轴配置列表。
+ * @apiSuccess {String} context.resources.payload.chart.xAxis.type 坐标轴类型，如 category、value。
+ * @apiSuccess {String[]} [context.resources.payload.chart.xAxis.data] 坐标轴标签。
+ * @apiSuccess {Object} [context.resources.payload.chart.xAxis.axisTick] 刻度配置，遵循 ECharts axisTick 选项；键由图表配置定义，例如 {"alignWithLabel":true}。
+ * @apiSuccess {Object[]} context.resources.payload.chart.yAxis 坐标轴配置列表。
+ * @apiSuccess {String} context.resources.payload.chart.yAxis.type 坐标轴类型，如 category、value。
+ * @apiSuccess {String[]} [context.resources.payload.chart.yAxis.data] 坐标轴标签。
+ * @apiSuccess {Object} [context.resources.payload.chart.yAxis.axisTick] 刻度配置，遵循 ECharts axisTick 选项；键由图表配置定义，例如 {"alignWithLabel":true}。
+ * @apiSuccess {Object[]} context.resources.payload.chart.series 数据序列列表。
+ * @apiSuccess {String} context.resources.payload.chart.series.type 图表序列类型，如 bar、line、pie。
+ * @apiSuccess {String} [context.resources.payload.chart.series.name] 序列名称。
+ * @apiSuccess {String} [context.resources.payload.chart.series.stack] 堆叠分组名。
+ * @apiSuccess {Number[]/Object[]} context.resources.payload.chart.series.data 数值数组或名称/数值对象数组，例如 [1,2] 或 [{"name":"A","value":1}]。
+ * @apiSuccess {String} context.resources.payload.chart.series.data.name 对象形式的数据项名称。
+ * @apiSuccess {Number} context.resources.payload.chart.series.data.value 对象形式的数据项数值。
+ * @apiSuccess {Object} [context.resources.payload.chart.series.emphasis] 高亮配置，遵循 ECharts emphasis 选项；键由图表配置定义，例如 {"focus":"series"}。
+ * @apiSuccess {Object} [context.resources.payload.chart.series.label] 序列标签设置。
+ * @apiSuccess {Boolean} context.resources.payload.chart.series.label.show 是否显示标签。
+ * @apiSuccess {String} [context.resources.payload.chart.series.label.position] 标签位置。
+ * @apiSuccess {Number} [context.resources.payload.id] subject=Widget 时的控件 ID。
+ * @apiSuccess {String} [context.resources.payload.name] subject=Widget 时的控件名；额外字段由该控件类型定义。
+ * @apiSuccess {Boolean} [context.resources.payload.disposable] subject=Widget 时是否为一次性控件。
  * @apiSuccess {Boolean} context.networking 是否联网进行搜索，并对搜索结果进行推理。
  * @apiSuccess {Number} context.timestamp 上下文数据的时间戳。
  * 
@@ -267,6 +421,15 @@
  * @apiError 403 参数格式错误。
  * @apiError 404 必填参数错误。
  * @apiError 406 推理单元繁忙，本次请求未被受理。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/chat/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "channel": "dyFbWTHGuEOMaIuJ",
+ *         "content": "你好"
+ *     }
  */
 
 
@@ -276,8 +439,9 @@
  * @apiGroup Natural_Language_Processing
  * @apiVersion 1.0.0
  * 
- * @apiDescription 通过使用自然语言方式处理并生成文件。
- * 
+ * @apiDescription 用自然语言描述对文件的处理需求，例如整理表格、提取内容或生成新的文件。先上传源文件，按参数表提供文件信息与处理指令。
+ *                 <p>保存返回的 <code>sn</code>，调用“查询使用自然语言文本推理文件任务数据”。提交成功通常返回 <code>state=7</code>；结果中的文件标签可用于下载和展示。处理指令应明确目标、输入范围和期望输出格式。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiBody {String} text 自然语言文本。该文本是对文件处理需求的自然语言内容。
@@ -315,6 +479,17 @@
  * @apiError 401 Token 无效。
  * @apiError 403 参数错误。
  * @apiError 404 文件处理故障。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/aigc/text2file/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "text": "生成新表格，表头依次是“编号”，“姓名”，“手机号”，“部门”，“性别”，“年龄”，将已知表格里的“学号”填到“编号”，“性别”填到“性别”，“出生日期”填到“年龄”里。如果没有数据就填写空格。",
+ *         "files": [
+ *             "AIjoFDlzyphCHatmTRmoPMzNmWMQBFIZeeDpsPIlelxGWqWTGxVFBRNYpMsaGLDK"
+ *         ]
+ *     }
  */
 
 
@@ -324,8 +499,9 @@
  * @apiGroup Natural_Language_Processing
  * @apiVersion 1.0.0
  * 
- * @apiDescription 查询使用自然语言文本推理文件任务数据。
- * 
+ * @apiDescription 使用提交接口返回的 <code>sn</code> 查询文件处理状态。<code>state=7</code> 时稍后重查，<code>0</code> 时读取结果；其他值按下方状态说明处理。
+ *                 <p>从 <code>result.answer</code> 读取处理说明，从 <code>result.answerFileLabels[]</code> 取得生成文件，通过文件访问地址或下载接口获取内容。请保存任务序号，避免通过重复提交获取进度。</p>
+ *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiQuery {String} sn 处理任务的序列号。
@@ -344,8 +520,42 @@
  * @apiSuccess {Object} [result] 文件数据处理结果。
  * @apiSuccess {Number} result.sn 对话序号。
  * @apiSuccess {String} result.answer 处理结果文本内容。
- * @apiSuccess {Array} result.answerFileLabels 处理后生成的文件列表。可通过<code>fileURL</code>或<code>fileSecureURL</code>下载文件。
- * @apiSuccess {Array} result.queryFileLabels 推理使用的原始文件列表。
+ * @apiSuccess {Object[]} result.answerFileLabels 处理后生成的文件列表。可通过<code>fileURL</code>或<code>fileSecureURL</code>下载文件。
+ * @apiSuccess {Number} result.answerFileLabels.id 文件标签 ID。
+ * @apiSuccess {String} result.answerFileLabels.domain 文件所属域。
+ * @apiSuccess {String} result.answerFileLabels.fileCode 上传完成的文件码，后续文件接口使用该值。
+ * @apiSuccess {Number} result.answerFileLabels.ownerId 文件所有者的触点 ID。
+ * @apiSuccess {String} result.answerFileLabels.fileName 原始文件名。
+ * @apiSuccess {Number} result.answerFileLabels.fileSize 文件大小，单位：字节。
+ * @apiSuccess {Number} result.answerFileLabels.lastModified 原文件最后修改时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} result.answerFileLabels.completedTime 上传完成时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} result.answerFileLabels.expiryTime 文件到期时间，Unix 毫秒时间戳。
+ * @apiSuccess {String} result.answerFileLabels.fileType 文件类型的扩展名，如 jpg、mp3、pdf。
+ * @apiSuccess {String} [result.answerFileLabels.md5] 文件内容的 MD5 摘要。
+ * @apiSuccess {String} [result.answerFileLabels.sha1] 文件内容的 SHA-1 摘要。
+ * @apiSuccess {String} [result.answerFileLabels.fileURL] HTTP 文件访问地址。
+ * @apiSuccess {String} [result.answerFileLabels.fileSecureURL] HTTPS 文件访问地址。
+ * @apiSuccess {String} [result.answerFileLabels.directURL] 存在时返回的文件直连地址，精简表示可省略。
+ * @apiSuccess {String} [result.answerFileLabels.externalURL] 文件的外部来源地址。
+ * @apiSuccess {Object} [result.answerFileLabels.context] 业务自定义键值对象，键为字符串，值可为任意 JSON 值；无固定子字段，例如 {"scene":"inspection"}。
+ * @apiSuccess {Object[]} result.queryFileLabels 推理使用的原始文件列表。
+ * @apiSuccess {Number} result.queryFileLabels.id 文件标签 ID。
+ * @apiSuccess {String} result.queryFileLabels.domain 文件所属域。
+ * @apiSuccess {String} result.queryFileLabels.fileCode 上传完成的文件码，后续文件接口使用该值。
+ * @apiSuccess {Number} result.queryFileLabels.ownerId 文件所有者的触点 ID。
+ * @apiSuccess {String} result.queryFileLabels.fileName 原始文件名。
+ * @apiSuccess {Number} result.queryFileLabels.fileSize 文件大小，单位：字节。
+ * @apiSuccess {Number} result.queryFileLabels.lastModified 原文件最后修改时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} result.queryFileLabels.completedTime 上传完成时间，Unix 毫秒时间戳。
+ * @apiSuccess {Number} result.queryFileLabels.expiryTime 文件到期时间，Unix 毫秒时间戳。
+ * @apiSuccess {String} result.queryFileLabels.fileType 文件类型的扩展名，如 jpg、mp3、pdf。
+ * @apiSuccess {String} [result.queryFileLabels.md5] 文件内容的 MD5 摘要。
+ * @apiSuccess {String} [result.queryFileLabels.sha1] 文件内容的 SHA-1 摘要。
+ * @apiSuccess {String} [result.queryFileLabels.fileURL] HTTP 文件访问地址。
+ * @apiSuccess {String} [result.queryFileLabels.fileSecureURL] HTTPS 文件访问地址。
+ * @apiSuccess {String} [result.queryFileLabels.directURL] 存在时返回的文件直连地址，精简表示可省略。
+ * @apiSuccess {String} [result.queryFileLabels.externalURL] 文件的外部来源地址。
+ * @apiSuccess {Object} [result.queryFileLabels.context] 业务自定义键值对象，键为字符串，值可为任意 JSON 值；无固定子字段，例如 {"scene":"inspection"}。
  * @apiSuccess {String} result.unit 处理该任务使用的模型名。
  * @apiSuccess {Number} result.timestamp 结果生成时的时间戳。
  * 
@@ -414,4 +624,7 @@
  * @apiError 401 Token 无效。
  * @apiError 403 参数错误。
  * @apiError 404 文件处理故障。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     GET http://211.157.179.37:7010/aigc/text2file/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG?sn=3677528462
  */

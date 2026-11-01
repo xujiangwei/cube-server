@@ -9,31 +9,27 @@
  * @apiGroup Multimodal
  * @apiVersion 1.0.0
  *
- * @apiDescription 输入文件和文本生成相应的文本内容。该接口会采用多模态模型对输入的文件和文本进行处理，并生成相应的文本内容。该接口支持多种文件类型，包括图片、音频、视频等。
- *                 <p>目前支持4大类多模态任务：</p>
- *                 <ul>
- *                     <li>Vision Grounding - 图像检测任务，单元名称：<code>OmniGround</code></li>
- *                     <li>Video Analysis - 视频分析任务，单元名称：<code>OmniVL</code></li>
- *                     <li>Vision Inference - 视觉推理任务，单元名称：<code>OmniMultimodal</code></li>
- *                     <li>Fine-Grained Perception - 细粒度图像感知任务，单元名称：<code>OmniPerception</code></li>
- *                 </ul>
- *                 <p><code>OmniGround</code> 专注于根据提示词分析和识别图像，也支持通过 <code>ground_gui</code> 在界面截图中定位按钮、输入框、图标等 GUI 元素。将截图的文件码或 URL 放入 <code>input.files</code>，在 <code>input.content</code> 中描述目标元素，并显式指定 <code>input.unit="OmniGround"</code> 和 <code>input.option.task="ground_gui"</code>。</p>
- *                 <p><code>ground_gui</code> 的 <code>input.option.output</code> 默认为 <code>box</code>，定位框见 <code>resultPayload.refs[].boxes</code>；设为 <code>point</code> 时，定位点见 <code>resultPayload.refs[].points</code>。结构化结果使用原图像素坐标，可结合 <code>resultPayload.width</code>、<code>resultPayload.height</code> 换算到显示尺寸。该任务返回元素位置，不执行点击或输入操作。下方 GUI 应答中的坐标仅作示例，实际结果以输入截图和模型输出为准。</p>
- *                 <p><code>OmniVL</code> 专注于分析视频并提取关键信息。</p>
- *                 <p><code>OmniMultimodal</code> 专注于基于视觉信息进行推理和判断，适用于复杂场景。该模型支持使用语音进行输入，输入语音文件必须为 .wav 或 .mp3 格式。</p>
- *                 <p><code>OmniPerception</code> 专注于单张图片的细粒度目标检测、目标定位、目标计数、推理检测、区域描述、区域文字识别和视觉问答。</p>
- *                 <p> </p>
+ * @apiDescription 分析图片、音频或视频，返回文字回答或目标位置。先创建频道并保存频道码；上传文件并确认可查询后，将文件码放入 <code>input.files</code>。也可使用服务端可访问的文件 URL。用 <code>input.content</code> 描述问题或目标，并显式选择 <code>input.unit</code>。
+ *                 <div class="table-scroll" tabindex="0" role="region" aria-label="多模态模型选择"><table><thead><tr><th>模型</th><th>输入与任务选择</th><th>结果读取</th></tr></thead><tbody>
+ *                 <tr><td>OmniGround</td><td>一张图片；用 task 选择目标、文字或 GUI 元素定位，mode 仅适用于该模型。</td><td>resultPayload.refs 中的 boxes 或 points。</td></tr>
+ *                 <tr><td>OmniVL</td><td>一个视频文件；content 描述需要总结的内容。</td><td>answer 中的视频分析文字。</td></tr>
+ *                 <tr><td>OmniMultimodal</td><td>图片等媒体与问题；可用 history 提供文字上下文。语音问题使用已上传的 WAV/MP3 文件码作为 content。</td><td>answer 中的回答。</td></tr>
+ *                 <tr><td>OmniPerception</td><td>一张图片；task 选择检测、计数、区域描述、区域 OCR 或视觉问答。</td><td>answer 中的文字，以及 resultPayload.refs 中的目标框。</td></tr>
+ *                 </tbody></table></div>
+ *                 <p>REST 应答的文字字段为 <code>answer</code>。绘制目标框、定位点时读取 <code>resultPayload</code>，坐标以原图像素为单位，缩放显示时按返回的 width、height 换算。空 refs 表示没有返回目标位置；OCR、问答等任务仍可在 answer 中返回文字。计数结果由 answer 描述，不提供独立的 count 字段。</p>
+ *                 <p>GUI 定位选择 <code>task="ground_gui"</code>：output 默认为 box，从 refs[].boxes 读取边界框；设为 point 时从 refs[].points 读取定位点。接口只返回位置，不执行界面操作。</p>
+ *                 <p>区域描述与 OCR 应同时提供 bboxList 和从 0 开始的 targetRegionIndexes；vqa 直接对整图提问，省略这两个字段。只发送所选模型和任务支持的选项。下方应答展示代表性结果，文字与坐标以实际输入为准。</p>
  *
  * @apiParam {String} token 授权令牌。
  * 
  * @apiBody {String} channel 通道的频道码。
  * @apiBody {Object} input 多模态输入信息。
- * @apiBody {String} [input.unit] 指定使用的多模态单元名称。
+ * @apiBody {String} [input.unit=OmniGround] 模型名称；建议显式指定，取值见上方模型表。
  * @apiBody {String} input.content 输入的文本内容。允许该字段为文件码，URL地址或文本内容。文本内容可以是自然语言描述、问题、指令等。使用 <code>OmniPerception</code> 时，除 <code>brief_region_caption</code> 和 <code>region_ocr</code> 外，该字段不能为空。
- * @apiBody {Array} [input.history] 输入的历史对话内容。每个历史对话包含一个用户输入和一个模型输出。该字段用于提供上下文信息，帮助模型更好地理解当前输入。
- * @apiBody {String} [input.history.query] 历史对话中的用户输入。 
- * @apiBody {String} [input.history.answer] 历史对话中的模型输出。
- * @apiBody {Array} [input.files] 输入的文件列表。文件列表可以是文件的标签码，也可以是文件的 URL 地址。
+ * @apiBody {Object[]} [input.history] OmniMultimodal 的文字对话上下文，每项包含 query 和 answer；后续请求按需提交完整上下文。
+ * @apiBody {String} input.history.query 每条历史对话中的用户输入。
+ * @apiBody {String} input.history.answer 每条历史对话中的模型输出。
+ * @apiBody {String[]} [input.files] 文件码或文件 URL 列表。OmniGround、OmniPerception 必须提供一张图片，OmniVL 必须提供一个视频；OmniMultimodal 按需提供媒体附件。
  * @apiBody {Object} [input.option] 指定的任务描述。
  * @apiBody {String} [input.option.task] 指定的任务名称。<br/>
  *                   <code>OmniGround</code> 的任务名称。<br/>
@@ -53,11 +49,11 @@
  *                   <code>brief_region_caption</code> - 描述指定区域。<br/>
  *                   <code>region_ocr</code> - 识别指定区域中的文字。<br/>
  *                   <code>vqa</code> - 针对整张图片进行视觉问答。
- * @apiBody {String} [input.option.mode] 指定的任务模式。<br/><code>hybrid</code> - 默认平衡模式。<br/><code>fast</code> - 快速模式，适合低延迟或规则场景。<br/><code>slow</code> - 精准模式，适合离线高精度或复杂场景。
+ * @apiBody {String} [input.option.mode] 仅用于 <code>OmniGround</code> 的图片任务。<br/><code>hybrid</code> - 默认平衡模式。<br/><code>fast</code> - 快速模式，适合低延迟或规则场景。<br/><code>slow</code> - 精准模式，适合离线高精度或复杂场景。
  * @apiBody {String} [input.option.output=box] <code>OmniGround</code> 的 <code>ground_gui</code> 任务输出模式。<code>box</code> 表示输出边界框（<code>resultPayload.refs[].boxes</code>），<code>point</code> 表示输出定位点（<code>resultPayload.refs[].points</code>）。
- * @apiBody {String} [input.option.lang=zh] <code>OmniPerception</code> 内置任务模板的语言。支持 <code>zh</code> 和 <code>en</code>。
- * @apiBody {Array} [input.option.bboxList] 候选边界框列表，每个元素使用原图像素坐标 <code>[x1, y1, x2, y2]</code>，最多 100 个。定位类任务省略时由服务端自动生成候选框；<code>brief_region_caption</code> 和 <code>region_ocr</code> 应显式提供；<code>vqa</code> 不允许提供该字段。
- * @apiBody {Number[]} [input.option.targetRegionIndexes] 需要处理的候选框索引列表，索引从 0 开始。仅用于 <code>brief_region_caption</code> 和 <code>region_ocr</code>，使用这两个任务时必填。
+ * @apiBody {String} [input.option.lang=zh] <code>OmniPerception</code> 的任务语言。支持 <code>zh</code> 和 <code>en</code>。
+ * @apiBody {Array} [input.option.bboxList] 仅用于 <code>OmniPerception</code> 的候选边界框列表，每个元素使用原图像素坐标 <code>[x1, y1, x2, y2]</code>，最多 100 个。定位类任务可省略；<code>brief_region_caption</code> 和 <code>region_ocr</code> 应显式提供；<code>vqa</code> 不允许提供该字段。
+ * @apiBody {Number[]} [input.option.targetRegionIndexes] 需要处理的候选框索引列表，索引从 0 开始且必须小于 bboxList 的长度。仅用于 <code>brief_region_caption</code> 和 <code>region_ocr</code>，使用这两个任务时必填。
  *
  * 
  * @apiParamExample {json} OmniGround -一般示例
@@ -143,7 +139,7 @@
  *         }
  *     }
  * 
- * @apiParamExample {json} OmniMultimodal - 任务示例
+ * @apiParamExample {json} OmniMultimodal - 语音提问与媒体附件
  *     {
  *         "channel": "mnxRSaLdPuHEVaKY",
  *         "input": {
@@ -155,6 +151,24 @@
  *         }
  *     }
  * 
+ * @apiParamExample {json} OmniMultimodal - 图片问答与文字上下文
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniMultimodal",
+ *             "content": "根据这张工位照片，给出两条整理建议。",
+ *             "files": [
+ *                 "https://my.domain.com/images/desk.jpg"
+ *             ],
+ *             "history": [
+ *                 {
+ *                     "query": "建议尽量简洁，并说明原因。",
+ *                     "answer": "好的，我会结合图片给出简短建议。"
+ *                 }
+ *             ]
+ *         }
+ *     }
+ *
  * @apiParamExample {json} OmniPerception - detection 目标检测示例
  *     {
  *         "channel": "mnxRSaLdPuHEVaKY",
@@ -277,20 +291,28 @@
  *     }
  *
  * @apiSuccess {Number} sn 本次请求的流水号。
- * @apiSuccess {Number} timestamp 本次请求的时间戳。 
+ * @apiSuccess {Number} timestamp 本次请求的时间戳（毫秒）。
  * @apiSuccess {String} unit 指定多模态单元。
  * @apiSuccess {String} answer 多模态模型生成的文本内容。
  * @apiSuccess {String} thought 多模态模型生成的思路。
- * @apiSuccess {Object} resultPayload 经过多模态模型处理后的结果数据。
- * @apiSuccess {Array} resultPayload.refs 结果参考数据列表。
+ * @apiSuccess {Object} [resultPayload] 结构化结果；定位任务返回图片尺寸及目标位置，纯文字任务可能为空对象或省略。
+ * @apiSuccess {Object[]} [resultPayload.refs] 目标分组列表；没有匹配位置时为空数组。
  * @apiSuccess {String} resultPayload.refs.content 结果参考数据的文本内容。<code>OmniGround</code> 输出未包含文本标签时为空字符串。
- * @apiSuccess {Array} resultPayload.refs.boxes 结果参考数据的边界框列表，每项为原图像素坐标 <code>{x1,y1,x2,y2}</code>，分别表示左上角和右下角。<code>ground_gui</code> 的 <code>box</code> 模式从此字段读取定位框。
- * @apiSuccess {Array} resultPayload.refs.points 结果参考数据的点列表，每项为原图像素坐标 <code>{x,y}</code>。<code>ground_gui</code> 的 <code>point</code> 模式从此字段读取定位点。
- * @apiSuccess {Number} resultPayload.width 输入图片的宽度。
- * @apiSuccess {Number} resultPayload.height 输入图片的高度。
- * @apiSuccess {Object} usage 本次请求的使用情况。
+ * @apiSuccess {Object[]} resultPayload.refs.boxes 结果参考数据的边界框列表，每项为原图像素坐标 <code>{x1,y1,x2,y2}</code>，分别表示左上角和右下角。<code>ground_gui</code> 的 <code>box</code> 模式从此字段读取定位框。
+ * @apiSuccess {Number} resultPayload.refs.boxes.x1 左上角横坐标，原图像素。
+ * @apiSuccess {Number} resultPayload.refs.boxes.y1 左上角纵坐标，原图像素。
+ * @apiSuccess {Number} resultPayload.refs.boxes.x2 右下角横坐标，原图像素。
+ * @apiSuccess {Number} resultPayload.refs.boxes.y2 右下角纵坐标，原图像素。
+ * @apiSuccess {Object[]} resultPayload.refs.points 结果参考数据的点列表，每项为原图像素坐标 <code>{x,y}</code>。<code>ground_gui</code> 的 <code>point</code> 模式从此字段读取定位点。
+ * @apiSuccess {Number} resultPayload.refs.points.x 点横坐标，原图像素。
+ * @apiSuccess {Number} resultPayload.refs.points.y 点纵坐标，原图像素。
+ * @apiSuccess {Number} [resultPayload.width] 输入图片宽度，单位像素。
+ * @apiSuccess {Number} [resultPayload.height] 输入图片高度，单位像素。
+ * @apiSuccess {Object} [usage] 本次请求的使用情况，存在时读取。
  * @apiSuccess {Number} usage.inputTokens 本次请求的输入词元数量。
  * @apiSuccess {Number} usage.outputTokens 本次请求的输出词元数量。
+ * @apiSuccess {String} usage.model 模型名称。
+ * @apiSuccess {Number} usage.elapsed 服务端耗时，单位毫秒。
  * 
  * @apiSuccessExample {json} OmniGround - detect 应答示例
  *     HTTP/1.1 200 OK
@@ -379,7 +401,7 @@
  * @apiSuccessExample {json} OmniPerception - detection 应答示例
  *     HTTP/1.1 200 OK
  *     {
- *         "sn": 1876429194287302656,
+ *         "sn": 887736220,
  *         "timestamp": 1789452204127,
  *         "unit": "OmniPerception",
  *         "answer": "<ground>热水器</ground><objects><obj2></objects><ground>水箱</ground><objects><obj5></objects>",
@@ -416,7 +438,7 @@
  * @apiSuccessExample {json} OmniVL 应答示例
  *     HTTP/1.1 200 OK
  *     {
- *         "sn": 1876039763114328072,
+ *         "sn": 887736221,
  *         "timestamp": 1789131416787,
  *         "unit": "OmniVL",
  *         "answer": "这个视频展示了一个城市街道场景，画面中有行人、车辆和建筑物。视频中有多个行人走在街道上，有的行人正在过马路，有的行人正在等待红绿灯。街道上有多辆汽车和摩托车在行驶，还有一些自行车。建筑物包括商店、办公楼和住宅楼。视频中还可以看到交通信号灯和路标。整体场景呈现出一个繁忙的城市街道环境。",
@@ -428,10 +450,127 @@
  *         }
  *     }
  *
- * @apiError 400 系统故障。
- * @apiError 401 令牌无效。
- * @apiError 403 参数格式错误。
- * @apiError 404 未找到指定文件的数据。
+ * @apiSuccessExample {json} OmniPerception - counting 计数与目标框
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736210,
+ *         "timestamp": 1789131476537,
+ *         "unit": "OmniPerception",
+ *         "answer": "共找到2辆车。<ground>车辆</ground><objects><obj0><obj1></objects>",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "width": 1920,
+ *             "height": 1080,
+ *             "refs": [
+ *                 {
+ *                     "content": "车辆",
+ *                     "boxes": [
+ *                         {
+ *                             "x1": 160,
+ *                             "y1": 380,
+ *                             "x2": 520,
+ *                             "y2": 760
+ *                         },
+ *                         {
+ *                             "x1": 820,
+ *                             "y1": 400,
+ *                             "x2": 1160,
+ *                             "y2": 780
+ *                         }
+ *                     ],
+ *                     "points": []
+ *                 }
+ *             ]
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniPerception - region_ocr 区域文字识别
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736211,
+ *         "timestamp": 1789131476537,
+ *         "unit": "OmniPerception",
+ *         "answer": "安全出口",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "width": 1920,
+ *             "height": 1080,
+ *             "refs": []
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniPerception - brief_region_caption 区域描述
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736212,
+ *         "timestamp": 1789131476537,
+ *         "unit": "OmniPerception",
+ *         "answer": "一名穿白色上衣的人站在设备旁。",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "width": 1920,
+ *             "height": 1080,
+ *             "refs": []
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniPerception - vqa 整图问答
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736213,
+ *         "timestamp": 1789131476537,
+ *         "unit": "OmniPerception",
+ *         "answer": "画面中有人在检查设备。",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "width": 1920,
+ *             "height": 1080,
+ *             "refs": []
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniPerception - detection 未检出目标
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736214,
+ *         "timestamp": 1789131476537,
+ *         "unit": "OmniPerception",
+ *         "answer": "未发现符合描述的目标。",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "width": 1920,
+ *             "height": 1080,
+ *             "refs": []
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniMultimodal - 图片问答
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736215,
+ *         "timestamp": 1789131476537,
+ *         "unit": "OmniMultimodal",
+ *         "answer": "1. 将桌面线缆集中固定，减少缠绕。2. 将常用物品放在手边，便于取用。",
+ *         "thought": ""
+ *     }
+ *
+ * @apiError 400 请求执行失败。检查频道是否可用、模型与任务是否匹配、文件是否上传完成及参数限制；确认无误后仍失败时联系服务提供方。响应体可能为空，先判断 HTTP 状态码。
+ * @apiError 401 令牌无效或设备信息不匹配；检查令牌及关联的设备请求头。
+ * @apiError 403 请求体格式错误或缺少必填字段；检查 channel、input 及字符串类型的 input.content。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/multimodal/base/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "content": "定位图中所有的电脑和手机",
+ *             "files": [
+ *                 "unpmAGrMYphCHatmTRmoPMbrMCKGLHOlWOTHGviJSLDQyIwtSLdBTRLUpOQeMxLg"
+ *             ]
+ *         }
+ *     }
  */
 
 
@@ -441,61 +580,91 @@
  * @apiGroup Multimodal
  * @apiVersion 1.0.0
  *
- * @apiDescription 对持续输入的实时视频流执行多模态推理。与 <code>/multimodal/base/:token</code> 的一次性请求-应答不同，
- *                 本接口由服务端拉取输入视频流并建立长驻的推理任务，推理结果通过输出视频流或回调地址持续推送，直到收到停止指令。
- *                 <p>目前支持3类流式任务：</p>
- *                 <ul>
- *                     <li>流式分类（目标定位）任务，单元名称：<code>OmniGround</code>。对视频逐帧执行 grounding，并把标注后的画面重新编码为一路输出视频流。</li>
- *                     <li>流式自然语言推理任务，单元名称：<code>OmniVL</code>。把视频切分为片段，逐段生成自然语言描述，并按片段回调推送结果。</li>
- *                     <li>命中图片回调任务，单元名称：<code>OmniPerception</code>。抽取 RTSP 原帧定位提示词描述的目标，命中后以 PNG 二进制 POST 回调。</li>
- *                 </ul>
- *                 <p>启动、查询、更新提示词及停止都由本接口承载，用 <code>input.option.operation</code> 区分：启动任务后，应答中的 <code>resultPayload.streamId</code> 即任务 ID；
- *                 停止任务时把该 ID 作为 <code>input.option.streamId</code> 传入。应答中的 <code>resultPayload</code> 是任务的状态快照，
- *                 包含任务状态、输入/输出视频流信息以及解码、推理、缓冲、时延等运行指标。</p>
- *                 <p>字段说明：与输入/输出视频流、帧计数、推理时延相关的指标仅流式分类（<code>OmniGround</code>）任务返回；
- *                 与视频片段、回调相关的指标仅流式自然语言推理（<code>OmniVL</code>）任务返回。因此这些字段在应答中标为可选。</p>
- *                 <p><code>OmniVL</code> 任务的推理结果通过 <code>input.option.callbackUrl</code> 回调推送，回调数据中各字段含义如下：
- *                 <code>sequence</code> - 回调序号；<code>streamId</code> - 任务 ID；<code>response</code> - 该片段的推理结果文本；
- *                 <code>timestamp</code> - 回调时间戳；<code>timeRange</code> - 该片段在视频中的时间范围
- *                 （<code>startOffset</code>/<code>endOffset</code> 为相对视频起点的偏移秒数，<code>startTimestamp</code>/<code>endTimestamp</code> 为绝对时间戳）；
- *                 <code>performance</code> - 该片段的耗时与词元消耗（<code>elapsed</code>/<code>inputTokens</code>/<code>outputTokens</code>）。
- *                 具体格式见下方 <code>callbackUrl 回调数据</code> 示例。</p>
- *                 <p><code>OmniPerception</code> 仅支持 detection、grounding_single、reasoning_detection、counting 流式任务，以非空目标框判定命中。
- *                 未命中时最多每秒检测一帧；命中后从推理完成起至少等待 <code>intervalSeconds</code> 秒再检测，持续命中则继续上报。
- *                 只保留最新待处理帧，不排队。回调请求体是原尺寸 PNG，Content-Type 为 <code>image/png</code>，不是 multipart 或 JSON；
- *                 PNG 的 iTXt 扩展键 <code>vlm_meta</code> 包含 UTF-8 JSON。20 MiB 以上的 PNG 跳过回调。
- *                 网络错误、408、429、5xx 最多重试三次且不跟随重定向；接收方应按 <code>eventId</code> 去重。</p>
- *                 <p>同一路径同时接受 <code>GET ?channel={频道码}&amp;sn={streamId}</code> 查询任务状态，
- *                 便于不构造请求体的客户端轮询；认证方式与应答结构一致。</p>
- *                 <p> </p>
+ * @apiDescription 持续分析一个 RTSP(S) 视频源。先创建频道，准备可用的视频地址和结果接收地址；所有启动、查询、更新和停止操作均向本路径发送 POST，用 <code>input.option.operation</code> 区分。
+ *                 <div class="table-scroll" tabindex="0" role="region" aria-label="流式模型选择"><table><thead><tr><th>模型</th><th>启动条件</th><th>结果形式</th></tr></thead><tbody>
+ *                 <tr><td>OmniGround</td><td>必须提供可接收 RTSP(S) 推流的 outputUrl；content 可为空。</td><td>outputUrl 中带目标标注的视频，当前自动检测目标，不提供自定义类别筛选。</td></tr>
+ *                 <tr><td>OmniVL</td><td>content 描述关注内容；建议显式提供 callbackUrl。</td><td>向 callbackUrl POST application/json，按片段返回文字 response。</td></tr>
+ *                 <tr><td>OmniPerception</td><td>非空 content、HTTP(S) callbackUrl；task 支持 detection、grounding_single、reasoning_detection、counting。</td><td>命中目标时向 callbackUrl POST image/png；从 PNG 的 vlm_meta 读取 JSON。</td></tr>
+ *                 </tbody></table></div>
+ *                 <p>接入顺序：start 后保存 <code>resultPayload.streamId</code> → status 确认运行状态 → 接收结果 → 按需 update 提示词 → stop → 继续 status，直到 stopped 或 failed。启动返回 starting 只表示已创建会话，stopping 表示仍在停止。不要用未收到回调判断会话是否结束；检查 status、lastError 和回调计数。sn 是本次请求的流水号，不能代替字符串 streamId。</p>
+ *                 <p>后续操作使用创建会话的用户身份、频道和模型，同一频道按顺序发送请求。status、stop 的 content 传空字符串、files 传 []；OmniVL、OmniPerception 的 update 用非空 content 替换提示词。OmniPerception 启动时 option 仅使用 operation、task、callbackUrl、intervalSeconds，控制请求仅使用 operation、streamId；更新后用 queryVersion、activeQueryVersion 判断新提示词是否已应用。</p>
+ *                 <p>OmniVL 的 JSON 回调包含 sequence、streamId、response、timestamp、timeRange 和 performance；timeRange 的 Offset 为秒，Timestamp 为毫秒，performance.elapsed 为毫秒。按 streamId、sequence 关联片段。</p>
+ *                 <p>OmniPerception 仅在返回非空目标框时发送 PNG；未命中时最多每秒检测一帧，命中后至少间隔 intervalSeconds 秒再检测。接收端按二进制读取图片，vlm_meta 为 UTF-8 JSON，含 eventId、streamId、queryVersion、timestamp、task、prompt、response、resultPayload、performance。以 X-VLM-Event-Id 或元数据中的 eventId 去重；成功保存后返回 2xx。20 MiB 以上 PNG 不推送。网络错误、408、429、5xx 最多尝试3次（含首次），不跟随重定向。下方示例展示同一会话的完整控制与回调。</p>
  *
  * @apiParam {String} token 授权令牌。
- *
- * @apiQuery {String} [channel] 查询任务状态时使用。与 <code>sn</code> 一起走 <code>GET</code> 查询通道，不提交请求体。
- * @apiQuery {Number} [sn] 查询任务状态时使用，取值为 <code>resultPayload.streamId</code>。
  *
  * @apiBody {String} channel 通道的频道码。
  * @apiBody {Object} input 多模态输入信息。
  * @apiBody {String} input.unit 指定使用的多模态单元名称。<br/><code>OmniGround</code> - 流式分类。<br/><code>OmniVL</code> - 流式自然语言推理。<br/><code>OmniPerception</code> - 命中原帧 PNG 回调。
- * @apiBody {String} [input.content] 输入的文本内容，作为本次推理任务的指令或提示词。启动 <code>OmniGround</code> 任务时可传空字符串；启动 <code>OmniVL</code> 任务时用于描述画面中需要重点记录的内容。
- * @apiBody {Array} input.files 输入的文件列表。流式任务此处填写实时视频流地址（如 <code>rtsp://</code> 开头的 URL）；停止任务时传空数组。
+ * @apiBody {String} input.content 必须保留的提示词字段。OmniPerception 的 start、update 必须非空；OmniVL 用于描述关注内容，update 时提供新提示词；status、stop 以及 OmniGround 的 start 可传空字符串。
+ * @apiBody {String[]} input.files 启动时填写且仅填写一个 RTSP(S) 地址；status、update、stop 时必须传空数组 []。
  * @apiBody {Object} input.option 流式任务的选项。
- * @apiBody {String} [input.option.operation] 任务操作。<br/><code>start</code> - 启动。<br/><code>status</code> - 查询状态。<br/><code>update</code> - 更新推理指令：<code>OmniVL</code>、<code>OmniPerception</code> 用 <code>input.content</code> 替换提示词，<code>OmniGround</code> 用 <code>input.option.categories</code> 更新类别。<br/><code>stop</code> - 停止。省略该字段时按启动处理；后三种操作必须传 <code>streamId</code>、空 <code>files</code>（<code>files</code> 传 <code>[]</code> 即可）。
- * @apiBody {String} [input.option.outputUrl] <code>OmniGround</code> 任务的输出视频流地址。服务端会把标注后的画面重新编码并推送到该地址，可从应答的 <code>resultPayload.output</code> 查看该输出流的状态。
- * @apiBody {String} [input.option.callbackUrl] <code>OmniVL</code> 的 JSON 结果回调地址，或 <code>OmniPerception</code> 的 PNG 回调地址（后者启动时必填）。
+ * @apiBody {String} [input.option.operation=start] start 创建会话；status 查询状态；stop 停止会话；OmniVL、OmniPerception 还支持 update 替换提示词。status、update、stop 必须同时提供 streamId，input.files 传 []。
+ * @apiBody {String} [input.option.outputUrl] 仅用于 OmniGround，启动时必填。可接收推流的 RTSP(S) 输出地址；在该地址观看标注视频，从 resultPayload.output 查看输出状态。
+ * @apiBody {String} [input.option.callbackUrl] 服务端可访问的 HTTP(S) 接收地址。OmniPerception 启动时必填，用于 PNG 回调；OmniVL 用于 JSON 回调，省略时需确认服务提供方已配置默认接收地址。
  * @apiBody {String} [input.option.task=detection] <code>OmniPerception</code> 流任务类型：detection、grounding_single、reasoning_detection、counting；启动后不可修改。
- * @apiBody {Number} [input.option.intervalSeconds=5] <code>OmniPerception</code> 命中后的检测间隔，不小于 1 的整数；只可在启动时指定，覆盖静态配置。
+ * @apiBody {Number} [input.option.intervalSeconds=5] <code>OmniPerception</code> 命中后的检测间隔，不小于 1 的整数；只可在启动时指定。
  * @apiBody {String} [input.option.streamId] 启动任务时返回的 ID；查询、更新和停止时必填。
  *
- * @apiParamExample {json} OmniPerception - 启动任务
- *     {"channel":"mnxRSaLdPuHEVaKY","input":{"unit":"OmniPerception","content":"屋顶上的水箱","files":["rtsp://camera/live"],"option":{"operation":"start","task":"reasoning_detection","intervalSeconds":5,"callbackUrl":"https://receiver.example.com/vlm"}}}
+ * @apiParamExample {json} OmniPerception - 第一步：启动会话
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniPerception",
+ *             "content": "屋顶上的水箱",
+ *             "files": [
+ *                 "rtsp://211.157.179.37:8554/live"
+ *             ],
+ *             "option": {
+ *                 "operation": "start",
+ *                 "task": "reasoning_detection",
+ *                 "intervalSeconds": 5,
+ *                 "callbackUrl": "https://receiver.example.com/vlm"
+ *             }
+ *         }
+ *     }
  *
- * @apiParamExample {json} OmniPerception - 更新提示词
- *     {"channel":"mnxRSaLdPuHEVaKY","input":{"unit":"OmniPerception","content":"屋顶上的热水器","files":[],"option":{"operation":"update","streamId":"启动应答中的 streamId"}}}
+ * @apiParamExample {json} OmniPerception - 第二步：POST 查询状态
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniPerception",
+ *             "content": "",
+ *             "files": [],
+ *             "option": {
+ *                 "operation": "status",
+ *                 "streamId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31"
+ *             }
+ *         }
+ *     }
  *
- * @apiParamExample {json} OmniPerception - 查询或停止
- *     {"channel":"mnxRSaLdPuHEVaKY","input":{"unit":"OmniPerception","content":"","files":[],"option":{"operation":"status","streamId":"启动应答中的 streamId"}}}
- *     停止时仅将 operation 改为 stop。
+ * @apiParamExample {json} OmniPerception - 按需更新提示词
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniPerception",
+ *             "content": "屋顶上的热水器",
+ *             "files": [],
+ *             "option": {
+ *                 "operation": "update",
+ *                 "streamId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31"
+ *             }
+ *         }
+ *     }
+ *
+ * @apiParamExample {json} OmniPerception - 停止会话后继续查询终态
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniPerception",
+ *             "content": "",
+ *             "files": [],
+ *             "option": {
+ *                 "operation": "stop",
+ *                 "streamId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31"
+ *             }
+ *         }
+ *     }
  *
  * @apiParamExample {json} OmniGround - 启动流式分类任务示例
  *     {
@@ -504,18 +673,32 @@
  *             "unit": "OmniGround",
  *             "content": "",
  *             "files": [
- *                 "rtsp://jdzrobot:jdzrobot@211.157.179.38:8554/apexnova/ANSFCAMERANN0001/video"
+ *                 "rtsp://211.157.179.37:8554/live"
  *             ],
  *             "option": {
  *                 "operation": "start",
- *                 "outputUrl": "rtsp://jdzrobot:jdzrobot@211.157.179.38:8554/apexnova/ANSFCAMERANN0001/video/grounding"
+ *                 "outputUrl": "rtsp://211.157.179.37:8554/live/grounding"
+ *             }
+ *         }
+ *     }
+ *
+ * @apiParamExample {json} OmniGround - POST 查询会话状态
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniGround",
+ *             "content": "",
+ *             "files": [],
+ *             "option": {
+ *                 "operation": "status",
+ *                 "streamId": "e1007214-9734-448c-a514-ad4a2f22a69b"
  *             }
  *         }
  *     }
  *
  * @apiParamExample {json} OmniGround - 停止流式分类任务示例
  *     {
- *         "channel": "mnxRSaLdPuHEVaKX",
+ *         "channel": "mnxRSaLdPuHEVaKY",
  *         "input": {
  *             "unit": "OmniGround",
  *             "content": "",
@@ -534,10 +717,10 @@
  *             "unit": "OmniVL",
  *             "content": "描述画面内容，不要补充无法确认的信息，不要重复相同的内容或描述。\n重点记录人物、动作、镜头变化、场景切换、字幕、界面变化和物体状态变化。",
  *             "files": [
- *                 "rtsp://jdzrobot:jdzrobot@211.157.179.38:8554/apexnova/ANSFCAMERANN0001/video"
+ *                 "rtsp://211.157.179.37:8554/live"
  *             ],
  *             "option": {
- *                 "callbackUrl": "http://211.157.179.38:9410/omni/vl/callback"
+ *                 "callbackUrl": "http://211.157.179.37:9410/omni/vl/callback"
  *             }
  *         }
  *     }
@@ -551,6 +734,20 @@
  *             "files": [],
  *             "option": {
  *                 "operation": "update",
+ *                 "streamId": "e1f77d65-dffd-4ffe-a0a1-7a80ccc0fdff"
+ *             }
+ *         }
+ *     }
+ *
+ * @apiParamExample {json} OmniVL - POST 查询会话状态
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKX",
+ *         "input": {
+ *             "unit": "OmniVL",
+ *             "content": "",
+ *             "files": [],
+ *             "option": {
+ *                 "operation": "status",
  *                 "streamId": "e1f77d65-dffd-4ffe-a0a1-7a80ccc0fdff"
  *             }
  *         }
@@ -576,25 +773,25 @@
  * @apiSuccess {String} answer 多模态模型生成的文本内容。流式任务的启动/停止应答中为空字符串，识别结果通过输出视频流或 <code>callbackUrl</code> 持续推送。
  * @apiSuccess {String} thought 多模态模型生成的思路。流式任务的启动/停止应答中为空字符串。
  * @apiSuccess {Object} resultPayload 流式任务的状态快照，随任务推进而变化。
- * @apiSuccess {String} resultPayload.streamId 流式任务 ID。停止任务时作为 <code>input.option.streamId</code> 传入。
- * @apiSuccess {String} resultPayload.status 任务状态。<code>starting</code> - 启动中；<code>running</code> - 运行中；<code>reconnecting</code> - 输入流断开后重连中；<code>updating</code> - 推理指令更新中（新指令已生效，等待下一帧/片段应用）；<code>stopping</code> - 停止中；<code>stopped</code> - 已停止。
+ * @apiSuccess {String} resultPayload.streamId 流式会话 ID，按字符串保存；status、update、stop 时作为 input.option.streamId 传入。
+ * @apiSuccess {String} resultPayload.status 会话状态：starting 启动中；buffering 准备画面中；running 运行中；reconnecting 重连中；updating 等待应用新提示词；stopping 停止中；stopped 已停止；failed 失败。仅 stopped、failed 为终态，其他状态继续查询。
  * @apiSuccess {Number} resultPayload.startedAt 任务启动时间戳（毫秒）。
  * @apiSuccess {Number} [resultPayload.stoppedAt] 任务停止时间戳（毫秒）。任务尚未停止时为 <code>null</code>。
  * @apiSuccess {String} [resultPayload.lastError] 任务最近一次的错误信息。无错误时为 <code>null</code>。
- * @apiSuccess {Object} usage 本次请求的使用情况。
+ * @apiSuccess {Object} [usage] 本次请求的使用情况，存在时读取。
  * @apiSuccess {Number} usage.elapsed 本次请求的服务端耗时（毫秒）。
  * @apiSuccess {String} usage.model 本次任务使用的模型名称。
  * @apiSuccess {Number} usage.inputTokens 本次请求的输入词元数量。
  * @apiSuccess {Number} usage.outputTokens 本次请求的输出词元数量。
  * @apiSuccess {Object} [resultPayload.input] 输入视频流信息。
  * @apiSuccess {String} resultPayload.input.url 输入视频流地址，即请求 <code>input.files</code> 中传入的地址。应答中的地址会隐去账号密码。
- * @apiSuccess {String} resultPayload.input.status 输入视频流的连接状态，取值同 <code>resultPayload.status</code>。
+ * @apiSuccess {String} resultPayload.input.status 输入视频连接状态，例如 starting、probing、connecting、running、reconnecting、stopped；会话是否结束应以外层 resultPayload.status 为准。
  * @apiSuccess {Number} [resultPayload.input.width] 输入画面宽度。尚未探测到时为 <code>null</code>。
  * @apiSuccess {Number} [resultPayload.input.height] 输入画面高度。尚未探测到时为 <code>null</code>。
  * @apiSuccess {Number} [resultPayload.input.fps] 输入视频流帧率。尚未探测到时为 <code>null</code>。
  * @apiSuccess {Object} [resultPayload.output] 标注后输出视频流的信息（仅 <code>OmniGround</code> 任务返回）。
  * @apiSuccess {String} resultPayload.output.url 输出视频流的推送地址，即请求 <code>input.option.outputUrl</code> 中传入的地址。应答中的地址会隐去账号密码。
- * @apiSuccess {String} resultPayload.output.status 输出视频流的发布状态，取值同 <code>resultPayload.status</code>。
+ * @apiSuccess {String} resultPayload.output.status 输出视频发布状态，例如 starting、running、reconnecting、stopped；会话是否结束应以外层 resultPayload.status 为准。
  * @apiSuccess {String} [resultPayload.output.codec] 输出视频流的编码格式，例如 <code>libx264</code>。尚未确定时为 <code>null</code>。
  * @apiSuccess {Number} [resultPayload.output.width] 输出画面宽度。尚未确定时为 <code>null</code>。
  * @apiSuccess {Number} [resultPayload.output.height] 输出画面高度。尚未确定时为 <code>null</code>。
@@ -614,7 +811,7 @@
  * @apiSuccess {Number} [resultPayload.effectiveFps] 实际处理的帧率。尚未统计时为 <code>null</code>。
  * @apiSuccess {Number} [resultPayload.queryVersion] 推理指令的版本号，每次更新推理指令后递增。
  * @apiSuccess {Number} [resultPayload.activeQueryVersion] 当前生效的推理指令版本号。
- * @apiSuccess {Array} [resultPayload.categories] 流式分类任务使用的类别列表。
+ * @apiSuccess {Array} [resultPayload.categories] OmniGround 当前返回空数组，不用于自定义类别筛选。
  * @apiSuccess {Object} [resultPayload.pipelineLatencyMs] 端到端流水线时延统计（毫秒）。
  * @apiSuccess {Number} [resultPayload.pipelineLatencyMs.last] 最近一次的统计值。
  * @apiSuccess {Number} [resultPayload.pipelineLatencyMs.p95] P95 统计值。
@@ -627,10 +824,253 @@
  * @apiSuccess {Number} [resultPayload.lastSegmentEndAt] <code>OmniVL</code> 任务最近一个已完成片段的结束时间戳（毫秒）。
  * @apiSuccess {Number} [resultPayload.callbackFailures] 回调任务推送失败的累计事件数。
  * @apiSuccess {String} [resultPayload.task] OmniPerception 流式定位任务类型。
- * @apiSuccess {Number} [resultPayload.intervalSeconds] OmniPerception 命中后的检测间隔。
+ * @apiSuccess {Number} [resultPayload.intervalSeconds] OmniPerception 命中后的检测间隔，单位秒。
  * @apiSuccess {Number} [resultPayload.matchedFrames] OmniPerception 命中帧数。
  * @apiSuccess {Number} [resultPayload.postedFrames] OmniPerception 成功上传 PNG 的帧数。
- * @apiSuccess {Number} [resultPayload.lastMatchedAt] 最近命中帧的捕获时间戳，未命中时为 null。
+ * @apiSuccess {Number} [resultPayload.lastMatchedAt] OmniPerception 最近命中帧的捕获时间戳（毫秒），未命中时为 null。
+ * @apiSuccess {Number} [resultPayload.idleTimeoutSeconds] 持续未收到视频数据时自动结束会话的时限，单位秒。
+ * @apiSuccess {Number} [resultPayload.lastDataAt] 最近收到视频数据的时间戳（毫秒），尚未收到时为 null。
+ * @apiSuccess {String} [resultPayload.stopReason] 结束原因，例如 requested（主动停止）、idleTimeout（长时间无视频数据）、failed（失败）；尚未结束时可能为 null。
+ *
+ * @apiSuccessExample {json} OmniPerception - 启动应答：保存 streamId
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736230,
+ *         "timestamp": 1789131470000,
+ *         "unit": "OmniPerception",
+ *         "answer": "",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "streamId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31",
+ *             "status": "starting",
+ *             "queryVersion": 1,
+ *             "activeQueryVersion": 0,
+ *             "task": "reasoning_detection",
+ *             "intervalSeconds": 5,
+ *             "idleTimeoutSeconds": 10,
+ *             "stopReason": null,
+ *             "startedAt": 1789131470000,
+ *             "stoppedAt": null,
+ *             "lastDataAt": null,
+ *             "lastError": null,
+ *             "input": {
+ *                 "url": "rtsp://211.157.179.37:8554/live",
+ *                 "status": "starting",
+ *                 "width": null,
+ *                 "height": null,
+ *                 "fps": null
+ *             },
+ *             "effectiveFps": null,
+ *             "decodedFrames": 0,
+ *             "droppedFrames": 0,
+ *             "inferredFrames": 0,
+ *             "matchedFrames": 0,
+ *             "postedFrames": 0,
+ *             "callbackFailures": 0,
+ *             "inferenceFailures": 0,
+ *             "lastMatchedAt": null
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniPerception - status 应答：运行中且已发送命中图片
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736231,
+ *         "timestamp": 1789131478000,
+ *         "unit": "OmniPerception",
+ *         "answer": "",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "streamId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31",
+ *             "status": "running",
+ *             "queryVersion": 1,
+ *             "activeQueryVersion": 1,
+ *             "task": "reasoning_detection",
+ *             "intervalSeconds": 5,
+ *             "idleTimeoutSeconds": 10,
+ *             "stopReason": null,
+ *             "startedAt": 1789131470000,
+ *             "stoppedAt": null,
+ *             "lastDataAt": 1789131477900,
+ *             "lastError": null,
+ *             "input": {
+ *                 "url": "rtsp://211.157.179.37:8554/live",
+ *                 "status": "running",
+ *                 "width": 1920,
+ *                 "height": 1080,
+ *                 "fps": 25
+ *             },
+ *             "effectiveFps": 25,
+ *             "decodedFrames": 180,
+ *             "droppedFrames": 0,
+ *             "inferredFrames": 2,
+ *             "matchedFrames": 1,
+ *             "postedFrames": 1,
+ *             "callbackFailures": 0,
+ *             "inferenceFailures": 0,
+ *             "lastMatchedAt": 1789131476537
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniPerception - update 应答：等待应用第2版提示词
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736232,
+ *         "timestamp": 1789131480000,
+ *         "unit": "OmniPerception",
+ *         "answer": "",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "streamId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31",
+ *             "status": "updating",
+ *             "queryVersion": 2,
+ *             "activeQueryVersion": 1,
+ *             "task": "reasoning_detection",
+ *             "intervalSeconds": 5,
+ *             "idleTimeoutSeconds": 10,
+ *             "stopReason": null,
+ *             "startedAt": 1789131470000,
+ *             "stoppedAt": null,
+ *             "lastDataAt": 1789131477900,
+ *             "lastError": null,
+ *             "input": {
+ *                 "url": "rtsp://211.157.179.37:8554/live",
+ *                 "status": "running",
+ *                 "width": 1920,
+ *                 "height": 1080,
+ *                 "fps": 25
+ *             },
+ *             "effectiveFps": 25,
+ *             "decodedFrames": 180,
+ *             "droppedFrames": 0,
+ *             "inferredFrames": 2,
+ *             "matchedFrames": 1,
+ *             "postedFrames": 1,
+ *             "callbackFailures": 0,
+ *             "inferenceFailures": 0,
+ *             "lastMatchedAt": 1789131476537
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniPerception - stop 应答：停止中，仍须查询
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736233,
+ *         "timestamp": 1789131490000,
+ *         "unit": "OmniPerception",
+ *         "answer": "",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "streamId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31",
+ *             "status": "stopping",
+ *             "queryVersion": 2,
+ *             "activeQueryVersion": 2,
+ *             "task": "reasoning_detection",
+ *             "intervalSeconds": 5,
+ *             "idleTimeoutSeconds": 10,
+ *             "stopReason": "requested",
+ *             "startedAt": 1789131470000,
+ *             "stoppedAt": null,
+ *             "lastDataAt": 1789131477900,
+ *             "lastError": null,
+ *             "input": {
+ *                 "url": "rtsp://211.157.179.37:8554/live",
+ *                 "status": "running",
+ *                 "width": 1920,
+ *                 "height": 1080,
+ *                 "fps": 25
+ *             },
+ *             "effectiveFps": 25,
+ *             "decodedFrames": 180,
+ *             "droppedFrames": 0,
+ *             "inferredFrames": 2,
+ *             "matchedFrames": 1,
+ *             "postedFrames": 1,
+ *             "callbackFailures": 0,
+ *             "inferenceFailures": 0,
+ *             "lastMatchedAt": 1789131476537
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniPerception - status 应答：已停止
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736234,
+ *         "timestamp": 1789131492000,
+ *         "unit": "OmniPerception",
+ *         "answer": "",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "streamId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31",
+ *             "status": "stopped",
+ *             "queryVersion": 2,
+ *             "activeQueryVersion": 2,
+ *             "task": "reasoning_detection",
+ *             "intervalSeconds": 5,
+ *             "idleTimeoutSeconds": 10,
+ *             "stopReason": "requested",
+ *             "startedAt": 1789131470000,
+ *             "stoppedAt": 1789131491000,
+ *             "lastDataAt": 1789131477900,
+ *             "lastError": null,
+ *             "input": {
+ *                 "url": "rtsp://211.157.179.37:8554/live",
+ *                 "status": "stopped",
+ *                 "width": 1920,
+ *                 "height": 1080,
+ *                 "fps": 25
+ *             },
+ *             "effectiveFps": 25,
+ *             "decodedFrames": 180,
+ *             "droppedFrames": 0,
+ *             "inferredFrames": 2,
+ *             "matchedFrames": 1,
+ *             "postedFrames": 1,
+ *             "callbackFailures": 0,
+ *             "inferenceFailures": 0,
+ *             "lastMatchedAt": 1789131476537
+ *         }
+ *     }
+ *
+ * @apiSuccessExample {json} OmniPerception - status 应答：失败终态（另一种结束情况）
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736235,
+ *         "timestamp": 1789131492000,
+ *         "unit": "OmniPerception",
+ *         "answer": "",
+ *         "thought": "",
+ *         "resultPayload": {
+ *             "streamId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31",
+ *             "status": "failed",
+ *             "queryVersion": 1,
+ *             "activeQueryVersion": 0,
+ *             "task": "reasoning_detection",
+ *             "intervalSeconds": 5,
+ *             "idleTimeoutSeconds": 10,
+ *             "stopReason": "failed",
+ *             "startedAt": 1789131470000,
+ *             "stoppedAt": 1789131491000,
+ *             "lastDataAt": null,
+ *             "lastError": "Unable to open input stream",
+ *             "input": {
+ *                 "url": "rtsp://211.157.179.37:8554/live",
+ *                 "status": "stopped",
+ *                 "width": null,
+ *                 "height": null,
+ *                 "fps": null
+ *             },
+ *             "effectiveFps": null,
+ *             "decodedFrames": 0,
+ *             "droppedFrames": 0,
+ *             "inferredFrames": 0,
+ *             "matchedFrames": 0,
+ *             "postedFrames": 0,
+ *             "callbackFailures": 0,
+ *             "inferenceFailures": 0,
+ *             "lastMatchedAt": null
+ *         }
+ *     }
  *
  * @apiSuccessExample {json} OmniGround - 启动流式分类应答示例
  *     HTTP/1.1 200 OK
@@ -650,7 +1090,7 @@
  *                 "codec": null,
  *                 "width": null,
  *                 "fps": null,
- *                 "url": "rtsp://***@211.157.179.38:8554/apexnova/ANSFCAMERANN0001/video/grounding",
+ *                 "url": "rtsp://211.157.179.37:8554/live/grounding",
  *                 "status": "starting",
  *                 "height": null
  *             },
@@ -669,7 +1109,7 @@
  *             "input": {
  *                 "width": null,
  *                 "fps": null,
- *                 "url": "rtsp://***@211.157.179.38:8554/apexnova/ANSFCAMERANN0001/video",
+ *                 "url": "rtsp://211.157.179.37:8554/live",
  *                 "status": "starting",
  *                 "height": null
  *             },
@@ -690,7 +1130,7 @@
  *             "inputTokens": 0,
  *             "outputTokens": 0
  *         },
- *         "sn": 1876178864400498693,
+ *         "sn": 887736222,
  *         "timestamp": 1789263748849
  *     }
  *
@@ -712,7 +1152,7 @@
  *                 "codec": "libx264",
  *                 "width": 640,
  *                 "fps": 18,
- *                 "url": "rtsp://***@211.157.179.38:8554/apexnova/ANSFCAMERANN0001/video/grounding",
+ *                 "url": "rtsp://211.157.179.37:8554/live/grounding",
  *                 "status": "running",
  *                 "height": 480
  *             },
@@ -731,7 +1171,7 @@
  *             "input": {
  *                 "width": 640,
  *                 "fps": 30,
- *                 "url": "rtsp://***@211.157.179.38:8554/apexnova/ANSFCAMERANN0001/video",
+ *                 "url": "rtsp://211.157.179.37:8554/live",
  *                 "status": "running",
  *                 "height": 480
  *             },
@@ -752,7 +1192,7 @@
  *             "inputTokens": 0,
  *             "outputTokens": 0
  *         },
- *         "sn": 1876178864400498695,
+ *         "sn": 887736223,
  *         "timestamp": 1789264377639
  *     }
  *
@@ -772,7 +1212,7 @@
  *             "inputTokens": 0,
  *             "outputTokens": 0
  *         },
- *         "sn": 1876025504971096000,
+ *         "sn": 887736224,
  *         "timestamp": 1789121353649
  *     }
  *
@@ -799,7 +1239,7 @@
  *             "inputTokens": 0,
  *             "outputTokens": 0
  *         },
- *         "sn": 1876025504971096000,
+ *         "sn": 887736224,
  *         "timestamp": 1789121491146
  *     }
  *
@@ -811,34 +1251,95 @@
  *             "inputTokens": 2526,
  *             "outputTokens": 9
  *         },
- *         "streamId": "4a605e54-e7d0-4b00-af4d-7c6764e1335a",
+ *         "streamId": "e1f77d65-dffd-4ffe-a0a1-7a80ccc0fdff",
  *         "response": "无明显变化",
- *         "timestamp": 1789131476537,
+ *         "timestamp": 1789121413029,
  *         "timeRange": {
  *             "endOffset": 53.594,
  *             "startOffset": 45.594,
- *             "endTimestamp": 1789131470677,
- *             "startTimestamp": 1789131462677
+ *             "endTimestamp": 1789121407448,
+ *             "startTimestamp": 1789121399448
  *         }
  *     }
  *
  * @apiSuccessExample {text} OmniPerception - callbackUrl 原始请求
  *     POST /vlm HTTP/1.1
  *     Content-Type: image/png
- *     X-VLM-Event-Id: stream-uuid:2:42
+ *     X-VLM-Event-Id: 8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31:1:1
  *
  *     <PNG 二进制；iTXt 的 vlm_meta 值见下例>
  *
  * @apiSuccessExample {json} OmniPerception - PNG 的 vlm_meta JSON
  *     {
- *       "eventId":"stream-uuid:2:42","streamId":"stream-uuid","queryVersion":2,
- *       "timestamp":1789131476537,"task":"reasoning_detection","prompt":"屋顶上的水箱",
- *       "response":"<ground>水箱</ground><objects><obj0></objects>",
- *       "resultPayload":{"width":1920,"height":1080,"refs":[{"content":"水箱","boxes":[{"x1":200,"y1":100,"x2":400,"y2":300}],"points":[]}]},
- *       "performance":{"elapsed":"1250","inputTokens":100,"outputTokens":40}
+ *         "eventId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31:1:1",
+ *         "streamId": "8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31",
+ *         "queryVersion": 1,
+ *         "timestamp": 1789131476537,
+ *         "task": "reasoning_detection",
+ *         "prompt": "屋顶上的水箱",
+ *         "response": "<ground>水箱</ground><objects><obj0></objects>",
+ *         "resultPayload": {
+ *             "width": 1920,
+ *             "height": 1080,
+ *             "refs": [
+ *                 {
+ *                     "content": "水箱",
+ *                     "boxes": [
+ *                         {
+ *                             "x1": 200,
+ *                             "y1": 100,
+ *                             "x2": 400,
+ *                             "y2": 300
+ *                         }
+ *                     ],
+ *                     "points": []
+ *                 }
+ *             ]
+ *         },
+ *         "performance": {
+ *             "elapsed": "1250",
+ *             "inputTokens": 100,
+ *             "outputTokens": 40
+ *         }
  *     }
  *
- * @apiError 400 系统故障。
- * @apiError 401 令牌无效。
- * @apiError 403 参数格式错误。
+ * @apiSuccessExample {python} OmniPerception - 读取已保存的回调 PNG（需要 Pillow）
+ *     import json
+ *     from PIL import Image
+ *
+ *     # 接收端先以二进制保存 HTTP 请求体为 callback.png。
+ *     # 实际服务按 eventId 持久化去重，成功保存后返回 2xx。
+ *     with Image.open("callback.png") as image:
+ *         image.load()
+ *         meta = json.loads(image.info["vlm_meta"])
+ *         print(meta["eventId"], meta["streamId"], meta["queryVersion"])
+ *         print(meta["response"])
+ *         for ref in meta["resultPayload"].get("refs", []):
+ *             for box in ref.get("boxes", []):
+ *                 print(ref["content"], box["x1"], box["y1"], box["x2"], box["y2"])
+ *
+ * @apiError 400 请求执行失败。启动时检查频道、视频源与结果接收地址是否可用；控制时检查 streamId、创建会话的用户身份及参数限制。响应体可能为空，先判断 HTTP 状态码；持续失败时联系服务提供方。
+ * @apiError 401 令牌无效或设备信息不匹配；检查令牌及关联的设备请求头。
+ * @apiError 403 请求体格式错误或缺少必填字段；检查 channel、input 及字符串类型的 input.content。
+ *
+ * @apiParamExample {http} 完整请求示例
+ *     POST http://211.157.179.37:7010/multimodal/stream/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     Content-Type: application/json
+ *
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniPerception",
+ *             "content": "屋顶上的水箱",
+ *             "files": [
+ *                 "rtsp://211.157.179.37:8554/live"
+ *             ],
+ *             "option": {
+ *                 "operation": "start",
+ *                 "task": "reasoning_detection",
+ *                 "intervalSeconds": 5,
+ *                 "callbackUrl": "https://receiver.example.com/vlm"
+ *             }
+ *         }
+ *     }
  */
