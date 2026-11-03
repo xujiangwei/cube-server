@@ -76,7 +76,7 @@ try {
     const payload=serialize(detail);
     const file=`content/${hash(id)}.${hash(payload)}.js`;
     fs.writeFileSync(path.join(stage,file),`window.CubeApiDocs.define(${serialize(id)},${payload});\n`);
-    catalog.push({id,name:entry.name,title:entry.title || entry.name,group:entry.group,groupTitle:entry.groupTitle || entry.group,method:entry.type.toUpperCase(),url:entry.url,summary:plain(entry.description).slice(0,140),description:plain(entry.description).slice(0,1500),terms:fieldsOf(entry).map(x=>x.field).join(' '),versions:versions.map(x=>x.version),file});
+    catalog.push({id,name:entry.name,title:entry.title || entry.name,group:entry.group,groupTitle:entry.groupTitle || entry.group,method:entry.type.toUpperCase(),url:entry.url,description:plain(entry.description).slice(0,1500),terms:fieldsOf(entry).map(x=>x.field).join(' '),versions:versions.map(x=>x.version),file});
   }
   const collator=new Intl.Collator('zh-CN',{numeric:true});
   catalog.sort((a,b)=>collator.compare(a.groupTitle,b.groupTitle)||collator.compare(a.title,b.title));

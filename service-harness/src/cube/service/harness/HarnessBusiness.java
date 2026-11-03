@@ -136,6 +136,16 @@ final class HarnessBusiness implements AutoCloseable {
             if (execution == null) {
                 throw new Failure(503, "HARNESS_NOT_READY");
             }
+            if (action.name().matches("ValidatePackage|PublishRelease|ReadRelease|PublishPolicy|ReadPolicyBinding|BindPolicy|PutSource|ReadSource|SourceGrant")) {
+                String role = action == HarnessAction.PutSource || action == HarnessAction.ReadSource ? "source"
+                        : action == HarnessAction.SourceGrant ? "source-grant"
+                        : action == HarnessAction.PublishPolicy || action == HarnessAction.ReadPolicyBinding || action == HarnessAction.BindPolicy ? "policy" : "release";
+                if (!authenticated.allowed(config.values, "admin." + role + ".subjects")) throw new Failure(403, "ADMIN_FORBIDDEN");
+                if (action != HarnessAction.ValidatePackage && action != HarnessAction.PublishRelease && !"GET".equals(action.method)
+                        && !data.optString("contentType").toLowerCase(Locale.ROOT).startsWith("application/json")) throw new Failure(415, "UNSUPPORTED_MEDIA_TYPE");
+                return reply(action == HarnessAction.PublishRelease || action == HarnessAction.PutSource || action == HarnessAction.PublishPolicy ? 201 : 200,
+                        execution.admin.handle(identity, action, data, raw));
+            }
             switch (action) {
                 case TaskProfiles:
                     return reply(200, execution.taskProfiles(identity));
@@ -291,7 +301,8 @@ final class HarnessBusiness implements AutoCloseable {
                     : code.equals("FILE_EXPIRED") || code.equals("WAIT_EXPIRED") ? 410
                     : code.equals("HARNESS_BUSY") || code.equals("FILE_BUSY") || code.equals("FILE_QUOTA_EXCEEDED") ? 429
                     : code.contains("CONFLICT") || code.equals("EVENT_GAP") || code.equals("RUN_TERMINAL") || code.equals("APPROVAL_ARGUMENTS_CHANGED") ? 409
-                    : code.startsWith("STORE_") || code.equals("HARNESS_DRAINING") || code.equals("MODEL_NOT_READY") || code.equals("RUNTIME_NOT_READY") ? 503 : 400;
+                    : code.equals("UNSUPPORTED_MEDIA_TYPE") ? 415
+                    : code.startsWith("STORE_") || code.equals("HARNESS_DRAINING") || code.endsWith("_NOT_READY") ? 503 : 400;
             return error(status, code);
         }
         if (e instanceof IllegalArgumentException) {

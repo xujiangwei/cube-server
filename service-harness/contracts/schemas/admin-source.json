@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "properties": {
+    "baseUrl": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "secretRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "identityMapping": {
+      "type": "string",
+      "enum": [
+        "cube-subject-hmac-v1"
+      ]
+    },
+    "allowedPaths": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    }
+  },
+  "required": [
+    "baseUrl",
+    "secretRef",
+    "identityMapping",
+    "allowedPaths"
+  ],
+  "additionalProperties": false
+}

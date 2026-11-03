@@ -194,6 +194,20 @@ public final class StoreBootstrapTest {
         System.out.println("PASS: known previous schema upgraded with retained runs and no historical backfill");
     }
 
+    private static void providerMigration() throws Exception {
+        for (String table : Arrays.asList("data_source", "source_grant", "provider_fact", "admin_request")) sql("DROP TABLE harness_" + table);
+        String previous = config.mysql() ? "23708b9e87686f3c0cc9d42afbff6add4a0b508a7ac73aecfb343f201a49e3d8" : "5369b969ed2bd18fb85d223df7ef2aa29e0f8d1299648795efc875a828afb838";
+        sql("UPDATE harness_store_identity SET schema_hash='" + previous + "' WHERE singleton=1");
+        long before = count("harness_run", "retained");
+        StoreBootstrap.selfCheck(config);
+        ProviderStore metadata = new ProviderStore(new JdbcRunStore(config), config.mysql());
+        metadata.putSource("fixture", "source", "1", new JSONObject().put("fixture", true));
+        StoreBootstrap.selfCheck(config);
+        check(new ProviderStore(new JdbcRunStore(config), config.mysql()).source("fixture", "source@1").getBoolean("fixture"), "Restart lost source version");
+        check(count("harness_run", "retained") == before, "Provider migration lost existing runs");
+        System.out.println("PASS: pre-M1 schema upgraded through startup; source versions and run data survive strict re-open");
+    }
+
     public static void main(String[] args) throws Exception {
         root = Files.createTempDirectory("harness-bootstrap-");
         properties = new Properties();
@@ -212,7 +226,7 @@ public final class StoreBootstrapTest {
         properties.setProperty("http.port", "0");
         properties.setProperty("worker.credential", "private-bootstrap-test-worker-1234");
         config = new StoreConfig(properties);
-        startup(); usageMigration(); tenantInitialization(); invalidTemplates();
+        startup(); usageMigration(); providerMigration(); tenantInitialization(); invalidTemplates();
         System.out.println("PASS: automatic store and tenant initialization on " + config.dialect);
     }
 }

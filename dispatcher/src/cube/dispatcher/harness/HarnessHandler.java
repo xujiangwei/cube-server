@@ -101,7 +101,7 @@ final class HarnessHandler extends AbstractHandler {
         }
 
         // 透传的请求头：HTTP 头名 -> 数据键名
-        for (String[] header : new String[][]{{"Idempotency-Key", "key"}, {"Content-Type", "contentType"}, {"Last-Event-ID", "lastEventId"}}) {
+        for (String[] header : new String[][]{{"Idempotency-Key", "key"}, {"Content-Type", "contentType"}, {"Last-Event-ID", "lastEventId"}, {"X-Harness-Key-Id", "signer"}, {"X-Harness-Signature", "signature"}}) {
             String value = request.getHeader(header[0]);
             if (value != null) {
                 if (value.length() > 4096) {
@@ -181,7 +181,7 @@ final class HarnessHandler extends AbstractHandler {
             }
 
             byte[] body = null;
-            if (action.schema != null) {
+            if (action.schema != null || (("POST".equals(action.method) || "PUT".equals(action.method)) && action != HarnessAction.UploadInput)) {
                 state.track(state.request.getInputStream());
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 byte[] buffer = new byte[4096];

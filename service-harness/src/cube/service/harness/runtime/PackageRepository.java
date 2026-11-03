@@ -221,6 +221,9 @@ public final class PackageRepository {
      * 校验通过的发布包：规范化 manifest、内容 blob 与派生 digest。
      */
     public static final class Validated {
+        public byte[] resource(String path) {
+            return contents.get(file(manifest, path).getString("sha256")).clone();
+        }
         /**
          * release digest：规范化 manifest 的 SHA256（64 位小写十六进制）。
          */

@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "properties": {
+    "skill": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9_.-]*/[a-z][a-z0-9_.-]*$"
+    },
+    "connectorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "argumentsJson": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 4096
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 1024
+    }
+  },
+  "required": [
+    "skill",
+    "connectorId",
+    "argumentsJson"
+  ],
+  "additionalProperties": false
+}

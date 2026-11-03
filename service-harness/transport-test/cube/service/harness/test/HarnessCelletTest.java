@@ -111,6 +111,9 @@ public final class HarnessCelletTest {
                 HarnessSessionTest.check(created != null && new Packet(created).data.getInt("status") == 503 && new Packet(created).data.getJSONObject("body").getString("errorCode").equals("MODEL_NOT_READY"), "Offline model was not rejected at creation");
                 System.out.println("PASS: real Cell invalid-token isolation, tenant policy, capability directory and offline model admission");
                 client.call(HarnessAction.TaskProfiles, new JSONObject(), null, 200);
+                client.call(HarnessAction.ValidatePackage, new JSONObject().put("key", "unauthorized-validate").put("contentType", "application/zip"), new byte[0], 403);
+                client.call(HarnessAction.ReadPolicyBinding, new JSONObject(), null, 403);
+                client.call(HarnessAction.ReadSource, new JSONObject().put("id", "source-f").put("approvalId", "1"), null, 403);
                 ThreadPoolExecutor executor = (ThreadPoolExecutor) cellet.getService().businessExecutor();
                 // 先以 4 个任务占满业务执行器线程并阻塞在 gate 上
                 for (int i = 0; i < 4; i++) {

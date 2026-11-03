@@ -1,0 +1,4 @@
+# Private provider configuration. Keep out of SKILLs and published packages.
+result.max.bytes=12288
+# Reference "forest-source" in the approved source configuration; set a real shared secret privately.
+# secret.forest-source=<at least 32 UTF-8 bytes; same key as F verifier>

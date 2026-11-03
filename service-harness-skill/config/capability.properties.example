@@ -1,0 +1,7 @@
+# Enable only real, warmed-up routes with isolated physical capacity.
+capability.allowed.units=OmniMultimodal,OmniPerception,SpecializedDetection
+capability.timeout.millis=20000
+image.max.pixels=4000000
+result.max.bytes=12288
+# The same approved source credential is needed to retrieve its images.
+# secret.forest-source=<at least 32 UTF-8 bytes>

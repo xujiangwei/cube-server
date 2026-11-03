@@ -18,7 +18,7 @@
   <target name="build" depends="check">
     <mkdir dir="${build.dir}/classes"/>
     <javac srcdir="src" destdir="${build.dir}/classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
-    <sync todir="${build.dir}/classes/cube/service/harness/skill/schemas"><fileset dir="harness-tools" includes="*/input.schema.json,*/output.schema.json"/></sync>
+    <sync todir="${build.dir}/classes/cube/service/harness/skill/schemas"><fileset dir="harness-tools" includes="*/*.schema.json"/></sync>
     <jar destfile="${build.dir}/cube-service-harness-skill-3.0.jar" basedir="${build.dir}/classes"/>
   </target>
   <target name="build-debug" depends="build"><copy file="${build.dir}/cube-service-harness-skill-3.0.jar" todir="../build"/></target>
@@ -32,10 +32,14 @@
     <javac srcdir="test" destdir="${build.dir}/test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false"><classpath><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/></classpath></javac>
   </target>
   <path id="test.cp"><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/><pathelement location="${build.dir}/test-classes"/></path>
-  <target name="test" depends="compile-tests">
+  <target name="test" depends="compile-tests,test-media">
     <exec executable="${python.exe}" failonerror="true"><arg value="-B"/><arg value="scripts/test_smoke.py"/></exec>
     <java classname="cube.service.harness.skill.ProviderTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/></java>
     <java classname="cube.service.harness.test.CommonToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/></java>
+  </target>
+  <target name="test-media" depends="compile-tests">
+    <exec executable="${python.exe}" failonerror="true"><arg value="-B"/><arg path="../../forest/scripts/build_package.py"/><arg value="--tool-packages"/><arg path="${build.dir}/packages"/></exec>
+    <java classname="cube.service.harness.test.MediaToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/><arg path="../../forest"/></java>
   </target>
   <target name="stage" depends="build,packages">
     <fail unless="stage.dir" message="Set -Dstage.dir to the intended Harness stage; this target does not activate providers"/>

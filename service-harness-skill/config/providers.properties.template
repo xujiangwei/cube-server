@@ -12,3 +12,8 @@ broker.provider.time.class=cube.service.harness.skill.TimeProvider
 broker.provider.time.config=C:/private/harness/time.properties
 broker.provider.calculator.class=cube.service.harness.skill.CalculatorProvider
 broker.provider.calculator.config=C:/private/harness/calculator.properties
+# Optional M1 providers: append data,capability to broker.providers only after M1.md setup.
+# broker.provider.data.class=cube.service.harness.skill.DataQueryProvider
+# broker.provider.data.config=C:/private/harness/data.properties
+# broker.provider.capability.class=cube.service.harness.skill.CapabilityInvokeProvider
+# broker.provider.capability.config=C:/private/harness/capability.properties

@@ -74,6 +74,21 @@ public final class ResourceTools {
         return catalog.pinned(identity.tenant, identity.subject, run);
     }
 
+    /** Narrow provider read: name resolved exclusively inside the pinned, active releases. */
+    public JSONObject providerResource(ProfileRegistry.Identity identity, String run, String skill, String path) throws Exception {
+        JSONObject pinned = pin(identity, run);
+        JSONArray releases = pinned.getJSONArray("releases");
+        for (int i = 0; i < releases.length(); i++) {
+            JSONObject release = releases.getJSONObject(i);
+            if (!release.getJSONObject("manifest").getString("name").equals(skill)) continue;
+            JSONObject m = manifest(identity, run, release.getString("digest"), "resource.read", true);
+            JSONObject f = PackageRepository.file(m, path);
+            if (!f.getString("role").equals("resource")) throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+            return cube.service.harness.protocol.StrictJson.object(repository.readVerified(m, path));
+        }
+        throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+    }
+
     /**
      * 权限三重交集：固定权限 ∩ 身份权限 ∩（manifest 声明权限，非空时）。
      *

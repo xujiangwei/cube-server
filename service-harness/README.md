@@ -14,13 +14,14 @@
 | [EXECUTION.md](EXECUTION.md) | 模型推理、资源循环、多单元容量和结果对账 |
 | [RUNTIME.md](RUNTIME.md) | 技能包发布、固定配置、权限、工作区和上下文 |
 | [TOOLS.md](TOOLS.md) | 可信工具、业务 provider 与 sandbox Runner |
+| [M1.md](M1.md) | 通用数据连接器、已有单图 Unit 调用和远程资源包发布；部署及验证边界 |
 | [CONTROL-FILES.md](CONTROL-FILES.md) | 输入、审批、取消、附件、产物和自动清理 |
 | [STORE.md](STORE.md) | SQLite/MySQL 配置、自动建表、任务账本及恢复 |
 | [RESILIENCE.md](RESILIENCE.md) | 接单开关、drain、停机、升级及故障处理 |
 | [TRACE.md](TRACE.md) | 诊断导出、反馈和离线回放 |
 | [CONTRACT.md](CONTRACT.md) | 协议、注册租约、幂等和兼容规则 |
 
-业务 REST 的完整定义见 [API 文档](../docs/rest-api/src/harness/README.md)。客户技能教程与示例位于工作区 [skill/](../../skill/README.md)。
+业务 REST 的完整定义见 [API 文档](../docs/rest-api/src/Harness.md)。客户技能教程与示例位于工作区 [skill/](../../skill/README.md)。
 
 ## 服务组成与数据流
 

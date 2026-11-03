@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "properties": {
+    "operation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "enum": [
+        "detect"
+      ]
+    },
+    "profile": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "enum": [
+        "fire-smoke",
+        "uav-fire-smoke"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "sliced": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "operation",
+    "profile"
+  ],
+  "additionalProperties": false
+}

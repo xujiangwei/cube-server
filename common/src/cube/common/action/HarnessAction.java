@@ -19,6 +19,15 @@ import java.util.regex.Pattern;
  * <p>本协议独立于 Python worker 协议。</p>
  */
 public enum HarnessAction {
+    ValidatePackage("POST", "admin/packages/validate", null),
+    PublishRelease("POST", "admin/releases", null),
+    ReadRelease("GET", "admin/releases/ID", null),
+    PublishPolicy("POST", "admin/policies", "admin-policy"),
+    ReadPolicyBinding("GET", "admin/bindings/policy/default", null),
+    BindPolicy("PUT", "admin/bindings/policy/default", "admin-policy-binding"),
+    PutSource("PUT", "admin/sources/ID/versions/ID", "admin-source"),
+    ReadSource("GET", "admin/sources/ID/versions/ID", null),
+    SourceGrant("POST", "admin/source-grants", "admin-source-grant"),
     /**
      * 查询服务能力。
      */

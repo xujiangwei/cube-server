@@ -914,6 +914,23 @@ public final class FileStore {
         });
     }
 
+    /** Server-derived origin. A model-written file name or JSON body cannot impersonate a provider. */
+    public JSONObject providerOrigin(JSONObject file) {
+        if (!file.getString("kind").equals("artifact") || file.isNull("run_id")) return null;
+        return store.tx(c -> {
+            JSONArray jobs = rows(c, "SELECT j.job_id,j.call_id,j.definition_json,t.status,t.result_json FROM harness_tool_job j JOIN harness_tool_call t ON t.run_id=j.run_id AND t.intent_id=j.call_id AND t.attempt=j.attempt WHERE j.run_id=? AND j.tenant=? AND j.subject_id=?", file.getString("run_id"), file.getString("tenant"), file.getString("subject_id"));
+            for (int i = 0; i < jobs.length(); i++) {
+                JSONObject job = jobs.getJSONObject(i);
+                String request = hash(new JSONArray().put(file.getString("tenant")).put(file.getString("subject_id")).put("artifact").put(file.getString("run_id")).put(job.getString("call_id")));
+                if (first(rows(c, "SELECT file_id FROM harness_file_request WHERE request_id=? AND file_id=?", request, file.getString("file_id"))) == null) continue;
+                boolean confirmed = job.getString("status").equals("confirmed") && !job.isNull("result_json") && new JSONObject(job.getString("result_json")).optString("status").equals("success");
+                return new JSONObject().put("kind", "provider").put("operation", new JSONObject(job.getString("definition_json")).getJSONObject("tool").getString("brokerOperation"))
+                        .put("jobId", job.getString("job_id")).put("confirmed", confirmed);
+            }
+            return null;
+        });
+    }
+
     /**
      * 汇总本 root 的文件指标：状态分布、pin 分布与近期失败清单。
      *

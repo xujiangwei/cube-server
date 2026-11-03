@@ -1,6 +1,8 @@
 (function () {
   'use strict';
   const catalog = window.CubeApiCatalog;
+  // Derive the card excerpt locally instead of downloading the same description prefix twice.
+  for (const entry of catalog.entries) entry.summary = entry.description.slice(0,140);
   const entries = new Map(catalog.entries.map(entry => [entry.id,entry]));
   const groups = new Map(catalog.groups.map(group => [group.id,group]));
   const index = window.CubeApiSearch.createIndex(catalog.entries);

@@ -196,6 +196,8 @@
  * @apiSuccess {String} skills.version 版本标识。
  * @apiSuccess {String} skills.digest 内容的 SHA-256 摘要。
  * @apiSuccess {String[]} skills.dependencies 依赖的技能发布摘要列表。
+ * @apiSuccess {Boolean} [skills.ready] 业务资源的数据源与分析配置是否通过当前准入检查；不是容量预留。
+ * @apiSuccess {String} [skills.reason] 不可用原因；通过检查时为空字符串。
  * @apiSuccess {Object[]} skills.compatibleRuntimes 兼容的执行器名称与版本列表。
  * @apiSuccess {String} skills.compatibleRuntimes.id 模型或执行器的名称标识。
  * @apiSuccess {String} skills.compatibleRuntimes.version 版本标识。
@@ -919,6 +921,7 @@
  * @apiSuccess {Number} artifacts.expiresAt 到期时间。
  * @apiSuccess {String} artifacts.state 产物状态。
  * @apiSuccess {Boolean} artifacts.downloadable 是否可下载。
+ * @apiSuccess {Object} [artifacts.origin] 服务器从 Provider 调用账本推导的来源；结构同产物元数据。
  * @apiSuccessExample {json} 暂无产物
  *     HTTP/1.1 200 OK
  *     {"artifacts":[]}
@@ -966,6 +969,11 @@
  * @apiSuccess {Number} expiresAt 到期时间。
  * @apiSuccess {String} state uploading、ready、expired、delete_pending 或 deleted。
  * @apiSuccess {Boolean} downloadable 为 true 时可下载。
+ * @apiSuccess {Object} [origin] 仅 Provider 产物具有，模型写同名文件不会生成此字段。
+ * @apiSuccess {String} origin.kind provider。
+ * @apiSuccess {String} origin.operation 实际 Provider operation，例如 common.capability.invoke.v1。
+ * @apiSuccess {String} origin.jobId 已关联的工具作业 ID。
+ * @apiSuccess {Boolean} origin.confirmed 调用已确认成功；展示媒体来源时必须为 true，且 run 已 succeeded。
  *
  * @apiExample {http} 请求地址与请求头
  *     GET http://211.157.179.37:7010/harness/v1/artifacts/artifact-001

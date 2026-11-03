@@ -82,6 +82,9 @@ public final class ExecutionRuntime implements AutoCloseable {
      * 文件服务；files.enabled=false 时为 null。
      */
     public final cube.service.harness.files.FileService files;
+    public final RemoteAdmin admin;
+    private final ProviderStore providerMetadata;
+    private final PackageRepository repository;
 
     /**
      * profile/release 目录存储（私有）。
@@ -188,9 +191,12 @@ public final class ExecutionRuntime implements AutoCloseable {
                                                 "execution.repository.max.bytes", "67108864")),
                                 p.getProperty(
                                         "execution.repository.namespace", "harness-resources")),
-                        Collections.emptyMap(),
+                        RemoteAdmin.signers(p),
                         true,
                         Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false")));
+        repository = repo;
+        providerMetadata = new ProviderStore(store, sc.mysql());
+        ResourceTools resourceTools = new ResourceTools(catalog, repo).files(files);
         jobs = new ModelJobStore(store, sc.mysql());
         inference = new InferenceGateway(new InferenceStore(store, sc.mysql()), p, provider);
         workers = new ModelDispatcher(jobs, p, lease, inference);
@@ -198,7 +204,12 @@ public final class ExecutionRuntime implements AutoCloseable {
                 Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false"))
                         ? new ToolBroker(new ToolJobStore(store, sc.mysql()), permissions, p)
                         .files(files)
+                        .context(resourceTools, providerMetadata, () -> {
+                            Object bridge = provider.get();
+                            return bridge instanceof cube.aigc.completion.MediaProvider ? (cube.aigc.completion.MediaProvider) bridge : null;
+                        })
                         : null;
+        admin = new RemoteAdmin(catalog, repo, providerMetadata, profiles, broker, p, permissions);
         runners = broker == null ? null : new RunnerDispatcher(broker, p, lease);
         coordinator =
                 new RunCoordinator(
@@ -206,7 +217,7 @@ public final class ExecutionRuntime implements AutoCloseable {
                         jobs,
                         catalog,
                         permissions,
-                        new ResourceTools(catalog, repo).files(files),
+                        resourceTools,
                         broker)
                         .controls(controls, files, p);
     }
@@ -276,7 +287,24 @@ public final class ExecutionRuntime implements AutoCloseable {
         Set<String> readyModels = new HashSet<>();
         for (JSONObject model : deployment.list("model")) if (workers.ready(model)) readyModels.add(model.getString("id") + "@" + model.getString("version"));
         JSONArray readyRunners = runners == null ? new JSONArray() : runners.snapshot();
-        return profiles.createRun(identity, key, request, pin -> requireReady(pin, readyModels, readyRunners));
+        JSONObject businessReady = businessReadiness(identity);
+        return profiles.createRun(identity, key, request, pin -> {
+            requireReady(pin, readyModels, readyRunners);
+            JSONArray releases = pin.getJSONArray("releases");
+            for (int i = 0; i < releases.length(); i++) {
+                String reason = businessReady.optString(releases.getJSONObject(i).getString("digest"), "");
+                if (!reason.isEmpty()) throw new StoreException(reason);
+            }
+        });
+    }
+
+    private JSONObject businessReadiness(ProfileRegistry.Identity identity) {
+        JSONArray all = new JSONArray(), rows = catalog.releases(identity.tenant);
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = catalog.release(identity.tenant, rows.getJSONObject(i).getString("digest"));
+            all.put(new JSONObject().put("digest", row.getString("digest")).put("manifest", new JSONObject(row.getString("manifest_json"))));
+        }
+        return broker == null ? new JSONObject() : broker.businessReadiness(identity, all, repository);
     }
 
     /**
@@ -338,6 +366,13 @@ public final class ExecutionRuntime implements AutoCloseable {
     public JSONObject taskProfiles(ProfileRegistry.Identity identity) {
         ensureTenant(identity);
         JSONObject out = profiles.describe(identity);
+        JSONObject businessReady = businessReadiness(identity);
+        JSONArray businessSkills = out.getJSONArray("skills");
+        for (int i = 0; i < businessSkills.length(); i++) {
+            JSONObject skill = businessSkills.getJSONObject(i);
+            String reason = businessReady.optString(skill.getString("digest"), "");
+            skill.put("ready", reason.isEmpty()).put("reason", reason);
+        }
         JSONArray models = out.getJSONArray("models"), runtimes = out.getJSONArray("runtimes"), tools = out.getJSONArray("tools");
         for (int i = 0; i < models.length(); i++) {
             JSONObject model = models.getJSONObject(i);

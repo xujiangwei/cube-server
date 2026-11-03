@@ -94,7 +94,9 @@ public final class StoreBootstrap {
             String hash = r.getString(3);
             boolean previous = allowPreviousMysqlSchema && (config.mysql()
                     ? MYSQL_SCHEMA_BEFORE_EXPLICIT_COLLATIONS.equals(hash) || "dcda116b812ddb9ecc491e81e5614e72ce8b2e2ca134a39ef2ba3bf3424ce61b".equals(hash)
-                    : "e722e01d82aeaff998fc45783308f8c2cb6ef923b48f04b32f402ce3cd9ee021".equals(hash));
+                        || "23708b9e87686f3c0cc9d42afbff6add4a0b508a7ac73aecfb343f201a49e3d8".equals(hash)
+                    : "e722e01d82aeaff998fc45783308f8c2cb6ef923b48f04b32f402ce3cd9ee021".equals(hash)
+                        || "5369b969ed2bd18fb85d223df7ef2aa29e0f8d1299648795efc875a828afb838".equals(hash));
             if ((!digest(config).equals(hash) && !previous) || r.next()) {
                 throw new StoreException("STORE_IDENTITY_MISMATCH");
             }

@@ -25,7 +25,7 @@ public abstract class AbstractProvider implements QueryProvider {
         resultBytes = number(config, "result.max.bytes", 12288, 1024, 12288);
     }
 
-    private static JSONObject schema(String skill, String kind) {
+    protected static JSONObject schema(String skill, String kind) {
         String path = "/cube/service/harness/skill/schemas/" + skill + "/" + kind + ".schema.json";
         try (InputStream stream = AbstractProvider.class.getResourceAsStream(path)) {
             if (stream == null) throw new IllegalStateException("SKILL_SCHEMA_MISSING: " + path);

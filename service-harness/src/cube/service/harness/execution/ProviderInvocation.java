@@ -65,6 +65,69 @@ public final class ProviderInvocation {
      * 文件服务；为 null 表示该部署未启用受控文件访问。
      */
     private final FileService files;
+    private cube.service.harness.runtime.ResourceTools resources;
+    private cube.service.harness.store.ProviderStore metadata;
+    private java.util.Set<String> permissions;
+    private java.util.function.Supplier<cube.aigc.completion.MediaProvider> media;
+
+    ProviderInvocation services(cube.service.harness.runtime.ResourceTools resources,
+            cube.service.harness.store.ProviderStore metadata, java.util.Set<String> permissions,
+            java.util.function.Supplier<cube.aigc.completion.MediaProvider> media) {
+        this.resources = resources; this.metadata = metadata; this.permissions = permissions; this.media = media;
+        return this;
+    }
+
+    private void active() { if (cancelled()) throw new StoreException("TOOL_CANCELLED"); }
+    private cube.service.harness.store.ProviderStore metadata() {
+        if (metadata == null) throw new StoreException("PROVIDER_CONTEXT_DISABLED");
+        return metadata;
+    }
+    public JSONObject resource(String skill, String path) throws Exception {
+        active();
+        if (resources == null) throw new StoreException("PROVIDER_CONTEXT_DISABLED");
+        return resources.providerResource(new cube.service.harness.runtime.ProfileRegistry.Identity(tenant, subject, permissions), runId, skill, path);
+    }
+    public JSONObject source(String ref) {
+        active(); metadata().authorize(tenant, subject, ref); return metadata().source(tenant, ref);
+    }
+    public JSONObject remember(String kind, String id, JSONObject value) {
+        active(); return metadata().fact(job, kind, id, value, false);
+    }
+    public JSONObject confirmed(String kind, String id) {
+        active(); return metadata().fact(job, kind, id, null, true);
+    }
+    public JSONObject reserveMedia(String unit, JSONObject request) {
+        active();
+        cube.aigc.completion.MediaProvider bridge = media == null ? null : media.get();
+        if (bridge == null) throw new StoreException("CAPABILITY_NOT_READY");
+        return metadata().reserve(job, bridge.mediaUnits(), unit, request);
+    }
+    public void invokeMedia(JSONObject execution, byte[] image, java.util.function.Consumer<JSONObject> listener) {
+        cube.aigc.completion.MediaProvider bridge = media == null ? null : media.get();
+        if (cancelled() || bridge == null) {
+            unsent(execution);
+            throw new StoreException(cancelled() ? "TOOL_CANCELLED" : "CAPABILITY_NOT_READY");
+        }
+        try {
+            bridge.invokeMedia(execution, image, receipt -> {
+                if (!receipt.optBoolean("actualFinished")) return;
+                metadata().receipt(job, receipt);
+                listener.accept(receipt);
+            });
+        } catch (java.util.concurrent.RejectedExecutionException rejected) {
+            unsent(execution);
+            throw new StoreException("CAPABILITY_NOT_READY");
+        }
+    }
+    private void unsent(JSONObject execution) {
+        metadata().receipt(job, new JSONObject().put("requestId", execution.getString("requestId"))
+                .put("instanceId", execution.getString("instanceId")).put("actualFinished", true).put("success", false).put("unsent", true));
+    }
+    public boolean mediaFinished() { return metadata().finished(job); }
+    public void cancelMedia() {
+        cube.aigc.completion.MediaProvider bridge = media == null ? null : media.get();
+        if (bridge != null) bridge.cancelMedia(jobId);
+    }
 
     /**
      * 以持久化 job 行构造调用上下文，仅限同包 Broker 调用。

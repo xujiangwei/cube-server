@@ -238,6 +238,8 @@ public final class FileService implements AutoCloseable {
         if (!row.isNull("run_id")) {
             out.put("runId", row.getString("run_id"));
         }
+        JSONObject origin = ledger.providerOrigin(row);
+        if (origin != null) out.put("origin", origin);
         String state = row.getString("status");
         if (!state.equals("deleted")
                 && !state.equals("delete_pending")

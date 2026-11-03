@@ -126,6 +126,7 @@ final class QueryProviders implements AutoCloseable {
         }
         return provider;
     }
+    java.util.Collection<QueryProvider> all() { return java.util.Collections.unmodifiableCollection(providers.values()); }
 
     /**
      * 关闭全部已注册提供方，释放各自持有的上游资源；重复调用安全。

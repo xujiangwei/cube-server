@@ -82,6 +82,50 @@ public final class ToolBroker implements AutoCloseable {
      * 文件服务，可后置注入；为 null 表示未启用受控文件访问。
      */
     private cube.service.harness.files.FileService files;
+    private cube.service.harness.runtime.ResourceTools resources;
+    private cube.service.harness.store.ProviderStore metadata;
+    private java.util.function.Supplier<cube.aigc.completion.MediaProvider> media;
+
+    public ToolBroker context(cube.service.harness.runtime.ResourceTools resources,
+            cube.service.harness.store.ProviderStore metadata,
+            java.util.function.Supplier<cube.aigc.completion.MediaProvider> media) {
+        this.resources = resources; this.metadata = metadata; this.media = media;
+        return this;
+    }
+    private ProviderInvocation invocation(JSONObject job) {
+        return new ProviderInvocation(job, jobs, files).services(resources, metadata, permissions, media);
+    }
+    public void validatePackage(cube.service.harness.runtime.PackageRepository.Validated checked) {
+        for (QueryProvider provider : providers.all()) for (String path : provider.configurationFiles()) {
+            for (int i = 0; i < checked.manifest.getJSONArray("files").length(); i++) {
+                if (checked.manifest.getJSONArray("files").getJSONObject(i).getString("path").equals(path))
+                    provider.validateConfiguration(path, cube.service.harness.protocol.StrictJson.object(checked.resource(path)));
+            }
+        }
+    }
+    /** Called outside the run-creation transaction: no network/DB recursion under its lock. */
+    public JSONObject businessReadiness(ProfileRegistry.Identity identity, org.json.JSONArray releases,
+            cube.service.harness.runtime.PackageRepository repo) {
+        JSONObject result = new JSONObject();
+        QueryProvider.ProviderInvocationLookup lookup = new QueryProvider.ProviderInvocationLookup() {
+            public JSONObject source(String ref) { metadata.authorize(identity.tenant, identity.subject, ref); return metadata.source(identity.tenant, ref); }
+            public org.json.JSONArray mediaUnits() { cube.aigc.completion.MediaProvider bridge = media == null ? null : media.get(); return bridge == null ? new org.json.JSONArray() : bridge.mediaUnits(); }
+        };
+        for (int i = 0; i < releases.length(); i++) {
+            JSONObject release = releases.getJSONObject(i), manifest = release.getJSONObject("manifest");
+            String error = "";
+            try {
+                for (QueryProvider provider : providers.all()) for (String path : provider.configurationFiles()) {
+                    for (int j = 0; j < manifest.getJSONArray("files").length(); j++) {
+                        if (manifest.getJSONArray("files").getJSONObject(j).getString("path").equals(path))
+                            provider.preflightConfiguration(lookup, path, cube.service.harness.protocol.StrictJson.object(repo.readVerified(manifest, path)));
+                    }
+                }
+            } catch (Exception e) { error = e instanceof StoreException ? ((StoreException) e).code : "CONNECTOR_CONFIG_INVALID"; }
+            result.put(release.getString("digest"), error);
+        }
+        return result;
+    }
 
     /**
      * 后置注入文件服务。
@@ -528,7 +572,7 @@ public final class ToolBroker implements AutoCloseable {
             authorize(
                     jobs.job(j.getString("job_id")),
                     new JSONObject(j.getString("wire_json")).getJSONObject("grant"));
-            response = provider(j).query(new ProviderInvocation(j, jobs, files), args);
+            response = provider(j).query(invocation(j), args);
             validateData(j, response);
         } catch (Exception e) {
             unknown = !(e instanceof StoreException);
@@ -632,7 +676,7 @@ public final class ToolBroker implements AutoCloseable {
             data = ToolJobStore.error(receipt.getString("errorCode"));
         } else {
             try {
-                data = p.complete(new ProviderInvocation(j, jobs, files), receipt.getJSONObject("output"));
+                data = p.complete(invocation(j), receipt.getJSONObject("output"));
                 validateData(j, data);
             } catch (StoreException e) {
                 data = ToolJobStore.error(e.code);
@@ -701,7 +745,7 @@ public final class ToolBroker implements AutoCloseable {
                     recoveryQueries.execute(
                             () -> {
                                 try {
-                                    if (provider.reconcile(new ProviderInvocation(job, jobs, files))) {
+                                    if (provider.reconcile(invocation(job))) {
                                         jobs.brokerReconciled(id, node);
                                     }
                                 } catch (Exception ignored) {

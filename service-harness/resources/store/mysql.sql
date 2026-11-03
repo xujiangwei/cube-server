@@ -480,3 +480,38 @@ CREATE TABLE harness_tenant (
     initialized_at BIGINT NOT NULL,
     template_digest VARCHAR(64)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE harness_data_source (
+    tenant VARCHAR(128) NOT NULL,
+    source_id VARCHAR(128) NOT NULL,
+    source_version VARCHAR(128) NOT NULL,
+    digest VARCHAR(64) NOT NULL,
+    config_json MEDIUMTEXT NOT NULL,
+    PRIMARY KEY(tenant,source_id,source_version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE harness_source_grant (
+    tenant VARCHAR(128) NOT NULL,
+    subject_id VARCHAR(128) NOT NULL,
+    source_ref VARCHAR(257) NOT NULL,
+    allowed INTEGER NOT NULL,
+    PRIMARY KEY(tenant,subject_id,source_ref)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE harness_provider_fact (
+    run_id VARCHAR(128) NOT NULL,
+    job_id VARCHAR(64) NOT NULL,
+    fact_kind VARCHAR(32) NOT NULL,
+    fact_id VARCHAR(128) NOT NULL,
+    value_json MEDIUMTEXT NOT NULL,
+    PRIMARY KEY(run_id,fact_kind,fact_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE harness_admin_request (
+    tenant VARCHAR(128) NOT NULL,
+    subject_id VARCHAR(128) NOT NULL,
+    request_key VARCHAR(128) NOT NULL,
+    request_hash VARCHAR(64) NOT NULL,
+    response_json MEDIUMTEXT NOT NULL,
+    PRIMARY KEY(tenant,subject_id,request_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

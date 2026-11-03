@@ -1,4 +1,4 @@
-"""Build six immutable author ZIPs from this module's harness-tools (Python 3 stdlib)."""
+"""Build immutable author ZIPs from this module's harness-tools (Python 3 stdlib)."""
 import argparse
 import hashlib
 import json
@@ -7,7 +7,7 @@ from pathlib import Path
 import tempfile
 import zipfile
 
-NAMES = ("search", "web", "knowledge", "attachment", "time", "calculator")
+NAMES = ("search", "web", "knowledge", "attachment", "time", "calculator", "data", "capability")
 ROOT = Path(__file__).resolve().parents[1]
 
 

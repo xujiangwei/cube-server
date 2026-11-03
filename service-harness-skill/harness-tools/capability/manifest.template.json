@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 6,
+  "name": "common/capability",
+  "version": "1",
+  "runtime": {
+    "id": "trusted-cpu",
+    "version": "1"
+  },
+  "skillFile": "SKILL.md",
+  "dependencyLock": "dependencies.lock.json",
+  "permissions": [
+    "skill.list",
+    "skill.activate",
+    "resource.list",
+    "resource.read",
+    "resource.search",
+    "capability.invoke"
+  ],
+  "tools": [
+    {
+      "name": "common.capability.invoke",
+      "kind": "executable",
+      "entrypoint": "main.py",
+      "inputSchema": "input.schema.json",
+      "outputSchema": "output.schema.json",
+      "permission": "capability.invoke",
+      "effect": "read-only",
+      "brokerOperation": "common.capability.invoke.v1",
+      "runnerType": "tool"
+    }
+  ],
+  "resources": [
+    {
+      "path": "SKILL.md",
+      "role": "skill",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "dependencies.lock.json",
+      "role": "lock",
+      "mediaType": "application/json"
+    },
+    {
+      "path": "main.py",
+      "role": "entrypoint",
+      "mediaType": "text/plain"
+    },
+    {
+      "path": "input.schema.json",
+      "role": "schema",
+      "mediaType": "application/json"
+    },
+    {
+      "path": "output.schema.json",
+      "role": "schema",
+      "mediaType": "application/json"
+    },
+    {
+      "path": "analysis-profiles.schema.json",
+      "role": "schema",
+      "mediaType": "application/json"
+    },
+    {
+      "path": "options-multimodal.schema.json",
+      "role": "schema",
+      "mediaType": "application/json"
+    },
+    {
+      "path": "options-perception.schema.json",
+      "role": "schema",
+      "mediaType": "application/json"
+    },
+    {
+      "path": "options-specialized.schema.json",
+      "role": "schema",
+      "mediaType": "application/json"
+    }
+  ]
+}

@@ -81,7 +81,20 @@ import java.util.concurrent.atomic.AtomicInteger;
  * </ul>
  * <p>本类自身只保留与上述三者无关的业务编排（用户、令牌、会员、知识库、文件、内容理解等）。</p>
  */
-public class AIGCService extends AbstractModule implements Generatable, cube.aigc.completion.CompletionProvider {
+public class AIGCService extends AbstractModule implements Generatable, cube.aigc.completion.CompletionProvider, cube.aigc.completion.MediaProvider {
+    private final HarnessMediaBridge harnessMedia = new HarnessMediaBridge(this);
+    public org.json.JSONArray mediaUnits() { return harnessMedia.mediaUnits(); }
+    public void invokeMedia(JSONObject execution, byte[] image, java.util.function.Consumer<JSONObject> receipt) { harnessMedia.invokeMedia(execution, image, receipt); }
+    public void cancelMedia(String requestId) { harnessMedia.cancelMedia(requestId); }
+    public HarnessMediaBridge getHarnessMedia() { return harnessMedia; }
+    /** Called exclusively by the trusted in-process Harness bridge. */
+    FileLabel saveHarnessMedia(JSONObject execution, String code, java.io.File file) {
+        AbstractModule storage = getFileStorage();
+        if (storage == null) return null;
+        FileLabel label = FileUtils.makeFileLabel(execution.getString("tenant"), code, Long.parseLong(execution.getString("subject")), file);
+        label.setContext(new JSONObject().put("harnessRunId", execution.getString("runId")).put("harnessRequestId", execution.getString("requestId")));
+        return new FileLabel(storage.notify(new SaveFile(file.getAbsolutePath(), label)));
+    }
 
     /**
      * 服务名称，同时作为单元名与配置段名。
@@ -549,6 +562,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
 
         // 单元维护：清理通信上下文失效的单元，并按周期复位单元运行标志
         this.unitScheduler.onTick(now);
+        this.harnessMedia.reconcile();
 
         // 频道维护：复位未变化的处理标志，并回收空闲超时的频道
         this.channelManager.onTick(now);
@@ -3435,6 +3449,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             this.configFileLastModified = file.lastModified();
 
             Properties properties = ConfigUtils.readProperties(file.getAbsolutePath());
+            this.harnessMedia.configure(properties);
             this.specializedDetections.configure(properties);
             this.taskExecutor.configureDetection(properties);
 

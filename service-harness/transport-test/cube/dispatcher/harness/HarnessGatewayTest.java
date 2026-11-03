@@ -249,6 +249,8 @@ public final class HarnessGatewayTest {
             check(data.getString("credential").equals(TOKEN), "Bearer credential was changed");
             check(!data.has("role"), "Dispatcher assigned a caller role");
             JSONObject body = new JSONObject().put("id", data.optString("id", ""));
+            for (String key : Arrays.asList("approvalId", "signer", "signature", "key", "contentType"))
+                if (data.has(key)) body.put(key, data.get(key));
             if (request.containsParam("body")) {
                 body.put("raw", new String(request.getParam("body"), StandardCharsets.UTF_8));
             }
@@ -305,6 +307,21 @@ public final class HarnessGatewayTest {
         return new String(out.toByteArray(), StandardCharsets.UTF_8);
     }
 
+    static JSONObject admin(String url, String method, String type, String raw) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection(Proxy.NO_PROXY);
+        c.setRequestMethod(method); c.setRequestProperty("Authorization", "Bearer " + TOKEN);
+        c.setRequestProperty("Content-Type", type); c.setRequestProperty("Idempotency-Key", "m1-admin-transport");
+        c.setRequestProperty("X-Harness-Key-Id", "f-author"); c.setRequestProperty("X-Harness-Signature", "signature-fixture");
+        c.setReadTimeout(12000); c.setDoOutput(true);
+        try {
+            try (OutputStream out = c.getOutputStream()) { out.write(raw.getBytes(StandardCharsets.UTF_8)); }
+            check(c.getResponseCode() == 200, "Admin route was not forwarded");
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            try (InputStream in = c.getInputStream()) { byte[] bytes = new byte[1024]; int n; while ((n = in.read(bytes)) != -1) out.write(bytes, 0, n); }
+            return new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+        } finally { c.disconnect(); }
+    }
+
     /**
      * 测试入口：依次验证导演机选择、端点安装、有界准入、并发应答、流归属与
      * SSE 配额，全部通过后输出 PASS 汇总行。
@@ -334,6 +351,11 @@ public final class HarnessGatewayTest {
             String url = "http://127.0.0.1:" + ((ServerConnector) server.getConnectors()[0]).getLocalPort();
             // 基础路由：REST 请求经 SHM 送达后端并回显资源 ID
             check(new JSONObject(get(url + "/harness/v1/runs/first", 200)).getString("id").equals("first"), "Resource id lost");
+            JSONObject release = admin(url + "/harness/v1/admin/releases", "POST", "application/zip", "zip-protocol-fixture");
+            check(release.getString("raw").equals("zip-protocol-fixture") && release.getString("signer").equals("f-author")
+                    && release.getString("signature").equals("signature-fixture") && release.getString("key").equals("m1-admin-transport"), "Signed ZIP or idempotency headers lost");
+            JSONObject source = admin(url + "/harness/v1/admin/sources/source-f/versions/1", "PUT", "application/json", "{\"fixture\":true}");
+            check(source.getString("id").equals("source-f") && source.getString("approvalId").equals("1") && source.getString("raw").equals("{\"fixture\":true}"), "Source version or raw JSON lost");
             // 后端不可用（无应答）时返回 503
             performer.available = false;
             get(url + "/harness/v1/capabilities", 503);

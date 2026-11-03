@@ -1,0 +1,80 @@
+{
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "enum": [
+        "1"
+      ]
+    },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "adapter": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "enum": [
+              "multimodal",
+              "specialized-detection"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "enum": [
+              "OmniMultimodal",
+              "OmniPerception",
+              "SpecializedDetection"
+            ]
+          },
+          "mediaTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "enum": [
+                "image/jpeg",
+                "image/png"
+              ]
+            },
+            "maxItems": 2,
+            "minItems": 1
+          },
+          "optionsJson": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "id",
+          "adapter",
+          "unit",
+          "mediaTypes",
+          "optionsJson"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 16,
+      "minItems": 1
+    }
+  },
+  "required": [
+    "version",
+    "profiles"
+  ],
+  "additionalProperties": false
+}

@@ -1739,6 +1739,28 @@
                 }
               }
             }
+          },
+          "200": {
+            "description": "Authenticated artifact metadata; origin is derived by the server from the confirmed Provider ledger.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "artifacts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/artifact-view"
+                      }
+                    }
+                  },
+                  "required": [
+                    "artifacts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1851,6 +1873,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Authenticated artifact metadata; origin is derived by the server from the confirmed Provider ledger.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/artifact-view"
                 }
               }
             }
@@ -2490,6 +2522,538 @@
                 "schema": {
                   "$ref": "#/components/schemas/error"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/admin/packages/validate": {
+      "post": {
+        "summary": "Harness M1 administration: packages/validate",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "description": "Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Administrator or source forbidden"
+          },
+          "409": {
+            "description": "CAS, immutable version or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/zip": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/admin/releases": {
+      "post": {
+        "summary": "Harness M1 administration: releases",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "X-Harness-Key-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Harness-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "description": "Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.",
+        "responses": {
+          "201": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Administrator or source forbidden"
+          },
+          "409": {
+            "description": "CAS, immutable version or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/zip": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/admin/releases/{digest}": {
+      "get": {
+        "summary": "Harness M1 administration: releases/{digest}",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "digest",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "description": "Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Administrator or source forbidden"
+          },
+          "409": {
+            "description": "CAS, immutable version or idempotency conflict"
+          }
+        }
+      }
+    },
+    "/harness/v1/admin/policies": {
+      "post": {
+        "summary": "Harness M1 administration: policies",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "description": "Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.",
+        "responses": {
+          "201": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Administrator or source forbidden"
+          },
+          "409": {
+            "description": "CAS, immutable version or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/admin-policy"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/admin/bindings/policy/default": {
+      "get": {
+        "summary": "Harness M1 administration: bindings/policy/default",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "description": "Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "target": {
+                      "type": "string",
+                      "maxLength": 257
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "target",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Administrator or source forbidden"
+          },
+          "409": {
+            "description": "CAS, immutable version or idempotency conflict"
+          }
+        }
+      },
+      "put": {
+        "summary": "Harness M1 administration: bindings/policy/default",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "description": "Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Administrator or source forbidden"
+          },
+          "409": {
+            "description": "CAS, immutable version or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/admin-policy-binding"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/harness/v1/admin/sources/{id}/versions/{version}": {
+      "put": {
+        "summary": "Harness M1 administration: sources/{id}/versions/{version}",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "description": "Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.",
+        "responses": {
+          "201": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Administrator or source forbidden"
+          },
+          "409": {
+            "description": "CAS, immutable version or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/admin-source"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Harness M1 administration: sources/{id}/versions/{version}",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "description": "Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Administrator or source forbidden"
+          },
+          "409": {
+            "description": "CAS, immutable version or idempotency conflict"
+          }
+        }
+      }
+    },
+    "/harness/v1/admin/source-grants": {
+      "post": {
+        "summary": "Harness M1 administration: source-grants",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "description": "Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Administrator or source forbidden"
+          },
+          "409": {
+            "description": "CAS, immutable version or idempotency conflict"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/admin-source-grant"
               }
             }
           }
@@ -3816,6 +4380,13 @@
                     "additionalProperties": false
                   },
                   "maxItems": 256
+                },
+                "ready": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": "string",
+                  "maxLength": 128
                 }
               },
               "required": [
@@ -3937,7 +4508,8 @@
           "skills",
           "tools"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
       },
       "event": {
         "type": "object",
@@ -4352,6 +4924,266 @@
           "runsReady"
         ],
         "additionalProperties": false
+      },
+      "admin-policy-binding": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 257
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "target",
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "admin-source": {
+        "type": "object",
+        "properties": {
+          "baseUrl": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "secretRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "identityMapping": {
+            "type": "string",
+            "enum": [
+              "cube-subject-hmac-v1"
+            ]
+          },
+          "allowedPaths": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        },
+        "required": [
+          "baseUrl",
+          "secretRef",
+          "identityMapping",
+          "allowedPaths"
+        ],
+        "additionalProperties": false
+      },
+      "admin-source-grant": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "sourceRef": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 257
+          },
+          "allowed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "subject",
+          "sourceRef",
+          "allowed"
+        ],
+        "additionalProperties": false
+      },
+      "admin-policy": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "id": {
+            "type": "string",
+            "enum": [
+              "default"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "policy"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "maxItems": 64
+          },
+          "skillReleases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "maxItems": 64
+          },
+          "businessLimits": {
+            "type": "object",
+            "properties": {
+              "maxActiveRuns": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 256
+              },
+              "maxLifetimeMillis": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 86400000
+              }
+            },
+            "required": [
+              "maxActiveRuns",
+              "maxLifetimeMillis"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "id",
+          "version",
+          "kind",
+          "permissions",
+          "skillReleases",
+          "businessLimits"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "artifact-view": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "fileName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "mediaType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expiresAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "createdAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "state": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "downloadable": {
+            "type": "boolean"
+          },
+          "origin": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "provider"
+                ]
+              },
+              "operation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "jobId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "confirmed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "operation",
+              "jobId",
+              "confirmed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "artifactId",
+          "runId",
+          "fileName",
+          "mediaType",
+          "size",
+          "sha256",
+          "expiresAt",
+          "createdAt",
+          "state",
+          "downloadable"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
       }
     }
   }

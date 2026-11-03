@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "properties": {
+    "task": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "enum": [
+        "vqa",
+        "counting",
+        "detection"
+      ]
+    },
+    "lang": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8,
+      "enum": [
+        "zh",
+        "en"
+      ]
+    }
+  },
+  "required": [
+    "task"
+  ],
+  "additionalProperties": false
+}

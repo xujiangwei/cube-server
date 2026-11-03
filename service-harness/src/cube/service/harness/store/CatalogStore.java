@@ -250,10 +250,10 @@ public final class CatalogStore {
      *                        PROFILE_NOT_FOUND（policy 目标不存在）、VERSION_CONFLICT（版本不匹配）
      */
     public JSONObject bind(String tenant, String kind, String name, String target, long expected) {
-        if (!Arrays.asList("skill", "policy").contains(kind)) {
-            throw new StoreException("INVALID_BINDING_KIND");
-        }
-        return store.tx(c -> {
+        return store.tx(c -> bind(c, tenant, kind, name, target, expected));
+    }
+    private JSONObject bind(Connection c, String tenant, String kind, String name, String target, long expected) throws Exception {
+        if (!Arrays.asList("skill", "policy").contains(kind)) throw new StoreException("INVALID_BINDING_KIND");
             if (kind.equals("skill")) {
                 JSONObject release = release(c, tenant, target, true);
                 if (!release.getString("skill_name").equals(name) || !release.getString("state").equals("ready")) {
@@ -278,6 +278,19 @@ public final class CatalogStore {
                 throw new StoreException("VERSION_CONFLICT");
             }
             return new JSONObject().put("target", target).put("version", v + 1);
+    }
+    /** Binding and idempotency acknowledgement commit atomically, including crash recovery. */
+    public JSONObject bindRemote(String tenant, String subject, String key, String requestHash, String target, long expected) {
+        return store.tx(c -> {
+            if (!lock().isEmpty()) rows(c, "SELECT singleton FROM harness_store_identity WHERE singleton=1 FOR UPDATE");
+            JSONObject prior = first(rows(c, "SELECT request_hash,response_json FROM harness_admin_request WHERE tenant=? AND subject_id=? AND request_key=?", tenant, subject, key));
+            if (prior != null) {
+                if (!prior.getString("request_hash").equals(requestHash)) throw new StoreException("IDEMPOTENCY_CONFLICT");
+                return new JSONObject(prior.getString("response_json"));
+            }
+            JSONObject result = bind(c, tenant, "policy", "default", target, expected);
+            update(c, "INSERT INTO harness_admin_request VALUES (?,?,?,?,?)", tenant, subject, key, requestHash, canonical(result));
+            return result;
         });
     }
 
@@ -688,6 +701,12 @@ public final class CatalogStore {
     /** Read the current skill or business-policy binding. */
     public JSONObject active(String tenant, String kind, String name) {
         return store.tx(c -> active(c, tenant, kind, name));
+    }
+    public JSONObject binding(String tenant, String kind, String name) {
+        return store.tx(c -> {
+            JSONObject row = first(rows(c, "SELECT target_ref AS target,version FROM harness_binding WHERE tenant=? AND binding_kind=? AND binding_name=?", tenant, kind, name));
+            return row == null ? new JSONObject().put("target", "").put("version", 0) : row;
+        });
     }
 
     public JSONObject tenantPolicy(String tenant) {

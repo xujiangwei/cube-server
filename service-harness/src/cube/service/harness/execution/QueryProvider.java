@@ -21,6 +21,15 @@ import org.json.JSONObject;
  * </ul>
  */
 public interface QueryProvider extends AutoCloseable {
+    default java.util.Set<String> configurationFiles() { return java.util.Collections.emptySet(); }
+    default void validateConfiguration(String path, JSONObject config) { }
+    default void preflightConfiguration(ProviderInvocationLookup lookup, String path, JSONObject config) { validateConfiguration(path, config); }
+
+    /** Read-only admission services, supplied by the host, never by a model. */
+    interface ProviderInvocationLookup {
+        JSONObject source(String ref);
+        org.json.JSONArray mediaUnits();
+    }
     /**
      * 重启或unknown对账期的清理/探测入口，仅供 Broker 恢复窗口调用。
      *

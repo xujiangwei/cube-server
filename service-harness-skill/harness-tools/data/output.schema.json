@@ -1,0 +1,91 @@
+{
+  "type": "object",
+  "properties": {
+    "connectorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "recordsJson": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 8192
+    },
+    "mediaRefs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "mediaRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "recordId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "mediaId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "mediaVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "mediaType": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "enum": [
+              "image/jpeg",
+              "image/png"
+            ]
+          }
+        },
+        "required": [
+          "mediaRef",
+          "recordId",
+          "mediaId",
+          "mediaVersion",
+          "mediaType"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 16,
+      "minItems": 0
+    },
+    "nextCursor": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 1024
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "maxItems": 16,
+      "minItems": 0
+    }
+  },
+  "required": [
+    "connectorId",
+    "recordsJson",
+    "mediaRefs",
+    "nextCursor",
+    "complete",
+    "warnings"
+  ],
+  "additionalProperties": false
+}

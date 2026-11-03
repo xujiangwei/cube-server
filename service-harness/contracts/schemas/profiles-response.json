@@ -244,6 +244,13 @@
               "additionalProperties": false
             },
             "maxItems": 256
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 128
           }
         },
         "required": [
