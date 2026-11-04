@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
 package cube.service.harness.test;
 
 import static cube.service.harness.test.RuntimeTest.*;
@@ -14,22 +20,43 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.json.*;
 
-/** Real JDBC, author packages, Broker grants, exact evidence, file binding and duplicate ACKs. */
+/**
+ * 通用技能经真实 Broker/JDBC 的端到端测试。
+ *
+ * <p>覆盖真实 JDBC、作者包、Broker 授权、精确证据、文件绑定与重复 ACK。</p>
+ */
 public final class CommonToolsTest {
+    /** 技能私有配置。 */
     static Properties settings;
+    /** 文件服务。 */
     static FileService files;
+    /** 工具 Broker。 */
     static ToolBroker broker;
+    /** 各技能发布包的摘要。 */
     static final Map<String, String> releases = new LinkedHashMap<>();
+    /** 参与测试的技能名。 */
     static final String[] NAMES = {"search", "web", "knowledge", "attachment", "time", "calculator"};
+    /** 各技能对应的提供者实现类名。 */
     static final String[] CLASSES = {"SearchProvider", "FixtureWebProvider", "KnowledgeProvider", "TextAttachmentProvider", "TimeProvider", "CalculatorProvider"};
+    /** 各技能对应的 Broker 操作名。 */
     static final String[] TOOLS = {"common.search.query", "common.web.read", "common.knowledge.search", "common.attachment.read", "common.time.query", "common.calculator.evaluate"};
 
+    /**
+     * 准备测试环境：加载配置、注册文件服务与技能包、发布任务档案。
+     *
+     * @param directory 测试工作目录。
+     * @param packages 技能包所在目录。
+     * @param searchUrl 搜索上游地址。
+     * @throws Exception 准备过程中的异常。
+     */
     static void prepare(Path directory, Path packages, String searchUrl) throws Exception {
         TEST_PERMISSIONS.addAll(Arrays.asList("web.search", "web.read", "knowledge.read", "attachment.read", "time.read", "calculator.evaluate"));
         identity = new ProfileRegistry.Identity(T, S, TEST_PERMISSIONS);
         ToolTest.prepare(directory, "");
         settings = new Properties();
-        try (InputStream in = Files.newInputStream(root.resolve("store.local.properties"))) { settings.load(in); }
+        try (InputStream in = Files.newInputStream(root.resolve("store.local.properties"))) {
+            settings.load(in);
+        }
         settings.setProperty("files.root", Files.createDirectory(root.resolve("files")).toString());
         settings.setProperty("files.root.id", "common-files-" + key());
         settings.setProperty("files.download.key", key() + key());
@@ -54,7 +81,9 @@ public final class CommonToolsTest {
         for (int i = 0; i < NAMES.length; i++) {
             String name = NAMES[i];
             Properties privateConfig = new Properties();
-            if (name.equals("search")) privateConfig.setProperty("search.url", searchUrl);
+            if (name.equals("search")) {
+                privateConfig.setProperty("search.url", searchUrl);
+            }
             if (name.equals("knowledge")) {
                 privateConfig.setProperty("knowledge.index", root.resolve("knowledge.json").toString());
                 privateConfig.setProperty("knowledge.index.sha256", RuntimeSupport.sha(index));
@@ -80,34 +109,55 @@ public final class CommonToolsTest {
                 .put("permissions", new JSONArray(TEST_PERMISSIONS)).put("tenant", T).put("subject", S).toString()));
     }
 
+    /**
+     * 上传一个文本附件并完成绑定。
+     *
+     * @param text 附件文本。
+     * @return 返回输入标识。
+     * @throws Exception 上传过程中的异常。
+     */
     static String input(String text) throws Exception {
         byte[] raw = bytes(text);
         JSONObject descriptor = new JSONObject().put("fileName", "fixture.txt").put("mediaType", "text/plain")
                 .put("size", raw.length).put("sha256", RuntimeSupport.sha(raw));
         String id = files.create(key(), descriptor).getString("inputId");
-        files.uploadInput(id, new ByteArrayInputStream(raw)); files.complete(id, descriptor.getString("sha256"));
+        files.uploadInput(id, new ByteArrayInputStream(raw));
+        files.complete(id, descriptor.getString("sha256"));
         return id;
     }
 
+    /**
+     * 经 Broker 完整调用一次技能，并核对回执与证据。
+     *
+     * @param tool 技能操作名。
+     * @param args 调用参数。
+     * @param inputIds 本次允许使用的输入标识。
+     * @return 返回技能返回的数据。
+     * @throws Exception 调用过程中的异常。
+     */
     static JSONObject call(String tool, JSONObject args, JSONArray inputIds) throws Exception {
         String run = profiles.createRun(identity, key(), "common-tools", request("verify common tools")
                 .put("input", new JSONObject().put("instruction", "verify common tools").put("attachmentIds", inputIds))).getString("runId");
         JdbcRunStore.Lease lease = running(run, 60000);
-        for (String digest : releases.values()) resources.activate(identity, run, digest);
+        for (String digest : releases.values()) {
+            resources.activate(identity, run, digest);
+        }
         intent(lease, "call", "test-call", new JSONObject().put("proposalId", "test-call").put("tool", tool).put("argumentsJson", JdbcRunStore.canonical(args)));
         JSONObject job = broker.enqueue(lease, row(run, "call", "test-call"), resources.executable(identity, run, tool));
-        String worker = "worker-" + key(), runtimeId = "runtime-" + key();
+        String worker = "worker-" + key();
+        String runtimeId = "runtime-" + key();
         broker.jobs.identity(worker, runtimeId, 1);
         JSONObject wire = broker.jobs.poll(worker, runtimeId, "instance", true, "tool", broker::wire);
         check(wire != null, "tool dispatched");
         broker.jobs.accepted(wire.getString("jobId"), wire.getString("jobHash"));
         job = broker.jobs.job(job.getString("job_id"));
         JSONObject exchange = broker.invokeArguments(job, wire.getJSONObject("grant"), args);
-        // Repeating the accepted invocation must share the same durable exchange.
+        // 重复已受理的调用必须复用同一份持久化交换记录。
         broker.invokeArguments(job, wire.getJSONObject("grant"), args);
         long until = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(8);
         while (exchange.getString("status").equals("pending") && System.nanoTime() < until) {
-            Thread.sleep(10); exchange = broker.invokeArguments(job, wire.getJSONObject("grant"), args);
+            Thread.sleep(10);
+            exchange = broker.invokeArguments(job, wire.getJSONObject("grant"), args);
         }
         check(exchange.getString("status").equals("finished"), "provider finished");
         JSONObject data = new JSONObject(exchange.getString("dataJson"));
@@ -123,18 +173,28 @@ public final class CommonToolsTest {
         return data;
     }
 
+    /**
+     * 测试入口。
+     *
+     * @param args 第一个参数为 prepare 时表示准备环境，否则为技能包目录。
+     * @throws Exception 测试执行过程中的异常。
+     */
     public static void main(String[] args) throws Exception {
         if (args[0].equals("prepare")) {
             prepare(Files.createDirectory(Paths.get(args[1])), Paths.get(args[2]), args[3]);
-            files.close(); return;
+            files.close();
+            return;
         }
         AtomicInteger requests = new AtomicInteger();
         HttpServer upstream = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         upstream.createContext("/search", request -> {
             requests.incrementAndGet();
             byte[] body = bytes("{\"results\":[{\"title\":\"3D tools\",\"url\":\"https://example.com/modeling\",\"content\":\"Fixture source evidence\",\"engine\":\"fixture\"}]}");
-            request.getResponseHeaders().set("Content-Type", "application/json"); request.sendResponseHeaders(200, body.length);
-            try (OutputStream out = request.getResponseBody()) { out.write(body); }
+            request.getResponseHeaders().set("Content-Type", "application/json");
+            request.sendResponseHeaders(200, body.length);
+            try (OutputStream out = request.getResponseBody()) {
+                out.write(body);
+            }
         });
         upstream.start();
         try {
@@ -153,7 +213,13 @@ public final class CommonToolsTest {
             check(call(TOOLS[5], new JSONObject().put("expression", "0.1+0.2"), new JSONArray()).getString("result").equals("0.3"), "calculator evidence");
             System.out.println("PASS: all six providers through real Broker/JDBC; ACL/file binding, replay and duplicate ACKs");
         } finally {
-            if (broker != null) broker.close(); if (files != null) files.close(); upstream.stop(0);
+            if (broker != null) {
+                broker.close();
+            }
+            if (files != null) {
+                files.close();
+            }
+            upstream.stop(0);
         }
     }
 }

@@ -1,11 +1,21 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.aigc.completion;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Trusted host bridge to existing image Units. No model code or public URL is accepted. */
+/**
+ * Trusted host bridge to existing image Units. No model code or public URL is accepted.
+ */
 public interface MediaProvider {
-    /** Live, explicitly enabled routes: unit, instanceId, capacity, ready. */
+    /**
+     * Live, explicitly enabled routes: unit, instanceId, capacity, ready.
+     */
     JSONArray mediaUnits();
 
     /**
@@ -14,6 +24,10 @@ public interface MediaProvider {
      * Losing the connection is not physical completion. Implementations must not retry.
      */
     void invokeMedia(JSONObject execution, byte[] image, java.util.function.Consumer<JSONObject> receipt);
-    /** Best effort: stop queued/preparation work; a sent request still needs a physical receipt. */
-    default void cancelMedia(String requestId) { }
+
+    /**
+     * Best effort: stop queued/preparation work; a sent request still needs a physical receipt.
+     */
+    default void cancelMedia(String requestId) {
+    }
 }
