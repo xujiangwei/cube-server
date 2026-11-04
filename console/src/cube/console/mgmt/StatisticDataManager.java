@@ -35,11 +35,6 @@ public class StatisticDataManager {
     public final String ITEM_TD = "TD";
 
     /**
-     * 工作单元在线判定窗口：最近 24 小时内有活动即视为在线。
-     */
-    private static final long UNIT_ONLINE_WINDOW = 24L * 60 * 60 * 1000L;
-
-    /**
      * 工作单元活跃回溯窗口：用于计算最近活动时间与近期活跃天数。
      */
     private static final long UNIT_TRAIL_WINDOW = 30L * 24 * 60 * 60 * 1000L;
@@ -52,7 +47,7 @@ public class StatisticDataManager {
     private static final long DETAIL_WINDOW_DAYS = 90L;
 
     /**
-     * 工作状态：在线。
+     * 工作状态：在线（有效的节点上报中仍有连接）。
      */
     public static final String UNIT_STATE_ONLINE = "online";
 
@@ -295,6 +290,7 @@ public class StatisticDataManager {
      * 能力（{@code AICapability}）只存在于节点内存，由节点周期上报后经
      * {@code Console#queryUnitCapabilities} 归并传入——同一个物理实体上可以注册多个 AIGC 单元，
      * 因此这里挂到行上的是一个能力数组。</p>
+     * <p>此重载没有连接上报，不能确认任何实体在线；实时台账应同时传入在线实体 ID 集合。</p>
      *
      * @param domain        指定域。
      * @param calendar      统计日期，按该日 00:00 ~ 24:00 统计日活动。
@@ -303,6 +299,20 @@ public class StatisticDataManager {
      */
     public JSONObject queryUnitOverview(String domain, Calendar calendar,
                                         Map<Long, List<JSONObject>> capabilityMap) {
+        return this.queryUnitOverview(domain, calendar, capabilityMap, Collections.<Long>emptySet());
+    }
+
+    /**
+     * 查询单元概览：实时在线由有效连接上报决定，联系人事件只用于历史活动统计。
+     *
+     * @param domain 指定域。
+     * @param calendar 统计日期。
+     * @param capabilityMap 按物理实体归并的能力，允许保留已断开连接的能力。
+     * @param onlineUnitIds 同一批有效上报中仍有连接的物理实体 ID；无上报时为空。
+     * @return 返回单元概览数据。
+     */
+    public JSONObject queryUnitOverview(String domain, Calendar calendar,
+                                        Map<Long, List<JSONObject>> capabilityMap, Set<Long> onlineUnitIds) {
         if (null == this.storage) {
             return null;
         }
@@ -323,7 +333,7 @@ public class StatisticDataManager {
         // 统计日内的事件
         List<DataStorage.ContactEvent> dayEvents =
                 this.storage.queryContactEvents(domain, beginning, ending, true);
-        // 回溯窗口内的事件，用于计算最近活动时间与工作状态
+        // 回溯窗口内的事件，用于计算最近活动时间与活跃天数
         List<DataStorage.ContactEvent> trailEvents =
                 this.storage.queryContactEvents(domain, now - UNIT_TRAIL_WINDOW, now + 1000L, true);
 
@@ -411,7 +421,7 @@ public class StatisticDataManager {
             long lastActiveTime = (null == lastActive) ? 0 : lastActive;
 
             String state;
-            if (lastActiveTime > 0 && (now - lastActiveTime) <= UNIT_ONLINE_WINDOW) {
+            if (onlineUnitIds.contains(id)) {
                 state = UNIT_STATE_ONLINE;
                 ++onlineCount;
             } else if (lastActiveTime > 0) {

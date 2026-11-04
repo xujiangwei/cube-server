@@ -12,7 +12,7 @@
  * 能力来自节点周期上报（约每分钟一次）。
  *
  * 数据来源为统计库 `/statistic/units`：聚合统计按所选日（默认昨日）计算，
- * 工作状态按最近一次上报活动时间判定。
+ * 工作状态按有效节点上报中的连接状态判定。
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
@@ -397,7 +397,7 @@ onMounted(bootstrap)
         :value="overview?.onlineCount ?? '--'"
         icon="bolt"
         tone="emerald"
-        :hint="`最近 24 小时内有上报活动 · 离线 ${overview?.offlineCount ?? 0} · 无活动 ${overview?.inactiveCount ?? 0}`"
+        :hint="`按有效连接上报判定 · 离线 ${overview?.offlineCount ?? 0} · 无活动 ${overview?.inactiveCount ?? 0}`"
       />
       <StatCard
         label="统计日活跃单元"
@@ -444,7 +444,7 @@ onMounted(bootstrap)
           <h2 class="card-title">AI单元台账</h2>
           <p class="mt-0.5 text-xs text-slate-400">
             「能力」为该实体上所有 AIGC 单元的能力汇总 ·
-            「在线」为最近 24 小时内有上报活动；「无活动」为近 30 天内没有上报活动
+            「在线」依据最近 5 分钟内的连接上报；无在线上报且近 30 天没有活动时为「无活动」
           </p>
         </div>
         <span class="pill pill-neutral">

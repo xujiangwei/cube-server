@@ -63,6 +63,10 @@ Dispatcher REST 监控的指标口径、报告 schema、兼容行为与验证步
    `unitReportTime`。能力**不在任何数据库里**，而是由 service 进程的 `Daemon` 每约 60 秒
    经既有节点上报通道（`POST /report`，报文名 `UnitReport`）送到控制台内存快照，
    控制台按物理实体 ID 归并、跨节点同能力去重，TTL 5 分钟。
+   台账的实时在线状态也来自这批有效快照：任一节点、任一能力仍有连接即为在线，
+   `connected=false` 的能力保留展示但不计在线；旧版缺少 `connected` 时兼容当前部署的规则。
+   没有有效在线上报时，近 30 天有联系人活动则为离线，否则为无活动。
+   登录、退出等历史事件只用于活动统计，不再按最近 24 小时有无事件判断在线。
    因此：**能力可能为空**（节点未上报 / 该实体上没有 AIGC 单元），
    前端以 `--` 并按 `unitReportTime` 提示数据新鲜度，不要把它当成统计口径缺失。
    「按单元名称」标签页单独调用 `GET /statistic/unit-deployments?domain=...`（需登录 Cookie）。

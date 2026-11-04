@@ -490,7 +490,7 @@ export interface UnitOverviewResponse {
   total: number
   /** 统计日有活动的单元数 */
   activeCount: number
-  /** 当前在线（最近 24 小时内上报过）的单元数 */
+  /** 有效节点上报中仍有连接的物理单元数 */
   onlineCount: number
   offlineCount: number
   inactiveCount: number

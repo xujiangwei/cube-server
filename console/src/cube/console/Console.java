@@ -475,6 +475,13 @@ public final class Console implements Runnable {
         return this.statisticDataManager;
     }
 
+    /** 台账能力与在线实体从同一批有效上报中汇总，历史活动由统计库提供。 */
+    public JSONObject queryUnitOverview(String domain, Calendar calendar) {
+        Set<Long> onlineUnitIds = new HashSet<>();
+        Map<Long, List<JSONObject>> capabilities = this.queryUnitCapabilities(domain, onlineUnitIds);
+        return this.statisticDataManager.queryUnitOverview(domain, calendar, capabilities, onlineUnitIds);
+    }
+
     public void appendUnitReport(UnitReport report) {
         Logger.d(this.getClass(), "Received report from " + report.getReporter() + " (" + report.getName() + ")");
 
@@ -498,6 +505,10 @@ public final class Console implements Runnable {
      * @return 返回 Key 为物理实体 ID 、Value 为该物理实体承载的能力 JSON 列表（按名称排序）。
      */
     public Map<Long, List<JSONObject>> queryUnitCapabilities(String domain) {
+        return this.queryUnitCapabilities(domain, new HashSet<Long>());
+    }
+
+    private Map<Long, List<JSONObject>> queryUnitCapabilities(String domain, Set<Long> onlineUnitIds) {
         Map<Long, List<JSONObject>> result = new HashMap<>();
         // 多个节点可能上报同一个实体的同一能力，用能力 JSON 文本去重
         Map<Long, Set<String>> seen = new HashMap<>();
@@ -524,6 +535,13 @@ public final class Console implements Runnable {
                 }
 
                 long contactId = item.optLong("id", 0L);
+
+                // 任一节点、任一能力仍有连接，物理实体即在线。旧版无 connected 字段的
+                // 上报与当前部署视图保持兼容，但同样必须受快照有效期约束。
+                if (contactId > 0 && !capability.optString("name").isEmpty()
+                        && (!item.has("connected") || item.optBoolean("connected"))) {
+                    onlineUnitIds.add(contactId);
+                }
 
                 List<JSONObject> list = result.get(contactId);
                 if (null == list) {

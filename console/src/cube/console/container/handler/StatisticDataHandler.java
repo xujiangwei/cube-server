@@ -133,8 +133,7 @@ public class StatisticDataHandler extends ContextHandler {
                     calendar.set(Calendar.DAY_OF_MONTH, Integer.parseInt(params.get("date")));
                 }
 
-                JSONObject data = console.getStatisticDataManager().queryUnitOverview(domain, calendar,
-                        console.queryUnitCapabilities(domain));
+                JSONObject data = console.queryUnitOverview(domain, calendar);
                 if (null == data) {
                     respond(response, HttpStatus.NOT_FOUND_404);
                     return;
