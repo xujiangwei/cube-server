@@ -12,22 +12,59 @@ import java.util.regex.Pattern;
 /**
  * Harness 调度器/服务业务协议定义。
  *
- * <p>枚举每个动作的 HTTP 方法、URL 路径模板与服务端 schema 。内部控制动作
+ * <p>枚举每个动作的 HTTP 方法、URL 路径模板与服务端 schema。内部控制动作
  * （StartDownload / TransferResult / AbortTransfer）不对应 REST 端点，
  * 仅供网关与服务单元之间内部流转。</p>
  *
  * <p>本协议独立于 Python worker 协议。</p>
  */
 public enum HarnessAction {
+
+    /**
+     * 校验资源包，返回摘要与清单，不产生发布记录。
+     */
     ValidatePackage("POST", "admin/packages/validate", null),
+
+    /**
+     * 将资源包发布为指定版本，签名者与签名须在服务端配置范围内。
+     */
     PublishRelease("POST", "admin/releases", null),
+
+    /**
+     * 查询指定版本的发布详情。
+     */
     ReadRelease("GET", "admin/releases/ID", null),
+
+    /**
+     * 发布租户策略，策略声明的权限须在服务端允许集合内。
+     */
     PublishPolicy("POST", "admin/policies", "admin-policy"),
+
+    /**
+     * 查询默认策略的绑定关系。
+     */
     ReadPolicyBinding("GET", "admin/bindings/policy/default", null),
+
+    /**
+     * 切换默认策略的绑定，按期望版本号做乐观并发校验。
+     */
     BindPolicy("PUT", "admin/bindings/policy/default", "admin-policy-binding"),
+
+    /**
+     * 登记外部数据源配置：地址、凭据引用、身份映射与允许路径。
+     */
     PutSource("PUT", "admin/sources/ID/versions/ID", "admin-source"),
+
+    /**
+     * 查询指定版本的外部数据源配置及其摘要。
+     */
     ReadSource("GET", "admin/sources/ID/versions/ID", null),
+
+    /**
+     * 授予或撤销指定主体对数据源的访问权限。
+     */
     SourceGrant("POST", "admin/source-grants", "admin-source-grant"),
+
     /**
      * 查询服务能力。
      */

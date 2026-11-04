@@ -211,15 +211,14 @@ final class HarnessHandler extends AbstractHandler {
                 state.timeout(remaining);
                 if (action == HarnessAction.UploadInput) {
                     upload(state, descriptor);
-                }
-                else {
+                } else {
                     download(state, descriptor);
                 }
-            }
-            else {
+            } else {
                 byte[] bytes = state.sse && status == 200 ? sse(reply.getJSONObject("body"))
                         : reply.getJSONObject("body").toString().getBytes(StandardCharsets.UTF_8);
-                write(state, status, state.sse && status == 200 ? "text/event-stream; charset=utf-8" : "application/json; charset=utf-8", bytes);
+                write(state, status, state.sse && status == 200 ?
+                        "text/event-stream; charset=utf-8" : "application/json; charset=utf-8", bytes);
             }
         } catch (Exception e) {
             if (e instanceof InterruptedException) {

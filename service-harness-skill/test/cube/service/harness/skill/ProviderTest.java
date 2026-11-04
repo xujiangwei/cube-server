@@ -1,3 +1,9 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
 package cube.service.harness.skill;
 
 import com.sun.net.httpserver.*;
@@ -19,31 +25,118 @@ import java.util.zip.*;
 import javax.net.ssl.*;
 import org.json.*;
 
-/** Actual HTTP/TLS fixtures, production package validator, and provider behavior boundaries. */
+/**
+ * 技能提供者的行为边界测试。
+ *
+ * <p>覆盖真实 HTTP/TLS 夹具、生产包校验器与各技能的失败边界。</p>
+ */
 public final class ProviderTest {
+    /** 已断言次数。 */
     private static int assertions;
-    interface Action { void run() throws Exception; }
-    static void check(boolean value, String message) { assertions++; if (!value) throw new AssertionError(message); }
-    static void fails(String code, Action action) throws Exception {
-        try { action.run(); throw new AssertionError("Expected " + code); }
-        catch (RuntimeException e) { check(code.equals(e.getMessage()), code + " != " + e.getMessage()); }
+
+    /**
+     * 可抛异常的测试动作。
+     */
+    interface Action {
+        /**
+         * 执行动作。
+         *
+         * @throws Exception 动作执行过程中的异常。
+         */
+        void run() throws Exception;
     }
+
+    /**
+     * 断言条件成立，否则抛出断言错误。
+     *
+     * @param value 断言条件。
+     * @param message 失败时的说明。
+     */
+    static void check(boolean value, String message) {
+        assertions++;
+        if (!value) {
+            throw new AssertionError(message);
+        }
+    }
+
+    /**
+     * 断言动作抛出指定错误码。
+     *
+     * @param code 期望的错误码。
+     * @param action 被执行的测试动作。
+     * @throws Exception 动作执行过程中的异常。
+     */
+    static void fails(String code, Action action) throws Exception {
+        try {
+            action.run();
+            throw new AssertionError("Expected " + code);
+        } catch (RuntimeException e) {
+            check(code.equals(e.getMessage()), code + " != " + e.getMessage());
+        }
+    }
+
+    /**
+     * 用键值对构造配置。
+     *
+     * @param pairs 交替出现的键与值。
+     * @return 返回构造好的配置。
+     */
     static Properties properties(String... pairs) {
         Properties p = new Properties();
-        for (int i = 0; i < pairs.length; i += 2) p.setProperty(pairs[i], pairs[i + 1]);
+        for (int i = 0; i < pairs.length; i += 2) {
+            p.setProperty(pairs[i], pairs[i + 1]);
+        }
         return p;
     }
-    static byte[] bytes(String value) { return value.getBytes(StandardCharsets.UTF_8); }
+
+    /**
+     * 把字符串按 UTF-8 编码为字节。
+     *
+     * @param value 待编码的字符串。
+     * @return 返回字节数组。
+     */
+    static byte[] bytes(String value) {
+        return value.getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 构造一个 HTTP 响应。
+     *
+     * @param code 状态码。
+     * @param type 媒体类型。
+     * @param body 响应体文本。
+     * @return 返回响应对象。
+     */
     static NetClient.Response response(int code, String type, String body) {
         return new NetClient.Response(code, Collections.singletonMap("content-type", type), bytes(body));
     }
+
+    /**
+     * 向测试服务器写回一个响应。
+     *
+     * @param request 服务端请求。
+     * @param code 状态码。
+     * @param media 媒体类型。
+     * @param body 响应体字节。
+     * @throws IOException 写出响应过程中的异常。
+     */
     static void send(HttpExchange request, int code, String media, byte[] body) throws IOException {
         request.getResponseHeaders().set("Content-Type", media);
         request.sendResponseHeaders(code, body.length);
-        try (OutputStream stream = request.getResponseBody()) { stream.write(body); }
+        try (OutputStream stream = request.getResponseBody()) {
+            stream.write(body);
+        }
     }
+
+    /** 表示「未取消」的取消标记。 */
     private static final BooleanSupplier ACTIVE = () -> false;
 
+    /**
+     * 测试入口。
+     *
+     * @param args 第一个参数为技能包所在目录。
+     * @throws Exception 测试执行过程中的异常。
+     */
     public static void main(String[] args) throws Exception {
         Path packages = Paths.get(args[0]);
         Path root = Files.createTempDirectory(packages.getParent(), "provider-tests-");
@@ -51,16 +144,21 @@ public final class ProviderTest {
         check(calc.calculate(new JSONObject().put("expression", "-(1.2 + 2.3) * 4 + 17 % 5")).getString("result").equals("-12"), "precedence/unary/modulo");
         check(calc.calculate(new JSONObject().put("expression", "0.1+0.2")).getString("result").equals("0.3"), "decimal precision");
         check(calc.calculate(new JSONObject().put("expression", "1/3")).getString("result").equals("0.3333333333333333333333333333333333"), "DECIMAL128 rounding");
-        for (String expression : Arrays.asList("1/0", "3%0")) fails("CALCULATION_DIVIDE_BY_ZERO", () -> calc.calculate(new JSONObject().put("expression", expression)));
-        for (String expression : Arrays.asList("", "2**3", "1e3", "Math.random()", "1 2", "1..2"))
-            fails(expression.isEmpty() ? "SCHEMA_INVALID" : "CALCULATION_EXPRESSION_INVALID", () -> calc.calculate(new JSONObject().put("expression", expression)));
+        for (String expression : Arrays.asList("1/0", "3%0")) {
+            fails("CALCULATION_DIVIDE_BY_ZERO", () -> calc.calculate(new JSONObject().put("expression", expression)));
+        }
+        for (String expression : Arrays.asList("", "2**3", "1e3", "Math.random()", "1 2", "1..2")) {
+            fails(expression.isEmpty() ? "SCHEMA_INVALID" : "CALCULATION_EXPRESSION_INVALID",
+                    () -> calc.calculate(new JSONObject().put("expression", expression)));
+        }
         fails("CALCULATION_LIMIT", () -> calc.calculate(new JSONObject().put("expression", new String(new char[40]).replace('\0', '-') + "1")));
         fails("TRUSTED_CONTEXT_REQUIRED", () -> calc.query(new JSONObject().put("expression", "1")));
 
         TimeProvider time = new TimeProvider(new Properties(), Clock.fixed(Instant.parse("2026-10-25T00:00:00Z"), ZoneOffset.UTC));
         check(time.value(new JSONObject().put("action", "now")).getString("localTime").equals("2026-10-25T08:00:00+08:00"), "default Shanghai time");
-        for (String[] sample : new String[][]{{"2026-03-08T06:30:00Z", "-05:00"}, {"2026-03-08T07:30:00Z", "-04:00"}})
+        for (String[] sample : new String[][]{{"2026-03-08T06:30:00Z", "-05:00"}, {"2026-03-08T07:30:00Z", "-04:00"}}) {
             check(time.value(new JSONObject().put("action", "convert").put("instant", sample[0]).put("zone", "America/New_York")).getString("offset").equals(sample[1]), "DST transition");
+        }
         fails("TIME_ARGUMENTS_INVALID", () -> time.value(new JSONObject().put("action", "convert")));
         fails("TIME_ARGUMENTS_INVALID", () -> time.value(new JSONObject().put("action", "convert").put("instant", "2026-10-25T12:00:00")));
         fails("TIME_ARGUMENTS_INVALID", () -> time.value(new JSONObject().put("action", "now").put("instant", "2026-10-25T00:00:00Z")));
@@ -79,9 +177,11 @@ public final class ProviderTest {
 
         Path index = root.resolve("index.json");
         JSONArray docs = new JSONArray();
-        for (int i = 0; i < 3; i++) docs.put(new JSONObject().put("id", "doc" + i).put("tenant", i == 2 ? "foreign" : "tenant")
-                .put("subjects", new JSONArray().put(i == 1 ? "other" : "user"))
-                .put("source", "kb:" + i).put("text", i == 0 ? "Harness public evidence" : "Harness SECRET"));
+        for (int i = 0; i < 3; i++) {
+            docs.put(new JSONObject().put("id", "doc" + i).put("tenant", i == 2 ? "foreign" : "tenant")
+                    .put("subjects", new JSONArray().put(i == 1 ? "other" : "user"))
+                    .put("source", "kb:" + i).put("text", i == 0 ? "Harness public evidence" : "Harness SECRET"));
+        }
         byte[] raw = bytes(new JSONObject().put("documents", docs).toString());
         Files.write(index, raw);
         Properties kp = properties("knowledge.index", index.toString(), "knowledge.index.sha256", RuntimeSupport.sha(raw));
@@ -90,23 +190,48 @@ public final class ProviderTest {
         check(found.getJSONArray("citations").length() == 1 && !found.toString().contains("SECRET"), "ACL before matching");
         check(knowledge.lookup("tenant", "nobody", new JSONObject().put("query", "Harness"), ACTIVE).getJSONArray("citations").length() == 0, "no ACL count leak");
         Properties bad = properties("knowledge.index", index.toString(), "knowledge.index.sha256", "bad");
-        try { new KnowledgeProvider(bad); throw new AssertionError("digest mismatch accepted"); }
-        catch (IllegalArgumentException expected) { assertions++; }
+        try {
+            new KnowledgeProvider(bad);
+            throw new AssertionError("digest mismatch accepted");
+        } catch (IllegalArgumentException expected) {
+            assertions++;
+        }
 
         AtomicInteger requests = new AtomicInteger();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        ExecutorService executor = Executors.newCachedThreadPool(r -> { Thread t = new Thread(r); t.setDaemon(true); return t; });
+        ExecutorService executor = Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r);
+            t.setDaemon(true);
+            return t;
+        });
         server.setExecutor(executor);
         server.createContext("/search", request -> {
             requests.incrementAndGet();
             String q = URLDecoder.decode(request.getRequestURI().getRawQuery(), "UTF-8");
-            if (q.contains("forbidden")) { send(request, 403, "application/json", bytes("{}")); return; }
-            if (q.contains("limited")) { send(request, 429, "application/json", bytes("{}")); return; }
-            if (q.contains("invalid")) { send(request, 200, "application/json", bytes("{bad}")); return; }
-            if (q.contains("slow")) { try { Thread.sleep(300); } catch (InterruptedException ignored) {} }
+            if (q.contains("forbidden")) {
+                send(request, 403, "application/json", bytes("{}"));
+                return;
+            }
+            if (q.contains("limited")) {
+                send(request, 429, "application/json", bytes("{}"));
+                return;
+            }
+            if (q.contains("invalid")) {
+                send(request, 200, "application/json", bytes("{bad}"));
+                return;
+            }
+            if (q.contains("slow")) {
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException ignored) {
+                    // 忽略中断，继续走正常响应路径。
+                }
+            }
             JSONArray list = new JSONArray();
-            if (!q.contains("empty")) list.put(new JSONObject().put("title", "Cube &amp; Tools").put("url", "https://example.com/tools")
-                    .put("content", "<p>3D <b>建模</b></p>").put("engine", "fixture"));
+            if (!q.contains("empty")) {
+                list.put(new JSONObject().put("title", "Cube &amp; Tools").put("url", "https://example.com/tools")
+                        .put("content", "<p>3D <b>建模</b></p>").put("engine", "fixture"));
+            }
             send(request, 200, "application/json; charset=utf-8", bytes(new JSONObject().put("results", list)
                     .put("unresponsive_engines", q.contains("partial") ? new JSONArray().put(new JSONArray().put("fixture-b").put("timeout")) : new JSONArray()).toString()));
         });
@@ -127,14 +252,19 @@ public final class ProviderTest {
             try (SearchProvider impatient = new SearchProvider(shortTimeout)) {
                 fails("WEB_TIMEOUT", () -> impatient.search(new JSONObject().put("query", "slow"), ACTIVE));
             }
-        } finally { server.stop(0); executor.shutdownNow(); }
+        } finally {
+            server.stop(0);
+            executor.shutdownNow();
+        }
 
-        for (String ip : Arrays.asList("0.0.0.0", "10.1.2.3", "127.0.0.1", "169.254.169.254", "172.16.0.1", "192.168.0.1", "100.64.0.1", "224.0.0.1", "::1", "2001:db8::1"))
+        for (String ip : Arrays.asList("0.0.0.0", "10.1.2.3", "127.0.0.1", "169.254.169.254", "172.16.0.1", "192.168.0.1", "100.64.0.1", "224.0.0.1", "::1", "2001:db8::1")) {
             check(!NetClient.publicAddress(InetAddress.getByName(ip)), "special address " + ip);
+        }
         check(NetClient.publicAddress(InetAddress.getByName("8.8.8.8")), "public IPv4");
         AtomicInteger dnsCalls = new AtomicInteger();
         try (NetClient net = new NetClient(host -> {
-            dnsCalls.incrementAndGet(); return new InetAddress[]{InetAddress.getByName("8.8.8.8"), InetAddress.getByName("127.0.0.1")};
+            dnsCalls.incrementAndGet();
+            return new InetAddress[]{InetAddress.getByName("8.8.8.8"), InetAddress.getByName("127.0.0.1")};
         }, SSLContext.getDefault())) {
             fails("WEB_DNS_FORBIDDEN", () -> net.get(URI.create("https://fixture.invalid/"), true, Collections.emptySet(), Collections.emptyMap(), NetClient.deadline(500), 1024, ACTIVE));
             check(dnsCalls.get() == 1, "all DNS addresses checked in one resolution");
@@ -145,9 +275,14 @@ public final class ProviderTest {
             fails("WEB_URL_FORBIDDEN", () -> page.read(new JSONObject().put("url", "https://[::ffff:8.8.8.8]/"), ACTIVE));
         }
         try (WebPageProvider page = new WebPageProvider(new Properties(), new NetClient() {
+            @Override
             Response get(URI uri, boolean pub, Set<String> hosts, Map<String, String> headers, long deadline, int max, BooleanSupplier cancelled) {
-                if (uri.getPath().equals("/redirect")) return new Response(302, Collections.singletonMap("location", "/document"), new byte[0]);
-                if (uri.getPath().equals("/downgrade")) return new Response(302, Collections.singletonMap("location", "http://fixture.invalid/document"), new byte[0]);
+                if (uri.getPath().equals("/redirect")) {
+                    return new Response(302, Collections.singletonMap("location", "/document"), new byte[0]);
+                }
+                if (uri.getPath().equals("/downgrade")) {
+                    return new Response(302, Collections.singletonMap("location", "http://fixture.invalid/document"), new byte[0]);
+                }
                 return response(200, "text/html", "<title>Fixture</title><p>静态正文</p><script>SECRET</script>");
             }
         })) {
@@ -170,15 +305,27 @@ public final class ProviderTest {
                     check(tool.getString("brokerOperation").equals(providers.get(i).operation()) && tool.getString("permission").equals(providers.get(i).permission()), "provider binding " + names[i]);
                     for (String kind : Arrays.asList("input", "output")) {
                         byte[] schema;
-                        try (InputStream in = zip.getInputStream(zip.getEntry(kind + ".schema.json"))) { schema = RuntimeSupport.read(in, 65536); }
+                        try (InputStream in = zip.getInputStream(zip.getEntry(kind + ".schema.json"))) {
+                            schema = RuntimeSupport.read(in, 65536);
+                        }
                         check(StrictJson.object(schema).similar(kind.equals("input") ? providers.get(i).inputSchema() : providers.get(i).resultSchema()), "schema identity " + names[i]);
                     }
                 }
             }
-        } finally { for (QueryProvider provider : providers) provider.close(); }
+        } finally {
+            for (QueryProvider provider : providers) {
+                provider.close();
+            }
+        }
         System.out.println("PASS: " + assertions + " provider/package/HTTP/TLS assertions");
     }
 
+    /**
+     * TLS 夹具：自签证书、Pinned IP、SNI 与 gzip 分块传输。
+     *
+     * @param root 临时目录。
+     * @throws Exception 夹具准备过程中的异常。
+     */
     private static void tls(Path root) throws Exception {
         Path javaHome = Paths.get(System.getProperty("java.home"));
         Path keytool = javaHome.resolve("bin/keytool" + (System.getProperty("os.name").startsWith("Windows") ? ".exe" : ""));
@@ -188,24 +335,36 @@ public final class ProviderTest {
                 "-keystore", store.toString(), "-storepass", new String(password), "-keypass", new String(password),
                 "-dname", "CN=fixture.invalid", "-ext", "SAN=dns:fixture.invalid,ip:127.0.0.1", "-validity", "2", "-noprompt")
                 .redirectErrorStream(true).start();
-        try (InputStream in = process.getInputStream()) { RuntimeSupport.read(in, 16384); }
+        try (InputStream in = process.getInputStream()) {
+            RuntimeSupport.read(in, 16384);
+        }
         check(process.waitFor(30, TimeUnit.SECONDS) && process.exitValue() == 0, "create isolated TLS certificate");
         KeyStore keys = KeyStore.getInstance("JKS");
-        try (InputStream in = Files.newInputStream(store)) { keys.load(in, password); }
-        KeyManagerFactory km = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()); km.init(keys, password);
-        TrustManagerFactory tm = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm()); tm.init(keys);
-        SSLContext context = SSLContext.getInstance("TLS"); context.init(km.getKeyManagers(), tm.getTrustManagers(), null);
+        try (InputStream in = Files.newInputStream(store)) {
+            keys.load(in, password);
+        }
+        KeyManagerFactory km = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        km.init(keys, password);
+        TrustManagerFactory tm = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        tm.init(keys);
+        SSLContext context = SSLContext.getInstance("TLS");
+        context.init(km.getKeyManagers(), tm.getTrustManagers(), null);
         HttpsServer server = HttpsServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.setHttpsConfigurator(new HttpsConfigurator(context));
         server.createContext("/", request -> {
-            if (request.getRequestURI().getPath().equals("/large")) send(request, 200, "text/plain", new byte[8192]);
-            else {
+            if (request.getRequestURI().getPath().equals("/large")) {
+                send(request, 200, "text/plain", new byte[8192]);
+            } else {
                 ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-                try (GZIPOutputStream out = new GZIPOutputStream(buffer)) { out.write(bytes("chunked gzip TLS 正文")); }
+                try (GZIPOutputStream out = new GZIPOutputStream(buffer)) {
+                    out.write(bytes("chunked gzip TLS 正文"));
+                }
                 request.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
                 request.getResponseHeaders().set("Content-Encoding", "gzip");
                 request.sendResponseHeaders(200, 0);
-                try (OutputStream out = request.getResponseBody()) { out.write(buffer.toByteArray()); }
+                try (OutputStream out = request.getResponseBody()) {
+                    out.write(buffer.toByteArray());
+                }
             }
         });
         server.start();
@@ -216,7 +375,11 @@ public final class ProviderTest {
             try {
                 client.get(URI.create(url.replace("fixture.invalid", "wrong.invalid") + "/"), false, Collections.emptySet(), Collections.emptyMap(), NetClient.deadline(5000), 1024, ACTIVE);
                 throw new AssertionError("TLS hostname mismatch accepted");
-            } catch (StoreException expected) { check(expected.code.startsWith("WEB_"), "TLS hostname verification"); }
-        } finally { server.stop(0); }
+            } catch (StoreException expected) {
+                check(expected.code.startsWith("WEB_"), "TLS hostname verification");
+            }
+        } finally {
+            server.stop(0);
+        }
     }
 }

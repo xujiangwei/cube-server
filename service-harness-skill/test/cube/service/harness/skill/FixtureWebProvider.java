@@ -1,14 +1,33 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2025 Ambrose Xu.
+ */
+
 package cube.service.harness.skill;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 
-/** Test-classpath-only page transport. Never packaged in the production JAR. */
+/**
+ * 测试专用的网页传输桩。
+ *
+ * <p>只存在于测试 classpath，永远不会被打进生产 JAR 。</p>
+ */
 public final class FixtureWebProvider extends WebPageProvider {
+    /**
+     * 构造函数：以固定响应替代真实网络访问。
+     *
+     * @param p 技能私有配置。
+     */
     public FixtureWebProvider(Properties p) {
         super(p, new NetClient() {
+            @Override
             Response get(URI uri, boolean publicOnly, Set<String> hosts, Map<String, String> headers,
                          long deadline, int maxBytes, BooleanSupplier cancelled) {
                 NetClient.uri(uri.toString(), true, hosts);
