@@ -31,7 +31,9 @@ import org.json.*;
  * <p>覆盖真实 HTTP/TLS 夹具、生产包校验器与各技能的失败边界。</p>
  */
 public final class ProviderTest {
-    /** 已断言次数。 */
+    /**
+     * 已断言次数。
+     */
     private static int assertions;
 
     /**
@@ -128,7 +130,9 @@ public final class ProviderTest {
         }
     }
 
-    /** 表示「未取消」的取消标记。 */
+    /**
+     * 表示「未取消」的取消标记。
+     */
     private static final BooleanSupplier ACTIVE = () -> false;
 
     /**

@@ -26,19 +26,33 @@ import org.json.*;
  * <p>覆盖真实 JDBC、作者包、Broker 授权、精确证据、文件绑定与重复 ACK。</p>
  */
 public final class CommonToolsTest {
-    /** 技能私有配置。 */
+    /**
+     * 技能私有配置。
+     */
     static Properties settings;
-    /** 文件服务。 */
+    /**
+     * 文件服务。
+     */
     static FileService files;
-    /** 工具 Broker。 */
+    /**
+     * 工具 Broker。
+     */
     static ToolBroker broker;
-    /** 各技能发布包的摘要。 */
+    /**
+     * 各技能发布包的摘要。
+     */
     static final Map<String, String> releases = new LinkedHashMap<>();
-    /** 参与测试的技能名。 */
+    /**
+     * 参与测试的技能名。
+     */
     static final String[] NAMES = {"search", "web", "knowledge", "attachment", "time", "calculator"};
-    /** 各技能对应的提供者实现类名。 */
+    /**
+     * 各技能对应的提供者实现类名。
+     */
     static final String[] CLASSES = {"SearchProvider", "FixtureWebProvider", "KnowledgeProvider", "TextAttachmentProvider", "TimeProvider", "CalculatorProvider"};
-    /** 各技能对应的 Broker 操作名。 */
+    /**
+     * 各技能对应的 Broker 操作名。
+     */
     static final String[] TOOLS = {"common.search.query", "common.web.read", "common.knowledge.search", "common.attachment.read", "common.time.query", "common.calculator.evaluate"};
 
     /**

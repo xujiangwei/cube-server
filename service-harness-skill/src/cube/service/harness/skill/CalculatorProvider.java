@@ -18,7 +18,7 @@ import java.util.Properties;
  * 四则运算技能：封闭的算术文法。
  *
  * <p>不使用脚本引擎、反射、变量与函数调用，只支持加减乘除取模、括号与一元正负号，
- * 数值语义固定为 DECIMAL128 。</p>
+ * 数值语义固定为 {@link MathContext#DECIMAL128} 。</p>
  */
 public class CalculatorProvider extends AbstractProvider {
     /**
@@ -33,28 +33,32 @@ public class CalculatorProvider extends AbstractProvider {
     /**
      * 执行计算。
      *
-     * @param c    Broker 提供的可信调用上下文。
-     * @param args 调用参数，含 expression 。
+     * @param context Broker 提供的可信调用上下文。
+     * @param args    调用参数，含 {@code expression} 。
      * @return 返回计算结果。
      */
-    protected JSONObject execute(ProviderInvocation c, JSONObject args) {
+    @Override
+    protected JSONObject execute(ProviderInvocation context, JSONObject args) {
         return calculate(args);
     }
 
     /**
      * 校验并计算表达式。
      *
-     * @param args 调用参数，含 expression 。
-     * @return 返回结果，含 result 与 precision 。
+     * @param args 调用参数，含 {@code expression} 。
+     * @return 返回结果，含 {@code result} 与 {@code precision} 。
      */
     JSONObject calculate(JSONObject args) {
         validate(args);
         try {
             BigDecimal result = new Parser(args.getString("expression")).parse().stripTrailingZeros();
-            if (result.precision() - result.scale() > 4096 || result.scale() > 4096) {
+            if (result.precision() - result.scale() > Parser.MAX_INTEGER_DIGITS
+                    || result.scale() > Parser.MAX_INTEGER_DIGITS) {
                 throw new StoreException("CALCULATION_LIMIT");
             }
-            return new JSONObject().put("result", result.toPlainString()).put("precision", "DECIMAL128");
+            return new JSONObject()
+                    .put("result", result.toPlainString())
+                    .put("precision", "DECIMAL128");
         } catch (ArithmeticException e) {
             throw new StoreException("CALCULATION_LIMIT");
         }
@@ -68,14 +72,32 @@ public class CalculatorProvider extends AbstractProvider {
          * 数值精度上下文，固定为 DECIMAL128 。
          */
         private static final MathContext MC = MathContext.DECIMAL128;
+
+        /**
+         * 一元符号与括号允许的最大嵌套层数。
+         */
+        private static final int MAX_DEPTH = 32;
+
+        /**
+         * 单个数字字面量允许的最大位数。
+         */
+        private static final int MAX_DIGITS = 128;
+
+        /**
+         * 结果允许的最大整数位数或小数位数。
+         */
+        private static final int MAX_INTEGER_DIGITS = 4096;
+
         /**
          * 待解析的表达式原文。
          */
         private final String text;
+
         /**
          * 当前解析位置。
          */
         private int pos;
+
         /**
          * 当前递归深度，用于限制嵌套层数。
          */
@@ -91,7 +113,7 @@ public class CalculatorProvider extends AbstractProvider {
         }
 
         /**
-         * 解析整个表达式。
+         * 解析整个表达式，并要求所有字符都被消费。
          *
          * @return 返回计算结果。
          */
@@ -148,7 +170,7 @@ public class CalculatorProvider extends AbstractProvider {
          * @return 返回计算结果。
          */
         BigDecimal atom() {
-            if (++depth > 32) {
+            if (++depth > MAX_DEPTH) {
                 throw new StoreException("CALCULATION_LIMIT");
             }
             try {
@@ -175,6 +197,7 @@ public class CalculatorProvider extends AbstractProvider {
                         digits++;
                         pos++;
                     } else if (ch == '.' && !dot) {
+                        // 一个数字里只允许出现一个小数点。
                         dot = true;
                         pos++;
                     } else {
@@ -184,7 +207,7 @@ public class CalculatorProvider extends AbstractProvider {
                 if (digits == 0) {
                     bad();
                 }
-                if (digits > 128) {
+                if (digits > MAX_DIGITS) {
                     throw new StoreException("CALCULATION_LIMIT");
                 }
                 return new BigDecimal(text.substring(start, pos), MC);
@@ -219,7 +242,7 @@ public class CalculatorProvider extends AbstractProvider {
          * 尝试消费一个指定字符。
          *
          * @param value 待消费的字符。
-         * @return 消费成功返回 true ，否则返回 false 。
+         * @return 消费成功返回 {@code true} ，否则返回 {@code false} 。
          */
         boolean eat(char value) {
             space();

@@ -19,13 +19,24 @@ import java.util.Deque;
  * 静态 HTML 文本提取器。
  *
  * <p>只解析传入的 HTML 字符串，绝不加载 URL、内嵌资源、脚本、样式表或浏览器；
- * script/style/head 里的内容一律丢弃。</p>
+ * {@code script}/{@code style}/{@code head} 里的内容一律丢弃。</p>
  */
 final class HtmlText {
+    /**
+     * 块级元素在正文中留下的换行，避免相邻段落粘连。
+     */
+    private static final char BLOCK_BREAK = '\n';
+
+    /**
+     * 连续空白与不换行空格的归一化规则。
+     */
+    private static final String WHITESPACE = "[\\s\\u00a0]+";
+
     /**
      * 页面标题。
      */
     final String title;
+
     /**
      * 正文纯文本。
      */
@@ -51,7 +62,9 @@ final class HtmlText {
     static HtmlText parse(String html) {
         final StringBuilder body = new StringBuilder();
         final StringBuilder title = new StringBuilder();
+        // 记录当前处于哪一层隐藏元素内，嵌套时逐层退栈。
         final Deque<String> hidden = new ArrayDeque<>();
+        // 匿名回调需要写入状态，用单元素数组承载。
         final boolean[] inTitle = {false};
         try {
             new ParserDelegator().parse(new StringReader(html), new HTMLEditorKit.ParserCallback() {
@@ -65,7 +78,7 @@ final class HtmlText {
                         inTitle[0] = true;
                     }
                     if (tag.isBlock()) {
-                        body.append('\n');
+                        body.append(BLOCK_BREAK);
                     }
                 }
 
@@ -79,14 +92,15 @@ final class HtmlText {
                         inTitle[0] = false;
                     }
                     if (tag.isBlock()) {
-                        body.append('\n');
+                        body.append(BLOCK_BREAK);
                     }
                 }
 
                 @Override
                 public void handleSimpleTag(HTML.Tag tag, MutableAttributeSet attrs, int pos) {
+                    // br 与 hr 没有结束标签，单独补换行。
                     if (tag == HTML.Tag.BR || tag == HTML.Tag.HR) {
-                        body.append('\n');
+                        body.append(BLOCK_BREAK);
                     }
                 }
 
@@ -112,6 +126,6 @@ final class HtmlText {
      * @return 返回归一化后的文本。
      */
     private static String clean(String value) {
-        return value.replaceAll("[\\s\\u00a0]+", " ").trim();
+        return value.replaceAll(WHITESPACE, " ").trim();
     }
 }

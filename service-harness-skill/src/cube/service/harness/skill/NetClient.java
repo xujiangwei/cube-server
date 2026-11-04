@@ -13,6 +13,7 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.TooLongFrameException;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.resolver.NoopAddressResolverGroup;
@@ -30,8 +31,21 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -41,6 +55,41 @@ import java.util.function.BooleanSupplier;
  * 响应体有大小上限，全过程受截止时间与取消标记约束。</p>
  */
 class NetClient implements AutoCloseable {
+    /**
+     * 公网 URL 的最大长度。
+     */
+    private static final int MAX_URL_LENGTH = 2048;
+
+    /**
+     * 合法端口的最大值。
+     */
+    private static final int MAX_PORT = 65535;
+
+    /**
+     * HTTPS 的默认端口。
+     */
+    private static final int HTTPS_PORT = 443;
+
+    /**
+     * HTTP 的默认端口。
+     */
+    private static final int HTTP_PORT = 80;
+
+    /**
+     * DNS 解析任务队列的容量。
+     */
+    private static final int DNS_QUEUE_CAPACITY = 8;
+
+    /**
+     * 轮询等待时的单次等待上限，单位毫秒。
+     */
+    private static final int POLL_MILLIS = 50;
+
+    /**
+     * 关闭通道时等待的最大时长，单位毫秒。
+     */
+    private static final long CLOSE_WAIT_MILLIS = 200;
+
     /**
      * 域名解析器，便于测试替换。
      */
@@ -63,10 +112,12 @@ class NetClient implements AutoCloseable {
          * 状态码。
          */
         final int status;
+
         /**
          * 响应头，键统一为小写。
          */
         final Map<String, String> headers;
+
         /**
          * 响应体字节。
          */
@@ -92,7 +143,7 @@ class NetClient implements AutoCloseable {
          * @return 返回响应头值，不存在时返回空串。
          */
         String header(String name) {
-            return headers.getOrDefault(name.toLowerCase(Locale.ROOT), "");
+            return this.headers.getOrDefault(name.toLowerCase(Locale.ROOT), "");
         }
 
         /**
@@ -105,7 +156,7 @@ class NetClient implements AutoCloseable {
         }
 
         /**
-         * 按响应头声明的字符集解码响应体。
+         * 按响应头声明的字符集解码响应体，未声明时按 UTF-8 处理。
          *
          * @return 返回解码后的文本。
          */
@@ -122,8 +173,11 @@ class NetClient implements AutoCloseable {
                 }
             }
             try {
-                return charset.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                        .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(body)).toString();
+                return charset.newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPORT)
+                        .onUnmappableCharacter(CodingErrorAction.REPORT)
+                        .decode(ByteBuffer.wrap(this.body))
+                        .toString();
             } catch (CharacterCodingException e) {
                 throw new StoreException("WEB_TEXT_INVALID");
             }
@@ -134,24 +188,30 @@ class NetClient implements AutoCloseable {
      * 域名解析器。
      */
     private final Resolver resolver;
+
     /**
      * TLS 上下文。
      */
     private final SSLContext tls;
+
     /**
      * 网络事件循环线程组。
      */
     private final EventLoopGroup eventLoop = new NioEventLoopGroup(1, new DefaultThreadFactory("skill-http", true));
+
     /**
      * DNS 解析线程池，队列有界，满了直接拒绝。
      */
     private final ExecutorService dns = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS,
-            new ArrayBlockingQueue<Runnable>(8), new DefaultThreadFactory("skill-dns", true),
+            new ArrayBlockingQueue<Runnable>(DNS_QUEUE_CAPACITY),
+            new DefaultThreadFactory("skill-dns", true),
             new ThreadPoolExecutor.AbortPolicy());
+
     /**
      * 尚未关闭的连接，用于统一释放。
      */
-    private final Set<Channel> channels = Collections.newSetFromMap(new ConcurrentHashMap<Channel, Boolean>());
+    private final Set<Channel> channels = Collections.newSetFromMap(
+            new ConcurrentHashMap<Channel, Boolean>());
 
     /**
      * 构造函数：使用系统解析器与默认 TLS 上下文。
@@ -196,14 +256,23 @@ class NetClient implements AutoCloseable {
         try {
             URI uri = new URI(value);
             String host = uri.getHost();
-            if (host == null || uri.getUserInfo() != null || uri.getFragment() != null
-                    || uri.getPort() == 0 || uri.getPort() > 65535
-                    || publicOnly && host.indexOf(':') >= 0
-                    || publicOnly && uri.toASCIIString().length() > 2048
-                    || value.matches("(?s).*[\\\\\\r\\n].*")
-                    || !("https".equals(uri.getScheme()) || !publicOnly && "http".equals(uri.getScheme()))
-                    || publicOnly && uri.getPort() != -1 && uri.getPort() != 443
-                    || !hosts.isEmpty() && !hosts.contains(host.toLowerCase(Locale.ROOT))) {
+            // 主机缺失、带用户信息或带片段一律拒绝，避免歧义解析。
+            if (host == null || uri.getUserInfo() != null || uri.getFragment() != null) {
+                throw new IllegalArgumentException();
+            }
+            int port = uri.getPort();
+            String scheme = uri.getScheme();
+            boolean invalidPort = port == 0 || port > MAX_PORT;
+            boolean invalidScheme = !("https".equals(scheme) || (!publicOnly && "http".equals(scheme)));
+            // 反斜杠与换行可能被下游解析器当成路径分隔符或头分隔符。
+            boolean invalidText = value.matches("(?s).*[\\\\\\r\\n].*");
+            boolean invalidPublicPort = publicOnly && port != -1 && port != HTTPS_PORT;
+            // 公网访问不允许 IPv6 字面量与超长 URL 。
+            boolean invalidPublicHost = publicOnly && host.indexOf(':') >= 0;
+            boolean invalidPublicLength = publicOnly && uri.toASCIIString().length() > MAX_URL_LENGTH;
+            boolean invalidHostList = !hosts.isEmpty() && !hosts.contains(host.toLowerCase(Locale.ROOT));
+            if (invalidPort || invalidScheme || invalidText || invalidPublicPort
+                    || invalidPublicHost || invalidPublicLength || invalidHostList) {
                 throw new IllegalArgumentException();
             }
             return new URI(uri.toASCIIString());
@@ -216,7 +285,7 @@ class NetClient implements AutoCloseable {
      * 判断地址是否为可用的公网 IPv4 地址。
      *
      * @param address 待判断的地址。
-     * @return 返回 true 表示允许访问。
+     * @return 返回 {@code true} 表示允许访问。
      */
     static boolean publicAddress(InetAddress address) {
         byte[] b = address.getAddress();
@@ -227,14 +296,34 @@ class NetClient implements AutoCloseable {
         int a = b[0] & 255;
         int n = b[1] & 255;
         int c = b[2] & 255;
-        return !(a == 0 || a == 10 || a == 127 || a >= 224
-                || a == 100 && n >= 64 && n <= 127 || a == 169 && n == 254
-                || a == 172 && n >= 16 && n <= 31 || a == 192 && n == 168
-                || a == 192 && n == 0 && (c == 0 || c == 2)
-                || a == 192 && n == 88 && c == 99 || a == 198 && (n == 18 || n == 19)
-                || a == 198 && n == 51 && c == 100 || a == 203 && n == 0 && c == 113
-                || address.isAnyLocalAddress() || address.isLoopbackAddress()
-                || address.isLinkLocalAddress() || address.isSiteLocalAddress() || address.isMulticastAddress());
+        // 逐段列出保留网段，便于对照 IANA 特殊用途地址表。
+        boolean reserved = a == 0 || a == 10 || a == 127 || a >= 224
+                // 100.64.0.0/10 运营商级 NAT
+                || (a == 100 && n >= 64 && n <= 127)
+                // 169.254.0.0/16 链路本地
+                || (a == 169 && n == 254)
+                // 172.16.0.0/12 私有
+                || (a == 172 && n >= 16 && n <= 31)
+                // 192.168.0.0/16 私有
+                || (a == 192 && n == 168)
+                // 192.0.0.0/24 与 192.0.2.0/24（文档示例）
+                || (a == 192 && n == 0 && (c == 0 || c == 2))
+                // 192.88.99.0/24 6to4 中继
+                || (a == 192 && n == 88 && c == 99)
+                // 198.18.0.0/15 基准测试
+                || (a == 198 && (n == 18 || n == 19))
+                // 198.51.100.0/24 文档示例
+                || (a == 198 && n == 51 && c == 100)
+                // 203.0.113.0/24 文档示例
+                || (a == 203 && n == 0 && c == 113);
+        if (reserved) {
+            return false;
+        }
+        return !address.isAnyLocalAddress()
+                && !address.isLoopbackAddress()
+                && !address.isLinkLocalAddress()
+                && !address.isSiteLocalAddress()
+                && !address.isMulticastAddress();
     }
 
     /**
@@ -254,7 +343,7 @@ class NetClient implements AutoCloseable {
         uri(uri.toString(), publicOnly, hosts);
         Future<InetAddress[]> lookup;
         try {
-            lookup = dns.submit(() -> resolver.resolve(uri.getHost()));
+            lookup = this.dns.submit(() -> this.resolver.resolve(uri.getHost()));
         } catch (RejectedExecutionException e) {
             throw new StoreException("WEB_BUSY");
         }
@@ -267,6 +356,7 @@ class NetClient implements AutoCloseable {
         if (addresses.length == 0) {
             throw new StoreException("WEB_DNS_INVALID");
         }
+        // 逐个校验解析结果，只要有一个地址落在保留网段就整体拒绝。
         for (InetAddress address : addresses) {
             if (publicOnly && !publicAddress(address)) {
                 throw new StoreException("WEB_DNS_FORBIDDEN");
@@ -289,13 +379,18 @@ class NetClient implements AutoCloseable {
     private Response connect(URI uri, InetAddress address, Map<String, String> headers,
                              long deadline, int maxBytes, BooleanSupplier cancelled) {
         CompletableFuture<Response> response = new CompletableFuture<>();
-        int port = uri.getPort() == -1 ? ("https".equals(uri.getScheme()) ? 443 : 80) : uri.getPort();
-        Bootstrap bootstrap = new Bootstrap().group(eventLoop).channel(NioSocketChannel.class)
+        boolean https = "https".equals(uri.getScheme());
+        int port = portOf(uri);
+        Bootstrap bootstrap = new Bootstrap()
+                .group(this.eventLoop)
+                .channel(NioSocketChannel.class)
                 .resolver(NoopAddressResolverGroup.INSTANCE)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, remaining(deadline))
                 .handler(new ChannelInitializer<SocketChannel>() {
+                    @Override
                     protected void initChannel(SocketChannel channel) {
-                        if ("https".equals(uri.getScheme())) {
+                        if (https) {
+                            // TLS 直接钉在已校验的 IP 上，SNI 与证书校验仍用主机名。
                             SSLEngine engine = tls.createSSLEngine(uri.getHost(), port);
                             engine.setUseClientMode(true);
                             SSLParameters p = engine.getSSLParameters();
@@ -310,6 +405,7 @@ class NetClient implements AutoCloseable {
                         }
                         channel.pipeline().addLast(new HttpClientCodec(), new HttpContentDecompressor(),
                                 new HttpObjectAggregator(maxBytes), new SimpleChannelInboundHandler<FullHttpResponse>() {
+                                    @Override
                                     protected void channelRead0(ChannelHandlerContext ctx, FullHttpResponse message) {
                                         if (!message.decoderResult().isSuccess()) {
                                             response.completeExceptionally(new StoreException("WEB_RESPONSE_INVALID"));
@@ -325,13 +421,16 @@ class NetClient implements AutoCloseable {
                                         ctx.close();
                                     }
 
+                                    @Override
                                     public void exceptionCaught(ChannelHandlerContext ctx, Throwable error) {
-                                        response.completeExceptionally(new StoreException(
-                                                error instanceof io.netty.handler.codec.TooLongFrameException
-                                                        ? "WEB_RESPONSE_LIMIT" : "WEB_CONNECTION_FAILED"));
+                                        // 聚合器超限视为响应体越界，其余归为连接失败。
+                                        String code = error instanceof TooLongFrameException
+                                                ? "WEB_RESPONSE_LIMIT" : "WEB_CONNECTION_FAILED";
+                                        response.completeExceptionally(new StoreException(code));
                                         ctx.close();
                                     }
 
+                                    @Override
                                     public void channelInactive(ChannelHandlerContext ctx) {
                                         response.completeExceptionally(new StoreException("WEB_RESPONSE_INCOMPLETE"));
                                     }
@@ -340,7 +439,7 @@ class NetClient implements AutoCloseable {
                 });
         ChannelFuture connection = bootstrap.connect(new InetSocketAddress(address, port));
         Channel channel = connection.channel();
-        channels.add(channel);
+        this.channels.add(channel);
         connection.addListener(future -> {
             if (!future.isSuccess()) {
                 response.completeExceptionally(new StoreException("WEB_CONNECTION_FAILED"));
@@ -372,9 +471,26 @@ class NetClient implements AutoCloseable {
             return await(response, deadline, cancelled);
         } finally {
             // 取消只关闭本次调用自己的套接字，绝不误伤其它调用方的连接。
-            channel.close().awaitUninterruptibly(200);
-            channels.remove(channel);
+            channel.close().awaitUninterruptibly(CLOSE_WAIT_MILLIS);
+            this.channels.remove(channel);
         }
+    }
+
+    /**
+     * 解析请求的实际连接端口，未显式指定时按协议取默认端口。
+     *
+     * @param uri 请求地址。
+     * @return 返回端口号。
+     */
+    private static int portOf(URI uri) {
+        int port = uri.getPort();
+        if (port != -1) {
+            return port;
+        }
+        if ("https".equals(uri.getScheme())) {
+            return HTTPS_PORT;
+        }
+        return HTTP_PORT;
     }
 
     /**
@@ -416,13 +532,14 @@ class NetClient implements AutoCloseable {
                 throw new StoreException("TOOL_CANCELLED");
             }
             try {
-                return future.get(Math.min(50, remaining(deadline)), TimeUnit.MILLISECONDS);
+                return future.get(Math.min(POLL_MILLIS, remaining(deadline)), TimeUnit.MILLISECONDS);
             } catch (TimeoutException ignored) {
                 // 继续检查取消标记与总截止时间。
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new StoreException("TOOL_CANCELLED");
             } catch (ExecutionException e) {
+                // 保留内层业务错误码，其余统一归为连接失败。
                 if (e.getCause() instanceof StoreException) {
                     throw (StoreException) e.getCause();
                 }
@@ -434,11 +551,12 @@ class NetClient implements AutoCloseable {
     /**
      * 关闭全部连接、解析线程池与事件循环。
      */
+    @Override
     public void close() {
-        for (Channel channel : channels) {
+        for (Channel channel : this.channels) {
             channel.close();
         }
-        dns.shutdownNow();
-        eventLoop.shutdownGracefully(0, 1, TimeUnit.SECONDS).awaitUninterruptibly(1500);
+        this.dns.shutdownNow();
+        this.eventLoop.shutdownGracefully(0, 1, TimeUnit.SECONDS).awaitUninterruptibly(1500);
     }
 }

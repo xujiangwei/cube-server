@@ -31,7 +31,9 @@ import org.json.*;
  * <p>覆盖真实技能包、远程签名网关、JDBC/Broker、绑定图片与带标签的 Unit 夹具。</p>
  */
 public final class MediaToolsTest {
-    /** 夹具签名密钥。 */
+    /**
+     * 夹具签名密钥。
+     */
     static final String SECRET = "M1-http-protocol-fixture-key-1234567890";
 
     /**
@@ -71,19 +73,33 @@ public final class MediaToolsTest {
         }
     }
 
-    /** 工具 Broker。 */
+    /**
+     * 工具 Broker。
+     */
     static ToolBroker broker;
-    /** 数据源与授权存储。 */
+    /**
+     * 数据源与授权存储。
+     */
     static ProviderStore metadata;
-    /** 已发起的推理次数。 */
+    /**
+     * 已发起的推理次数。
+     */
     static AtomicInteger inferences = new AtomicInteger();
-    /** 已请求取消的次数。 */
+    /**
+     * 已请求取消的次数。
+     */
     static AtomicInteger cancellations = new AtomicInteger();
-    /** 被延迟回执的回调。 */
+    /**
+     * 被延迟回执的回调。
+     */
     static List<Consumer<JSONObject>> delayed = new ArrayList<>();
-    /** 已发起的物理执行记录。 */
+    /**
+     * 已发起的物理执行记录。
+     */
     static List<JSONObject> executions = new ArrayList<>();
-    /** 是否延迟回执。 */
+    /**
+     * 是否延迟回执。
+     */
     static boolean delay;
 
     /**

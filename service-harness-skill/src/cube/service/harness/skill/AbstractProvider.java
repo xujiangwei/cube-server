@@ -27,23 +27,52 @@ import java.util.Properties;
  */
 public abstract class AbstractProvider implements QueryProvider {
     /**
+     * 单次结果字节数的默认上限：12 KiB。
+     */
+    private static final int DEFAULT_RESULT_BYTES = 12288;
+
+    /**
+     * 单次结果字节数的最小允许值：1 KiB。
+     */
+    private static final int MIN_RESULT_BYTES = 1024;
+
+    /**
+     * 单次结果字节数的最大允许值：12 KiB，与默认值一致，不允许配置得更大。
+     */
+    private static final int MAX_RESULT_BYTES = 12288;
+
+    /**
+     * SDK 包装后结果字节数的硬上限，超过即判定结果溢出。
+     */
+    private static final int RUNNER_RESULT_LIMIT = 32768;
+
+    /**
+     * 读取 schema 文件时的字节上限：64 KiB。
+     */
+    private static final int MAX_SCHEMA_BYTES = 65536;
+
+    /**
      * 技能在 Broker 中的操作名。
      */
     private final String tool;
+
     /**
      * 调用该技能所需的权限名。
      */
     private final String permission;
+
     /**
      * 技能的输入 schema。
      */
     private final JSONObject input;
+
     /**
      * 技能的输出 schema。
      */
     private final JSONObject output;
+
     /**
-     * 单次结果的字节数上限，来自配置项 result.max.bytes 。
+     * 单次结果的字节数上限，来自配置项 {@code result.max.bytes} 。
      */
     protected final int resultBytes;
 
@@ -60,14 +89,14 @@ public abstract class AbstractProvider implements QueryProvider {
         this.permission = permission;
         this.input = schema(skill, "input");
         this.output = schema(skill, "output");
-        resultBytes = number(config, "result.max.bytes", 12288, 1024, 12288);
+        this.resultBytes = number(config, "result.max.bytes", DEFAULT_RESULT_BYTES, MIN_RESULT_BYTES, MAX_RESULT_BYTES);
     }
 
     /**
      * 从产物内读取指定技能的 schema 文件并校验其结构。
      *
      * @param skill 技能名。
-     * @param kind  schema 种类，取值 input 或 output 。
+     * @param kind  schema 种类，取值 {@code input} 或 {@code output} 。
      * @return 返回解析后的 schema 对象。
      */
     protected static JSONObject schema(String skill, String kind) {
@@ -76,7 +105,7 @@ public abstract class AbstractProvider implements QueryProvider {
             if (stream == null) {
                 throw new IllegalStateException("SKILL_SCHEMA_MISSING: " + path);
             }
-            JSONObject value = StrictJson.object(RuntimeSupport.read(stream, 65536));
+            JSONObject value = StrictJson.object(RuntimeSupport.read(stream, MAX_SCHEMA_BYTES));
             RuntimeSupport.toolSchema(value);
             return value;
         } catch (Exception e) {
@@ -89,8 +118,9 @@ public abstract class AbstractProvider implements QueryProvider {
      *
      * @return 返回操作名，格式为 {@code <tool>.v1} 。
      */
+    @Override
     public final String operation() {
-        return tool + ".v1";
+        return this.tool + ".v1";
     }
 
     /**
@@ -98,8 +128,9 @@ public abstract class AbstractProvider implements QueryProvider {
      *
      * @return 返回权限名。
      */
+    @Override
     public final String permission() {
-        return permission;
+        return this.permission;
     }
 
     /**
@@ -107,8 +138,9 @@ public abstract class AbstractProvider implements QueryProvider {
      *
      * @return 返回输入 schema。
      */
+    @Override
     public final JSONObject inputSchema() {
-        return new JSONObject(input.toString());
+        return new JSONObject(this.input.toString());
     }
 
     /**
@@ -116,8 +148,9 @@ public abstract class AbstractProvider implements QueryProvider {
      *
      * @return 返回输出 schema。
      */
+    @Override
     public final JSONObject resultSchema() {
-        return new JSONObject(output.toString());
+        return new JSONObject(this.output.toString());
     }
 
     /**
@@ -125,8 +158,9 @@ public abstract class AbstractProvider implements QueryProvider {
      *
      * @param args 调用参数。
      */
+    @Override
     public void validate(JSONObject args) {
-        Contract.validate(args, input);
+        Contract.validate(args, this.input);
     }
 
     /**
@@ -135,6 +169,7 @@ public abstract class AbstractProvider implements QueryProvider {
      * @param args 调用参数。
      * @return 不会正常返回。
      */
+    @Override
     public final JSONObject query(JSONObject args) {
         throw new StoreException("TRUSTED_CONTEXT_REQUIRED");
     }
@@ -147,6 +182,7 @@ public abstract class AbstractProvider implements QueryProvider {
      * @return 返回技能执行结果。
      * @throws Exception 技能执行过程中的异常。
      */
+    @Override
     public final JSONObject query(ProviderInvocation context, JSONObject args) throws Exception {
         check(context);
         validate(args);
@@ -172,9 +208,10 @@ public abstract class AbstractProvider implements QueryProvider {
      * @param args   调用参数。
      * @param result 技能返回的结果。
      */
+    @Override
     public final void validateResult(JSONObject args, JSONObject result) {
-        Contract.validate(result, output);
-        if (bytes(result) > resultBytes || Budget.runnerBytes(result) >= 32768) {
+        Contract.validate(result, this.output);
+        if (bytes(result) > this.resultBytes || Budget.runnerBytes(result) >= RUNNER_RESULT_LIMIT) {
             throw new StoreException("TOOL_RESULT_LIMIT");
         }
     }
@@ -224,6 +261,7 @@ public abstract class AbstractProvider implements QueryProvider {
     /**
      * 释放技能持有的资源，默认没有需要释放的资源。
      */
+    @Override
     public void close() {
     }
 }

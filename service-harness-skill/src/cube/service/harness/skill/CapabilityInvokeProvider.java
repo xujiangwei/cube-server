@@ -18,7 +18,13 @@ import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -30,6 +36,21 @@ import java.util.concurrent.TimeoutException;
  * 「物理结果未知」，不会自动重发。</p>
  */
 public final class CapabilityInvokeProvider extends AbstractProvider {
+    /**
+     * 图片与输入文件的字节上限：1 MiB。
+     */
+    private static final int MAX_IMAGE_BYTES = 1048576;
+
+    /**
+     * 二进制输入的媒体类型集合。
+     */
+    private static final Set<String> OCTET_STREAM = Collections.singleton("application/octet-stream");
+
+    /**
+     * 等待物理回执时单次轮询的间隔上限，单位毫秒。
+     */
+    private static final int POLL_INTERVAL_MILLIS = 100;
+
     /**
      * 外部数据源访问器，用于按需拉取原始图片。
      */
@@ -57,17 +78,18 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
      */
     public CapabilityInvokeProvider(Properties p) {
         super("capability", "common.capability.invoke", "capability.invoke", p);
-        network = new DataNetwork(p);
-        allowed = new HashSet<>(Arrays.asList(p.getProperty("capability.allowed.units", "").split(",")));
-        timeout = number(p, "capability.timeout.millis", 20000, 100, 20000);
-        maxPixels = number(p, "image.max.pixels", 4000000, 1, 16000000);
+        this.network = new DataNetwork(p);
+        this.allowed = new HashSet<>(Arrays.asList(p.getProperty("capability.allowed.units", "").split(",")));
+        this.timeout = number(p, "capability.timeout.millis", 20000, 100, 20000);
+        this.maxPixels = number(p, "image.max.pixels", 4000000, 1, 16000000);
     }
 
     /**
      * 能力调用必须独立执行，不能与其它工具共享一次受理。
      *
-     * @return 固定返回 true 。
+     * @return 固定返回 {@code true} 。
      */
+    @Override
     public boolean independentExecution() {
         return true;
     }
@@ -77,6 +99,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
      *
      * @return 返回配置文件名集合。
      */
+    @Override
     public Set<String> configurationFiles() {
         return Collections.singleton("analysis-profiles.json");
     }
@@ -87,6 +110,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
      * @param path   配置文件路径。
      * @param config 配置内容。
      */
+    @Override
     public void validateConfiguration(String path, JSONObject config) {
         AnalysisProfiles.validate(config);
     }
@@ -98,6 +122,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
      * @param path   配置文件路径。
      * @param config 配置内容。
      */
+    @Override
     public void preflightConfiguration(QueryProvider.ProviderInvocationLookup lookup, String path, JSONObject config) {
         validateConfiguration(path, config);
         JSONArray units = lookup.mediaUnits();
@@ -106,13 +131,14 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
             String name = profiles.getJSONObject(i).getString("unit");
             boolean ready = false;
             for (int j = 0; j < units.length(); j++) {
-                if (units.getJSONObject(j).getString("unit").equals(name)
-                        && units.getJSONObject(j).getBoolean("ready")
-                        && units.getJSONObject(j).getInt("capacity") > 0) {
+                JSONObject instance = units.getJSONObject(j);
+                if (instance.getString("unit").equals(name)
+                        && instance.getBoolean("ready")
+                        && instance.getInt("capacity") > 0) {
                     ready = true;
                 }
             }
-            if (!allowed.contains(name) || !ready) {
+            if (!this.allowed.contains(name) || !ready) {
                 throw new StoreException("CAPABILITY_NOT_READY");
             }
         }
@@ -121,79 +147,92 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
     /**
      * 对账物理执行状态，用于重开后的未知结果确认。
      *
-     * @param c Broker 提供的可信调用上下文。
+     * @param context Broker 提供的可信调用上下文。
      * @return 返回 Unit 侧是否已给出物理完成回执。
      */
-    public boolean reconcile(ProviderInvocation c) {
-        return c.mediaFinished();
+    @Override
+    public boolean reconcile(ProviderInvocation context) {
+        return context.mediaFinished();
     }
 
     /**
      * 执行能力调用：取图、校验、预留 Unit、等待物理回执并产出溯源产物。
      *
-     * @param c    Broker 提供的可信调用上下文。
-     * @param args 调用参数。
-     * @return 返回分析结果，含 profileId 、answer 与溯源信息。
+     * @param context Broker 提供的可信调用上下文。
+     * @param args    调用参数。
+     * @return 返回分析结果，含 {@code profileId} 、{@code answer} 与溯源信息。
      * @throws Exception 拉取图片或等待回执过程中的异常。
      */
-    protected JSONObject execute(ProviderInvocation c, JSONObject args) throws Exception {
+    @Override
+    protected JSONObject execute(ProviderInvocation context, JSONObject args) throws Exception {
         String skill = args.getString("skill");
-        JSONObject config = c.resource(skill, "analysis-profiles.json");
+        JSONObject config = context.resource(skill, "analysis-profiles.json");
         AnalysisProfiles.validate(config);
         JSONObject profile = ConnectorConfig.select(config, "profiles", args.getString("profileId"));
-        if (!allowed.contains(profile.getString("unit"))) {
+        if (!this.allowed.contains(profile.getString("unit"))) {
             throw new StoreException("CAPABILITY_NOT_READY");
         }
-        JSONObject media = c.confirmed("media", args.getString("mediaRef"));
+        JSONObject media = context.confirmed("media", args.getString("mediaRef"));
         if (!media.getString("skill").equals(skill)) {
             throw new StoreException("MEDIA_REF_FORBIDDEN");
         }
         if (!profile.getJSONArray("mediaTypes").toList().contains(media.getString("mediaType"))) {
             throw new StoreException("MEDIA_TYPE_UNSUPPORTED");
         }
-        JSONObject connectors = c.resource(skill, "connectors.json");
+        JSONObject connectors = context.resource(skill, "connectors.json");
         ConnectorConfig.validate(connectors);
         JSONObject connector = ConnectorConfig.select(connectors, "connectors", media.getString("connectorId"));
+        // 图片可能来自受控输入，也可能需要按连接器定义回源拉取。
         byte[] bytes;
         if (media.has("inputId")) {
-            bytes = c.input(media.getString("inputId"), 1048576, Collections.singleton("application/octet-stream"));
+            bytes = context.input(media.getString("inputId"), MAX_IMAGE_BYTES, OCTET_STREAM);
         } else {
             if (!media.getString("sourceRef").equals(connector.getString("sourceRef"))) {
                 throw new StoreException("MEDIA_REF_FORBIDDEN");
             }
-            NetClient.Response raw = network.get(c, media.getString("sourceRef"), connector.getJSONObject("media").getJSONObject("request"),
-                    new JSONObject().put("id", media.getString("mediaId")).put("version", media.getString("mediaVersion")),
-                    "media", new JSONObject(), 1048576);
+            JSONObject selector = new JSONObject()
+                    .put("id", media.getString("mediaId"))
+                    .put("version", media.getString("mediaVersion"));
+            NetClient.Response raw = this.network.get(context, media.getString("sourceRef"),
+                    connector.getJSONObject("media").getJSONObject("request"),
+                    selector, "media", new JSONObject(), MAX_IMAGE_BYTES);
             if (!raw.media().equals(media.getString("mediaType"))) {
                 throw new StoreException("MEDIA_VERSION_CHANGED");
             }
             bytes = raw.body;
         }
-        inspect(bytes, media.getString("mediaType"), maxPixels);
+        inspect(bytes, media.getString("mediaType"), this.maxPixels);
         String sha = RuntimeSupport.sha(bytes);
-        c.remember("media-bytes", args.getString("mediaRef"), new JSONObject().put("sha256", sha));
-        JSONObject request = new JSONObject().put("unit", profile.getString("unit")).put("adapter", profile.getString("adapter"))
-                .put("option", ConnectorConfig.arguments(profile.getString("optionsJson"))).put("content", args.getString("content"))
-                .put("tenant", c.tenant).put("subject", c.subject).put("runId", c.runId).put("sha256", sha).put("mediaType", media.getString("mediaType"))
-                .put("deadlineAt", System.currentTimeMillis() + timeout);
-        JSONObject execution = c.reserveMedia(profile.getString("unit"), request);
+        context.remember("media-bytes", args.getString("mediaRef"), new JSONObject().put("sha256", sha));
+        JSONObject request = new JSONObject()
+                .put("unit", profile.getString("unit"))
+                .put("adapter", profile.getString("adapter"))
+                .put("option", ConnectorConfig.arguments(profile.getString("optionsJson")))
+                .put("content", args.getString("content"))
+                .put("tenant", context.tenant)
+                .put("subject", context.subject)
+                .put("runId", context.runId)
+                .put("sha256", sha)
+                .put("mediaType", media.getString("mediaType"))
+                .put("deadlineAt", System.currentTimeMillis() + this.timeout);
+        JSONObject execution = context.reserveMedia(profile.getString("unit"), request);
         CompletableFuture<JSONObject> response = new CompletableFuture<>();
-        c.invokeMedia(execution, bytes, response::complete);
+        context.invokeMedia(execution, bytes, response::complete);
         // 超时抛出的是非 StoreException ：Broker 记为物理结果未知，且不自动重发。
-        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeout);
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(this.timeout);
         JSONObject receipt = null;
         while (receipt == null) {
-            if (c.cancelled()) {
-                c.cancelMedia();
+            if (context.cancelled()) {
+                context.cancelMedia();
                 throw new IOException("MEDIA_EXECUTION_CANCELLED_WITHOUT_PHYSICAL_RECEIPT");
             }
             long remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
             if (remaining <= 0) {
-                c.cancelMedia();
+                context.cancelMedia();
                 throw new TimeoutException("MEDIA_EXECUTION_UNKNOWN");
             }
             try {
-                receipt = response.get(Math.min(100, remaining), TimeUnit.MILLISECONDS);
+                receipt = response.get(Math.min(POLL_INTERVAL_MILLIS, remaining), TimeUnit.MILLISECONDS);
             } catch (TimeoutException pending) {
                 // 继续检查取消标记与同一个截止时间。
             }
@@ -206,15 +245,33 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         if (media.getString("timeTrust").equals("provider-declared")) {
             warnings.put("CAPTURE_TIME_PROVIDER_DECLARED");
         }
-        JSONObject out = new JSONObject().put("profileId", args.getString("profileId")).put("mediaRef", args.getString("mediaRef"))
-                .put("unit", profile.getString("unit")).put("answer", payload.optString("response", ""))
-                .put("payloadJson", payload.optJSONObject("resultPayload") == null ? "{}" : payload.getJSONObject("resultPayload").toString()).put("warnings", warnings);
+        // 分析结论只作为观察值返回，结构缺失时以空对象占位。
+        String payloadJson = "{}";
+        JSONObject resultPayload = payload.optJSONObject("resultPayload");
+        if (resultPayload != null) {
+            payloadJson = resultPayload.toString();
+        }
+        JSONObject out = new JSONObject()
+                .put("profileId", args.getString("profileId"))
+                .put("mediaRef", args.getString("mediaRef"))
+                .put("unit", profile.getString("unit"))
+                .put("answer", payload.optString("response", ""))
+                .put("payloadJson", payloadJson)
+                .put("warnings", warnings);
         validateResult(args, out);
-        JSONObject provenance = new JSONObject().put("schemaVersion", 1).put("kind", "media-source")
-                .put("mediaRef", args.getString("mediaRef")).put("mediaId", media.getString("mediaId")).put("mediaVersion", media.getString("mediaVersion"))
-                .put("mediaType", media.getString("mediaType")).put("sha256", sha).put("source", media.getJSONObject("record"))
-                .put("captureTimeTrust", media.getString("timeTrust")).put("profileId", args.getString("profileId"))
-                .put("requestId", execution.getString("requestId")).put("instanceId", execution.getString("instanceId"))
+        JSONObject provenance = new JSONObject()
+                .put("schemaVersion", 1)
+                .put("kind", "media-source")
+                .put("mediaRef", args.getString("mediaRef"))
+                .put("mediaId", media.getString("mediaId"))
+                .put("mediaVersion", media.getString("mediaVersion"))
+                .put("mediaType", media.getString("mediaType"))
+                .put("sha256", sha)
+                .put("source", media.getJSONObject("record"))
+                .put("captureTimeTrust", media.getString("timeTrust"))
+                .put("profileId", args.getString("profileId"))
+                .put("requestId", execution.getString("requestId"))
+                .put("instanceId", execution.getString("instanceId"))
                 .put("analysisResultSha256", RuntimeSupport.sha(RuntimeSupport.bytes(out)));
         if (media.has("sourceRef")) {
             provenance.put("sourceRef", media.getString("sourceRef"));
@@ -222,7 +279,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         if (media.has("inputId")) {
             provenance.put("inputId", media.getString("inputId"));
         }
-        c.textArtifact("media-source.json", provenance.toString());
+        context.textArtifact("media-source.json", provenance.toString());
         return out;
     }
 
@@ -235,7 +292,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
      * @throws Exception 读取或解码图片过程中的异常。
      */
     static void inspect(byte[] bytes, String mediaType, int maxPixels) throws Exception {
-        if (bytes.length < 8 || bytes.length > 1048576) {
+        if (bytes.length < 8 || bytes.length > MAX_IMAGE_BYTES) {
             throw new StoreException("MEDIA_IMAGE_INVALID");
         }
         try (ImageInputStream in = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
@@ -270,7 +327,8 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
     /**
      * 释放技能持有的网络资源。
      */
+    @Override
     public void close() {
-        network.close();
+        this.network.close();
     }
 }

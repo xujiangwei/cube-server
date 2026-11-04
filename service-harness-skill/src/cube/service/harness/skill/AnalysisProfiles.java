@@ -23,6 +23,11 @@ import java.util.Set;
  */
 public final class AnalysisProfiles {
     /**
+     * 允许声明切片分析的唯一档案标识。
+     */
+    private static final String SLICED_PROFILE = "uav-fire-smoke";
+
+    /**
      * 工具类，禁止实例化。
      */
     private AnalysisProfiles() {
@@ -31,7 +36,7 @@ public final class AnalysisProfiles {
     /**
      * 校验分析档案配置：结构合法、档案 id 唯一、unit 与 adapter 匹配、选项参数合法。
      *
-     * @param config analysis-profiles.json 的内容。
+     * @param config {@code analysis-profiles.json} 的内容。
      */
     public static void validate(JSONObject config) {
         Contract.validate(config, AbstractProvider.schema("capability", "analysis-profiles"));
@@ -44,22 +49,35 @@ public final class AnalysisProfiles {
             }
             String unit = p.getString("unit");
             String adapter = p.getString("adapter");
-            String kind;
-            if (adapter.equals("multimodal") && unit.equals("OmniMultimodal")) {
-                kind = "options-multimodal";
-            } else if (adapter.equals("multimodal") && unit.equals("OmniPerception")) {
-                kind = "options-perception";
-            } else if (adapter.equals("specialized-detection") && unit.equals("SpecializedDetection")) {
-                kind = "options-specialized";
-            } else {
-                throw new StoreException("ANALYSIS_PROFILE_INVALID");
-            }
+            // 只有声明的组合才映射到对应的 options schema，其余组合一律拒绝。
+            String kind = optionsKind(adapter, unit);
             JSONObject options = ConnectorConfig.arguments(p.getString("optionsJson"));
             Contract.validate(options, AbstractProvider.schema("capability", kind));
             // 切片分析目前只开放给无人机烟火档案，其它档案声明 sliced 即视为非法。
-            if (options.optBoolean("sliced") && !options.optString("profile").equals("uav-fire-smoke")) {
+            if (options.optBoolean("sliced") && !SLICED_PROFILE.equals(options.optString("profile"))) {
                 throw new StoreException("ANALYSIS_PROFILE_INVALID");
             }
         }
+    }
+
+    /**
+     * 把 unit 与 adapter 的组合映射到对应的 options schema 名称。
+     *
+     * @param adapter 适配器名称。
+     * @param unit    Unit 名称。
+     * @return 返回 options schema 的名称。
+     */
+    private static String optionsKind(String adapter, String unit) {
+        if ("multimodal".equals(adapter)) {
+            if ("OmniMultimodal".equals(unit)) {
+                return "options-multimodal";
+            }
+            if ("OmniPerception".equals(unit)) {
+                return "options-perception";
+            }
+        } else if ("specialized-detection".equals(adapter) && "SpecializedDetection".equals(unit)) {
+            return "options-specialized";
+        }
+        throw new StoreException("ANALYSIS_PROFILE_INVALID");
     }
 }

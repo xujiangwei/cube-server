@@ -15,10 +15,15 @@ import java.nio.charset.StandardCharsets;
 /**
  * 技能结果的体积预算工具。
  *
- * <p>预算同时覆盖序列化后的 JSON 与 SDK 内嵌的 dataJson ，UTF-8 编码与转义
+ * <p>预算同时覆盖序列化后的 JSON 与 SDK 内嵌的 {@code dataJson} ，UTF-8 编码与转义
  * 带来的膨胀都算在内。超限时由调用方截断文本或条目，而不是让结果原样溢出。</p>
  */
 final class Budget {
+    /**
+     * runner 结果中留给分隔符的字节数。
+     */
+    private static final int SEPARATOR_BYTES = 1;
+
     /**
      * 工具类，禁止实例化。
      */
@@ -26,16 +31,21 @@ final class Budget {
     }
 
     /**
-     * 计算结果经 SDK 包装（status/dataJson/artifacts）后的字节数。
+     * 计算结果经 SDK 包装（status / dataJson / artifacts）后的字节数。
      *
      * @param data 技能返回的结果对象。
      * @return 返回包装后的 UTF-8 字节数，额外加 1 字节留给分隔符。
      */
     static int runnerBytes(JSONObject data) {
-        JSONObject value = new JSONObject().put("status", "success").put("dataJson", data.toString())
+        JSONObject value = new JSONObject()
+                .put("status", "success")
+                .put("dataJson", data.toString())
                 .put("artifacts", new JSONArray());
-        return new JSONObject().put("type", "result").put("value", value).toString()
-                .getBytes(StandardCharsets.UTF_8).length + 1;
+        return new JSONObject()
+                .put("type", "result")
+                .put("value", value)
+                .toString()
+                .getBytes(StandardCharsets.UTF_8).length + SEPARATOR_BYTES;
     }
 
     /**
@@ -55,7 +65,9 @@ final class Budget {
     }
 
     /**
-     * 按字节预算裁剪结果中的文本字段，必要时标记 truncated 。
+     * 按字节预算裁剪结果中的文本字段，必要时标记 {@code truncated} 。
+     *
+     * <p>用二分查找确定能容纳的最大字符数，避免逐字符试算。</p>
      *
      * @param data     结果对象。
      * @param field    文本字段名。
@@ -86,7 +98,9 @@ final class Budget {
     }
 
     /**
-     * 按字节预算裁剪结果中的条目数组，必要时标记 truncated 。
+     * 按字节预算裁剪结果中的条目数组，必要时标记 {@code truncated} 。
+     *
+     * <p>从尾部逐条移除，直到整份结果落入预算；仍然超限则判定结果溢出。</p>
      *
      * @param data     结果对象。
      * @param field    条目数组字段名。

@@ -31,9 +31,50 @@ import java.util.function.BooleanSupplier;
  */
 public class KnowledgeProvider extends AbstractProvider {
     /**
+     * 索引文件的字节上限：256 KiB。
+     */
+    private static final int MAX_INDEX_BYTES = 262144;
+
+    /**
+     * 索引允许包含的最大文档数。
+     */
+    private static final int MAX_DOCUMENTS = 128;
+
+    /**
+     * 单篇文档正文的字符上限。
+     */
+    private static final int MAX_TEXT_CHARS = 8192;
+
+    /**
+     * 单篇文档来源标识的字符上限。
+     */
+    private static final int MAX_SOURCE_CHARS = 512;
+
+    /**
+     * 单篇文档允许授权的主体数上限。
+     */
+    private static final int MAX_SUBJECTS = 32;
+
+    /**
+     * 单次检索返回的最大引用条数。
+     */
+    private static final int MAX_CITATIONS = 5;
+
+    /**
+     * 摘录时保留的命中点前文字符数。
+     */
+    private static final int EXCERPT_LEAD = 128;
+
+    /**
+     * 单条引用的字符上限。
+     */
+    private static final int MAX_EXCERPT_CHARS = 2048;
+
+    /**
      * 索引中的全部文档。
      */
     private final JSONArray documents;
+
     /**
      * 索引文件摘要，用于结果溯源。
      */
@@ -55,28 +96,34 @@ public class KnowledgeProvider extends AbstractProvider {
         }
         byte[] raw;
         try (InputStream in = Files.newInputStream(path)) {
-            raw = RuntimeSupport.read(in, 262144);
+            raw = RuntimeSupport.read(in, MAX_INDEX_BYTES);
         }
-        digest = RuntimeSupport.sha(raw);
-        if (!digest.equals(p.getProperty("knowledge.index.sha256"))) {
+        this.digest = RuntimeSupport.sha(raw);
+        if (!this.digest.equals(p.getProperty("knowledge.index.sha256"))) {
             throw new IllegalArgumentException("KNOWLEDGE_INDEX_DIGEST_MISMATCH");
         }
-        documents = StrictJson.object(raw).getJSONArray("documents");
-        if (documents.length() > 128) {
+        this.documents = StrictJson.object(raw).getJSONArray("documents");
+        if (this.documents.length() > MAX_DOCUMENTS) {
             throw new IllegalArgumentException("KNOWLEDGE_INDEX_LIMIT");
         }
         Set<String> keys = new HashSet<>();
-        for (int i = 0; i < documents.length(); i++) {
-            JSONObject d = documents.getJSONObject(i);
+        for (int i = 0; i < this.documents.length(); i++) {
+            JSONObject d = this.documents.getJSONObject(i);
             RuntimeSupport.id(d.getString("tenant"));
             RuntimeSupport.id(d.getString("id"));
-            if (!keys.add(d.getString("tenant") + ":" + d.getString("id"))
-                    || d.getString("text").length() > 8192 || d.getString("source").length() > 512
-                    || d.getJSONArray("subjects").length() > 32) {
+            // 租户内文档 id 必须唯一。
+            String key = d.getString("tenant") + ":" + d.getString("id");
+            if (!keys.add(key)) {
                 throw new IllegalArgumentException("KNOWLEDGE_DOCUMENT_INVALID");
             }
-            for (int n = 0; n < d.getJSONArray("subjects").length(); n++) {
-                RuntimeSupport.id(d.getJSONArray("subjects").getString(n));
+            if (d.getString("text").length() > MAX_TEXT_CHARS
+                    || d.getString("source").length() > MAX_SOURCE_CHARS
+                    || d.getJSONArray("subjects").length() > MAX_SUBJECTS) {
+                throw new IllegalArgumentException("KNOWLEDGE_DOCUMENT_INVALID");
+            }
+            JSONArray subjects = d.getJSONArray("subjects");
+            for (int n = 0; n < subjects.length(); n++) {
+                RuntimeSupport.id(subjects.getString(n));
             }
         }
     }
@@ -86,6 +133,7 @@ public class KnowledgeProvider extends AbstractProvider {
      *
      * @param args 调用参数。
      */
+    @Override
     public void validate(JSONObject args) {
         super.validate(args);
         if (args.getString("query").trim().isEmpty()) {
@@ -96,12 +144,13 @@ public class KnowledgeProvider extends AbstractProvider {
     /**
      * 执行检索。
      *
-     * @param c    Broker 提供的可信调用上下文。
-     * @param args 调用参数。
+     * @param context Broker 提供的可信调用上下文。
+     * @param args    调用参数。
      * @return 返回检索结果，含引用列表与是否截断。
      */
-    protected JSONObject execute(ProviderInvocation c, JSONObject args) {
-        return lookup(c.tenant, c.subject, args, c::cancelled);
+    @Override
+    protected JSONObject execute(ProviderInvocation context, JSONObject args) {
+        return lookup(context.tenant, context.subject, args, context::cancelled);
     }
 
     /**
@@ -118,11 +167,12 @@ public class KnowledgeProvider extends AbstractProvider {
         String query = args.getString("query").trim();
         JSONArray citations = new JSONArray();
         boolean truncated = false;
-        for (int i = 0; i < documents.length(); i++) {
+        for (int i = 0; i < this.documents.length(); i++) {
             if (cancelled.getAsBoolean()) {
                 throw new StoreException("TOOL_CANCELLED");
             }
-            JSONObject d = documents.getJSONObject(i);
+            JSONObject d = this.documents.getJSONObject(i);
+            // 先判断可见性，再判断命中：不可见的文档不参与命中计数。
             if (!tenant.equals(d.getString("tenant"))
                     || !RuntimeSupport.strings(d.getJSONArray("subjects")).contains(subject)) {
                 continue;
@@ -139,21 +189,28 @@ public class KnowledgeProvider extends AbstractProvider {
             if (at < 0) {
                 continue;
             }
-            if (citations.length() == 5) {
+            if (citations.length() == MAX_CITATIONS) {
                 truncated = true;
                 break;
             }
-            int start = Math.max(0, at - 128);
+            int start = Math.max(0, at - EXCERPT_LEAD);
+            // 起点若落在低位代理字符上，退回一个字符保持代理对完整。
             if (start > 0 && Character.isLowSurrogate(text.charAt(start))) {
                 start--;
             }
-            citations.put(new JSONObject().put("documentId", d.getString("id")).put("source", d.getString("source"))
+            String excerpt = Budget.prefix(text.substring(start), MAX_EXCERPT_CHARS);
+            citations.put(new JSONObject()
+                    .put("documentId", d.getString("id"))
+                    .put("source", d.getString("source"))
                     .put("sha256", RuntimeSupport.sha(text.getBytes(StandardCharsets.UTF_8)))
-                    .put("text", Budget.prefix(text.substring(start), 2048)));
+                    .put("text", excerpt));
         }
-        JSONObject out = new JSONObject().put("indexDigest", digest).put("trust", "untrusted-source-data")
-                .put("citations", citations).put("truncated", truncated);
-        Budget.items(out, "citations", resultBytes);
+        JSONObject out = new JSONObject()
+                .put("indexDigest", this.digest)
+                .put("trust", "untrusted-source-data")
+                .put("citations", citations)
+                .put("truncated", truncated);
+        Budget.items(out, "citations", this.resultBytes);
         return out;
     }
 }
