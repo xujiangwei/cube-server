@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="cube-service-harness-skill" default="build" basedir=".">
+<project name="cube-service-harness-skill" default="build" basedir="." xmlns:if="ant:if" xmlns:unless="ant:unless">
   <property name="version.brand" value="3.0"/>
   <property name="version.tgt" value="1.8"/>
   <property name="version.src" value="1.8"/>
@@ -14,18 +14,20 @@
     <pathelement location="${build.dir}/classes"/>
   </path>
   <target name="check">
-    <!-- 全工程以 JDK 8 为构建基准：common 依赖 Nashorn（jdk.nashorn.api.scripting，JDK 15 起已移除），
-         高版本 JDK 连 common 都编译不过；产物运行在 JDK 8 的 service 进程中，字节码必须是 1.8。
-         这里约束构建 JVM，编译目标由 version.src / version.tgt 约束。 -->
-    <fail message="Requires JDK 8, but Ant is running on java.version=${java.version} (java.home=${java.home}). Set JAVA_HOME to a JDK 8 and retry.">
-      <condition><not><matches string="${java.version}" pattern="^1\.8\."/></not></condition>
+    <!-- 与 service-harness 保持一致：构建支持 JDK 8 及以上，运行仍要求 JDK 8。
+         JDK 8 使用 source/target=1.8；JDK 9+ 使用 release=8，同时约束字节码和可用 API。 -->
+    <condition property="jdk.is8" value="true" else="false"><equals arg1="${java.specification.version}" arg2="1.8"/></condition>
+    <fail message="Harness skills require JDK 8 or newer, but Ant is running on java.version=${java.version} (java.home=${java.home}).">
+      <condition><not><matches string="${java.specification.version}" pattern="^(1\.8|9|[1-9][0-9]+)$"/></not></condition>
     </fail>
+    <echo level="warning" message="Harness skills are built with JDK ${java.version}; bytecode stays 1.8 via --release 8. RUNTIME still requires JDK 8." unless:true="${jdk.is8}"/>
     <available file="${harness.module}/build/cube-service-harness-3.0.jar" property="harness.present"/>
-    <fail unless="harness.present" message="Build service-harness with JDK 8 first"/>
+    <fail unless="harness.present" message="Build service-harness first"/>
   </target>
   <target name="build" depends="check">
     <mkdir dir="${build.dir}/classes"/>
-    <javac srcdir="src" destdir="${build.dir}/classes" target="${version.tgt}" source="${version.src}" encoding="UTF-8" includeantruntime="false"><classpath refid="cp"/></javac>
+    <javac srcdir="src" destdir="${build.dir}/classes" target="${version.tgt}" source="${version.src}" encoding="UTF-8" includeantruntime="false" if:true="${jdk.is8}"><classpath refid="cp"/></javac>
+    <javac srcdir="src" destdir="${build.dir}/classes" release="8" encoding="UTF-8" includeantruntime="false" unless:true="${jdk.is8}"><classpath refid="cp"/></javac>
     <sync todir="${build.dir}/classes/cube/service/harness/skill/schemas"><fileset dir="harness-tools" includes="*/*.schema.json"/></sync>
     <jar destfile="${build.dir}/cube-service-harness-skill-${version.brand}.jar" basedir="${build.dir}/classes"/>
   </target>
@@ -37,7 +39,8 @@
   <target name="compile-tests" depends="build,packages">
     <ant dir="${harness.module}" target="test" inheritall="false"/>
     <mkdir dir="${build.dir}/test-classes"/>
-    <javac srcdir="test" destdir="${build.dir}/test-classes" target="${version.tgt}" source="${version.src}" encoding="UTF-8" includeantruntime="false"><classpath><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/></classpath></javac>
+    <javac srcdir="test" destdir="${build.dir}/test-classes" target="${version.tgt}" source="${version.src}" encoding="UTF-8" includeantruntime="false" if:true="${jdk.is8}"><classpath><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/></classpath></javac>
+    <javac srcdir="test" destdir="${build.dir}/test-classes" release="8" encoding="UTF-8" includeantruntime="false" unless:true="${jdk.is8}"><classpath><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/></classpath></javac>
   </target>
   <path id="test.cp"><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/><pathelement location="${build.dir}/test-classes"/></path>
   <target name="test" depends="compile-tests,test-media">

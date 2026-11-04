@@ -1,6 +1,6 @@
 # Harness 通用技能工具包
 
-本工程使用实际 **JDK 8** 和 Ant 构建 `cube-service-harness-skill-3.0.jar`，由 Java `service-harness` 在同一 JVM 内加载。八个 provider 可独立注册；Python tool Runner 执行技能的薄入口，通过 SDK/Broker 调用 Java，由 provider 查询数据并返回结构化证据。
+本工程使用 Ant 构建 `cube-service-harness-skill-3.0.jar`，构建支持 **JDK 8 及以上**，产物保持 Java 8 兼容，由 Java `service-harness` 在同一 JVM 内加载，运行仍要求 **JDK 8**。八个 provider 可独立注册；Python tool Runner 执行技能的薄入口，通过 SDK/Broker 调用 Java，由 provider 查询数据并返回结构化证据。
 
 M1 的受限数据连接器、已有 Unit 调用、远程业务包发布与部署前提见 [M1.md](../service-harness/M1.md)。F 的接口与上传资源见 [forest/](../../forest/README.md)，不包含在平台工具包中。
 
@@ -23,7 +23,7 @@ M1 的受限数据连接器、已有 Unit 调用、远程业务包发布与部�
 
 ## 构建和打包
 
-在本工程目录，用实际 JDK 8 运行 Ant（仅设置 source/target=1.8 不能代替 JDK 8）：
+在本工程目录，用 JDK 8 或更高版本运行 Ant。JDK 8 使用 `source/target=1.8`；JDK 9 及以上（包括 JDK 11）自动使用 `--release 8`，同时限制字节码版本和可用 Java API，运行环境仍为 JDK 8。此兼容范围适用于本模块及 `service-harness`；其他模块的构建要求以各自配置为准。
 
 ```powershell
 ant -f ../service-harness/build.xml build

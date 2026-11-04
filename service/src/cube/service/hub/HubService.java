@@ -514,37 +514,55 @@ public class HubService extends AbstractModule {
                     }
 
                     this.queueProcessing = true;
-                }
-
-                this.executor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        while (!messageQueue.isEmpty()) {
-                            Message message = null;
-                            synchronized (messageQueue) {
-                                message = messageQueue.poll();
-                            }
-                            if (null == message) {
-                                break;
-                            }
-
-                            JSONObject payload = message.getPayload();
-                            String type = payload.getString("type");
-                            if (Type.Event.equals(type)) {
-                                Event event = EventBuilder.build(payload.getJSONObject("event"));
-                                eventController.receive(event);
-                            }
-                            else if (Type.Signal.equals(type)) {
-                                Signal signal = SignalBuilder.build(payload.getJSONObject("signal"));
-                                signalController.receive(signal);
-                            }
-                        }
-
-                        synchronized (messageQueue) {
-                            queueProcessing = false;
-                        }
+                    try {
+                        // 提交与入队使用同一把锁，拒绝执行时不留下无人消费的消息。
+                        this.executor.execute(this::drainMessagingQueue);
+                    } catch (RuntimeException e) {
+                        this.queueProcessing = false;
+                        this.messageQueue.remove(message);
+                        throw e;
                     }
-                });
+                }
+            }
+        }
+    }
+
+    private void drainMessagingQueue() {
+        while (true) {
+            Message message;
+            synchronized (this.messageQueue) {
+                message = this.messageQueue.poll();
+                if (null == message) {
+                    // 判空与释放消费标记必须和入队互斥，避免新消息滞留。
+                    this.queueProcessing = false;
+                    return;
+                }
+            }
+
+            try {
+                JSONObject payload = message.getPayload();
+                String type = payload.getString("type");
+                if (Type.Event.equals(type)) {
+                    Event event = EventBuilder.build(payload.getJSONObject("event"));
+                    if (null != event) {
+                        this.eventController.receive(event);
+                    }
+                    else {
+                        Logger.w(HubService.class, "#drainMessagingQueue - Unsupported event");
+                    }
+                }
+                else if (Type.Signal.equals(type)) {
+                    Signal signal = SignalBuilder.build(payload.getJSONObject("signal"));
+                    if (null != signal) {
+                        this.signalController.receive(signal);
+                    }
+                    else {
+                        Logger.w(HubService.class, "#drainMessagingQueue - Unsupported signal");
+                    }
+                }
+            } catch (Exception e) {
+                // 单条消息解析或处理失败不应阻断后续消息。
+                Logger.w(HubService.class, "#drainMessagingQueue - Message processing failed", e);
             }
         }
     }

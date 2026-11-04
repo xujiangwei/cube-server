@@ -9,6 +9,9 @@ package cube.service.aigc;
 import cell.core.talk.dialect.ActionDialect;
 import org.json.JSONObject;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 /**
  * 应答机。
  */
@@ -22,6 +25,9 @@ public class Responder {
     private JSONObject notifier;
 
     private ActionDialect response;
+
+    private final CountDownLatch completion = new CountDownLatch(1);
+
     private cell.core.talk.TalkContext expectedContext;
 
     public Responder(long sn, ActionDialect dialect, cell.core.talk.TalkContext context) {
@@ -54,21 +60,28 @@ public class Responder {
     /**
      * 等待响应。
      *
-     * <p>在通知对象上等待，超时或收到通知后返回；超时返回 {@code null} 。</p>
+     * <p>等待已保存的完成状态，应答或结束信号先到时立即返回。
+     * 超时、被中断或无应答结束时返回 {@code null} 。</p>
      *
-     * @param timeout 等待时长，单位毫秒。
+     * @param timeout 等待时长，单位毫秒；为 0 时无限等待。
      * @return 响应方言；超时返回 {@code null} 。
      */
     public ActionDialect waitingFor(long timeout) {
-        synchronized (this.notifier) {
-            try {
-                this.notifier.wait(timeout);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+        if (timeout < 0) {
+            throw new IllegalArgumentException("timeout value is negative");
         }
-
-        return this.response;
+        try {
+            if (timeout == 0) {
+                this.completion.await();
+            }
+            else if (!this.completion.await(timeout, TimeUnit.MILLISECONDS)) {
+                return null;
+            }
+            return this.response;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
     }
 
     /**
@@ -78,12 +91,11 @@ public class Responder {
      *
      * @param response 响应方言。
      */
-    public void notifyResponse(ActionDialect response) {
+    public synchronized void notifyResponse(ActionDialect response) {
         response.removeParam(Responder.NotifierKey);
-
-        this.response = response;
-        synchronized (this.notifier) {
-            this.notifier.notify();
+        if (this.completion.getCount() != 0) {
+            this.response = response;
+            this.completion.countDown();
         }
     }
 
@@ -92,10 +104,8 @@ public class Responder {
      *
      * <p>唤醒仍阻塞的等待方，用于上游异常时主动收尾。</p>
      */
-    public void finish() {
-        synchronized (this.notifier) {
-            this.notifier.notify();
-        }
+    public synchronized void finish() {
+        this.completion.countDown();
     }
 
     /**
