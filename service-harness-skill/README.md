@@ -42,13 +42,13 @@ build/packages/{search,web,knowledge,attachment,time,calculator,data,capability}
 
 `packages` 可重复执行，原子更新自己生成的 ZIP，同一来源得到相同 manifest 摘要。生产 Java ZIP 校验器在 `ant test` 中校验八个实际 ZIP。
 
-`build-debug` / `build-release` 同时将统一 JAR 复制到 `../build/`。服务器顶层增加可选入口：
+本模块的 `build` 只生成 `build/cube-service-harness-skill-3.0.jar`；`build-debug` / `build-release` 还会将该 JAR 复制到服务器统一的 `../build/`。服务器顶层的 `build` / `build-debug` 均包含本模块，也可单独构建这条依赖链（自动依次构建 common、service-harness、service-harness-skill）：
 
 ```powershell
 ant -f ../build.xml build-harness-skill-release
 ```
 
-默认服务构建和部署不自动安装本扩展。`clean` 只删除本模块的编译/打包产物，保留本地工具链和验证证据目录。
+顶层构建后，`cube-server/build/` 同时包含 `cube-service-harness-3.0.jar` 和 `cube-service-harness-skill-3.0.jar`。默认 `deploy` 不自动安装本扩展，安装仍使用下文的 `stage` 目标。`clean` 只删除本模块的编译/打包产物，保留本地工具链和验证证据目录。
 
 ## IntelliJ IDEA Community Edition
 

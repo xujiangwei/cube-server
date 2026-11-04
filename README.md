@@ -636,7 +636,7 @@ make build
 make deploy
 ```
 
-`build` 依次构建 `common` → `dispatcher` → `service-psychology`（业务模块插件）→ `service` → 其余 `service-*` → `ferry` → `console` → `server-app`，产物输出到 `build/` 子目录，`deploy` 将编译结果安装到部署目录。针对单个工程也可直接构建，如 `ant build-dispatcher-release`、`ant build-service-release`。
+使用实际 JDK 8，`build` 依次构建 `common` → `dispatcher` → `service-forest` / `service-psychology`（业务模块插件）→ `service` → 其余 `service-*` → `ferry` → `console` → `server-app` → `service-harness` → `service-harness-skill`，全部发布 JAR 汇总到服务器的 `build/` 子目录；`build-debug` 覆盖相同模块。`deploy` 将编译结果安装到部署目录，通用技能扩展按其 [安装说明](service-harness-skill/README.md#安装和授权) 单独安装。针对单个工程也可直接构建，如 `ant build-dispatcher-release`、`ant build-service-release`、`ant build-harness-skill-release`（自动构建 common、Harness 及技能扩展，两个 Harness JAR 均输出到 `build/`）。
 
 > ⚠️ `service-psychology` 编译期依赖 `cube-dispatcher-*.jar`（它要构造网关的端点 handler），因此必须排在 `dispatcher` 之后。`build-service-*` 已声明该依赖，但单独进入该目录手工 `ant` 构建时需自行保证顺序。
 

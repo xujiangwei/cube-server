@@ -17,6 +17,7 @@
 	<property name="project-server-app.dir" value="server-app" />
 
 	<property name="project-service-harness.dir" value="service-harness" />
+	<property name="project-service-harness-skill.dir" value="service-harness-skill" />
 	<property name="project-service-filestorage.dir" value="service-filestorage" />
 	<property name="project-service-fileprocessor.dir" value="service-fileprocessor" />
 	<property name="project-service-messaging.dir" value="service-messaging" />
@@ -413,36 +414,36 @@
 	<!-- =================================================================== -->
 	<!-- Builds all projects for debug                                       -->
 	<!-- =================================================================== -->
-	<target name="build-debug" depends="init,build-common-debug,build-dispatcher-debug,build-service-debug,build-ferry-debug,build-console-debug,build-server-app-debug,build-harness-debug">
+	<target name="build-debug" depends="init,build-common-debug,build-dispatcher-debug,build-service-debug,build-ferry-debug,build-console-debug,build-server-app-debug,build-harness-skill-debug">
 		<echo>Build all projects for debug.</echo>
 	</target>
 
 	<!-- =================================================================== -->
 	<!-- Builds all projects for release                                     -->
 	<!-- =================================================================== -->
-	<target name="build" depends="init,build-common-release,build-dispatcher-release,build-service-release,build-ferry-release,build-console-release,build-server-app-release,build-harness-release">
+	<target name="build" depends="init,build-common-release,build-dispatcher-release,build-service-release,build-ferry-release,build-console-release,build-server-app-release,build-harness-skill-release">
 		<echo>Build all projects.</echo>
 	</target>
 
 	<!-- =================================================================== -->
 	<!-- Harness（已并入主构建图）                                            -->
 	<!-- =================================================================== -->
-	<!-- build-debug / build 现已依赖 build-harness-*：构建期接受 JDK 8 及以上
-	     （JDK 9+ 用 release=8 编译，产物字节码恒为 1.8），运行期仍要求 JDK 8（HarnessDoctor 校验）。
+	<!-- build-debug / build 包含 Harness 和通用技能扩展，按 common → harness → skill
+	     顺序构建，两个 JAR 都汇总到 build/。全量构建使用实际 JDK 8。
 	     交付位置：harness jar 随 deploy 落 deploy/libs/（与 common、service 同目录），
 	     不在 cellets 段登记。deploy-with-harness 是另一条隔离链路，
 	     它额外把同一 jar 落到 staging 的 cellets/ 并写入 cell 配置。 -->
-	<target name="build-harness-debug">
-		<ant dir="service-harness" target="build-debug" inheritall="false" />
+	<target name="build-harness-debug" depends="build-common-debug">
+		<ant dir="${project-service-harness.dir}" target="build-debug" inheritall="false" />
 	</target>
-	<target name="build-harness-release">
-		<ant dir="service-harness" target="build-release" inheritall="false" />
+	<target name="build-harness-release" depends="build-common-release">
+		<ant dir="${project-service-harness.dir}" target="build-release" inheritall="false" />
 	</target>
 	<target name="build-harness-skill-debug" depends="build-harness-debug">
-		<ant dir="service-harness-skill" target="build-debug" inheritall="false" />
+		<ant dir="${project-service-harness-skill.dir}" target="build-debug" inheritall="false" />
 	</target>
 	<target name="build-harness-skill-release" depends="build-harness-release">
-		<ant dir="service-harness-skill" target="build-release" inheritall="false" />
+		<ant dir="${project-service-harness-skill.dir}" target="build-release" inheritall="false" />
 	</target>
 	<target name="build-service-with-harness-debug" depends="build-service-debug,build-harness-debug" />
 	<target name="build-service-with-harness-release" depends="build-service-release,build-harness-release" />
@@ -473,10 +474,11 @@
 	<target name="help">
 		<echo>Cube server 3.0</echo>
 		<echo>Please use `make target`, where 'target' is one of</echo>
-		<echo>    build       - to compile and build release project</echo>
-		<echo>    build-debug - to compile and build debug project</echo>
+		<echo>    build       - to build all release JARs, including Harness and skills, into build/ (JDK 8)</echo>
+		<echo>    build-debug - to build all debug JARs, including Harness and skills, into build/ (JDK 8)</echo>
 		<echo>    build-harness-debug - to build only the Harness cellet (bytecode 1.8, runs on JDK 8)</echo>
 		<echo>    build-harness-skill-debug - Harness plus its skill module</echo>
+		<echo>    build-harness-skill-release - common, Harness and skill JARs into build/ (JDK 8)</echo>
 		<echo>    deploy-with-harness - deploy to an isolated stage (needs -Dharness.stage.dir)</echo>
 		<echo>    deploy      - to install project files to deploy directory</echo>
 		<echo>    all         - to build and install all projects</echo>
