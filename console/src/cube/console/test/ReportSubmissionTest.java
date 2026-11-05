@@ -169,6 +169,37 @@ public class ReportSubmissionTest {
             idle(sender);
             check(requests.get() == 3, "recovery delivers retained report and new report");
             check(sender.getQueueLength() == 0, "queue drained after recovery");
+
+            available.set(false);
+            ReportService suspended = sender(connector.getLocalPort());
+            Field suspendedUntil = ReportService.class.getDeclaredField("suspendedUntil");
+            suspendedUntil.setAccessible(true);
+            int beforeFailures = requests.get();
+            long failureStart = System.currentTimeMillis();
+            for (int i = 0; i < 10 && suspendedUntil.getLong(suspended) == 0; ++i) {
+                suspended.submitReport(new JVMReport("suspend#service#6000", System.currentTimeMillis()));
+                idle(suspended);
+            }
+            long deadline = suspendedUntil.getLong(suspended);
+            check(requests.get() - beforeFailures == 10, "ten consecutive failures suspend submissions");
+            check(deadline >= failureStart + 600_000L
+                    && deadline <= System.currentTimeMillis() + 600_000L,
+                    "reporting resumes after ten minutes");
+            check(suspended.getQueueLength() == 0, "suspension discards stale queued reports");
+            int beforeSuspended = requests.get();
+            suspended.submitReport(new JVMReport("suspend#service#6000", System.currentTimeMillis()));
+            idle(suspended);
+            check(requests.get() == beforeSuspended && suspended.getQueueLength() == 0,
+                    "suspended submissions neither request the console nor retain reports");
+
+            // 模拟暂停期结束，验证恢复实际 HTTP 上报，无需在测试中等待十分钟。
+            suspendedUntil.setLong(suspended, System.currentTimeMillis() - 1L);
+            available.set(true);
+            suspended.submitReport(new JVMReport("suspend#service#6000", System.currentTimeMillis()));
+            idle(suspended);
+            check(requests.get() == beforeSuspended + 1 && suspendedUntil.getLong(suspended) == 0,
+                    "first report after suspension expires reaches the console");
+            check(suspended.getQueueLength() == 0, "resumed submission drains its queue");
         } finally {
             server.stop();
             server.join();

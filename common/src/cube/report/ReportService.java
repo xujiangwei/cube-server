@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     {@link #MAX_CONSECUTIVE_FAILURES} 次尝试机会。仍全部失败则再次暂停
  *     {@link #SUSPEND_DURATION} 毫秒；只要有一次提交成功即清零计数，恢复按原有间隔上报。</li>
  *     <li>进入暂停期时清空队列与重试计数：监控数据以时效优先，恢复后重新采集，
- *     不补报 30 分钟前的陈旧数据。</li>
+ *     不补报暂停期间的陈旧数据。</li>
  *     <li>「一次提交」以控制台侧的一次投递为单位（{@code SubmitThread} 对单份报告
  *     调用一次 {@code submit()}），连接失败与被拒绝（HTTP 非 200）同样计入失败。</li>
  * </ul>
@@ -45,9 +45,9 @@ public class ReportService {
     public final static int MAX_CONSECUTIVE_FAILURES = 10;
 
     /**
-     * 连续失败后暂停提交的时长（毫秒）：30 分钟。
+     * 连续失败后暂停提交的时长（毫秒）：10 分钟。
      */
-    public final static long SUSPEND_DURATION = 30 * 60 * 1000L;
+    public final static long SUSPEND_DURATION = 10 * 60 * 1000L;
 
     /**
      * 接收报告的主机 URL 列表。

@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *     只以 DEBUG 等级输出一行提示，不打印异常堆栈，避免服务端日志被刷屏；
  *     其它异常仍按 WARN 记录，以免掩盖真实缺陷。</li>
  *     <li><b>每次提交结果回传给 {@link ReportService}</b>：连续失败 10 次后由
- *     {@link ReportService#onSubmitResult(boolean)} 触发 30 分钟暂停期，
+ *     {@link ReportService#onSubmitResult(boolean)} 触发 10 分钟暂停期，
  *     本轮剩余报告立即放弃，不再产生无效请求。</li>
  * </ul>
  */

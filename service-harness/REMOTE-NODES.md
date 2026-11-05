@@ -1,5 +1,7 @@
 # Python Harness 跨机器、多节点部署
 
+推荐使用配套 Python 工程的 [单进程节点入口](../../../apexnova-wisdom/harness/NODE.md)：一份配置和一次 start 启动一个常驻 Python 进程，内部包含多个独立 model worker 和普通 Runner。Java 仍按原 workerId/角色/容量授权；`python -B -m harness java-config --config <节点配置>` 可导出授权片段。节点间继续独立部署并分担负载，下文保留逐 worker 部署方式用于兼容及接管已有运行目录。
+
 Python Harness 是注册到 Java Harness 的独立服务节点。一个 Java JVM 可以接入多个 model/runner，同一角色也可有多个节点。节点主动建立 Cell TCP 长连接并注册、续租、拉取任务和提交结果；Java 按角色、能力、健康与实际可用容量调度。
 
 下面使用 Linux `192.168.1.35` 上的 service + dispatcher，以及 Windows 上的两个 model 和一个 CPU runner。Python 节点直接连接 Java Cell。IPv4 或主机名直接写入 Python host，端口单独配置，配置校验不执行 DNS 查询。当前 Cell TCP 连接使用 IPv4。

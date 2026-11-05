@@ -32,6 +32,7 @@ import type {
   UnitState
 } from '@/api/types'
 import { useChart } from '@/composables/useChart'
+import { usePolling } from '@/composables/usePolling'
 import { useToastStore } from '@/stores/toast'
 import { formatTimeMDHMS } from '@/utils/format'
 import type { EChartsCoreOption } from '@/charts/echarts'
@@ -312,6 +313,11 @@ watch(activeTab, async (tab) => {
   }
 })
 
+// 上报恢复后自动刷新连接状态，避免页面一直停留在暂停上报时的离线快照。
+usePolling(async () => {
+  if (domain.value && !loading.value) await load()
+}, 30000, { immediate: false })
+
 onMounted(bootstrap)
 </script>
 
@@ -319,7 +325,7 @@ onMounted(bootstrap)
   <div>
     <PageHeader
       title="AI单元概览"
-      description="按域查看 AI 单元台账及同名单元的部署情况"
+      description="按域查看 AI 单元台账及同名单元的部署情况，每 30 秒自动刷新"
     >
       <template #actions>
         <select v-model="domain" class="select w-52" :disabled="domains.length === 0">
