@@ -496,13 +496,14 @@ public class SQLiteStorage extends AbstractStorage {
         ArrayList<StorageField[]> result = new ArrayList<>();
 
         if (!this.isReady()) {
-            return result;
+            return null;
         }
 
         // 拼写 SQL 语句
         String sql = SQLUtils.spellSelect(table, fields, conditionals);
 
         Statement statement = null;
+        boolean failed = false;
 
         synchronized (this.lock) {
             try {
@@ -539,6 +540,7 @@ public class SQLiteStorage extends AbstractStorage {
                 }
             } catch (SQLException e) {
                 Logger.d(this.getClass(), e.getMessage());
+                failed = true;
             } finally {
                 if (null != statement) {
                     try {
@@ -551,7 +553,8 @@ public class SQLiteStorage extends AbstractStorage {
             }
         }
 
-        return result;
+        // 查询失败返回 null，与「成功但无数据」区分开
+        return failed ? null : result;
     }
 
     /**
@@ -560,20 +563,21 @@ public class SQLiteStorage extends AbstractStorage {
      * @param tables       参与查询的表名。
      * @param fields       需要读取的字段。
      * @param conditionals 查询条件，允许为 {@code null} 。
-     * @return 结果行集合，查询失败时为空集合。
+     * @return 结果行集合，查询失败返回 {@code null} 。
      */
     @Override
     public List<StorageField[]> executeQuery(String[] tables, StorageField[] fields, Conditional[] conditionals) {
         ArrayList<StorageField[]> result = new ArrayList<>();
 
         if (!this.isReady()) {
-            return result;
+            return null;
         }
 
         // 拼写 SQL 语句
         String sql = SQLUtils.spellSelect(tables, fields, conditionals);
 
         Statement statement = null;
+        boolean failed = false;
 
         synchronized (this.lock) {
             try {
@@ -610,6 +614,7 @@ public class SQLiteStorage extends AbstractStorage {
                 }
             } catch (SQLException e) {
                 Logger.d(this.getClass(), e.getMessage());
+                failed = true;
             } finally {
                 if (null != statement) {
                     try {
@@ -622,7 +627,8 @@ public class SQLiteStorage extends AbstractStorage {
             }
         }
 
-        return result;
+        // 查询失败返回 null，与「成功但无数据」区分开
+        return failed ? null : result;
     }
 
     /**
@@ -637,10 +643,11 @@ public class SQLiteStorage extends AbstractStorage {
             ArrayList<StorageField[]> result = new ArrayList<>();
 
             if (!this.isReady()) {
-                return result;
+                return null;
             }
 
             Statement statement = null;
+            boolean failed = false;
 
             try {
                 statement = this.connection.createStatement();
@@ -651,6 +658,7 @@ public class SQLiteStorage extends AbstractStorage {
                 }
             } catch (SQLException e) {
                 Logger.d(this.getClass(), e.getMessage());
+                failed = true;
             } finally {
                 if (null != statement) {
                     try {
@@ -662,7 +670,8 @@ public class SQLiteStorage extends AbstractStorage {
                 }
             }
 
-            return result;
+            // 查询失败返回 null，与「成功但无数据」区分开
+            return failed ? null : result;
         }
     }
 

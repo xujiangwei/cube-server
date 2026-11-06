@@ -170,7 +170,7 @@ public class ConferenceStorage implements Storagable {
      */
     public List<Conference> readConferences(String domain, Long founderId) {
         String table = SQLUtils.correctTableName(this.conferenceTablePrefix + domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, this.conferenceFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.conferenceFields, new Conditional[] {
                 Conditional.createEqualTo("founder_id", LiteralBase.LONG, founderId)
         });
 
@@ -209,7 +209,7 @@ public class ConferenceStorage implements Storagable {
      */
     public Conference readConference(String domain, Long conferenceId) {
         String table = SQLUtils.correctTableName(this.conferenceTablePrefix + domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, this.conferenceFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.conferenceFields, new Conditional[] {
                 Conditional.createEqualTo("id", LiteralBase.LONG, conferenceId)
         });
 
@@ -269,7 +269,7 @@ public class ConferenceStorage implements Storagable {
     public void writeParticipant(String domain, Long conferenceId, long timestamp, Invitation invitation) {
         String table = SQLUtils.correctTableName(this.participantTablePrefix + domain);
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
             new StorageField("timestamp", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("conference_id", LiteralBase.LONG, conferenceId.longValue()),
@@ -310,7 +310,7 @@ public class ConferenceStorage implements Storagable {
     public List<Invitation> readParticipant(String domain, Long conferenceId) {
         String table = SQLUtils.correctTableName(this.participantTablePrefix + domain);
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.participantFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.participantFields, new Conditional[] {
                 Conditional.createEqualTo("conference_id", LiteralBase.LONG, conferenceId.longValue())
         });
 
@@ -344,7 +344,7 @@ public class ConferenceStorage implements Storagable {
         // 从参与人表里查询 ID
         String table = SQLUtils.correctTableName(this.participantTablePrefix + domain);
 
-        List<StorageField[]> ptcpResult = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> ptcpResult = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("conference_id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("participant_id", LiteralBase.LONG, participantId),
@@ -365,7 +365,7 @@ public class ConferenceStorage implements Storagable {
         // 从会议表里查询 ID
         table = SQLUtils.correctTableName(this.conferenceTablePrefix + domain);
 
-        List<StorageField[]> confResult = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> confResult = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("founder_id", LiteralBase.LONG, participantId),

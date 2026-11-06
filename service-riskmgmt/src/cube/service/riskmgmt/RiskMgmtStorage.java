@@ -236,7 +236,7 @@ public class RiskMgmtStorage implements Storagable {
 
     public int readContactRiskMask(String domain, long contactId) {
         final String table = this.contactRiskTableNameMap.get(domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, this.contactRiskFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.contactRiskFields, new Conditional[] {
                 Conditional.createEqualTo("contact_id", contactId)
         });
         if (result.isEmpty()) {
@@ -249,7 +249,7 @@ public class RiskMgmtStorage implements Storagable {
 
     public boolean writeContactRiskMask(String domain, long contactId, int mask) {
         final String table = this.contactRiskTableNameMap.get(domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, this.contactRiskFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.contactRiskFields, new Conditional[] {
                 Conditional.createEqualTo("contact_id", contactId)
         });
         if (result.isEmpty()) {
@@ -295,7 +295,7 @@ public class RiskMgmtStorage implements Storagable {
         List<ContactBehavior> list = new ArrayList<>();
 
         final String table = this.contactBehaviorTableNameMap.get(domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, this.contactBehaviorFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.contactBehaviorFields,
                 new Conditional[] {
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
@@ -345,7 +345,7 @@ public class RiskMgmtStorage implements Storagable {
         List<SensitiveWord> list = new ArrayList<>();
 
         String table = this.sensitiveWordTableNameMap.get(domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("word", LiteralBase.STRING),
                 new StorageField("type", LiteralBase.INT)
         });
@@ -377,7 +377,7 @@ public class RiskMgmtStorage implements Storagable {
         synchronized (table) {
             List<String> tracks = chainNode.getTracks();
             for (String track : tracks) {
-                List<StorageField[]> result = this.storage.executeQuery(table, this.transChainTrackFields,
+                List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.transChainTrackFields,
                         new Conditional[] {
                                 Conditional.createEqualTo("track", track),
                                 Conditional.createAnd(),

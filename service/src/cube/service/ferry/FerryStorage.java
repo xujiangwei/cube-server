@@ -224,7 +224,7 @@ public class FerryStorage implements Storagable {
     public List<AccessPoint> readAccessPoints() {
         List<AccessPoint> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.accessPointTable, this.accessPointFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.accessPointTable, this.accessPointFields,
                 new Conditional[] {
                         Conditional.createOrderBy("priority", true)
                 });
@@ -255,7 +255,7 @@ public class FerryStorage implements Storagable {
     public AccessPoint readAccessPoint(String domainName) {
         AccessPoint accessPoint = null;
 
-        List<StorageField[]> result = this.storage.executeQuery(this.accessPointTable, this.accessPointFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.accessPointTable, this.accessPointFields,
                 new Conditional[] {
                         Conditional.createEqualTo("domain", domainName),
                         Conditional.createOrderBy("priority", true)
@@ -322,7 +322,7 @@ public class FerryStorage implements Storagable {
      */
     public synchronized void writeDomainInfo(String domainName, long beginning, long duration, int limit,
                                              FileLabel qrCodeFile, int state, int flag, String address) {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainInfoTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainInfoTable, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("domain", domainName)
@@ -378,7 +378,7 @@ public class FerryStorage implements Storagable {
      * @return
      */
     public String queryDomainName(String invitationCode) {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainInfoTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainInfoTable, new StorageField[] {
                 new StorageField("domain", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo("invitation_code", invitationCode)
@@ -398,7 +398,7 @@ public class FerryStorage implements Storagable {
      * @return
      */
     public DomainInfo readDomainInfo(String domainName) {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainInfoTable, this.domainInfoFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainInfoTable, this.domainInfoFields,
                 new Conditional[] {
                         Conditional.createEqualTo("domain", domainName)
                 });
@@ -461,7 +461,7 @@ public class FerryStorage implements Storagable {
             };
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(this.domainMemberTable, this.domainMemberFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainMemberTable, this.domainMemberFields,
                 conditionals);
         for (StorageField[] fields : result) {
             Map<String, StorageField> map = StorageFields.get(fields);
@@ -481,7 +481,7 @@ public class FerryStorage implements Storagable {
      * @return
      */
     public int countDomainMembers(String domainName) {
-        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(sn) FROM `"
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty("SELECT COUNT(sn) FROM `"
                 + this.domainMemberTable + "` WHERE `domain`='" + domainName + "'");
         if (result.isEmpty()) {
             return -1;
@@ -498,7 +498,7 @@ public class FerryStorage implements Storagable {
      * @return
      */
     public boolean isDomainMember(String domainName, Contact contact) {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainMemberTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainMemberTable, new StorageField[] {
                 new StorageField("state", LiteralBase.INT)
         }, new Conditional[] {
                 Conditional.createEqualTo("domain", domainName),
@@ -536,7 +536,7 @@ public class FerryStorage implements Storagable {
      * @param member
      */
     public void writeMember(DomainMember member) {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainMemberTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainMemberTable,
                 new StorageField[] {
                         new StorageField("sn", LiteralBase.LONG)
                 }, new Conditional[] {
@@ -575,7 +575,7 @@ public class FerryStorage implements Storagable {
      * @return
      */
     public DomainMember readMember(String domainName, Long contactId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainMemberTable, this.domainMemberFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainMemberTable, this.domainMemberFields,
                 new Conditional[] {
                         Conditional.createEqualTo("domain", domainName),
                         Conditional.createAnd(),
@@ -635,7 +635,7 @@ public class FerryStorage implements Storagable {
     public List<JSONObject> readAndDeleteTenets(String domainName, Long contactId) {
         List<JSONObject> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.tenetTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.tenetTable,
                 new StorageField[] {
                         new StorageField("data", LiteralBase.STRING)
                 }, new Conditional[] {

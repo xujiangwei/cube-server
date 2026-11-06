@@ -76,7 +76,7 @@ public class AppletStorage extends AbstractStorage {
      * @return 返回 -1 表示没有记录。
      */
     public long queryAccountIdByJsCode(String jsCode) {
-        List<StorageField[]> result = this.storage.executeQuery(TABLE_APPLET_SESSION, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(TABLE_APPLET_SESSION, new StorageField[] {
                 new StorageField("account_id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("js_code", jsCode)
@@ -97,7 +97,7 @@ public class AppletStorage extends AbstractStorage {
      * @return
      */
     public long queryAccountIdByOpenId(String openid, String jsCode) {
-        List<StorageField[]> result = this.storage.executeQuery(TABLE_APPLET_SESSION, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(TABLE_APPLET_SESSION, new StorageField[] {
                 new StorageField("account_id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("openid", openid)
@@ -118,7 +118,7 @@ public class AppletStorage extends AbstractStorage {
     }
 
     public synchronized void writeSessionCode(String jsCode, String openId, String sessionKey, String unionId) {
-        List<StorageField[]> result = this.storage.executeQuery(TABLE_APPLET_SESSION, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(TABLE_APPLET_SESSION, new StorageField[] {
                 new StorageField("js_code", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo("openid", openId)

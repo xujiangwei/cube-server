@@ -811,6 +811,7 @@ public class MySQLStorage extends AbstractStorage {
         String sql = SQLUtils.spellSelect(table, fields, conditionals);
 
         Statement statement = null;
+        boolean failed = false;
         try {
             statement = connection.createStatement();
             ResultSet rs = statement.executeQuery(sql);
@@ -844,6 +845,7 @@ public class MySQLStorage extends AbstractStorage {
             }
         } catch (SQLException e) {
             this.logQueryFailure(table, conditionals, sql, beginTime, e);
+            failed = true;
         } finally {
             if (null != statement) {
                 try {
@@ -856,42 +858,42 @@ public class MySQLStorage extends AbstractStorage {
 
             this.pool.returnConn(connection);
         }
-        return result;
+
+        // 查询失败返回 null，与「成功但无数据」区分开
+        return failed ? null : result;
     }
 
     /**
      * 跨表查询数据。
      *
-     * <p>与单表重载的差异在于失败语义：本重载返回空集合而非 {@code null} ，
-     * 因为现有调用点尚未逐点判空，契约统一后再切换。</p>
+     * <p>与单表重载的失败语义一致：池未就绪、取连接失败或 SQL 异常时返回 {@code null} 。</p>
      *
      * @param tables       参与查询的表名。
      * @param fields       需要读取的字段。
      * @param conditionals 查询条件，允许为 {@code null} 。
-     * @return 结果行集合，查询失败时为空集合。
+     * @return 结果行集合，查询失败返回 {@code null} 。
      */
     @Override
     public List<StorageField[]> executeQuery(String[] tables, StorageField[] fields, Conditional[] conditionals) {
         ArrayList<StorageField[]> result = new ArrayList<>();
         long beginTime = System.currentTimeMillis();
 
-        // TODO 契约统一（见 EVALUATION-2026-10-25 R1）：本重载与 String sql 重载在失败时仍返回空集合，
-        // 因为调用点（ContactStorage/AIGCStorage 等）尚未判空。切换为 null 前必须逐点补齐判空。
         if (null == this.pool) {
             this.logQueryFailure(Arrays.toString(tables), conditionals, null, beginTime, null);
-            return result;
+            return null;
         }
 
         Connection connection = this.pool.get();
         if (null == connection) {
             this.logQueryFailure(Arrays.toString(tables), conditionals, null, beginTime, null);
-            return result;
+            return null;
         }
 
         // 拼写 SQL 语句
         String sql = SQLUtils.spellSelect(tables, fields, conditionals);
 
         Statement statement = null;
+        boolean failed = false;
         try {
             statement = connection.createStatement();
             ResultSet rs = statement.executeQuery(sql);
@@ -926,6 +928,7 @@ public class MySQLStorage extends AbstractStorage {
             }
         } catch (SQLException e) {
             this.logQueryFailure(Arrays.toString(tables), conditionals, sql, beginTime, e);
+            failed = true;
         } finally {
             if (null != statement) {
                 try {
@@ -939,7 +942,8 @@ public class MySQLStorage extends AbstractStorage {
             this.pool.returnConn(connection);
         }
 
-        return result;
+        // 查询失败返回 null，与「成功但无数据」区分开
+        return failed ? null : result;
     }
 
     /**
@@ -958,19 +962,20 @@ public class MySQLStorage extends AbstractStorage {
 
         if (null == this.pool) {
             this.logQueryFailure(null, null, sql, beginTime, null);
-            return result;
+            return null;
         }
 
         Connection connection = this.pool.get();
         if (null == connection) {
             this.logQueryFailure(null, null, sql, beginTime, null);
-            return result;
+            return null;
         }
 
         // 一次性校验 sql_mode（只告警，不影响查询）
         this.checkSqlMode(connection);
 
         Statement statement = null;
+        boolean failed = false;
 
         try {
             statement = connection.createStatement();
@@ -981,6 +986,7 @@ public class MySQLStorage extends AbstractStorage {
             }
         } catch (SQLException e) {
             this.logQueryFailure(null, null, sql, beginTime, e);
+            failed = true;
         } finally {
             if (null != statement) {
                 try {
@@ -994,7 +1000,8 @@ public class MySQLStorage extends AbstractStorage {
             this.pool.returnConn(connection);
         }
 
-        return result;
+        // 查询失败返回 null，与「成功但无数据」区分开
+        return failed ? null : result;
     }
 
     /**

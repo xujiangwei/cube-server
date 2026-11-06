@@ -69,7 +69,7 @@ public class ServiceStorage extends AbstractStorage {
     }
 
     public ServiceServer readServer(String tag, String deployPath) {
-        List<StorageField[]> result = this.storage.executeQuery(this.serviceTable, this.serviceFields, new Conditional[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.serviceTable, this.serviceFields, new Conditional[]{
                 Conditional.createEqualTo("tag", LiteralBase.STRING, tag),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("deploy_path", LiteralBase.STRING, deployPath)
@@ -86,7 +86,7 @@ public class ServiceStorage extends AbstractStorage {
     }
 
     public List<ServiceServer> listServers() {
-        List<StorageField[]> list = this.storage.executeQuery(this.serviceTable, this.serviceFields);
+        List<StorageField[]> list = this.storage.executeQueryOrEmpty(this.serviceTable, this.serviceFields);
         if (list.isEmpty()) {
             return null;
         }

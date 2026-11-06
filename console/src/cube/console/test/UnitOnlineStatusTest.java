@@ -18,9 +18,12 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 /** Unit 在线状态的 HTTP 回归：使用真实上报、查询与快照过期逻辑，不连接数据库。 */
 public final class UnitOnlineStatusTest {
@@ -213,7 +216,7 @@ public final class UnitOnlineStatusTest {
             for (long id = 100001; id <= 100003; ++id) events.add(event(id, "SignIn", signInTime));
         }
 
-        @Override public List<JSONObject> queryUnitContacts(String domain) {
+        @Override public List<JSONObject> queryUnitContacts(String domain, int maxContacts) {
             List<JSONObject> contacts = new ArrayList<>();
             for (long id = 100001; id <= 100003; ++id) contacts.add(new JSONObject().put("id", id)
                     .put("name", "worker-" + id).put("device", "GPU").put("platform", "Linux"));
@@ -223,6 +226,25 @@ public final class UnitOnlineStatusTest {
         @Override public List<ContactEvent> queryContactEvents(String domain, long from, long to, boolean unitOnly) {
             List<ContactEvent> result = new ArrayList<>();
             for (ContactEvent event : events) if (event.time >= from && event.time < to) result.add(event);
+            return result;
+        }
+        /** 与真实数据库的聚合等价：按单元给出最近活动时间与活跃天数。 */
+        @Override public List<UnitTrail> queryUnitTrail(String domain, long from, long to, long zoneOffsetMillis) {
+            Map<Long, Long> lastActive = new HashMap<>();
+            Map<Long, Set<Integer>> days = new HashMap<>();
+            for (ContactEvent event : events) {
+                if (event.time < from || event.time >= to) continue;
+                Long last = lastActive.get(event.contactId);
+                if (last == null || event.time > last) lastActive.put(event.contactId, event.time);
+                Set<Integer> set = days.get(event.contactId);
+                if (set == null) { set = new HashSet<>(); days.put(event.contactId, set); }
+                set.add((int) ((event.time + zoneOffsetMillis) / 86400000L));
+            }
+            List<UnitTrail> result = new ArrayList<>();
+            for (Map.Entry<Long, Long> entry : lastActive.entrySet()) {
+                result.add(new UnitTrail(entry.getKey(), entry.getValue(),
+                        days.get(entry.getKey()).size()));
+            }
             return result;
         }
     }

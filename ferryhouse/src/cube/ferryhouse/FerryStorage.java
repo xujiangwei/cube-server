@@ -310,7 +310,7 @@ public class FerryStorage implements Storagable {
      */
     public String readProperty(String name) {
         synchronized (this) {
-            List<StorageField[]> result = this.storage.executeQuery(this.propertyTable, new StorageField[] {
+            List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.propertyTable, new StorageField[] {
                     new StorageField("value", LiteralBase.STRING)
             }, new Conditional[] {
                     Conditional.createEqualTo("item", name)
@@ -347,7 +347,7 @@ public class FerryStorage implements Storagable {
     }
 
     public synchronized void writeContact(Contact contact) {
-        List<StorageField[]> result = this.storage.executeQuery(this.contactTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.contactTable, new StorageField[] {
                 new StorageField("id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("id", contact.getId().longValue())
@@ -373,7 +373,7 @@ public class FerryStorage implements Storagable {
     }
 
     public boolean existsContact(Long contactId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.contactTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.contactTable, new StorageField[] {
                 new StorageField("id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("id", contactId.longValue())
@@ -383,7 +383,7 @@ public class FerryStorage implements Storagable {
     }
 
     public synchronized void writeDomainMember(DomainMember member) {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainMemberTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainMemberTable, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("contact_id", member.getContactId().longValue())
@@ -416,7 +416,7 @@ public class FerryStorage implements Storagable {
     }
 
     public boolean existsDomainMember(Long contactId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainMemberTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainMemberTable, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("contact_id", contactId.longValue())
@@ -426,7 +426,7 @@ public class FerryStorage implements Storagable {
     }
 
     public synchronized void writeMessage(Message message) {
-        List<StorageField[]> result = this.storage.executeQuery(this.messageTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.messageTable, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("id", message.getId().longValue()),
@@ -511,7 +511,7 @@ public class FerryStorage implements Storagable {
         String sql = "SELECT COUNT(DISTINCT(id)) FROM `" + this.messageTable + "`";
 //        sql += " WHERE state=" + MessageState.Sent.code + " OR state=" + MessageState.Read.code + " OR state=" +
 //                MessageState.Retracted.code;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return 0;
         }
@@ -555,7 +555,7 @@ public class FerryStorage implements Storagable {
      * @param fileLabel
      */
     public void writeFileLabel(FileLabel fileLabel) {
-        List<StorageField[]> result = this.storage.executeQuery(this.fileLabelTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.fileLabelTable, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("file_code", fileLabel.getFileCode())
@@ -597,7 +597,7 @@ public class FerryStorage implements Storagable {
      * @return
      */
     public FileLabel readFileLabel(String fileCode) {
-        List<StorageField[]> result = this.storage.executeQuery(this.fileLabelTable, this.fileLabelFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.fileLabelTable, this.fileLabelFields, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("file_code", fileCode))
         });
 
@@ -640,7 +640,7 @@ public class FerryStorage implements Storagable {
     public List<FileLabel> getAllFileLabels() {
         List<FileLabel> fileLabels = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.fileLabelTable, this.fileLabelFields);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.fileLabelTable, this.fileLabelFields);
         for (StorageField[] fields : result) {
             Map<String, StorageField> map = StorageFields.get(fields);
 

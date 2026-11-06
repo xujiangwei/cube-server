@@ -332,7 +332,7 @@ public class ChannelManager {
             return channelCode;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(this.channelCodeTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.channelCodeTable,
                 this.channelCodeFields, new Conditional[] {
                         Conditional.createEqualTo("code", code)
         });
@@ -370,7 +370,7 @@ public class ChannelManager {
      * @return
      */
     public String getAccountId(String channelCode) {
-        List<StorageField[]> result = this.storage.executeQuery(this.allocatingTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.allocatingTable,
                 new StorageField[] {
                         new StorageField("account_id", LiteralBase.STRING)
                 }, new Conditional[] {
@@ -390,7 +390,7 @@ public class ChannelManager {
      * @return
      */
     public Long getPretenderId(String channelCode) {
-        List<StorageField[]> result = this.storage.executeQuery(this.allocatingTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.allocatingTable,
                 new StorageField[] {
                         new StorageField("pretender_id", LiteralBase.LONG)
                 }, new Conditional[] {
@@ -410,7 +410,7 @@ public class ChannelManager {
      * @return
      */
     public String getChannelCodeWithAccountId(String accountId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.allocatingTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.allocatingTable,
                 new StorageField[] {
                         new StorageField("code", LiteralBase.STRING)
                 }, new Conditional[] {
@@ -432,7 +432,7 @@ public class ChannelManager {
      * @return 如果返回 {@code false} 则表示设置失败。
      */
     public boolean allocAccountId(String channelCode, String accountId, Long pretenderId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.allocatingTable, this.allocatingFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.allocatingTable, this.allocatingFields,
                 new Conditional[] {
                         Conditional.createEqualTo("code", channelCode)
                 });
@@ -468,7 +468,7 @@ public class ChannelManager {
      * @return
      */
     public Contact queryAccount(String accountId, Product product) {
-        List<StorageField[]> result = this.storage.executeQuery(this.accountTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.accountTable,
                 new StorageField[] {
                         new StorageField("data", LiteralBase.STRING)
                 }, new Conditional[] {
@@ -496,7 +496,7 @@ public class ChannelManager {
     public synchronized void updateAccount(String channelCode, Contact account, Product product) {
         String nameBase64 = Base64.encodeBytes(account.getName().getBytes(StandardCharsets.UTF_8));
 
-        List<StorageField[]> result = this.storage.executeQuery(this.accountTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.accountTable, new StorageField[] {
                         new StorageField("sn", LiteralBase.LONG)
                 }, new Conditional[] {
                         Conditional.createEqualTo("account_id", account.getExternalId()),
@@ -537,7 +537,7 @@ public class ChannelManager {
      * @return
      */
     public int countContactBook(String accountId, Product product) {
-        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(`sn`) FROM `" +
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty("SELECT COUNT(`sn`) FROM `" +
                 this.contactBookTable +"` WHERE `account_id`='" + accountId +
                 "' AND `product`='" + product.name + "'");
         if (result.isEmpty()) {
@@ -559,7 +559,7 @@ public class ChannelManager {
     public List<Contact> queryContactBook(String accountId, Product product, int beginIndex, int endIndex) {
         List<Contact> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.contactBookTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.contactBookTable,
                 new StorageField[] {
                         new StorageField("data", LiteralBase.STRING)
                 }, new Conditional[] {
@@ -599,7 +599,7 @@ public class ChannelManager {
      */
     public synchronized void updateContactBook(String accountId, Product product,
                                                Contact contact, boolean forceUpdate) {
-        List<StorageField[]> result = this.storage.executeQuery(this.contactBookTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.contactBookTable,
                 new StorageField[] {
                         new StorageField("sn", LiteralBase.LONG),
                         new StorageField("timestamp", LiteralBase.LONG)
@@ -662,7 +662,7 @@ public class ChannelManager {
      * @return
      */
     public Contact queryPartnerFromBook(Contact account, String contactId, Product product) {
-        List<StorageField[]> result = this.storage.executeQuery(this.contactBookTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.contactBookTable,
                 new StorageField[] {
                         new StorageField("data", LiteralBase.STRING)
                 }, new Conditional[] {
@@ -692,7 +692,7 @@ public class ChannelManager {
 
     public Group queryGroup(Contact account, String groupName, Product product) {
         String accountId = account.getExternalId();
-        List<StorageField[]> result = this.storage.executeQuery(this.groupTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.groupTable, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG),
                 new StorageField("data", LiteralBase.STRING)
         }, new Conditional[] {
@@ -712,7 +712,7 @@ public class ChannelManager {
 
         Group group = new Group(new JSONObject(dataString));
 
-        result = this.storage.executeQuery(this.groupMemberTable, new StorageField[] {
+        result = this.storage.executeQueryOrEmpty(this.groupMemberTable, new StorageField[] {
                 new StorageField("data", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo("group_sn", groupSN)
@@ -728,7 +728,7 @@ public class ChannelManager {
 
     public synchronized void updateGroup(Contact account, Group group, Product product) {
         String accountId = account.getExternalId();
-        List<StorageField[]> result = this.storage.executeQuery(this.groupTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.groupTable, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("account_id", accountId),
@@ -793,7 +793,7 @@ public class ChannelManager {
     public List<String> getMessagePartnerIdList(String channelCode, String accountId) {
         String sql = "SELECT DISTINCT `partner_id` FROM `" + this.partnerMessageTable + "` WHERE `code`='" +
                 channelCode + "' AND `account_id`='" + accountId + "'";
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return null;
         }
@@ -816,7 +816,7 @@ public class ChannelManager {
     public List<String> getMessageGroupNameList(String channelCode, String accountId) {
         String sql = "SELECT DISTINCT `group_name` FROM `" + this.groupMessageTable + "` WHERE `code`='" +
                 channelCode + "' AND `account_id`='" + accountId + "'";
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return null;
         }
@@ -845,7 +845,7 @@ public class ChannelManager {
                 "` WHERE `code`='" + channelCode.code +
                 "' AND `account_id`='" + accountId + "'" +
                 " LIMIT " + numConversations;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         for (StorageField[] data : result) {
             String partnerId = data[0].getString();
 
@@ -861,7 +861,7 @@ public class ChannelManager {
                     "' AND `account_id`='" + accountId + "'" +
                     " ORDER BY `date` DESC" +
                     " LIMIT " + numMessages;
-            List<StorageField[]> messageResult = this.storage.executeQuery(sql);
+            List<StorageField[]> messageResult = this.storage.executeQueryOrEmpty(sql);
             for (StorageField[] messageData : messageResult) {
                 if (null == conversation) {
                     long timestamp = messageData[0].getLong();
@@ -889,7 +889,7 @@ public class ChannelManager {
                 "` WHERE `code`='" + channelCode.code +
                 "' AND `account_id`='" + accountId + "'" +
                 " LIMIT " + numConversations;
-        result = this.storage.executeQuery(sql);
+        result = this.storage.executeQueryOrEmpty(sql);
         for (StorageField[] data : result) {
             String groupName = data[0].getString();
 
@@ -903,7 +903,7 @@ public class ChannelManager {
                     "' AND `account_id`='" + accountId + "'" +
                     " ORDER BY `date` DESC" +
                     " LIMIT " + numMessages;
-            List<StorageField[]> messageResult = this.storage.executeQuery(sql);
+            List<StorageField[]> messageResult = this.storage.executeQueryOrEmpty(sql);
             for (StorageField[] messageData : messageResult) {
                 if (null == conversation) {
                     long timestamp = messageData[0].getLong();
@@ -956,7 +956,7 @@ public class ChannelManager {
                 "' AND partner_id='" + partnerId + "'" +
                 " ORDER BY `date` DESC" +
                 " LIMIT " + startIndex + "," + count;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return new ArrayList<>();
         }
@@ -994,7 +994,7 @@ public class ChannelManager {
                 "' AND group_name='" + groupName + "'" +
                 " ORDER BY `date` DESC" +
                 " LIMIT " + startIndex + "," + count;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return new ArrayList<>();
         }

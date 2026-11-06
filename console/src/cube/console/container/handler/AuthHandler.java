@@ -41,8 +41,11 @@ public class AuthHandler extends ContextHandler {
             if (target.equals("/domain")) {
                 List<String> list = console.getStatisticDataManager().getDomains();
                 JSONArray array = new JSONArray();
-                for (String domain : list) {
-                    array.put(domain);
+                if (null != list) {
+                    // 查询失败时列表为 null：返回空列表而不是让前端拿到一个报错页
+                    for (String domain : list) {
+                        array.put(domain);
+                    }
                 }
 
                 JSONObject data = new JSONObject();

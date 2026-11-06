@@ -73,7 +73,7 @@ public class VersionStorage extends AbstractStorage {
     }
 
     public AppVersion getVersion(String device) {
-        List<StorageField[]> result = this.storage.executeQuery(TABLE_VERSION, this.versionFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(TABLE_VERSION, this.versionFields,
                 new Conditional[] {
                         Conditional.createLike("device", device)
                 });

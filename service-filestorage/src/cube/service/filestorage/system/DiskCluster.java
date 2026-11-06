@@ -126,7 +126,7 @@ public class DiskCluster implements Storagable  {
     private void updateCluster(String fileCode, String host, int port) {
         String table = this.clusterFileTable;
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("file_code", fileCode)
@@ -174,7 +174,7 @@ public class DiskCluster implements Storagable  {
      * @throws IOException
      */
     public void loadFile(String fileCode, OutputStream outputStream) throws IOException {
-        List<StorageField[]> result = this.storage.executeQuery(this.clusterFileTable, this.clusterFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.clusterFileTable, this.clusterFields,
             new Conditional[] {
                 Conditional.createEqualTo("file_code", fileCode)
         });

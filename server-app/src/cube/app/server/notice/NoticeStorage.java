@@ -98,7 +98,7 @@ public class NoticeStorage extends AbstractStorage {
         List<Notice> noticeList = new ArrayList<>();
 
         long now = System.currentTimeMillis();
-        List<StorageField[]> result = this.storage.executeQuery(TABLE_NOTICE, this.noticeFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(TABLE_NOTICE, this.noticeFields, new Conditional[] {
                 Conditional.createGreaterThan(new StorageField("expires", now)),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("domain", domainName)

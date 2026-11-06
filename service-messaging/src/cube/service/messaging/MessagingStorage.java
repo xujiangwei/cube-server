@@ -231,7 +231,7 @@ public class MessagingStorage implements Storagable {
                 new StorageField("scope", LiteralBase.INT)
         };
 
-        List<StorageField[]> result = this.storage.executeQuery(table, fields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, fields, new Conditional[] {
                 Conditional.createEqualTo("id", messageId),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("owner", contactId)
@@ -265,7 +265,7 @@ public class MessagingStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.messageFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.messageFields, new Conditional[] {
                 Conditional.createEqualTo("id", messageId),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("owner", contactId)
@@ -317,7 +317,7 @@ public class MessagingStorage implements Storagable {
 
         String table = this.messageTableNameMap.get(domain);
 
-        List<StorageField[]> list = this.storage.executeQuery(table, this.messageFields, new Conditional[] {
+        List<StorageField[]> list = this.storage.executeQueryOrEmpty(table, this.messageFields, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("id", LiteralBase.LONG, messageId))
         });
 
@@ -375,7 +375,7 @@ public class MessagingStorage implements Storagable {
             values[i] = messageIdList.get(i);
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.messageFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.messageFields,
                 new Conditional[] { Conditional.createIN(this.messageFields[0], values) });
 
         List<Message> messages = new ArrayList<>(result.size());
@@ -431,7 +431,7 @@ public class MessagingStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.messageFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.messageFields, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("owner", LiteralBase.LONG, contactId)),
                 Conditional.createAnd(),
                 Conditional.createGreaterThan(new StorageField("rts", LiteralBase.LONG, beginning)),
@@ -492,7 +492,7 @@ public class MessagingStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.messageFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.messageFields, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("source", LiteralBase.LONG, groupId)),
                 Conditional.createAnd(),
                 Conditional.createGreaterThan(new StorageField("rts", LiteralBase.LONG, beginning)),
@@ -685,7 +685,7 @@ public class MessagingStorage implements Storagable {
                 new StorageField("state", LiteralBase.INT)
         };
 
-        List<StorageField[]> result = this.storage.executeQuery(table, fields, new Conditional[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, fields, new Conditional[]{
                 Conditional.createEqualTo(new StorageField("id", LiteralBase.LONG, messageId)),
                 Conditional.createAnd(),
                 Conditional.createEqualTo(new StorageField("owner", LiteralBase.LONG, contactId))
@@ -717,7 +717,7 @@ public class MessagingStorage implements Storagable {
             @Override
             public void run() {
                 // 查询 rts 数据，以便加密
-                List<StorageField[]> result = storage.executeQuery(table, new StorageField[] {
+                List<StorageField[]> result = storage.executeQueryOrEmpty(table, new StorageField[] {
                         new StorageField("rts", LiteralBase.LONG)
                 }, new Conditional[] {
                         Conditional.createEqualTo("id", messageId.longValue()),
@@ -757,7 +757,7 @@ public class MessagingStorage implements Storagable {
         }
 
         String sql = "SELECT COUNT(DISTINCT(id)) FROM `" + table + "`";
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return 0;
         }
@@ -777,7 +777,7 @@ public class MessagingStorage implements Storagable {
 
         String sql = "SELECT * FROM `" + table + "` WHERE `owner`=" + contact.getId()
                 + " AND `state`<>" + ConversationState.Destroyed.toString() + " ORDER BY `timestamp` DESC";
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             // 无数据
             return null;
@@ -860,7 +860,7 @@ public class MessagingStorage implements Storagable {
         this.executor.execute(new Runnable() {
             @Override
             public void run() {
-                List<StorageField[]> result = storage.executeQuery(table, new StorageField[] {
+                List<StorageField[]> result = storage.executeQueryOrEmpty(table, new StorageField[] {
                         new StorageField("sn", LiteralBase.LONG)
                 }, new Conditional[] {
                         Conditional.createEqualTo("owner", ownerId),
@@ -922,7 +922,7 @@ public class MessagingStorage implements Storagable {
             return 0;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return 0;
         }

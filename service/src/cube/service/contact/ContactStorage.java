@@ -369,7 +369,7 @@ public class ContactStorage implements Storagable {
         StringBuilder sql = new StringBuilder("SELECT COUNT(id) FROM ");
         sql.append(table);
 
-        List<StorageField[]> result = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql.toString());
         if (result.isEmpty()) {
             return 0;
         }
@@ -396,7 +396,7 @@ public class ContactStorage implements Storagable {
         }
         sql.delete(sql.length() - 4, sql.length());
         sql.append(")");
-        List<StorageField[]> result = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql.toString());
         if (result.isEmpty()) {
             return 0;
         }
@@ -412,7 +412,7 @@ public class ContactStorage implements Storagable {
      */
     public boolean containsContact(String domain, long contactId) {
         String table = this.contactTableNameMap.get(domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG),
         }, new Conditional[] {
                 Conditional.createEqualTo("id", contactId)
@@ -439,7 +439,7 @@ public class ContactStorage implements Storagable {
         String domain = contact.getDomain().getName();
 
         String table = this.contactTableNameMap.get(domain);
-        List<StorageField[]> list = this.storage.executeQuery(table,
+        List<StorageField[]> list = this.storage.executeQueryOrEmpty(table,
                 new StorageField[] { new StorageField("sn", LiteralBase.LONG) },
                 new Conditional[] {
                         Conditional.createEqualTo(new StorageField("id", LiteralBase.LONG, contact.getId()))
@@ -495,7 +495,7 @@ public class ContactStorage implements Storagable {
      */
     public Contact readContact(String domain, Long id) {
         String table = this.contactTableNameMap.get(domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, this.contactFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.contactFields,
                 new Conditional[] { Conditional.createEqualTo(new StorageField("id", LiteralBase.LONG, id)) });
         if (result.isEmpty()) {
             return null;
@@ -521,7 +521,7 @@ public class ContactStorage implements Storagable {
      */
     public Contact readContact(String domain, String name) {
         String table = this.contactTableNameMap.get(domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, this.contactFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.contactFields, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("name", name)),
                 Conditional.createOrderBy("timestamp", true)
         });
@@ -580,7 +580,7 @@ public class ContactStorage implements Storagable {
      * @return 查询结果，永不为 {@code null} 。
      */
     private List<StorageField[]> query(String table, StorageField[] fields, Conditional[] conditionals) {
-        List<StorageField[]> rows = this.storage.executeQuery(table, fields, conditionals);
+        List<StorageField[]> rows = this.storage.executeQueryOrEmpty(table, fields, conditionals);
         if (null == rows) {
             Logger.w(this.getClass(), "#query - Query failed, return empty list, table: " + table);
             return new ArrayList<>();
@@ -628,7 +628,7 @@ public class ContactStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("mask", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo("id", id)
@@ -786,7 +786,7 @@ public class ContactStorage implements Storagable {
             @Override
             public void run() {
                 String table = contactZoneTableNameMap.get(domain);
-                List<StorageField[]> result = storage.executeQuery(table, new StorageField[] {
+                List<StorageField[]> result = storage.executeQueryOrEmpty(table, new StorageField[] {
                         new StorageField("id", LiteralBase.LONG)
                 }, new Conditional[] {
                         Conditional.createEqualTo("owner", owner),
@@ -855,7 +855,7 @@ public class ContactStorage implements Storagable {
             @Override
             public void run() {
                 String table = contactZoneTableNameMap.get(domain);
-                List<StorageField[]> result = storage.executeQuery(table, new StorageField[] {
+                List<StorageField[]> result = storage.executeQueryOrEmpty(table, new StorageField[] {
                         new StorageField("id", LiteralBase.LONG)
                 }, new Conditional[] {
                         Conditional.createEqualTo("owner", owner),
@@ -930,7 +930,7 @@ public class ContactStorage implements Storagable {
             @Override
             public void run() {
                 String table = contactZoneTableNameMap.get(domain);
-                List<StorageField[]> result = storage.executeQuery(table, new StorageField[] {
+                List<StorageField[]> result = storage.executeQueryOrEmpty(table, new StorageField[] {
                         new StorageField("id", LiteralBase.LONG)
                 }, new Conditional[] {
                         Conditional.createEqualTo("owner", LiteralBase.LONG, owner)
@@ -974,7 +974,7 @@ public class ContactStorage implements Storagable {
      */
     public boolean hasParticipantInZone(String domain, long owner, String name, Long participantId) {
         String table = this.contactZoneTableNameMap.get(domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("owner", LiteralBase.LONG, owner),
@@ -990,7 +990,7 @@ public class ContactStorage implements Storagable {
 
         table = this.contactZoneParticipantTableNameMap.get(domain);
 
-        result = this.storage.executeQuery(table, new StorageField[] {
+        result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("state", LiteralBase.INT)
         }, new Conditional[] {
                 Conditional.createEqualTo("contact_zone_id", zoneId),
@@ -1017,7 +1017,7 @@ public class ContactStorage implements Storagable {
                 Long zoneId = zone.getId();
 
                 // 查询是否已存在
-                List<StorageField[]> result = storage.executeQuery(table, new StorageField[] {
+                List<StorageField[]> result = storage.executeQueryOrEmpty(table, new StorageField[] {
                                 new StorageField("id", LiteralBase.LONG)
                         }, new Conditional[] {
                                 Conditional.createEqualTo("owner", zone.owner),
@@ -1094,7 +1094,7 @@ public class ContactStorage implements Storagable {
      */
     public ContactZone readContactZone(String domain, long owner, String zoneName) {
         String table = this.contactZoneTableNameMap.get(domain);
-        List<StorageField[]> result = this.storage.executeQuery(table, this.contactZoneFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.contactZoneFields, new Conditional[] {
                 Conditional.createEqualTo("owner", owner),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("name", zoneName)
@@ -1116,7 +1116,7 @@ public class ContactStorage implements Storagable {
 
         // 查询成员
         table = this.contactZoneParticipantTableNameMap.get(domain);
-        result = this.storage.executeQuery(table, this.contactZoneParticipantFields, new Conditional[] {
+        result = this.storage.executeQueryOrEmpty(table, this.contactZoneParticipantFields, new Conditional[] {
                 Conditional.createEqualTo("contact_zone_id", LiteralBase.LONG, zone.getId()),
         });
 
@@ -1191,7 +1191,7 @@ public class ContactStorage implements Storagable {
 
                 Long groupId = group.getId();
 
-                List<StorageField[]> list = storage.executeQuery(groupTable,
+                List<StorageField[]> list = storage.executeQueryOrEmpty(groupTable,
                         groupFields,
                         new Conditional[] { Conditional.createEqualTo(new StorageField("id", groupId)) });
 
@@ -1249,7 +1249,7 @@ public class ContactStorage implements Storagable {
                         // 更新成员列表
                         for (Long memberId : group.getMembers()) {
                             // 查询成员
-                            List<StorageField[]> cr = storage.executeQuery(groupMemberTable, new StorageField[] {
+                            List<StorageField[]> cr = storage.executeQueryOrEmpty(groupMemberTable, new StorageField[] {
                                     new StorageField("sn", LiteralBase.LONG)
                             }, new Conditional[] {
                                     Conditional.createEqualTo("group", LiteralBase.LONG, groupId),
@@ -1300,11 +1300,11 @@ public class ContactStorage implements Storagable {
         List<StorageField[]> groupMemberResult = null;
 
         // 查询群组信息
-        groupResult = this.storage.executeQuery(groupTable, this.groupFields,
+        groupResult = this.storage.executeQueryOrEmpty(groupTable, this.groupFields,
                 new Conditional[] { Conditional.createEqualTo(new StorageField("id", LiteralBase.LONG, groupId)) });
 
         // 查询群组成员
-        groupMemberResult = this.storage.executeQuery(new String[] { groupTable, groupMemberTable },
+        groupMemberResult = this.storage.executeQueryOrEmpty(new String[] { groupTable, groupMemberTable },
                 memberFields, new Conditional[] {
                         Conditional.createEqualTo(new StorageField(groupTable, "id", LiteralBase.LONG, groupId)),
                         Conditional.createAnd(),
@@ -1386,7 +1386,7 @@ public class ContactStorage implements Storagable {
                 new StorageField(groupTable, "id", LiteralBase.LONG)
         };
         // 查询群组成员
-        List<StorageField[]> groupsResult = this.storage.executeQuery(new String[] { groupTable, groupMemberTable },
+        List<StorageField[]> groupsResult = this.storage.executeQueryOrEmpty(new String[] { groupTable, groupMemberTable },
                 groupFields, new Conditional[] {
                         // 群 ID 相等
                         Conditional.createEqualTo(new StorageField(groupTable, "id", LiteralBase.LONG),
@@ -1533,7 +1533,7 @@ public class ContactStorage implements Storagable {
 
                 for (Long memberId : memberList) {
                     // 先查询该成员是否之前就在群里
-                    List<StorageField[]> queryResult = storage.executeQuery(groupMemberTable, new StorageField[] {
+                    List<StorageField[]> queryResult = storage.executeQueryOrEmpty(groupMemberTable, new StorageField[] {
                             new StorageField("sn", LiteralBase.LONG)
                     }, new Conditional[] {
                             Conditional.createEqualTo(new StorageField("group", LiteralBase.LONG, group.getId())),
@@ -1620,7 +1620,7 @@ public class ContactStorage implements Storagable {
         this.executor.execute(new Runnable() {
             @Override
             public void run() {
-                List<StorageField[]> list = storage.executeQuery(table, new StorageField[] {
+                List<StorageField[]> list = storage.executeQueryOrEmpty(table, new StorageField[] {
                         new StorageField("id", LiteralBase.LONG)
                 }, new Conditional[] {
                         Conditional.createEqualTo(new StorageField("id", LiteralBase.LONG, appendix.getContact().getId()))
@@ -1654,7 +1654,7 @@ public class ContactStorage implements Storagable {
     public ContactAppendix readAppendix(Contact contact) {
         String table = this.appendixTableNameMap.get(contact.getDomain().getName());
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.appendixFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.appendixFields, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("id", LiteralBase.LONG, contact.getId()))
         });
 
@@ -1682,7 +1682,7 @@ public class ContactStorage implements Storagable {
         this.executor.execute(new Runnable() {
             @Override
             public void run() {
-                List<StorageField[]> list = storage.executeQuery(table, new StorageField[] {
+                List<StorageField[]> list = storage.executeQueryOrEmpty(table, new StorageField[] {
                         new StorageField("id", LiteralBase.LONG)
                 }, new Conditional[] {
                         Conditional.createEqualTo(new StorageField("id", LiteralBase.LONG, appendix.getGroup().getId()))
@@ -1716,7 +1716,7 @@ public class ContactStorage implements Storagable {
     public GroupAppendix readAppendix(Group group) {
         String table = this.appendixTableNameMap.get(group.getDomain().getName());
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.appendixFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.appendixFields, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("id", group.getId()))
         });
 
@@ -1776,7 +1776,7 @@ public class ContactStorage implements Storagable {
         String table = this.topListTablePrefix + domain;
         table = SQLUtils.correctTableName(table);
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.topListFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.topListFields, new Conditional[] {
                 Conditional.createEqualTo("contact_id", LiteralBase.LONG, contactId),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("top_id", LiteralBase.LONG, topId)
@@ -1823,7 +1823,7 @@ public class ContactStorage implements Storagable {
         String table = this.blockListTablePrefix + domain;
         table = SQLUtils.correctTableName(table);
 
-        List<StorageField[]> list = this.storage.executeQuery(table, this.blockListFields, new Conditional[] {
+        List<StorageField[]> list = this.storage.executeQueryOrEmpty(table, this.blockListFields, new Conditional[] {
                 Conditional.createEqualTo("contact_id", LiteralBase.LONG, contactId),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("block_id", LiteralBase.LONG, blockId)
@@ -1869,7 +1869,7 @@ public class ContactStorage implements Storagable {
         String table = this.blockListTablePrefix + domain;
         table = SQLUtils.correctTableName(table);
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.blockListFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.blockListFields, new Conditional[] {
                 Conditional.createEqualTo("contact_id", LiteralBase.LONG, contactId),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("block_id", LiteralBase.LONG, blockId)
@@ -2029,7 +2029,7 @@ public class ContactStorage implements Storagable {
         }
 
         String sql = "SELECT SUM(point) FROM `" + table + "` WHERE `contact_id`=" + contactId;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (null == result || result.isEmpty() || 0 == result.get(0).length) {
             return 0;
         }
@@ -2100,7 +2100,7 @@ public class ContactStorage implements Storagable {
             return false;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("id", membership.getId().longValue())
@@ -2142,7 +2142,7 @@ public class ContactStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.membershipFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.membershipFields, new Conditional[] {
                 Conditional.createEqualTo("id", contactId),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("state", state)
@@ -2170,7 +2170,7 @@ public class ContactStorage implements Storagable {
         long now = System.currentTimeMillis();
         String sql = "SELECT * FROM `" +  table + "` WHERE timestamp+duration<" + now +
                 " AND state=0";
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         for (StorageField[] fields : result) {
             Map<String, StorageField> data = StorageFields.get(fields);
             Membership membership = new Membership(data.get("id").getLong(), domain, data.get("name").getString(),

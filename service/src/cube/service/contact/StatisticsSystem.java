@@ -23,6 +23,8 @@ import cube.plugin.PluginSystem;
 import cube.storage.StorageFactory;
 import cube.storage.StorageType;
 import cube.util.SQLUtils;
+import cube.util.UnitDayAggregator;
+import cube.util.UnitDayRecord;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -101,6 +103,27 @@ public final class StatisticsSystem {
     private static final String STATISTICS_INDEX_PERIOD = "idx_period";
 
     /**
+     * 工作单元日汇总表索引：按统计日读取汇总行。
+     */
+    private static final String UNIT_DAILY_INDEX_PERIOD = "idx_unit_daily_period";
+
+    /**
+     * 单元日汇总表必须存在的列。
+     *
+     * <p>建表语句不会给已存在的表补列，这些列一旦缺失就会让写入整批失败，
+     * 因此启动时要逐一检查并补齐。</p>
+     */
+    private static final String[] UNIT_DAILY_REQUIRED_COLUMNS = new String[] {"unit_count"};
+
+    /**
+     * 单元日汇总表唯一键：一条 (年, 月, 日, 单元) 只允许一行。
+     *
+     * <p>多节点同时执行采集时，各节点的「先删后插」会交错，产生重复行；
+     * 唯一键配合覆盖写可以保证最终只有一份数据，且结果与节点数无关。</p>
+     */
+    private static final String UNIT_DAILY_UNIQUE_KEY = "uk_unit_daily";
+
+    /**
      * 统计表唯一键：一条 (年, 月, 日, 指标) 只允许一行。
      *
      * <p>多节点同时执行日统计时，各节点的「先删后插」会交错，产生重复行；
@@ -141,6 +164,74 @@ public final class StatisticsSystem {
             // 事件数据
             new StorageField("event_data", LiteralBase.STRING, new Constraint[] {
                     Constraint.DEFAULT_NULL
+            })
+    };
+
+    /**
+     * 工作单元日汇总表前缀。
+     *
+     * <p>与事件明细表、统计表同构：每域一张表。表内每行是一个工作单元在一个统计日的
+     * 活动汇总，供 console 直接读取，避免它反复全量扫描事件明细。</p>
+     */
+    private final String contactUnitDailyTablePrefix = "contact_unit_daily_";
+
+    /**
+     * 工作单元日汇总表的版本标记行。
+     *
+     * <p>该行不是数据，而是「本表某一日已完整采集」的标记：写在所有数据行之后，
+     * 供 console 判断该日汇总是否可用。{@code contact_id} 取 0 表示标记行，
+     * 与真实单元 ID（大于等于 {@link Contact#MIN_UNIT_CONTACT_ID}）不冲突。</p>
+     */
+    public static final long UNIT_DAILY_MARKER_ID = 0L;
+
+    /**
+     * 工作单元日汇总表。
+     */
+    private final StorageField[] unitDailyTableFields = new StorageField[] {
+            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+                    Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
+            }),
+            // 统计日的年、月、日
+            new StorageField("year", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("month", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            new StorageField("date", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            // 单元 ID；标记行为 0
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            // 当日事件总数
+            new StorageField("event_count", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            // 当日在线时长，单位：毫秒
+            new StorageField("duration", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            // 当日首次活动时间
+            new StorageField("first_active", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            // 当日活跃小时掩码：第 n 位为 1 表示该单元在第 n 小时有事件
+            new StorageField("hour_mask", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            // 该统计日的起始时间戳，用于校验日界口径是否一致
+            new StorageField("day_begin", LiteralBase.LONG, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            // 该日的数据行数：只写在标记行上，供读取侧校验数据是否完整
+            new StorageField("unit_count", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
+            }),
+            // 汇总口径版本
+            new StorageField("version", LiteralBase.INT, new Constraint[] {
+                    Constraint.NOT_NULL
             })
     };
 
@@ -191,6 +282,11 @@ public final class StatisticsSystem {
 
     private Map<String, String> statisticsTableNameMap;
 
+    /**
+     * 工作单元日汇总表名映射。
+     */
+    private Map<String, String> unitDailyTableNameMap;
+
     private List<String> domainNameList;
 
     /**
@@ -205,6 +301,7 @@ public final class StatisticsSystem {
         this.executor = executor;
         this.eventTableNameMap = new HashMap<>();
         this.statisticsTableNameMap = new HashMap<>();
+        this.unitDailyTableNameMap = new HashMap<>();
     }
 
     public void start(StorageType type, JSONObject storageConfig, List<String> domainList) {
@@ -296,6 +393,89 @@ public final class StatisticsSystem {
                 }
             }
         }
+
+        for (String domain : domainNameList) {
+            String table = this.contactUnitDailyTablePrefix + domain;
+
+            table = SQLUtils.correctTableName(table);
+            this.unitDailyTableNameMap.put(domain, table);
+
+            if (!this.storage.exist(table)) {
+                if (this.storage.executeCreate(table, this.unitDailyTableFields)) {
+                    Logger.i(this.getClass(), "Created table '" + table + "' successfully");
+                }
+            }
+            else {
+                // 表已存在：建表语句是 CREATE TABLE IF NOT EXISTS，不会校验也不会补齐
+                // 已有表的列。缺列时写入会整批失败，必须显式补上。
+                this.ensureUnitDailyColumns(table);
+            }
+        }
+    }
+
+    /**
+     * 为单元日汇总表补齐缺失的列。
+     *
+     * <p>建表语句是 {@code CREATE TABLE IF NOT EXISTS}，表已存在时既不校验结构也不补列，
+     * 而写入语句带列名 —— 缺列会让整批 INSERT 失败（{@code Unknown column}）。
+     * 老库上若已建过这张表而没有后续新增的列，就会一直写入失败。</p>
+     *
+     * <p>补列只针对 {@code NOT NULL} 的整数列，给出 {@code DEFAULT 0} 才能在存量行上成功：
+     * 没有默认值的 NOT NULL 列在加到已有数据的表上会失败。</p>
+     *
+     * @param table 单元日汇总表名。
+     */
+    private void ensureUnitDailyColumns(String table) {
+        try {
+            for (String column : UNIT_DAILY_REQUIRED_COLUMNS) {
+                if (this.columnExists(table, column)) {
+                    continue;
+                }
+
+                String sql = "ALTER TABLE `" + table + "` ADD COLUMN `" + column
+                        + "` INTEGER NOT NULL DEFAULT 0";
+                this.storage.execute(sql);
+
+                if (this.columnExists(table, column)) {
+                    Logger.i(this.getClass(), "Added missing column '" + column + "' to '" + table + "'");
+                }
+                else {
+                    Logger.w(this.getClass(), "Failed to add missing column '" + column + "' to '"
+                            + table + "'");
+                }
+            }
+        } catch (Throwable e) {
+            // 补列失败不阻断启动：采集会写入失败并跳过标记行，控制台回落到明细路径
+            Logger.w(this.getClass(), "#ensureUnitDailyColumns - " + table, e);
+        }
+    }
+
+    /**
+     * 判断表中是否存在指定列。
+     *
+     * @param table 表名。
+     * @param column 列名。
+     * @return 存在返回 {@code true} 。
+     */
+    private boolean columnExists(String table, String column) {
+        String sql;
+
+        if (StorageType.SQLite == this.storage.getType()) {
+            sql = "SELECT COUNT(*) FROM `pragma_table_info('" + table + "')` WHERE `name`='" + column + "'";
+        }
+        else {
+            sql = "SELECT COUNT(*) FROM `information_schema`.`columns`"
+                    + " WHERE `table_schema`=DATABASE()"
+                    + " AND `table_name`='" + table + "'"
+                    + " AND `column_name`='" + column + "'";
+        }
+
+        List<StorageField[]> result = this.storage.executeQuery(sql);
+        if (null == result || result.isEmpty()) {
+            return false;
+        }
+
+        return !result.get(0)[0].isNullValue() && result.get(0)[0].getLong() > 0L;
     }
 
     /**
@@ -319,6 +499,13 @@ public final class StatisticsSystem {
             if (null != statisticTable) {
                 this.ensureIndex(statisticTable, STATISTICS_INDEX_PERIOD, "`year`,`month`,`date`");
                 this.ensureStatisticsUniqueKey(statisticTable);
+            }
+
+            String unitDailyTable = this.unitDailyTableNameMap.get(domain);
+            if (null != unitDailyTable) {
+                // console 按统计日读取汇总表，走该索引的前缀即可
+                this.ensureIndex(unitDailyTable, UNIT_DAILY_INDEX_PERIOD, "`year`,`month`,`date`");
+                this.ensureUnitDailyUniqueKey(unitDailyTable);
             }
         }
     }
@@ -436,6 +623,78 @@ public final class StatisticsSystem {
     }
 
     /**
+     * 为单元日汇总表创建 (年, 月, 日, 单元) 唯一键。
+     *
+     * <p>多节点同时执行采集时，各节点的「先删后插」会交错，产生重复行；
+     * 唯一键配合覆盖写可以保证最终只有一份数据，且结果与节点数无关。
+     * 历史库可能已有重复行，建键前先去重。</p>
+     *
+     * @param table 单元日汇总表名。
+     */
+    private void ensureUnitDailyUniqueKey(String table) {
+        try {
+            if (this.indexExists(table, UNIT_DAILY_UNIQUE_KEY)) {
+                return;
+            }
+
+            long before = this.countRows(table);
+            this.dedupeUnitDaily(table);
+            long removed = before - this.countRows(table);
+            if (removed > 0L) {
+                Logger.i(this.getClass(), "Removed " + removed + " duplicate unit daily rows from '"
+                        + table + "'");
+            }
+
+            // 所有列都是整数类型，MySQL 的唯一键不需要前缀长度
+            String sql;
+            if (StorageType.SQLite == this.storage.getType()) {
+                sql = "CREATE UNIQUE INDEX `" + UNIT_DAILY_UNIQUE_KEY + "` ON `" + table
+                        + "` (`year`,`month`,`date`,`contact_id`)";
+            }
+            else {
+                sql = "ALTER TABLE `" + table + "` ADD UNIQUE KEY `" + UNIT_DAILY_UNIQUE_KEY
+                        + "` (`year`,`month`,`date`,`contact_id`)";
+            }
+
+            this.storage.execute(sql);
+
+            if (this.indexExists(table, UNIT_DAILY_UNIQUE_KEY)) {
+                Logger.i(this.getClass(), "Created unique key '" + UNIT_DAILY_UNIQUE_KEY + "' on '"
+                        + table + "'");
+            }
+            else {
+                // 历史数据里存在重复行时会失败，此时退化为「可能重复」但不影响读取
+                Logger.w(this.getClass(), "Failed to create unique key '" + UNIT_DAILY_UNIQUE_KEY
+                        + "' on '" + table + "'");
+            }
+        } catch (Throwable e) {
+            Logger.w(this.getClass(), "#ensureUnitDailyUniqueKey - " + table, e);
+        }
+    }
+
+    /**
+     * 清理单元日汇总表的重复行，同一 (年, 月, 日, 单元) 只保留 sn 最小的一条。
+     *
+     * @param table 单元日汇总表名。
+     */
+    private void dedupeUnitDaily(String table) {
+        String sql;
+
+        if (StorageType.SQLite == this.storage.getType()) {
+            sql = "DELETE FROM " + table + " WHERE `sn` NOT IN (SELECT MIN(`sn`) FROM " + table
+                    + " GROUP BY `year`,`month`,`date`,`contact_id`)";
+        }
+        else {
+            sql = "DELETE t1 FROM " + table + " t1 INNER JOIN " + table + " t2"
+                    + " ON t1.`year`=t2.`year` AND t1.`month`=t2.`month`"
+                    + " AND t1.`date`=t2.`date` AND t1.`contact_id`=t2.`contact_id`"
+                    + " AND t1.`sn`>t2.`sn`";
+        }
+
+        this.storage.execute(sql);
+    }
+
+    /**
      * 清理统计表的重复行，同一 (年, 月, 日, 指标) 只保留 sn 最小的一条。
      *
      * @param table 统计表名。
@@ -471,6 +730,40 @@ public final class StatisticsSystem {
         }
 
         return result.get(0)[0].getLong();
+    }
+
+    /**
+     * 清理超出保留期的单元日汇总。
+     *
+     * <p>汇总每行代表一个单元一天，行数随单元数与天数线性增长，不清理会无限膨胀。
+     * 保留期与事件明细一致：明细是重算汇总的唯一数据源，明细已清理的日期，
+     * 汇总行同样没有保留价值。</p>
+     */
+    private void cleanupUnitDaily() {
+        Calendar today = Calendar.getInstance();
+        today.set(Calendar.HOUR_OF_DAY, 0);
+        today.set(Calendar.MINUTE, 0);
+        today.set(Calendar.SECOND, 0);
+        today.set(Calendar.MILLISECOND, 0);
+        today.add(Calendar.DAY_OF_YEAR, -EVENT_RETENTION_DAYS);
+
+        int cutOffYear = today.get(Calendar.YEAR);
+        int cutOffMonth = today.get(Calendar.MONTH) + 1;
+        int cutOffDate = today.get(Calendar.DATE);
+
+        for (String domain : this.domainNameList) {
+            String table = this.unitDailyTableNameMap.get(domain);
+            if (null == table) {
+                continue;
+            }
+
+            String sql = "DELETE FROM " + table
+                    + " WHERE (`year`*10000+`month`*100+`date`)<" + (cutOffYear * 10000 + cutOffMonth * 100 + cutOffDate);
+            if (!this.storage.execute(sql)) {
+                Logger.w(this.getClass(), "#cleanupUnitDaily - Failed to clean unit daily summary of domain '"
+                        + domain + "'");
+            }
+        }
     }
 
     /**
@@ -582,6 +875,9 @@ public final class StatisticsSystem {
 
             // 明细只在回溯期内保留，超出保留期的数据由日统计表承接
             this.cleanupEvents();
+            // 单元日汇总与明细同保留期：它只服务「回溯窗口内的统计日」查询，
+            // 超出保留期后明细已不可重算，保留汇总行也没有意义
+            this.cleanupUnitDaily();
         }
         finally {
             this.collecting.set(false);
@@ -650,6 +946,14 @@ public final class StatisticsSystem {
                 Logger.e(this.getClass(), "#collectDay - Failed to collect domain '" + domain
                         + "' for " + year + "-" + month + "-" + date, e);
             }
+
+            try {
+                // 单元维度独立于用户维度：用户维度已采集完成不代表单元维度也已采集
+                this.collectUnitDaily(domain, year, month, date, beginning, ending);
+            } catch (Throwable e) {
+                Logger.e(this.getClass(), "#collectDay - Failed to collect unit daily summary of domain '"
+                        + domain + "' for " + year + "-" + month + "-" + date, e);
+            }
         }
     }
 
@@ -675,6 +979,21 @@ public final class StatisticsSystem {
         String existingTnu = (version > 0)
                 ? this.readItem(domain, ITEM_TNU, year, month, date) : null;
 
+        // 日用户总数：仅统计 ID 位数大于等于 8 位的用户，位数小于 8 位的是 AIGC 工作单元。
+        // TNU 是「当日快照」，无法从事件明细回溯：重算历史日期时必须保留原值，否则会把
+        // 停机期间新增的用户算进过去某一天。
+        //
+        // 先算 TNU 再删旧数据：查询失败时直接放弃本轮，旧数据保持原样；
+        // 顺序颠倒会让「查询失败」变成「旧数据已删且当日未标记完成」，数据就此丢失。
+        int total = this.resolveTotalUsers(domain, existingTnu);
+        if (total < 0) {
+            // 查询失败，本轮跳过该域：不写任何指标，也不写版本标记，
+            // 下一天的任务会按 SV 版本重新补齐该日
+            Logger.w(this.getClass(), "#collectDomainDay - Failed to count users of domain '"
+                    + domain + "'");
+            return;
+        }
+
         if (version > 0) {
             // 统计口径已升级，清除当日旧口径数据后重新统计
             this.storage.execute("DELETE FROM " + statisticTable
@@ -684,10 +1003,6 @@ public final class StatisticsSystem {
                     + " (version " + STATISTICS_VERSION + ")");
         }
 
-        // 日用户总数：仅统计 ID 位数大于等于 8 位的用户，位数小于 8 位的是 AIGC 工作单元。
-        // TNU 是「当日快照」，无法从事件明细回溯：重算历史日期时必须保留原值，否则会把
-        // 停机期间新增的用户算进过去某一天。
-        int total = this.resolveTotalUsers(domain, existingTnu);
         this.writeItem(statisticTable, ITEM_TNU, String.valueOf(total), year, month, date);
 
         // 计算 DAU
@@ -710,41 +1025,6 @@ public final class StatisticsSystem {
 
         // 记录本日数据使用的统计口径版本（最后写入，作为「本日已完成」的提交标记）
         this.writeItem(statisticTable, ITEM_SV, String.valueOf(STATISTICS_VERSION), year, month, date);
-    }
-
-    /**
-     * 读取指定域某日已入库的统计口径版本。
-     *
-     * @param domain 指定域。
-     * @param day 指定日期。
-     * @return 返回版本号；无记录返回 0 ；查询失败返回 -1 。
-     */
-    private int readStatisticsVersion(String domain, Calendar day) {
-        return this.readStatisticsVersion(domain, day.get(Calendar.YEAR),
-                day.get(Calendar.MONTH) + 1, day.get(Calendar.DATE));
-    }
-
-    /**
-     * 计算某日的用户总数。
-     *
-     * <p>用户总数是采集当时的状态，事件明细里没有「当时一共多少人」的信息，因此重算历史日期
-     * 必须沿用已入库的值；只有首次采集的日期（无旧记录）才读取当前总数。</p>
-     *
-     * @param domain 指定域。
-     * @param existingTnu 该日已入库的用户总数，{@code null} 表示无记录。
-     * @return 返回用户总数。
-     */
-    private int resolveTotalUsers(String domain, String existingTnu) {
-        if (null != existingTnu) {
-            try {
-                return Integer.parseInt(existingTnu.trim());
-            } catch (NumberFormatException e) {
-                Logger.w(this.getClass(), "#resolveTotalUsers - Invalid TNU '" + existingTnu
-                        + "' of domain '" + domain + "'");
-            }
-        }
-
-        return this.countUserContacts(domain);
     }
 
     /**
@@ -782,43 +1062,6 @@ public final class StatisticsSystem {
         return rows.get(0)[0].getString();
     }
 
-    /**
-     * 读取指定域某日已入库的统计口径版本。
-     *
-     * @param domain 指定域。
-     * @param year 年。
-     * @param month 月。
-     * @param date 日。
-     * @return 返回版本号；无记录返回 0 ；查询失败返回 -1 。
-     */
-    private int readStatisticsVersion(String domain, int year, int month, int date) {
-        String table = this.statisticsTableNameMap.get(domain);
-        if (null == table) {
-            return 0;
-        }
-
-        List<StorageField[]> rows = this.storage.executeQuery(table, new StorageField[] {
-                new StorageField("data", LiteralBase.STRING)
-        }, new Conditional[] {
-                Conditional.createEqualTo("year", LiteralBase.INT, year),
-                Conditional.createAnd(),
-                Conditional.createEqualTo("month", LiteralBase.INT, month),
-                Conditional.createAnd(),
-                Conditional.createEqualTo("date", LiteralBase.INT, date),
-                Conditional.createAnd(),
-                Conditional.createEqualTo("item", LiteralBase.STRING, ITEM_SV)
-        });
-
-        if (null == rows) {
-            return -1;
-        }
-
-        if (rows.isEmpty()) {
-            return 0;
-        }
-
-        return toStatisticsVersion(rows.get(0)[0].getString());
-    }
 
     /**
      * 写入一条统计指标。
@@ -858,13 +1101,344 @@ public final class StatisticsSystem {
         this.storage.execute(sql.toString());
     }
 
+
+    /**
+     * 计算某日的用户总数。
+     *
+     * <p>用户总数是采集当时的状态，事件明细里没有「当时一共多少人」的信息，因此重算历史日期
+     * 必须沿用已入库的值；只有首次采集的日期（无旧记录）才读取当前总数。</p>
+     *
+     * @param domain 指定域。
+     * @param existingTnu 该日已入库的用户总数，{@code null} 表示无记录。
+     * @return 返回用户总数；查询失败时返回 -1 。
+     */
+    private int resolveTotalUsers(String domain, String existingTnu) {
+        if (null != existingTnu) {
+            try {
+                return Integer.parseInt(existingTnu.trim());
+            } catch (NumberFormatException e) {
+                Logger.w(this.getClass(), "#resolveTotalUsers - Invalid TNU '" + existingTnu
+                        + "' of domain '" + domain + "'");
+            }
+        }
+
+        return this.countUserContacts(domain);
+    }
+
+
+    /**
+     * 读取指定域某日已入库的统计口径版本。
+     *
+     * @param domain 指定域。
+     * @param year 年。
+     * @param month 月。
+     * @param date 日。
+     * @return 返回版本号；无记录返回 0 ；查询失败返回 -1 。
+     */
+    /**
+     * 读取指定域某日已入库的统计口径版本。
+     *
+     * @param domain 指定域。
+     * @param day 指定日期。
+     * @return 返回版本号；无记录返回 0 ；查询失败返回 -1 。
+     */
+    private int readStatisticsVersion(String domain, Calendar day) {
+        return this.readStatisticsVersion(domain, day.get(Calendar.YEAR),
+                day.get(Calendar.MONTH) + 1, day.get(Calendar.DATE));
+    }
+
+    private int readStatisticsVersion(String domain, int year, int month, int date) {
+        String table = this.statisticsTableNameMap.get(domain);
+        if (null == table) {
+            return 0;
+        }
+
+        List<StorageField[]> rows = this.storage.executeQuery(table, new StorageField[] {
+                new StorageField("data", LiteralBase.STRING)
+        }, new Conditional[] {
+                Conditional.createEqualTo("year", LiteralBase.INT, year),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("month", LiteralBase.INT, month),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("date", LiteralBase.INT, date),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("item", LiteralBase.STRING, ITEM_SV)
+        });
+
+        if (null == rows) {
+            return -1;
+        }
+
+        if (rows.isEmpty()) {
+            return 0;
+        }
+
+        return toStatisticsVersion(rows.get(0)[0].getString());
+    }
+
+
+
+    /**
+     * 采集指定域在工作单元维度上的日汇总。
+     *
+     * <p>与用户维度的日统计在同一轮任务里完成，但两者独立：用户维度统计的是「联系人」，
+     * 这里统计的是「工作单元」（ID 位数大于等于 6 位且小于 8 位），两者口径互不覆盖。</p>
+     *
+     * <p>采集结果写入 {@code contact_unit_daily_<domain>}，每行是一个单元一天。
+     * 最后写入一行标记行（{@code contact_id} 为 0）表示「本表该日已完整采集」，
+     * console 据此判断能否直接读汇总而不用回落到明细扫描。标记行写在数据行之后，
+     * 因此标记存在即代表数据完整。</p>
+     *
+     * <p>重算时会先删除该日的旧行与旧标记：口径升级后旧数据必须整体替换，
+     * 否则会与新口径混在一张表里。</p>
+     *
+     * @param domain    指定域。
+     * @param year      统计日的年。
+     * @param month     统计日的月。
+     * @param date      统计日的日。
+     * @param beginning 统计日起始时间戳（含）。
+     * @param ending    统计日结束时间戳（不含）。
+     */
+    private void collectUnitDaily(String domain, int year, int month, int date,
+                                  long beginning, long ending) {
+        String table = this.unitDailyTableNameMap.get(domain);
+        String eventTable = this.eventTableNameMap.get(domain);
+        if (null == table || null == eventTable) {
+            return;
+        }
+
+        // 该日已按当前口径采集过就不重复计算：日统计任务每天回补多天，
+        // 无条件重算会让同一份数据一天被算多次，白白扫事件明细。
+        if (this.isUnitDailyCollected(table, year, month, date, beginning)) {
+            return;
+        }
+
+        // 先清掉该日的旧数据与旧标记：口径变化时旧行必须整体替换
+        this.storage.execute("DELETE FROM " + table + " WHERE `year`=" + year
+                + " AND `month`=" + month + " AND `date`=" + date);
+
+        // 只取工作单元区间的事件：按联系人 ID 升序、时间升序，便于按单元归集。
+        //
+        // 这里用原生 SQL 而不是字段级查询，原因有两个：
+        //
+        // 一是要用索引提示固定走 idx_contact_time：InnoDB 的二级索引隐含主键列，
+        // 该索引的物理顺序是 (contact_id, time, sn)，正好覆盖排序要求，无需额外排序；
+        // 不指定时优化器偏向按 time 过滤的索引，反而多出一次 filesort。
+        // 用优化器提示而非 FORCE INDEX：提示在索引缺失时被忽略并只记告警，查询照常成功；
+        // FORCE INDEX 指向不存在的索引会直接报 1176。老库的事件表可能没有这个索引，
+        // 不能让它成为查询的硬前提。
+        // 提示必须出现在 SELECT 之后，条件列表机制承载不了它。
+        //
+        // 二是原生 SQL 查询失败时返回的是空列表而不是 null，与「当天没有事件」
+        // 无法区分。解决办法是加哨兵行：查询末尾 UNION 一行常量，
+        // 成功时必然能读到它，失败时读不到。
+        StringBuilder sql = new StringBuilder("SELECT `contact_id`,`event`,`time` FROM (");
+        sql.append("SELECT `contact_id`,`event`,`time` FROM ");
+        sql.append(eventTable);
+        if (StorageType.SQLite != this.storage.getType()) {
+            // 用优化器提示而不是 FORCE INDEX：提示在索引缺失时被忽略并只记告警，
+            // 查询照常成功；FORCE INDEX 指向不存在的索引会直接报 1176 让整条查询失败。
+            // 老库的事件表可能没有这个索引，不能让它成为查询的硬前提。
+            sql.append(" t /*+ INDEX(t idx_contact_time) */");
+        }
+        sql.append(" WHERE `contact_id`>=").append(Contact.MIN_UNIT_CONTACT_ID);
+        sql.append(" AND `contact_id`<").append(Contact.MIN_USER_CONTACT_ID);
+        sql.append(" AND `time`>=").append(beginning);
+        sql.append(" AND `time`<").append(ending);
+        // 末位加 sn（自增主键，天然单调）：同一毫秒内的多个事件顺序由此确定，
+        // 不再依赖执行计划，避免与服务端的会话配对口径产生分歧
+        sql.append(" ORDER BY `contact_id`,`time`,`sn`");
+        // 数据查询包在子查询里：MySQL 不允许 ORDER BY 之后直接跟 UNION，
+        // ORDER BY 会作用于整个 UNION 结果，排序就失去意义了
+        sql.append(") `t`");
+        // 哨兵行：contact_id 取 -1，与真实单元 ID 区间不重叠
+        sql.append(" UNION ALL SELECT -1,'',").append(beginning);
+
+        List<StorageField[]> result = this.storage.executeQuery(sql.toString());
+
+        // 取出数据行，同时确认哨兵行在不在。
+        // 哨兵行的位置不作依赖：UNION ALL 不保证顺序，按 contact_id 识别更稳妥。
+        List<StorageField[]> rows = new ArrayList<>();
+        boolean hasSentinel = false;
+        if (null != result) {
+            for (StorageField[] row : result) {
+                if (-1L == row[0].getLong()) {
+                    hasSentinel = true;
+                    continue;
+                }
+                rows.add(row);
+            }
+        }
+
+        if (!hasSentinel) {
+            // 查询失败：不能写标记行，console 会因缺少标记而回落到明细路径
+            Logger.w(this.getClass(), "#collectUnitDaily - Failed to query events of domain '" + domain
+                    + "' for " + year + "-" + month + "-" + date);
+            return;
+        }
+
+        List<StorageField[]> records = new ArrayList<>();
+        UnitDayAggregator aggregator = new UnitDayAggregator(beginning, ending);
+        long currentId = -1L;
+        int numUnits = 0;
+
+        for (StorageField[] row : rows) {
+            long contactId = row[0].getLong();
+
+            if (contactId != currentId) {
+                if (currentId >= 0L) {
+                    records.add(this.buildUnitDailyRecord(year, month, date, currentId,
+                            aggregator, beginning));
+                    ++numUnits;
+                }
+
+                currentId = contactId;
+                aggregator.reset();
+            }
+
+            aggregator.add(row[1].getString(), row[2].getLong());
+        }
+
+        if (currentId >= 0L) {
+            records.add(this.buildUnitDailyRecord(year, month, date, currentId, aggregator, beginning));
+            ++numUnits;
+        }
+
+        // 数据行先写，标记行最后写：标记行存在即代表该日数据完整。
+        //
+        // 标记行只在「确实聚合到了单元数据」时写：当天真的没有任何单元事件时
+        // 同样不写标记 —— 那种情况下 console 会回落到明细路径，结果一致（都是空），
+        // 但多一条标记行会让 console 把「没采到」误当成「采到且为空」，
+        // 掩盖采集侧的失败。
+        if (!records.isEmpty()) {
+            if (!this.storage.executeInsert(table, records)) {
+                Logger.w(this.getClass(), "#collectUnitDaily - Failed to write unit daily summary of domain '"
+                        + domain + "' for " + year + "-" + month + "-" + date);
+                return;
+            }
+        }
+
+        if (numUnits <= 0) {
+            Logger.i(this.getClass(), "No unit activity in domain '" + domain + "' for "
+                    + year + "-" + month + "-" + date);
+            return;
+        }
+
+        // 标记行单独写入：与数据行分开，失败时不会留下「有标记但数据不全」的中间态。
+        // 标记行携带数据行数，读取侧可据此校验完整性 —— 多节点交错采集时，
+        // 别的节点的「先删后插」可能清掉部分数据，此时读取侧会发现行数对不上而回落。
+        if (!this.storage.executeInsert(table,
+                this.buildUnitDailyMarker(year, month, date, beginning, numUnits))) {
+            Logger.w(this.getClass(), "#collectUnitDaily - Failed to write unit daily marker of domain '"
+                    + domain + "' for " + year + "-" + month + "-" + date);
+            return;
+        }
+
+        Logger.i(this.getClass(), "Collected unit daily summary of domain '" + domain + "' for "
+                + year + "-" + month + "-" + date + " (" + numUnits + " units)");
+    }
+
+    /**
+     * 判断某域某日的单元日汇总是否已按当前口径采集完成。
+     *
+     * <p>以标记行为准：标记行存在、版本与当前一致、日界一致，才算采集完成。
+     * 三者任一不满足都视为需要重算。</p>
+     *
+     * @param table     单元日汇总表名。
+     * @param year      统计日的年。
+     * @param month     统计日的月。
+     * @param date      统计日的日。
+     * @param beginning 统计日起始时间戳。
+     * @return 已采集完成返回 {@code true} 。
+     */
+    private boolean isUnitDailyCollected(String table, int year, int month, int date, long beginning) {
+        // 字段级查询：失败返回 null，与「没有标记行」区分开
+        List<StorageField[]> rows = this.storage.executeQuery(table, new StorageField[] {
+                new StorageField("day_begin", LiteralBase.LONG),
+                new StorageField("version", LiteralBase.INT)
+        }, new Conditional[] {
+                Conditional.createEqualTo("year", year),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("month", month),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("date", date),
+                Conditional.createAnd(),
+                Conditional.createEqualTo("contact_id", UNIT_DAILY_MARKER_ID)
+        });
+
+        if (null == rows || rows.isEmpty()) {
+            return false;
+        }
+
+        StorageField[] row = rows.get(0);
+        return row[0].getLong() == beginning && row[1].getInt() == UnitDayRecord.VERSION;
+    }
+
+    /**
+     * 把聚合器结算结果转成一行汇总记录。
+     *
+     * @param year       统计日的年。
+     * @param month      统计日的月。
+     * @param date       统计日的日。
+     * @param contactId  单元 ID 。
+     * @param aggregator 已喂入该单元当日全部事件的聚合器。
+     * @param beginning  统计日起始时间戳。
+     * @return 返回汇总记录。
+     */
+    private StorageField[] buildUnitDailyRecord(int year, int month, int date, long contactId,
+                                                UnitDayAggregator aggregator, long beginning) {
+        long duration = aggregator.settle();
+
+        return new StorageField[] {
+                new StorageField("year", LiteralBase.INT, year),
+                new StorageField("month", LiteralBase.INT, month),
+                new StorageField("date", LiteralBase.INT, date),
+                new StorageField("contact_id", LiteralBase.LONG, contactId),
+                new StorageField("event_count", LiteralBase.INT, aggregator.getEventCount()),
+                new StorageField("duration", LiteralBase.LONG, duration),
+                new StorageField("first_active", LiteralBase.LONG, aggregator.getFirstActive()),
+                new StorageField("hour_mask", LiteralBase.LONG, aggregator.getHourMask()),
+                new StorageField("day_begin", LiteralBase.LONG, beginning),
+                new StorageField("version", LiteralBase.INT, UnitDayRecord.VERSION),
+                // 数据行上的该列无意义，恒为 0；只有标记行记录真实行数
+                new StorageField("unit_count", LiteralBase.INT, 0)
+        };
+    }
+
+    /**
+     * 构造「该日汇总已完整采集」的标记行。
+     *
+     * @param year      统计日的年。
+     * @param month     统计日的月。
+     * @param date      统计日的日。
+     * @param beginning 统计日起始时间戳。
+     * @return 返回标记记录。
+     */
+    private StorageField[] buildUnitDailyMarker(int year, int month, int date, long beginning,
+                                                int unitCount) {
+        return new StorageField[] {
+                new StorageField("year", LiteralBase.INT, year),
+                new StorageField("month", LiteralBase.INT, month),
+                new StorageField("date", LiteralBase.INT, date),
+                new StorageField("contact_id", LiteralBase.LONG, UNIT_DAILY_MARKER_ID),
+                new StorageField("event_count", LiteralBase.INT, 0),
+                new StorageField("duration", LiteralBase.LONG, 0L),
+                new StorageField("first_active", LiteralBase.LONG, 0L),
+                new StorageField("hour_mask", LiteralBase.LONG, 0L),
+                new StorageField("day_begin", LiteralBase.LONG, beginning),
+                new StorageField("version", LiteralBase.INT, UnitDayRecord.VERSION),
+                // 标记行携带该日的数据行数：读取侧据此判断数据是否完整
+                new StorageField("unit_count", LiteralBase.INT, unitCount)
+        };
+    }
+
     /**
      * 统计指定域里的用户总数。
      *
      * 仅统计 ID 十进制位数大于等于 8 位的联系人，位数小于 8 位的是 AIGC 工作单元节点。
      *
      * @param domain 指定域。
-     * @return 返回用户总数。
+     * @return 返回用户总数；查询失败时返回 -1 。
      */
     private int countUserContacts(String domain) {
         String table = SQLUtils.correctTableName(this.contactTablePrefix + domain);
@@ -874,8 +1448,10 @@ public final class StatisticsSystem {
         sql.append(" WHERE `id`>=").append(Contact.MIN_USER_CONTACT_ID);
 
         List<StorageField[]> result = this.storage.executeQuery(sql.toString());
-        if (result.isEmpty()) {
-            return 0;
+        if (null == result || result.isEmpty()) {
+            // 查询失败与「确实没有用户」都返回 -1：调用方据此放弃本轮统计，
+            // 不用空结果把当日统计标记成已完成
+            return -1;
         }
 
         return result.get(0)[0].isNullValue() ? 0 : result.get(0)[0].getInt();

@@ -504,6 +504,10 @@ export interface UnitOverviewResponse {
   units: UnitInfo[]
   /** 最近一次收到单元能力上报的时间戳，0 表示控制台从未收到过（能力列会全空） */
   unitReportTime?: number
+  /**
+   * 数据来源：FRESH 为实时统计，STALE 为服务端缓存的过期快照（数据库压力大时的降级结果）。
+   */
+  cacheState?: string
 }
 
 /** 同名能力下的一个 Contact 部署，跨服务节点重复上报已由后端去重。 */

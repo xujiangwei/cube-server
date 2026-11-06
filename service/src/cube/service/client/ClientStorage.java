@@ -85,7 +85,7 @@ public class ClientStorage implements Storagable {
      * @return
      */
     public boolean addClient(ClientDescription client) {
-        List<StorageField[]> result = this.storage.executeQuery(this.clientTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.clientTable, new StorageField[] {
                 new StorageField("state", LiteralBase.INT),
         }, new Conditional[] {
                 Conditional.createEqualTo("name", client.getName())
@@ -125,7 +125,7 @@ public class ClientStorage implements Storagable {
      * @return
      */
     public ClientDescription getClient(String name, String password) {
-        List<StorageField[]> result = this.storage.executeQuery(this.clientTable, this.clientFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.clientTable, this.clientFields, new Conditional[] {
                 Conditional.createEqualTo("name", name),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("password", password.toLowerCase())

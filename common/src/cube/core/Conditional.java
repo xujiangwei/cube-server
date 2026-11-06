@@ -460,6 +460,35 @@ public class Conditional {
     }
 
     /**
+     * 创建多列 ORDER BY 条件。
+     *
+     * <p>一次调用生成一个 {@code ORDER BY `a`,`b`,`c} 子句，而不是多个 ORDER BY 子句 ——
+     * 后者是非法 SQL。列按给定顺序排列，排序优先级与数组顺序一致。</p>
+     *
+     * @param fieldNames 字段名列表，按排序优先级排列；不允许为空或含空元素。
+     * @return 返回条件句式实例。
+     * @throws IllegalArgumentException 字段名列表为空或含空元素时抛出。
+     */
+    public static Conditional createOrderBy(String[] fieldNames) {
+        if (null == fieldNames || fieldNames.length == 0) {
+            throw new IllegalArgumentException("#createOrderBy - Empty field names, refuse to build SQL");
+        }
+
+        StringBuilder buf = new StringBuilder("ORDER BY ");
+        for (String fieldName : fieldNames) {
+            if (null == fieldName || fieldName.isEmpty()) {
+                throw new IllegalArgumentException("#createOrderBy - Null field name, refuse to build SQL");
+            }
+            if (buf.length() > "ORDER BY ".length()) {
+                buf.append(",");
+            }
+            buf.append(Quote).append(fieldName).append(Quote);
+        }
+
+        return new Conditional(buf.toString());
+    }
+
+    /**
      * 创建 ORDER BY 条件。
      *
      * @param tableName 表名。

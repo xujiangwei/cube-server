@@ -205,7 +205,7 @@ public final class CipherMachine {
         sql.append(" AND `month`=").append(calendar.get(Calendar.MONTH) + 1);
         sql.append(" AND `date`=").append(calendar.get(Calendar.DATE));
 
-        List<StorageField[]> result = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql.toString());
         if (result.isEmpty()) {
             return null;
         }
@@ -337,7 +337,7 @@ public final class CipherMachine {
         sql.append(" AND `month`=").append(calendar.get(Calendar.MONTH) + 1);
         sql.append(" AND `date`=").append(calendar.get(Calendar.DATE));
 
-        List<StorageField[]> result = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql.toString());
         if (result.isEmpty()) {
             return null;
         }

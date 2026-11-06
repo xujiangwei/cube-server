@@ -1023,7 +1023,7 @@ public class AIGCStorage implements Storagable {
      * @return 配置；不存在返回 {@code null} 。
      */
     public ModelConfig getModelConfig(String modelName) {
-        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, new StorageField[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appConfigTable, new StorageField[]{
                 new StorageField("value", LiteralBase.STRING)
         }, new Conditional[]{
                 Conditional.createEqualTo("item", modelName)
@@ -1050,7 +1050,7 @@ public class AIGCStorage implements Storagable {
     public List<ModelConfig> getModelConfigs() {
         List<ModelConfig> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, new StorageField[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appConfigTable, new StorageField[]{
                 new StorageField("value", LiteralBase.STRING)
         }, new Conditional[]{
                 Conditional.createEqualTo("item", ITEM_NAME_MODELS)
@@ -1067,7 +1067,7 @@ public class AIGCStorage implements Storagable {
 
         for (int i = 0; i < models.length(); ++i) {
             String model = models.getString(i);
-            result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[]{
+            result = this.storage.executeQueryOrEmpty(this.appConfigTable, this.appConfigFields, new Conditional[]{
                     Conditional.createEqualTo("item", model)
             });
 
@@ -1100,7 +1100,7 @@ public class AIGCStorage implements Storagable {
         List<ModelConfig> list = new ArrayList<>();
 
         for (String modelName : modelNames) {
-            List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[]{
+            List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appConfigTable, this.appConfigFields, new Conditional[]{
                     Conditional.createEqualTo("item", modelName.trim())
             });
 
@@ -1129,7 +1129,7 @@ public class AIGCStorage implements Storagable {
      * @return 版本 JSON ；无数据时返回空对象。
      */
     public JSONObject getAppVersion() {
-        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appConfigTable, this.appConfigFields, new Conditional[]{
                 Conditional.createEqualTo("item", "AppVersion")
         });
         if (result.isEmpty()) {
@@ -1148,7 +1148,7 @@ public class AIGCStorage implements Storagable {
      * @return 令牌；无匹配返回 {@code null} 。
      */
     public String readTokenByInvitation(String invitation) {
-        List<StorageField[]> result = this.storage.executeQuery(this.appInvitationTable, new StorageField[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appInvitationTable, new StorageField[]{
                 new StorageField("token", LiteralBase.STRING)
         }, new Conditional[]{
                 Conditional.createEqualTo("invitation", invitation)
@@ -1185,7 +1185,7 @@ public class AIGCStorage implements Storagable {
                                         long startTimestamp, long endTimestamp) {
         List<AppEvent> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.appEventTable, this.appEventFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appEventTable, this.appEventFields,
                 new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
@@ -1223,7 +1223,7 @@ public class AIGCStorage implements Storagable {
      */
     public List<AppEvent> readAppEvents(long contactId, String eventName, int limit) {
         List<AppEvent> list = new ArrayList<>();
-        List<StorageField[]> result = this.storage.executeQuery(this.appEventTable, this.appEventFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appEventTable, this.appEventFields,
                 new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
@@ -1273,7 +1273,7 @@ public class AIGCStorage implements Storagable {
     public List<AIGCChatHistory> readHistoriesByContactId(long contactId, String domain, long startTime, long endTime) {
         List<AIGCChatHistory> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.queryAnswerTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.queryAnswerTable,
                 this.queryAnswerFields, new Conditional[]{
                         Conditional.createEqualTo("query_cid", contactId),
                         Conditional.createAnd(),
@@ -1366,7 +1366,7 @@ public class AIGCStorage implements Storagable {
     public List<AIGCChatHistory> readHistoriesByFeedback(int feedback, String domain, long startTime, long endTime) {
         List<AIGCChatHistory> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.queryAnswerTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.queryAnswerTable,
                 this.queryAnswerFields, new Conditional[]{
                         Conditional.createEqualTo("feedback", feedback),
                         Conditional.createAnd(),
@@ -1458,7 +1458,7 @@ public class AIGCStorage implements Storagable {
     public List<AIGCChatHistory> readHistoriesByChannel(String channelCode, long startTime, long endTime) {
         List<AIGCChatHistory> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.queryAnswerTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.queryAnswerTable,
                 this.queryAnswerFields, new Conditional[]{
                         Conditional.createEqualTo("channel", channelCode),
                         Conditional.createAnd(),
@@ -1603,7 +1603,7 @@ public class AIGCStorage implements Storagable {
     public List<Notification> readEnabledNotifications() {
         List<Notification> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.appNotificationTable, this.appNotificationFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appNotificationTable, this.appNotificationFields,
                 new Conditional[]{
                         Conditional.createEqualTo("state", Notification.STATE_ENABLED)
                 });
@@ -1645,7 +1645,7 @@ public class AIGCStorage implements Storagable {
      * @return 侧写；不存在返回 {@code null} 。
      */
     public KnowledgeProfile readKnowledgeProfile(long contactId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeProfileTable, this.knowledgeProfileFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeProfileTable, this.knowledgeProfileFields,
                 new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId)
                 });
@@ -1674,7 +1674,7 @@ public class AIGCStorage implements Storagable {
      */
     public KnowledgeProfile updateKnowledgeProfile(long contactId, String domain, int state, long maxSize,
                                                    KnowledgeScope scope) {
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeProfileTable, this.knowledgeProfileFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeProfileTable, this.knowledgeProfileFields,
                 new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId)
                 });
@@ -1713,7 +1713,7 @@ public class AIGCStorage implements Storagable {
     public List<KnowledgeBaseInfo> readKnowledgeBaseInfo(long contactId) {
         List<KnowledgeBaseInfo> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeFrameTable, this.knowledgeFrameFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeFrameTable, this.knowledgeFrameFields,
                 new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId)
                 });
@@ -1738,7 +1738,7 @@ public class AIGCStorage implements Storagable {
      * @return 概要；不存在返回 {@code null} 。
      */
     public KnowledgeBaseInfo readKnowledgeBaseInfo(long contactId, String baseName) {
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeFrameTable, this.knowledgeFrameFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeFrameTable, this.knowledgeFrameFields,
                 new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
@@ -1800,7 +1800,7 @@ public class AIGCStorage implements Storagable {
     public List<KnowledgeBaseInfo> readKnowledgeBaseInfoByCategory(long contactId, String category) {
         List<KnowledgeBaseInfo> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeFrameTable, this.knowledgeFrameFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeFrameTable, this.knowledgeFrameFields,
                 new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
@@ -1826,7 +1826,7 @@ public class AIGCStorage implements Storagable {
      * @return 写入成功返回 {@code true} 。
      */
     public boolean writeKnowledgeBaseInfo(KnowledgeBaseInfo info) {
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeFrameTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeFrameTable,
                 this.knowledgeFrameFields, new Conditional[]{
                         Conditional.createEqualTo("contact_id", info.contactId),
                         Conditional.createAnd(),
@@ -1867,7 +1867,7 @@ public class AIGCStorage implements Storagable {
     public List<KnowledgeDocument> readKnowledgeDocList(String domain, String baseName) {
         List<KnowledgeDocument> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, this.knowledgeDocFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeDocTable, this.knowledgeDocFields,
                 new Conditional[]{
                         Conditional.createEqualTo("domain", domain),
                         Conditional.createAnd(),
@@ -1898,7 +1898,7 @@ public class AIGCStorage implements Storagable {
     public List<KnowledgeDocument> readKnowledgeDocList(String domain, long contactId, String baseName) {
         List<KnowledgeDocument> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, this.knowledgeDocFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeDocTable, this.knowledgeDocFields,
                 new Conditional[]{
                         Conditional.createEqualTo("domain", domain),
                         Conditional.createAnd(),
@@ -1928,7 +1928,7 @@ public class AIGCStorage implements Storagable {
      * @return 文档；不存在返回 {@code null} 。
      */
     public KnowledgeDocument readKnowledgeDoc(String baseName, String fileCode) {
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, this.knowledgeDocFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeDocTable, this.knowledgeDocFields,
                 new Conditional[]{
                         Conditional.createEqualTo("base", baseName),
                         Conditional.createAnd(),
@@ -1953,7 +1953,7 @@ public class AIGCStorage implements Storagable {
      * @param doc 文档对象。
      */
     public void writeKnowledgeDoc(KnowledgeDocument doc) {
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeDocTable, new StorageField[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeDocTable, new StorageField[]{
                 new StorageField("id", LiteralBase.LONG)
         }, new Conditional[]{
                 Conditional.createEqualTo("base", doc.baseName),
@@ -2034,7 +2034,7 @@ public class AIGCStorage implements Storagable {
         sql.delete(sql.length() - 1, sql.length());
         sql.append("'");
 
-        List<StorageField[]> result = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql.toString());
         if (result.isEmpty()) {
             return null;
         }
@@ -2059,7 +2059,7 @@ public class AIGCStorage implements Storagable {
      */
     public List<KnowledgeSegment> readKnowledgeSegments(long docId, int startIndex, int endIndex) {
         List<KnowledgeSegment> list = new ArrayList<>();
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeSegmentTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeSegmentTable,
                 this.knowledgeSegmentFields, new Conditional[]{
                         Conditional.createEqualTo("doc_id", docId),
                         Conditional.createLimit(startIndex, endIndex - startIndex + 1)
@@ -2083,7 +2083,7 @@ public class AIGCStorage implements Storagable {
     public int countKnowledgeSegments(long docId) {
         String sql = "SELECT COUNT(sn) FROM " + this.knowledgeSegmentTable +
                 " WHERE doc_id=" + docId;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         return result.get(0)[0].getInt();
     }
 
@@ -2211,7 +2211,7 @@ public class AIGCStorage implements Storagable {
      * @return 文章；不存在返回 {@code null} 。
      */
     public KnowledgeArticle readKnowledgeArticle(long articleId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeArticleTable, this.knowledgeArticleFields,
                 new Conditional[]{
                         Conditional.createEqualTo("id", articleId)
                 });
@@ -2242,7 +2242,7 @@ public class AIGCStorage implements Storagable {
     public List<KnowledgeArticle> readKnowledgeArticles(String domain, long contactId, String baseName) {
         List<KnowledgeArticle> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeArticleTable, this.knowledgeArticleFields,
                 new Conditional[]{
                         Conditional.createEqualTo("domain", domain),
                         Conditional.createAnd(),
@@ -2279,7 +2279,7 @@ public class AIGCStorage implements Storagable {
     public List<KnowledgeArticle> readKnowledgeArticlesByTitle(String domain, long contactId, String baseName, String title) {
         List<KnowledgeArticle> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeArticleTable, this.knowledgeArticleFields,
                 new Conditional[]{
                         Conditional.createEqualTo("domain", domain),
                         Conditional.createAnd(),
@@ -2325,7 +2325,7 @@ public class AIGCStorage implements Storagable {
         }
         conditionals.remove(conditionals.size() - 1);
 
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeArticleTable, this.knowledgeArticleFields,
                 conditionals.toArray(new Conditional[0]));
         for (StorageField[] fields : result) {
             Map<String, StorageField> data = StorageFields.get(fields);
@@ -2355,7 +2355,7 @@ public class AIGCStorage implements Storagable {
     public List<KnowledgeArticle> readKnowledgeArticles(String baseName, String category, long startTime, long endTime) {
         List<KnowledgeArticle> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeArticleTable, this.knowledgeArticleFields,
                 new Conditional[]{
                         Conditional.createEqualTo("base", baseName),
                         Conditional.createAnd(),
@@ -2394,7 +2394,7 @@ public class AIGCStorage implements Storagable {
     public List<KnowledgeArticle> readKnowledgeArticles(long contactId, String baseName, long startTime, long endTime) {
         List<KnowledgeArticle> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeArticleTable, this.knowledgeArticleFields,
                 new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
@@ -2431,7 +2431,7 @@ public class AIGCStorage implements Storagable {
      * @return 文章列表；无数据时为空列表。
      */
     public List<KnowledgeArticle> matchKnowledgeArticles(String domain, long contactId, String baseName, String keyword) {
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeArticleTable, this.knowledgeArticleFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeArticleTable, this.knowledgeArticleFields,
                 new Conditional[]{
                         Conditional.createEqualTo("domain", domain),
                         Conditional.createAnd(),
@@ -2484,7 +2484,7 @@ public class AIGCStorage implements Storagable {
         sql.append("SELECT DISTINCT `category` FROM `").append(this.knowledgeArticleTable);
         sql.append("` WHERE `contact_id`=").append(contactId);
 
-        List<StorageField[]> result = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql.toString());
         for (StorageField[] fields : result) {
             list.add(fields[0].getString());
         }
@@ -2516,7 +2516,7 @@ public class AIGCStorage implements Storagable {
         for (Conditional conditional : conditionals) {
             sql.append(" ").append(conditional.toString());
         }
-        List<StorageField[]> ids = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> ids = this.storage.executeQueryOrEmpty(sql.toString());
         for (StorageField[] data : ids) {
             result.add(data[0].getLong());
         }
@@ -2535,7 +2535,7 @@ public class AIGCStorage implements Storagable {
     public List<KnowledgeParaphrase> readKnowledgeParaphrases(String category) {
         List<KnowledgeParaphrase> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.knowledgeParaphraseTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.knowledgeParaphraseTable,
                 this.knowledgeParaphraseFields, new Conditional[]{
                         Conditional.createLike("category", category)
                 });
@@ -2597,7 +2597,7 @@ public class AIGCStorage implements Storagable {
         for (Conditional conditional : conditionals) {
             sql.append(" ").append(conditional.toString());
         }
-        List<StorageField[]> ids = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> ids = this.storage.executeQueryOrEmpty(sql.toString());
         for (StorageField[] data : ids) {
             result.add(data[0].getLong());
         }
@@ -2614,7 +2614,7 @@ public class AIGCStorage implements Storagable {
      * @return 图表；不存在返回 {@code null} 。
      */
     public Chart readLastChart(String name) {
-        List<StorageField[]> result = this.storage.executeQuery(this.chartTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.chartTable,
                 this.chartFields, new Conditional[]{
                         Conditional.createEqualTo("name", name),
                         Conditional.createOrderBy("timestamp", true),
@@ -2745,7 +2745,7 @@ public class AIGCStorage implements Storagable {
             conditionals.add(Conditional.createEqualTo("date", date));
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(this.chartAtomTable, this.chartAtomFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.chartAtomTable, this.chartAtomFields,
                 conditionals.toArray(new Conditional[0]));
 
         for (StorageField[] fields : result) {
@@ -2803,7 +2803,7 @@ public class AIGCStorage implements Storagable {
             conditionals.add(Conditional.createBracket(timeConditionals.toArray(new Conditional[0])));
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(this.chartAtomTable, this.chartAtomFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.chartAtomTable, this.chartAtomFields,
                 conditionals.toArray(new Conditional[0]));
         if (result.isEmpty()) {
             return atoms;
@@ -2861,7 +2861,7 @@ public class AIGCStorage implements Storagable {
 
         conditionals.add(Conditional.createLimit(2));
 
-        List<StorageField[]> result = this.storage.executeQuery(this.chartAtomTable, this.chartAtomFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.chartAtomTable, this.chartAtomFields,
                 conditionals.toArray(new Conditional[0]));
         return !result.isEmpty();
     }
@@ -2885,7 +2885,7 @@ public class AIGCStorage implements Storagable {
     public List<PromptRecord> readPrompts(long contactId) {
         List<PromptRecord> promptRecords = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(new String[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(new String[]{
                 this.promptWordTable, this.promptWordScopeTable
         }, new StorageField[]{
                 new StorageField(this.promptWordTable, "id", LiteralBase.LONG),
@@ -2924,7 +2924,7 @@ public class AIGCStorage implements Storagable {
      * @return 提示词；不存在返回 {@code null} 。
      */
     public PromptRecord readPrompt(String title) {
-        List<StorageField[]> result = this.storage.executeQuery(this.promptWordTable, this.promptWordFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.promptWordTable, this.promptWordFields,
                 new Conditional[]{
                         Conditional.createEqualTo("title", title)
                 });
@@ -2949,7 +2949,7 @@ public class AIGCStorage implements Storagable {
      * @return 写入成功返回 {@code true} 。
      */
     public boolean writePrompt(PromptRecord promptRecord, long contactId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.promptWordTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.promptWordTable,
                 this.promptWordFields, new Conditional[]{
                         Conditional.createEqualTo("id", promptRecord.id)
                 });
@@ -2972,7 +2972,7 @@ public class AIGCStorage implements Storagable {
             });
         }
 
-        result = this.storage.executeQuery(this.promptWordScopeTable, this.promptWordScopeFields,
+        result = this.storage.executeQueryOrEmpty(this.promptWordScopeTable, this.promptWordScopeFields,
                 new Conditional[]{
                         Conditional.createEqualTo("prompt_id", promptRecord.id),
                         Conditional.createAnd(),
@@ -3022,7 +3022,7 @@ public class AIGCStorage implements Storagable {
 
         for (long contactId : contactIds) {
             for (long id : idList) {
-                List<StorageField[]> result = this.storage.executeQuery(this.promptWordScopeTable,
+                List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.promptWordScopeTable,
                         this.promptWordScopeFields,
                         new Conditional[]{
                                 Conditional.createEqualTo("prompt_id", id),
@@ -3068,7 +3068,7 @@ public class AIGCStorage implements Storagable {
     public int deletePrompt(long contactId, String title) {
         int count = 0;
 
-        List<StorageField[]> result = this.storage.executeQuery(new String[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(new String[]{
                 this.promptWordTable, this.promptWordScopeTable
         }, new StorageField[]{
                 new StorageField(this.promptWordTable, "id", LiteralBase.LONG),
@@ -3152,7 +3152,7 @@ public class AIGCStorage implements Storagable {
      * @return 用量；无记录返回 {@code null} 。
      */
     public Usage readUsage(long contactId, String model) {
-        List<StorageField[]> result = this.storage.executeQuery(this.usageTable, this.usageFields, new Conditional[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.usageTable, this.usageFields, new Conditional[]{
                 Conditional.createEqualTo("contact_id", contactId),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("model", model)
@@ -3174,7 +3174,7 @@ public class AIGCStorage implements Storagable {
      * @return 偏好；无记录返回 {@code null} 。
      */
     public ContactPreference readContactPreference(long contactId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.contactPreferenceTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.contactPreferenceTable,
                 this.contactPreferenceFields, new Conditional[]{
                         Conditional.createEqualTo("contact_id", contactId)
                 });
@@ -3221,7 +3221,7 @@ public class AIGCStorage implements Storagable {
      */
     public List<EmotionRecord> readEmotionRecords(long contactId) {
         List<EmotionRecord> list = new ArrayList<>();
-        List<StorageField[]> result = this.storage.executeQuery(this.emotionTable, this.emotionFields, new Conditional[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.emotionTable, this.emotionFields, new Conditional[]{
                 Conditional.createEqualTo("contact_id", contactId)
         });
         for (StorageField[] fields : result) {
@@ -3345,7 +3345,7 @@ public class AIGCStorage implements Storagable {
      * @return 分离结果；不存在返回 {@code null} 。
      */
     public VoiceDiarization readVoiceDiarization(String fileCode) {
-        List<StorageField[]> result = this.storage.executeQuery(this.voiceDiarizationTable, this.voiceDiarizationFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.voiceDiarizationTable, this.voiceDiarizationFields,
                 new Conditional[]{
                         Conditional.createEqualTo("file_code", fileCode),
                 });
@@ -3367,7 +3367,7 @@ public class AIGCStorage implements Storagable {
             voiceDiarization.suggestion = map.get("suggestion").getString();
         }
 
-        List<StorageField[]> trackResult = this.storage.executeQuery(this.voiceTrackTable, this.voiceTrackFields, new Conditional[]{
+        List<StorageField[]> trackResult = this.storage.executeQueryOrEmpty(this.voiceTrackTable, this.voiceTrackFields, new Conditional[]{
                 Conditional.createEqualTo("vid", voiceDiarization.getId())
         });
         for (StorageField[] trackFields : trackResult) {
@@ -3405,7 +3405,7 @@ public class AIGCStorage implements Storagable {
     public List<VoiceDiarization> readVoiceDiarizations(long contactId) {
         List<VoiceDiarization> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.voiceDiarizationTable, this.voiceDiarizationFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.voiceDiarizationTable, this.voiceDiarizationFields,
                 new Conditional[]{
                         Conditional.createEqualTo("cid", contactId),
                         Conditional.createOrderBy("timestamp", true)
@@ -3425,7 +3425,7 @@ public class AIGCStorage implements Storagable {
                 voiceDiarization.suggestion = map.get("suggestion").getString();
             }
 
-            List<StorageField[]> trackResult = this.storage.executeQuery(this.voiceTrackTable, this.voiceTrackFields, new Conditional[]{
+            List<StorageField[]> trackResult = this.storage.executeQueryOrEmpty(this.voiceTrackTable, this.voiceTrackFields, new Conditional[]{
                     Conditional.createEqualTo("vid", voiceDiarization.getId())
             });
             for (StorageField[] trackFields : trackResult) {
@@ -3464,7 +3464,7 @@ public class AIGCStorage implements Storagable {
      * @return 删除成功返回 {@code true} 。
      */
     public boolean deleteVoiceDiarization(String fileCode) {
-        List<StorageField[]> result = this.storage.executeQuery(this.voiceDiarizationTable, this.voiceDiarizationFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.voiceDiarizationTable, this.voiceDiarizationFields,
                 new Conditional[]{
                         Conditional.createEqualTo("file_code", fileCode)
                 });
@@ -3488,7 +3488,7 @@ public class AIGCStorage implements Storagable {
     }
 
     private VoiceIndicator readVoiceIndicator(long voiceId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.voiceIndicatorTable, this.voiceIndicatorFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.voiceIndicatorTable, this.voiceIndicatorFields,
                 new Conditional[]{
                         Conditional.createEqualTo("vid", voiceId)
                 });
@@ -3524,7 +3524,7 @@ public class AIGCStorage implements Storagable {
      * @return 文件码；无记录返回 {@code null} 。
      */
     public String readCounselingRecordingFileCode(String streamName) {
-        List<StorageField[]> result = this.storage.executeQuery(this.counselingRecordingTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.counselingRecordingTable,
                 new StorageField[]{
                         new StorageField("file_code", LiteralBase.STRING)
                 }, new Conditional[]{
@@ -3568,7 +3568,7 @@ public class AIGCStorage implements Storagable {
      * @return 录音 JSON ；无记录返回 {@code null} 。
      */
     public JSONObject readCounselingRecording(String streamName) {
-        List<StorageField[]> storageFields = this.storage.executeQuery(this.counselingRecordingTable,
+        List<StorageField[]> storageFields = this.storage.executeQueryOrEmpty(this.counselingRecordingTable,
                 this.counselingRecordingFields, new Conditional[]{
                         Conditional.createEqualTo("stream", streamName)
                 });
@@ -3600,7 +3600,7 @@ public class AIGCStorage implements Storagable {
                 "http://127.0.0.1:7010/aigc/chat/", parameter);
 
         // 重置列表
-        List<StorageField[]> result = this.storage.executeQuery(this.appConfigTable, new StorageField[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appConfigTable, new StorageField[]{
                 new StorageField("value", LiteralBase.STRING)
         }, new Conditional[]{
                 Conditional.createEqualTo("item", ITEM_NAME_MODELS)
@@ -3623,7 +3623,7 @@ public class AIGCStorage implements Storagable {
         // 字段 value 为模型配置的 JSON string
 
         // Baize
-        result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[]{
+        result = this.storage.executeQueryOrEmpty(this.appConfigTable, this.appConfigFields, new Conditional[]{
                 Conditional.createEqualTo("item", baize.getName())
         });
         if (!result.isEmpty()) {
@@ -3639,7 +3639,7 @@ public class AIGCStorage implements Storagable {
         });
 
         // Baize2
-        result = this.storage.executeQuery(this.appConfigTable, this.appConfigFields, new Conditional[]{
+        result = this.storage.executeQueryOrEmpty(this.appConfigTable, this.appConfigFields, new Conditional[]{
                 Conditional.createEqualTo("item", baize2.getName())
         });
         if (!result.isEmpty()) {
@@ -3676,7 +3676,7 @@ public class AIGCStorage implements Storagable {
      * @return 查询失败时返回 {@code null}。
      */
     public String getSkillSignature() {
-        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(*) AS `c`, COALESCE(MAX(`modified`), 0)"
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty("SELECT COUNT(*) AS `c`, COALESCE(MAX(`modified`), 0)"
                 + " AS `m` FROM `" + this.skillTable + "`");
         if (result.isEmpty()) {
             return null;
@@ -3700,7 +3700,7 @@ public class AIGCStorage implements Storagable {
     public List<SkillMeta> readSkills() {
         List<SkillMeta> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.skillTable, this.skillFields);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.skillTable, this.skillFields);
         for (StorageField[] fields : result) {
             SkillMeta skill = parseSkillFields(StorageFields.get(fields));
             if (null != skill) {
@@ -3723,7 +3723,7 @@ public class AIGCStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(this.skillTable, this.skillFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.skillTable, this.skillFields,
                 new Conditional[]{
                         Conditional.createEqualTo("name", key)
                 });
@@ -3754,7 +3754,7 @@ public class AIGCStorage implements Storagable {
 
         long now = System.currentTimeMillis();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.skillTable, new StorageField[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.skillTable, new StorageField[]{
                 new StorageField("id", LiteralBase.LONG)
         }, new Conditional[]{
                 Conditional.createEqualTo("name", name)
@@ -3862,7 +3862,7 @@ public class AIGCStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(this.skillSessionTable, this.skillSessionFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.skillSessionTable, this.skillSessionFields,
                 new Conditional[]{
                         Conditional.createEqualTo("channel", channelCode)
                 });
@@ -3896,7 +3896,7 @@ public class AIGCStorage implements Storagable {
                 new StorageField("updated", session.updated)
         };
 
-        List<StorageField[]> result = this.storage.executeQuery(this.skillSessionTable, new StorageField[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.skillSessionTable, new StorageField[]{
                 new StorageField("id", LiteralBase.LONG)
         }, new Conditional[]{
                 Conditional.createEqualTo("channel", session.channelCode)

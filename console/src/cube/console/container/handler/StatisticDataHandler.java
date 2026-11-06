@@ -9,6 +9,9 @@ package cube.console.container.handler;
 import cube.console.Console;
 import cube.console.Utils;
 import cube.console.container.Handlers;
+import cube.console.mgmt.StatisticDataManager;
+import cube.console.mgmt.UnitAccessGuard;
+import cube.console.mgmt.UnitOverviewOutcome;
 import cube.util.CrossDomainHandler;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.handler.ContextHandler;
@@ -118,6 +121,26 @@ public class StatisticDataHandler extends ContextHandler {
                     return;
                 }
 
+                StatisticDataManager manager = console.getStatisticDataManager();
+                UnitAccessGuard guard = manager.getUnitGuard();
+
+                // 限流先于鉴权：匿名请求也能被挡住，且限流不碰数据库
+                String token = Handlers.getToken(request);
+                String clientId = request.getRemoteAddr();
+                if (!guard.allow(token, clientId)) {
+                    response.setHeader("Retry-After", String.valueOf(guard.retryAfterSeconds(token, clientId)));
+                    respond(response, HttpStatus.TOO_MANY_REQUESTS_429);
+                    return;
+                }
+
+                // 鉴权：无 Cookie 时直接拒绝，不查库（避免用任意 Cookie 探测库）
+                if (guard.isRequireAuth()) {
+                    if (null == token || !Handlers.checkCookie(request, console)) {
+                        respond(response, HttpStatus.UNAUTHORIZED_401);
+                        return;
+                    }
+                }
+
                 Calendar calendar = Calendar.getInstance();
                 calendar.add(Calendar.DAY_OF_YEAR, -1);
                 calendar.set(Calendar.HOUR_OF_DAY, 0);
@@ -127,23 +150,51 @@ public class StatisticDataHandler extends ContextHandler {
 
                 // 缺省统计昨日，也支持按指定日期查询（与 /statistic/daily 对齐）
                 if (params.containsKey("year") && params.containsKey("month")
-                        && params.containsKey("date")) {
+                    && params.containsKey("date")) {
                     calendar.set(Calendar.YEAR, Integer.parseInt(params.get("year")));
                     calendar.set(Calendar.MONTH, Integer.parseInt(params.get("month")) - 1);
                     calendar.set(Calendar.DAY_OF_MONTH, Integer.parseInt(params.get("date")));
                 }
 
-                JSONObject data = console.queryUnitOverview(domain, calendar);
-                if (null == data) {
+                UnitOverviewOutcome outcome = console.queryUnitOverviewOutcome(domain.trim(), calendar);
+                if (outcome.rejected) {
+                    // 回源被并发闸或配额拒绝：让客户端稍后重试
+                    response.setHeader("Retry-After", "5");
+                    respond(response, HttpStatus.TOO_MANY_REQUESTS_429);
+                    return;
+                }
+                if (outcome.failed || outcome.tooLarge) {
+                    // 统计库不可用，或该域单元数超出可承载上限：都不是客户端能靠重试解决的
+                    respond(response, HttpStatus.SERVICE_UNAVAILABLE_503);
+                    return;
+                }
+                if (null == outcome.data) {
                     respond(response, HttpStatus.NOT_FOUND_404);
                     return;
                 }
 
+                JSONObject data = outcome.data;
                 data.put("tag", console.getTag());
                 // 能力来自节点上报，给出最近一次收到上报的时间，便于前端说明数据新鲜度
                 data.put("unitReportTime", console.getUnitReportTimestamp());
+                // 数据来源：FRESH 为实时计算，STALE 为过期快照兜底
+                data.put("cacheState", outcome.cacheState());
 
                 respondOk(response, data);
+            } else if (target.equals("/units/meta")) {
+                // 单元概览接口的缓存与限流指标
+                if (!Handlers.checkCookie(request, console)) {
+                    respond(response, HttpStatus.UNAUTHORIZED_401);
+                    return;
+                }
+
+                StatisticDataManager manager = console.getStatisticDataManager();
+                JSONObject meta = new JSONObject();
+                meta.put("cache", manager.getUnitCache().metrics());
+                meta.put("guard", manager.getUnitGuard().metrics());
+                // 汇总路径的命中与回落：判断降载是否真的生效要看这两个数
+                meta.put("summary", manager.getUnitSummaryMetrics());
+                respondOk(response, meta);
             } else if (target.equals("/recent")) {
                 String query = URLDecoder.decode(request.getQueryString(), "UTF-8");
                 Map<String, String> params = Utils.parseQueryStringParams(query);

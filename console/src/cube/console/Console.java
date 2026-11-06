@@ -475,11 +475,17 @@ public final class Console implements Runnable {
         return this.statisticDataManager;
     }
 
-    /** 台账能力与在线实体从同一批有效上报中汇总，历史活动由统计库提供。 */
-    public JSONObject queryUnitOverview(String domain, Calendar calendar) {
+    /**
+     * 台账能力与在线实体从同一批有效上报中汇总，历史活动由统计库提供，并返回缓存命中情况。
+     *
+     * @param domain 指定域。
+     * @param calendar 统计日期。
+     * @return 查询结果。
+     */
+    public UnitOverviewOutcome queryUnitOverviewOutcome(String domain, Calendar calendar) {
         Set<Long> onlineUnitIds = new HashSet<>();
         Map<Long, List<JSONObject>> capabilities = this.queryUnitCapabilities(domain, onlineUnitIds);
-        return this.statisticDataManager.queryUnitOverview(domain, calendar, capabilities, onlineUnitIds);
+        return this.statisticDataManager.queryUnitOverviewOutcome(domain, calendar, capabilities, onlineUnitIds);
     }
 
     public void appendUnitReport(UnitReport report) {

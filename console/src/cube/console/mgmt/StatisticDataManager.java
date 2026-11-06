@@ -10,11 +10,13 @@ import cell.util.log.Logger;
 import cube.console.storage.DataStorage;
 import cube.console.tool.DeployTool;
 import cube.util.ConfigUtils;
+import cube.util.UnitDayRecord;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.*;
 
 /**
@@ -70,6 +72,41 @@ public class StatisticDataManager {
     private DataStorage storage;
     private AIUsageManager aiUsage = new AIUsageManager(new JSONArray());
 
+    /**
+     * 单元台账缓存：只缓存数据库派生部分。
+     */
+    private UnitOverviewCache unitCache;
+
+    /**
+     * 单元概览接口的访问守卫。
+     */
+    private UnitAccessGuard unitGuard;
+
+    /**
+     * 单域可承载的单元数上限；不大于 0 表示不限。
+     */
+    private int maxUnitContacts;
+
+    /**
+     * 单元日汇总的命中次数。
+     */
+    private final AtomicLong summaryHits = new AtomicLong();
+
+    /**
+     * 单元日汇总的回落次数。
+     */
+    private final AtomicLong summaryFallbacks = new AtomicLong();
+
+    /**
+     * 因「该日尚未采集」而回落的次数：属于正常状态。
+     */
+    private final AtomicLong summaryFallbackNotCollected = new AtomicLong();
+
+    /**
+     * 因「汇总有问题」而回落的次数：需要人工介入。
+     */
+    private final AtomicLong summaryFallbackAbnormal = new AtomicLong();
+
     public JSONObject queryAIUsage(String operation, Map<String, String> params, User user) {
         AIUsageManager.Filter filter = new AIUsageManager.Filter(params, user);
         JSONObject data = aiUsage.query(operation, filter);
@@ -86,6 +123,10 @@ public class StatisticDataManager {
     }
 
     public StatisticDataManager() {
+        // 未装配配置前保持宽松：不做缓存、不要求鉴权，行为与引入缓存前一致
+        this.unitCache = new UnitOverviewCache(0L, 0L, 32, 50000, 4, 300, 10000L);
+        this.unitGuard = new UnitAccessGuard(false, 60, 60, 600, 600);
+        this.maxUnitContacts = 0;
     }
 
     public void start() {
@@ -103,9 +144,111 @@ public class StatisticDataManager {
             this.aiUsage = new AIUsageManager(properties);
             this.storage = new DataStorage(properties);
             this.storage.open();
+            this.configureUnitAccess(properties);
         } catch (IOException e) {
             Logger.w(this.getClass(), "#start", e);
         }
+    }
+
+    /**
+     * 按配置装配单元概览的缓存与访问守卫。
+     *
+     * @param properties 控制台配置。
+     */
+    private void configureUnitAccess(Properties properties) {
+        this.unitCache = new UnitOverviewCache(
+                longValue(properties, "statistic.units.cache.ttl", 120000L),
+                longValue(properties, "statistic.units.cache.stale", 600000L),
+                intValue(properties, "statistic.units.cache.max.entries", 32),
+                intValue(properties, "statistic.units.cache.max.units", 50000),
+                intValue(properties, "statistic.units.concurrent.permits", 4),
+                intValue(properties, "statistic.units.rate.global.per.minute", 300),
+                longValue(properties, "statistic.units.cache.merge.timeout", 10000L));
+
+        this.unitGuard = new UnitAccessGuard(
+                booleanValue(properties, "statistic.units.require.auth", true),
+                intValue(properties, "statistic.units.rate.user.per.minute", 12),
+                intValue(properties, "statistic.units.rate.user.burst", 12),
+                intValue(properties, "statistic.units.rate.ip.per.minute", 60),
+                intValue(properties, "statistic.units.rate.ip.burst", 60));
+
+        this.maxUnitContacts = intValue(properties, "statistic.units.max.contacts", 50000);
+    }
+
+    /**
+     * 读取整型配置项。
+     *
+     * @param properties 配置。
+     * @param key        键名。
+     * @param fallback   缺省值。
+     * @return 配置值。
+     */
+    private static int intValue(Properties properties, String key, int fallback) {
+        String value = properties.getProperty(key);
+        if (null == value || value.trim().isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            Logger.w(StatisticDataManager.class, "#intValue - Invalid value of " + key + ": " + value);
+            return fallback;
+        }
+    }
+
+    /**
+     * 读取长整型配置项。
+     *
+     * @param properties 配置。
+     * @param key        键名。
+     * @param fallback   缺省值。
+     * @return 配置值。
+     */
+    private static long longValue(Properties properties, String key, long fallback) {
+        String value = properties.getProperty(key);
+        if (null == value || value.trim().isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Long.parseLong(value.trim());
+        } catch (NumberFormatException e) {
+            Logger.w(StatisticDataManager.class, "#longValue - Invalid value of " + key + ": " + value);
+            return fallback;
+        }
+    }
+
+    /**
+     * 读取布尔配置项。
+     *
+     * @param properties 配置。
+     * @param key        键名。
+     * @param fallback   缺省值。
+     * @return 配置值。
+     */
+    private static boolean booleanValue(Properties properties, String key, boolean fallback) {
+        String value = properties.getProperty(key);
+        if (null == value || value.trim().isEmpty()) {
+            return fallback;
+        }
+        return Boolean.parseBoolean(value.trim());
+    }
+
+    /**
+     * 取得单元概览接口的访问守卫。
+     *
+     * @return 访问守卫。
+     */
+    public UnitAccessGuard getUnitGuard() {
+        return this.unitGuard;
+    }
+
+    /**
+     * 取得单元台账缓存。
+     *
+     * @return 台账缓存。
+     */
+    public UnitOverviewCache getUnitCache() {
+        return this.unitCache;
     }
 
     public void stop() {
@@ -276,30 +419,61 @@ public class StatisticDataManager {
         return this.storage.queryAllDomains();
     }
 
-    public JSONObject queryUnitOverview(String domain, Calendar calendar) {
-        return this.queryUnitOverview(domain, calendar, Collections.<Long, List<JSONObject>>emptyMap());
+    /**
+     * 查询单元概览，并返回缓存命中情况。
+     * <p>
+     * 结果由两部分拼成：台账统计（来自统计库，可缓存）与实时状态（来自节点上报，不缓存）。
+     * 只有前者进入缓存，因此缓存命中不会让刚上报的实体停留在离线态。
+     *
+     * @param domain 指定域。
+     * @param calendar 统计日期。
+     * @param capabilityMap 按物理实体归并的能力。
+     * @param onlineUnitIds 有效上报中仍有连接的物理实体 ID。
+     * @return 查询结果；数据不可用时 {@link UnitOverviewOutcome#data} 为 {@code null} 。
+     */
+    public UnitOverviewOutcome queryUnitOverviewOutcome(String domain, Calendar calendar,
+                                                         Map<Long, List<JSONObject>> capabilityMap,
+                                                         Set<Long> onlineUnitIds) {
+        if (null == this.storage) {
+            return UnitOverviewOutcome.notReady();
+        }
+
+        String key = this.unitCacheKey(domain, calendar);
+        final boolean[] overflow = new boolean[1];
+        UnitOverviewCache.Result result = this.unitCache.get(key, new UnitOverviewCache.Loader() {
+            @Override
+            public UnitLedger load() {
+                return StatisticDataManager.this.queryUnitLedger(domain, calendar, overflow);
+            }
+        });
+
+        // 单元数超限优先判定：即便还有旧快照可用，也必须让调用方知道当前域已超出承载上限
+        if (overflow[0]) {
+            return UnitOverviewOutcome.tooLarge();
+        }
+
+        if (null == result.ledger) {
+            return result.failed ? UnitOverviewOutcome.failed() : UnitOverviewOutcome.rejected();
+        }
+
+        JSONObject data = this.composeUnitOverview(domain, result.ledger, capabilityMap, onlineUnitIds);
+        return UnitOverviewOutcome.ready(data, result.stale, result.merged);
     }
 
     /**
-     * 查询指定域的 AIGC 工作单元概览。
-     * <p>
-     * 工作单元是 ID 十进制位数大于等于 6 且小于 8 位的联系人（例如 <code>Unit-531001</code>），
-     * 位数小于 6 位的联系人不是统计对象；「联系人概览」只统计 ID 位数大于等于 8 位的联系人。
+     * 构造单元概览的缓存键：域与统计日期。
      *
-     * <p>台账的一行是一个 Contact 物理实体：实体的基础信息与活动统计来自统计库，而实体承载的
-     * 能力（{@code AICapability}）只存在于节点内存，由节点周期上报后经
-     * {@code Console#queryUnitCapabilities} 归并传入——同一个物理实体上可以注册多个 AIGC 单元，
-     * 因此这里挂到行上的是一个能力数组。</p>
-     * <p>此重载没有连接上报，不能确认任何实体在线；实时台账应同时传入在线实体 ID 集合。</p>
-     *
-     * @param domain        指定域。
-     * @param calendar      统计日期，按该日 00:00 ~ 24:00 统计日活动。
-     * @param capabilityMap Key 为物理实体 ID 、Value 为该实体承载的能力列表，由节点上报汇总得到。
-     * @return 返回单元概览数据。
+     * @param domain   指定域。
+     * @param calendar 统计日期。
+     * @return 缓存键。
      */
-    public JSONObject queryUnitOverview(String domain, Calendar calendar,
-                                        Map<Long, List<JSONObject>> capabilityMap) {
-        return this.queryUnitOverview(domain, calendar, capabilityMap, Collections.<Long>emptySet());
+    public String unitCacheKey(String domain, Calendar calendar) {
+        Calendar day = (Calendar) calendar.clone();
+        day.set(Calendar.HOUR_OF_DAY, 0);
+        day.set(Calendar.MINUTE, 0);
+        day.set(Calendar.SECOND, 0);
+        day.set(Calendar.MILLISECOND, 0);
+        return domain + "|" + toYmd(day);
     }
 
     /**
@@ -313,6 +487,253 @@ public class StatisticDataManager {
      */
     public JSONObject queryUnitOverview(String domain, Calendar calendar,
                                         Map<Long, List<JSONObject>> capabilityMap, Set<Long> onlineUnitIds) {
+        UnitOverviewOutcome outcome = this.queryUnitOverviewOutcome(domain, calendar, capabilityMap, onlineUnitIds);
+        return outcome.data;
+    }
+
+    /**
+     * 查询单元在回溯窗口内的最近活动时间与活跃天数。
+     *
+     * <p>正常路径把聚合下推到数据库：窗口内的事件条数远大于单元条数，聚合后回源的数据量降一个数量级。
+     * 天分桶使用 JVM 本地时区的偏移，而不是数据库服务器时区 —— 两者未必一致，用服务器时区分日
+     * 会与日历口径产生偏差。</p>
+     *
+     * <p>当本地时区在窗口内发生过切换（夏令时或行政改期），固定偏移的天分桶不再等价于本地日历，
+     * 此时退回按事件逐条归集，保证口径不变。</p>
+     *
+     * @param domain    指定域。
+     * @param beginning 起始时间戳（含）。
+     * @param ending    结束时间戳（不含）。
+     * @return 单元 ID 到活跃情况的映射。
+     */
+    private Map<Long, DataStorage.UnitTrail> queryUnitTrail(String domain, long beginning, long ending) {
+        Map<Long, DataStorage.UnitTrail> result = new HashMap<>();
+
+        TimeZone zone = TimeZone.getDefault();
+        long offset = zone.getOffset(beginning);
+
+        if (hasZoneShift(zone, beginning, ending)) {
+            // 时区在窗口内切换：逐条归集，保持与本地日历一致
+            List<DataStorage.ContactEvent> events = this.storage.queryContactEvents(domain, beginning, ending, true);
+            if (null == events) {
+                // 查询失败：与「窗口内没有活动」不同，不能当成空结果
+                return null;
+            }
+
+            Map<Long, Long> lastActiveMap = new HashMap<>();
+            Map<Long, Set<Integer>> activeDayMap = new HashMap<>();
+            for (DataStorage.ContactEvent event : events) {
+                Long last = lastActiveMap.get(event.contactId);
+                if (null == last || event.time > last) {
+                    lastActiveMap.put(event.contactId, event.time);
+                }
+
+                Set<Integer> days = activeDayMap.get(event.contactId);
+                if (null == days) {
+                    days = new HashSet<Integer>();
+                    activeDayMap.put(event.contactId, days);
+                }
+                Calendar cal = Calendar.getInstance();
+                cal.setTimeInMillis(event.time);
+                days.add(cal.get(Calendar.DAY_OF_YEAR));
+            }
+
+            for (Map.Entry<Long, Long> entry : lastActiveMap.entrySet()) {
+                Set<Integer> days = activeDayMap.get(entry.getKey());
+                result.put(entry.getKey(), new DataStorage.UnitTrail(entry.getKey(), entry.getValue(),
+                        (null == days) ? 0 : days.size()));
+            }
+            return result;
+        }
+
+        List<DataStorage.UnitTrail> trails = this.storage.queryUnitTrail(domain, beginning, ending, offset);
+        if (null == trails) {
+            // 查询失败：与「窗口内没有活动」不同，不能当成空结果
+            return null;
+        }
+
+        for (DataStorage.UnitTrail trail : trails) {
+            result.put(trail.contactId, trail);
+        }
+        return result;
+    }
+
+    /**
+     * 判断时区在给定窗口内是否发生过偏移切换。
+     *
+     * @param zone      时区。
+     * @param beginning 起始时间戳（含）。
+     * @param ending    结束时间戳（不含）。
+     * @return 发生过切换返回 {@code true} 。
+     */
+    private static boolean hasZoneShift(TimeZone zone, long beginning, long ending) {
+        long offset = zone.getOffset(beginning);
+        // 每 6 小时取样：真实时区的偏移变更都会持续数月，按天取样已足够，
+        // 这里加密取样是为了覆盖「变更幅度小于 1 天」的罕见时区
+        for (long time = beginning + 21600000L; time < ending; time += 21600000L) {
+            if (zone.getOffset(time) != offset) {
+                return true;
+            }
+        }
+        return zone.getOffset(ending - 1) != offset;
+    }
+
+    /**
+     * 读取统计日内各单元的活动统计。
+     *
+     * <p>优先读 service 侧采集的日汇总表：汇总可用时每次只回传「单元数」量级的数据，
+     * 不再全量扫描事件明细。汇总不可用时回落到明细路径，两条路径口径一致，
+     * 结果相同，差别只在数据来源与代价。</p>
+     *
+     * <p>汇总的可用性由 service 侧写入的标记行决定：该日已完整采集、汇总口径版本匹配、
+     * 日界口径一致，三者缺一即回落。日界口径比对的是采集时记录的日起始时间戳，
+     * 两端时区不同时会直接回落，不会静默给出按不同日界算出的结果。</p>
+     *
+     * @param domain    指定域。
+     * @param day       统计日的日历。
+     * @param beginning 统计日起始时间戳（含）。
+     * @param ending    统计日结束时间戳（不含）。
+     * @return 返回单元 ID 到当日活动统计的映射。
+     */
+    private Map<Long, DataStorage.UnitDayStat> queryUnitDayStats(String domain, Calendar day,
+                                                                 long beginning, long ending) {
+        int year = day.get(Calendar.YEAR);
+        int month = day.get(Calendar.MONTH) + 1;
+        int date = day.get(Calendar.DATE);
+
+        DataStorage.UnitDailySummary summary =
+                this.storage.queryUnitDailySummary(domain, year, month, date, beginning);
+        if (summary.available) {
+            this.summaryHits.incrementAndGet();
+            HashMap<Long, DataStorage.UnitDayStat> map = new HashMap<>();
+            for (UnitDayRecord record : summary.records) {
+                map.put(record.contactId, new DataStorage.UnitDayStat(record.eventCount,
+                        record.durationMillis, record.firstActive, record.hourMask));
+            }
+            return map;
+        }
+
+        // 汇总不可用：记录原因并回落到明细路径，按事件流现算。
+        // 回落原因必须可见：否则线上无法判断汇总路径是否真的在生效。
+        this.recordSummaryFallback(summary.reason, domain, year, month, date);
+
+        // 汇总不可用：回落到明细路径，按事件流现算
+        List<DataStorage.ContactEvent> dayEvents =
+                this.storage.queryContactEvents(domain, beginning, ending, true);
+        if (null == dayEvents) {
+            // 明细查询失败：不能当成「当天没有活动」，否则整份台账会失真
+            return null;
+        }
+
+        HashMap<Long, List<DataStorage.ContactEvent>> dayEventMap = new HashMap<>();
+        for (DataStorage.ContactEvent event : dayEvents) {
+            List<DataStorage.ContactEvent> list = dayEventMap.get(event.contactId);
+            if (null == list) {
+                list = new ArrayList<DataStorage.ContactEvent>();
+                dayEventMap.put(event.contactId, list);
+            }
+            list.add(event);
+        }
+
+        HashMap<Long, DataStorage.UnitDayStat> map = new HashMap<>();
+        for (Map.Entry<Long, List<DataStorage.ContactEvent>> entry : dayEventMap.entrySet()) {
+            List<DataStorage.ContactEvent> events = entry.getValue();
+            map.put(entry.getKey(), new DataStorage.UnitDayStat(events.size(),
+                    calcOnlineDuration(events, ending), events.get(0).time, hourMaskOf(events, beginning)));
+        }
+        return map;
+    }
+
+    /**
+     * 记录一次汇总回落。
+     *
+     * <p>不同原因的性质不同：「尚未采集」是正常状态（例如凌晨时段），
+     * 「版本不符」「日界不符」「数据不完整」则说明采集侧有问题，需要人工介入，
+     * 因此后者用 WARN 级别记录，前者用 DEBUG。</p>
+     *
+     * @param reason 回落原因。
+     * @param domain 域。
+     * @param year   统计日的年。
+     * @param month  统计日的月。
+     * @param date   统计日的日。
+     */
+    private void recordSummaryFallback(String reason, String domain, int year, int month, int date) {
+        this.summaryFallbacks.incrementAndGet();
+
+        if (DataStorage.UnitDailySummary.REASON_NOT_COLLECTED.equals(reason)
+                || DataStorage.UnitDailySummary.REASON_NO_DATA.equals(reason)) {
+            this.summaryFallbackNotCollected.incrementAndGet();
+            Logger.d(this.getClass(), "#queryUnitDayStats - Unit daily summary not collected yet for domain '"
+                    + domain + "' on " + year + "-" + month + "-" + date + ", falling back to detail path");
+            return;
+        }
+
+        this.summaryFallbackAbnormal.incrementAndGet();
+        Logger.w(this.getClass(), "#queryUnitDayStats - Unit daily summary unusable (" + reason
+                + ") for domain '" + domain + "' on " + year + "-" + month + "-" + date
+                + ", falling back to detail path");
+    }
+
+    /**
+     * 采集单元日汇总路径的指标。
+     *
+     * @return 指标快照。
+     */
+    public JSONObject getUnitSummaryMetrics() {
+        JSONObject json = new JSONObject();
+        json.put("hits", this.summaryHits.get());
+        json.put("fallbacks", this.summaryFallbacks.get());
+        json.put("fallbackNotCollected", this.summaryFallbackNotCollected.get());
+        json.put("fallbackAbnormal", this.summaryFallbackAbnormal.get());
+        long total = this.summaryHits.get() + this.summaryFallbacks.get();
+        json.put("hitRate", (total > 0L) ? ((double) this.summaryHits.get() / (double) total) : 0.0d);
+        return json;
+    }
+
+    /**
+     * 计算一批事件的活跃小时掩码。
+     *
+     * @param events    事件列表。
+     * @param beginning 统计日起始时间戳。
+     * @return 返回小时掩码：第 n 位为 1 表示该单元在第 n 小时有事件。
+     */
+    private static long hourMaskOf(List<DataStorage.ContactEvent> events, long beginning) {
+        long mask = 0L;
+        for (DataStorage.ContactEvent event : events) {
+            int slice = (int) ((event.time - beginning) / (60L * 60 * 1000L));
+            if (slice < 0) {
+                slice = 0;
+            } else if (slice > 23) {
+                slice = 23;
+            }
+            mask |= (1L << slice);
+        }
+        return mask;
+    }
+
+    /**
+     * 读取单元台账（数据库派生部分）。
+     * <p>
+     * 本方法只碰统计库，产出与节点上报无关的台账快照：实体基础信息、日内活动统计、
+     * 回溯窗口内的最近活动时间与活跃天数、逐小时活跃切片。快照可被缓存。
+     *
+     * @param domain 指定域。
+     * @param calendar 统计日期。
+     * @return 台账快照；统计库不可用时返回 {@code null} 。
+     */
+    public UnitLedger queryUnitLedger(String domain, Calendar calendar) {
+        return this.queryUnitLedger(domain, calendar, new boolean[1]);
+    }
+
+    /**
+     * 读取单元台账（数据库派生部分）。
+     *
+     * @param domain    指定域。
+     * @param calendar  统计日期。
+     * @param overflow  长度为 1 的标记数组：单元数超限时置为 {@code true} 。
+     * @return 台账快照；统计库不可用时返回 {@code null} 。
+     */
+    public UnitLedger queryUnitLedger(String domain, Calendar calendar, boolean[] overflow) {
         if (null == this.storage) {
             return null;
         }
@@ -327,186 +748,195 @@ public class StatisticDataManager {
         long ending = beginning + 24L * 60 * 60 * 1000L;
         long now = System.currentTimeMillis();
 
-        // 单元基础信息（ID 位数大于等于 6 且小于 8 位的联系人）
-        List<JSONObject> contacts = this.storage.queryUnitContacts(domain);
-
-        // 统计日内的事件
-        List<DataStorage.ContactEvent> dayEvents =
-                this.storage.queryContactEvents(domain, beginning, ending, true);
-        // 回溯窗口内的事件，用于计算最近活动时间与活跃天数
-        List<DataStorage.ContactEvent> trailEvents =
-                this.storage.queryContactEvents(domain, now - UNIT_TRAIL_WINDOW, now + 1000L, true);
-
-        // 按单元归集统计日事件
-        Map<Long, List<DataStorage.ContactEvent>> dayEventMap = new HashMap<>();
-        for (DataStorage.ContactEvent event : dayEvents) {
-            List<DataStorage.ContactEvent> list = dayEventMap.get(event.contactId);
-            if (null == list) {
-                list = new ArrayList<>();
-                dayEventMap.put(event.contactId, list);
-            }
-            list.add(event);
+        // 台账中的实体
+        List<JSONObject> contacts = this.storage.queryUnitContacts(domain, this.maxUnitContacts);
+        if (null == contacts) {
+            // 统计库不可用：返回 null 让缓存走降级路径，而不是把空台账当成真实结果
+            return null;
         }
 
-        // 回溯窗口内的最近活动时间与活跃天数
-        Map<Long, Long> lastActiveMap = new HashMap<>();
-        Map<Long, Set<Integer>> activeDayMap = new HashMap<>();
-        for (DataStorage.ContactEvent event : trailEvents) {
-            Long last = lastActiveMap.get(event.contactId);
-            if (null == last || event.time > last) {
-                lastActiveMap.put(event.contactId, event.time);
+        if (this.maxUnitContacts > 0 && contacts.size() > this.maxUnitContacts) {
+            // 单元数超限：宁可拒绝也不能静默截断，否则台账会少单元而无人察觉
+            if (null != overflow) {
+                overflow[0] = true;
             }
-
-            Set<Integer> days = activeDayMap.get(event.contactId);
-            if (null == days) {
-                days = new HashSet<>();
-                activeDayMap.put(event.contactId, days);
-            }
-            Calendar cal = Calendar.getInstance();
-            cal.setTimeInMillis(event.time);
-            days.add(cal.get(Calendar.DAY_OF_YEAR));
+            return null;
+        }
+        // 统计日的活动统计：优先读 service 采集的日汇总，缺汇总时回落到明细扫描
+        Map<Long, DataStorage.UnitDayStat> dayStatMap =
+                this.queryUnitDayStats(domain, day, beginning, ending);
+        if (null == dayStatMap) {
+            // 活动统计不可用：台账不完整，不能对外提供
+            return null;
+        }
+        // 回溯窗口内的最近活动时间与活跃天数（已下推到数据库聚合）
+        Map<Long, DataStorage.UnitTrail> trailMap =
+                this.queryUnitTrail(domain, now - UNIT_TRAIL_WINDOW, now + 1000L);
+        if (null == trailMap) {
+            // 回溯窗口不可用：台账不完整，不能对外提供
+            return null;
         }
 
-        // 统计日各小时活跃单元数
-        Map<Integer, Set<Long>> sliceMap = new HashMap<>();
-        for (DataStorage.ContactEvent event : dayEvents) {
-            int slice = (int) ((event.time - beginning) / (60L * 60 * 1000L));
-            Set<Long> units = sliceMap.get(slice);
-            if (null == units) {
-                units = new HashSet<>();
-                sliceMap.put(slice, units);
+        // 统计日各小时活跃单元数：由每个单元的活跃小时掩码汇总而来
+        int[] timeline = new int[24];
+        int peakSlice = -1;
+        int peakUnits = 0;
+        for (DataStorage.UnitDayStat stat : dayStatMap.values()) {
+            long mask = stat.hourMask;
+            for (int slice = 0; slice < 24; ++slice) {
+                if (((mask >> slice) & 1L) != 0L) {
+                    ++timeline[slice];
+                }
             }
-            units.add(event.contactId);
         }
-
-        JSONArray timeline = new JSONArray();
-        JSONObject peak = null;
         for (int i = 0; i < 24; ++i) {
-            Set<Long> units = sliceMap.get(i);
-            int num = (null == units) ? 0 : units.size();
-
-            JSONObject slice = new JSONObject();
-            slice.put("slice", i);
-            slice.put("beginning", beginning + i * 60L * 60 * 1000L);
-            slice.put("ending", beginning + (i + 1) * 60L * 60 * 1000L);
-            slice.put("numUnits", num);
-            timeline.put(slice);
-
-            if (num > 0 && (null == peak || num > peak.getInt("numUnits"))) {
-                peak = slice;
+            if (timeline[i] > 0 && timeline[i] > peakUnits) {
+                peakUnits = timeline[i];
+                peakSlice = i;
             }
         }
 
         // 逐单元汇总
-        JSONArray units = new JSONArray();
+        List<UnitLedger.Unit> units = new ArrayList<UnitLedger.Unit>();
         int activeCount = 0;
-        int onlineCount = 0;
-        int offlineCount = 0;
-        int inactiveCount = 0;
-        double totalDuration = 0;
-        int numActiveUnits = 0;
-
+        long totalDuration = 0L;
         for (JSONObject contact : contacts) {
             long id = contact.getLong("id");
 
-            List<DataStorage.ContactEvent> events = dayEventMap.get(id);
-            int numEvents = (null == events) ? 0 : events.size();
-            long durationMillis = (null == events) ? 0 : calcOnlineDuration(events, ending);
+            DataStorage.UnitDayStat stat = dayStatMap.get(id);
+            int numEvents = (null == stat) ? 0 : stat.eventCount;
+            long durationMillis = (null == stat) ? 0L : stat.durationMillis;
             if (numEvents > 0) {
-                ++numActiveUnits;
+                ++activeCount;
                 totalDuration += durationMillis;
             }
 
-            Long lastActive = lastActiveMap.get(id);
-            long lastActiveTime = (null == lastActive) ? 0 : lastActive;
+            DataStorage.UnitTrail trail = trailMap.get(id);
+            long lastActiveTime = (null == trail) ? 0L : trail.lastActiveTime;
+            int activeDays = (null == trail) ? 0 : trail.activeDays;
 
-            String state;
-            if (onlineUnitIds.contains(id)) {
-                state = UNIT_STATE_ONLINE;
-                ++onlineCount;
-            } else if (lastActiveTime > 0) {
-                state = UNIT_STATE_OFFLINE;
-                ++offlineCount;
-            } else {
-                state = UNIT_STATE_INACTIVE;
-                ++inactiveCount;
-            }
+            units.add(new UnitLedger.Unit(id, contact.getString("name"), contact.getString("device"),
+                    contact.getString("platform"), numEvents, durationMillis, lastActiveTime,
+                    (null == stat) ? 0L : stat.firstActive, activeDays));
+        }
 
-            if (numEvents > 0) {
-                ++activeCount;
-            }
+        units.sort(UnitOverviewCache.LEDGER_ORDER);
 
-            Set<Integer> days = activeDayMap.get(id);
+        return new UnitLedger(Collections.unmodifiableList(units), contacts.size(), activeCount,
+                totalDuration, timeline, peakSlice, beginning, ending);
+    }
+
+    /**
+     * 把台账快照与实时状态拼成响应数据。
+     * <p>
+     * 在线状态与承载能力来自节点上报，每次请求都实时叠加：在线实体排在最前，
+     * 其余按「最近活动时间倒序、ID 升序」排列，与台账快照的顺序一致。
+     *
+     * @param domain 指定域。
+     * @param ledger 台账快照。
+     * @param capabilityMap 按物理实体归并的能力。
+     * @param onlineUnitIds 有效上报中仍有连接的物理实体 ID。
+     * @return 响应数据。
+     */
+    public JSONObject composeUnitOverview(String domain, UnitLedger ledger,
+                                          Map<Long, List<JSONObject>> capabilityMap, Set<Long> onlineUnitIds) {
+        List<JSONObject> online = new ArrayList<JSONObject>();
+        List<JSONObject> offline = new ArrayList<JSONObject>();
+        List<JSONObject> inactive = new ArrayList<JSONObject>();
+
+        for (UnitLedger.Unit unit : ledger.units) {
+            JSONObject row = new JSONObject();
+            row.put("id", unit.id);
+            row.put("name", unit.name);
+            row.put("device", unit.device);
+            row.put("platform", unit.platform);
+            row.put("activeCount", unit.eventCount);
+            row.put("duration", round2(unit.durationMillis / (60.0 * 60.0 * 1000.0)));
+            row.put("lastActiveTime", unit.lastActiveTime);
+            row.put("firstActiveTime", unit.firstActiveTime);
+            row.put("activeDays", unit.activeDays);
 
             // 该物理实体当前承载的能力（一个实体可能有多个单元），节点未上报时为空数组
-            List<JSONObject> capabilities = capabilityMap.get(id);
+            List<JSONObject> capabilities = capabilityMap.get(unit.id);
             JSONArray capabilityArray = new JSONArray();
             if (null != capabilities) {
                 for (JSONObject capability : capabilities) {
                     capabilityArray.put(capability);
                 }
             }
+            row.put("capabilities", capabilityArray);
 
-            JSONObject unit = new JSONObject();
-            unit.put("id", id);
-            unit.put("name", contact.getString("name"));
-            unit.put("device", contact.getString("device"));
-            unit.put("platform", contact.getString("platform"));
-            unit.put("state", state);
-            unit.put("activeCount", numEvents);
-            unit.put("duration", round2(durationMillis / (60.0 * 60.0 * 1000.0)));
-            unit.put("lastActiveTime", lastActiveTime);
-            unit.put("firstActiveTime", (numEvents > 0) ? events.get(0).time : 0L);
-            unit.put("activeDays", (null == days) ? 0 : days.size());
-            unit.put("capabilities", capabilityArray);
-            units.put(unit);
+            if (onlineUnitIds.contains(unit.id)) {
+                row.put("state", UNIT_STATE_ONLINE);
+                online.add(row);
+            } else if (unit.lastActiveTime > 0) {
+                row.put("state", UNIT_STATE_OFFLINE);
+                offline.add(row);
+            } else {
+                row.put("state", UNIT_STATE_INACTIVE);
+                inactive.add(row);
+            }
         }
 
-        // 在线优先、最近活动时间降序、ID 升序
-        List<JSONObject> sorted = new ArrayList<>(units.length());
-        for (int i = 0; i < units.length(); ++i) {
-            sorted.add(units.getJSONObject(i));
-        }
-        sorted.sort((a, b) -> {
-            int sa = stateWeight(a.getString("state"));
-            int sb = stateWeight(b.getString("state"));
-            if (sa != sb) {
-                return sa - sb;
-            }
-            long la = a.getLong("lastActiveTime");
-            long lb = b.getLong("lastActiveTime");
-            if (la != lb) {
-                return (la > lb) ? -1 : 1;
-            }
-            long ia = a.getLong("id");
-            long ib = b.getLong("id");
-            return (ia < ib) ? -1 : ((ia == ib) ? 0 : 1);
-        });
-
+        // 在线优先，其余沿用台账快照的顺序（最近活动时间倒序、ID 升序）
         JSONArray sortedUnits = new JSONArray();
-        for (JSONObject unit : sorted) {
+        for (JSONObject unit : online) {
             sortedUnits.put(unit);
         }
+        for (JSONObject unit : offline) {
+            sortedUnits.put(unit);
+        }
+        for (JSONObject unit : inactive) {
+            sortedUnits.put(unit);
+        }
+
+        Calendar day = Calendar.getInstance();
+        day.setTimeInMillis(ledger.beginning);
+
+        JSONArray timeline = new JSONArray();
+        for (int i = 0; i < 24; ++i) {
+            timeline.put(this.unitTimeSlice(i, ledger.beginning, ledger.timelineUnits[i]));
+        }
+
+        JSONObject peak = (ledger.peakSlice < 0) ? null
+                : this.unitTimeSlice(ledger.peakSlice, ledger.beginning, ledger.timelineUnits[ledger.peakSlice]);
 
         JSONObject data = new JSONObject();
         data.put("domain", domain);
         data.put("year", day.get(Calendar.YEAR));
         data.put("month", day.get(Calendar.MONTH) + 1);
         data.put("date", day.get(Calendar.DATE));
-        data.put("beginning", beginning);
-        data.put("ending", ending);
-        data.put("total", contacts.size());
-        data.put("activeCount", activeCount);
-        data.put("onlineCount", onlineCount);
-        data.put("offlineCount", offlineCount);
-        data.put("inactiveCount", inactiveCount);
-        data.put("totalDuration", round2(totalDuration / (60.0 * 60.0 * 1000.0)));
-        data.put("avgDuration", (numActiveUnits > 0)
-                ? round2(totalDuration / (60.0 * 60.0 * 1000.0) / numActiveUnits) : 0.0);
+        data.put("beginning", ledger.beginning);
+        data.put("ending", ledger.ending);
+        data.put("total", ledger.total);
+        data.put("activeCount", ledger.activeCount);
+        data.put("onlineCount", online.size());
+        data.put("offlineCount", offline.size());
+        data.put("inactiveCount", inactive.size());
+        data.put("totalDuration", round2(ledger.totalDurationMillis / (60.0 * 60.0 * 1000.0)));
+        data.put("avgDuration", (ledger.activeCount > 0)
+                ? round2(ledger.totalDurationMillis / (60.0 * 60.0 * 1000.0) / ledger.activeCount) : 0.0);
         data.put("peak", (null == peak) ? JSONObject.NULL : peak);
         data.put("timeline", timeline);
         data.put("units", sortedUnits);
         return data;
+    }
+
+    /**
+     * 构造逐小时活跃切片。
+     *
+     * @param slice     小时序号。
+     * @param beginning 统计日起始时间戳。
+     * @param numUnits  该小时的活跃单元数。
+     * @return 切片数据。
+     */
+    private JSONObject unitTimeSlice(int slice, long beginning, int numUnits) {
+        JSONObject json = new JSONObject();
+        json.put("slice", slice);
+        json.put("beginning", beginning + slice * 60L * 60 * 1000L);
+        json.put("ending", beginning + (slice + 1) * 60L * 60 * 1000L);
+        json.put("numUnits", numUnits);
+        return json;
     }
 
     /**
@@ -556,19 +986,6 @@ public class StatisticDataManager {
         }
 
         return (duration < 0L) ? 0L : duration;
-    }
-
-    /**
-     * 工作状态排序权重，在线优先。
-     */
-    private static int stateWeight(String state) {
-        if (UNIT_STATE_ONLINE.equals(state)) {
-            return 0;
-        }
-        if (UNIT_STATE_OFFLINE.equals(state)) {
-            return 1;
-        }
-        return 2;
     }
 
     /**

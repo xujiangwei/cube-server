@@ -69,7 +69,7 @@ public class DispatcherStorage extends AbstractStorage {
     }
 
     public DispatcherServer readServer(String tag, String deployPath) {
-        List<StorageField[]> result = this.storage.executeQuery(this.dispatcherTable, this.dispatcherFields, new Conditional[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.dispatcherTable, this.dispatcherFields, new Conditional[]{
                 Conditional.createEqualTo("tag", LiteralBase.STRING, tag),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("deploy_path", LiteralBase.STRING, deployPath)
@@ -87,7 +87,7 @@ public class DispatcherStorage extends AbstractStorage {
     }
 
     public List<DispatcherServer> listServers() {
-        List<StorageField[]> list = this.storage.executeQuery(this.dispatcherTable, this.dispatcherFields);
+        List<StorageField[]> list = this.storage.executeQueryOrEmpty(this.dispatcherTable, this.dispatcherFields);
         if (list.isEmpty()) {
             return null;
         }

@@ -910,12 +910,12 @@ public class PsychologyStorage implements Storagable {
     }
 
     private void recheckReportManagementTable() {
-        List<StorageField[]> result = this.storage.executeQuery(this.reportTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.reportTable, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         });
         for (StorageField[] fields : result) {
             long sn = fields[0].getLong();
-            List<StorageField[]> mgmtResult = this.storage.executeQuery(this.paintingReportManagementTable,
+            List<StorageField[]> mgmtResult = this.storage.executeQueryOrEmpty(this.paintingReportManagementTable,
                     new StorageField[] { new StorageField("state", LiteralBase.INT) },
                     new Conditional[] { Conditional.createEqualTo("report_sn", sn) });
             if (mgmtResult.isEmpty()) {
@@ -930,13 +930,13 @@ public class PsychologyStorage implements Storagable {
     }
 
     public int countPsychologyReports(long contactId) {
-        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(*) FROM " + this.reportTable +
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty("SELECT COUNT(*) FROM " + this.reportTable +
                 " WHERE finished_timestamp<>0 AND `contact_id`=" + contactId);
         return result.get(0)[0].getInt();
     }
 
     public int countPsychologyReports(long contactId, int state) {
-        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(sn) FROM " + this.reportTable +
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty("SELECT COUNT(sn) FROM " + this.reportTable +
                 " WHERE `contact_id`=" + contactId +
                 " AND " +
                 "`state`=" + state +
@@ -952,12 +952,12 @@ public class PsychologyStorage implements Storagable {
                 " AND " + this.reportTable + ".sn=" + this.reportPermissionTable + ".report_sn" +
                 " AND " + this.reportPermissionTable + ".indicator_details=" + (permissible ? "1" : "0") +
                 " AND " + this.reportPermissionTable + ".personality_details=" + (permissible ? "1" : "0");
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         return result.get(0)[0].getInt();
     }
 
     public int countPsychologyReports(long contactId, int state, boolean permissible, long starTime, long endTime) {
-        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(*) FROM " + this.reportTable +
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty("SELECT COUNT(*) FROM " + this.reportTable +
                 ", " + this.reportPermissionTable +
                 " WHERE " + this.reportTable + ".contact_id=" + contactId +
                 " AND " + this.reportTable + ".timestamp>=" + starTime +
@@ -970,7 +970,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public PaintingReport readPsychologyReport(long sn) {
-        List<StorageField[]> result = this.storage.executeQuery(this.reportTable, this.reportFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.reportTable, this.reportFields,
                 new Conditional[] {
                         Conditional.createEqualTo("sn", sn)
                 });
@@ -985,7 +985,7 @@ public class PsychologyStorage implements Storagable {
     public List<PaintingReport> readPsychologyReportsByContact(long contactId, int state, int limit) {
         List<PaintingReport> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.reportTable, this.reportFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.reportTable, this.reportFields,
                 new Conditional[] {
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
@@ -1008,7 +1008,7 @@ public class PsychologyStorage implements Storagable {
     public List<PaintingReport> readPsychologyReports(long contactId, int pageIndex, int pageSize, boolean descending) {
         List<PaintingReport> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.reportTable, this.reportFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.reportTable, this.reportFields,
                 new Conditional[] {
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
@@ -1032,7 +1032,7 @@ public class PsychologyStorage implements Storagable {
     public List<PaintingReport> readPsychologyReports(long contactId, int pageIndex, int pageSize, boolean descending, int state) {
         List<PaintingReport> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(new String[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(new String[] {
                         this.reportTable,
                         this.paintingReportManagementTable
                 }, this.reportFieldsForQuery,
@@ -1067,7 +1067,7 @@ public class PsychologyStorage implements Storagable {
                 " WHERE " + this.reportTable + ".sn=" + this.paintingReportManagementTable + ".report_sn " +
                 " AND " + this.reportTable + ".state=" + AIGCStateCode.Ok.code +
                 " AND " + this.paintingReportManagementTable + ".retention=" + RetentionPolicy.NON_MEMBER_RETENTION_DAYS;
-        List<StorageField[]> list = this.storage.executeQuery(sql);
+        List<StorageField[]> list = this.storage.executeQueryOrEmpty(sql);
         if (list.isEmpty()) {
             return 0;
         }
@@ -1103,7 +1103,7 @@ public class PsychologyStorage implements Storagable {
 
     public synchronized boolean writePsychologyReport(PaintingReport report, int retention) {
         // 插入状态
-        List<StorageField[]> result = this.storage.executeQuery(this.paintingReportManagementTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.paintingReportManagementTable, new StorageField[] {
                     new StorageField("report_sn", LiteralBase.LONG)
                 }, new Conditional[] {
                     Conditional.createEqualTo("report_sn", report.sn)
@@ -1232,7 +1232,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public synchronized ReportPermission readReportPermission(long contactId, long reportSn) {
-        List<StorageField[]> result = this.storage.executeQuery(this.reportPermissionTable, this.reportPermissionFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.reportPermissionTable, this.reportPermissionFields,
                 new Conditional[] {
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
@@ -1261,7 +1261,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public synchronized boolean writeReportPermission(ReportPermission permission) {
-        List<StorageField[]> result = this.storage.executeQuery(this.reportPermissionTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.reportPermissionTable,
                 new StorageField[] {
                         new StorageField("sn", LiteralBase.LONG)
                 },
@@ -1315,7 +1315,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public Painting readPainting(long sn) {
-        List<StorageField[]> result = this.storage.executeQuery(this.paintingTable, this.paintingFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.paintingTable, this.paintingFields,
                 new Conditional[] {
                         Conditional.createEqualTo("report_sn", sn)
                 });
@@ -1340,7 +1340,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public boolean writePainting(long sn, String fileCode, Painting painting) {
-        List<StorageField[]> result = this.storage.executeQuery(this.paintingTable, this.paintingFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.paintingTable, this.paintingFields,
                 new Conditional[] {
                         Conditional.createEqualTo("report_sn", sn)
                 });
@@ -1367,7 +1367,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public PaintingFeatureSet readPaintingFeatureSet(long sn) {
-        List<StorageField[]> result = this.storage.executeQuery(this.paintingFeatureSetTable, this.paintingFeatureSetFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.paintingFeatureSetTable, this.paintingFeatureSetFields,
                 new Conditional[] {
                         Conditional.createEqualTo("sn", sn)
                 });
@@ -1392,7 +1392,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public boolean writePaintingFeatureSet(PaintingFeatureSet featureSet) {
-        List<StorageField[]> result = this.storage.executeQuery(this.paintingFeatureSetTable, this.paintingFeatureSetFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.paintingFeatureSetTable, this.paintingFeatureSetFields,
                 new Conditional[] {
                         Conditional.createEqualTo("sn", featureSet.getSN())
                 });
@@ -1417,7 +1417,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public Scale readScale(long sn) {
-        List<StorageField[]> result = this.storage.executeQuery(this.scaleTable, this.scaleFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scaleTable, this.scaleFields,
                 new Conditional[] {
                         Conditional.createEqualTo("sn", sn)
                 });
@@ -1442,7 +1442,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public synchronized boolean writeScale(Scale scale) {
-        List<StorageField[]> result = this.storage.executeQuery(this.scaleTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scaleTable, new StorageField[] {
                     new StorageField("id", LiteralBase.LONG)
             }, new Conditional[] {
                     Conditional.createEqualTo("sn", scale.getSN())
@@ -1485,7 +1485,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public AnswerSheet readAnswerSheet(long scaleSn) {
-        List<StorageField[]> result = this.storage.executeQuery(this.scaleAnswerTable, this.scaleAnswerFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scaleAnswerTable, this.scaleAnswerFields,
                 new Conditional[] {
                         Conditional.createEqualTo("scale_sn", scaleSn)
                 });
@@ -1509,7 +1509,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public synchronized boolean writeAnswerSheet(AnswerSheet answerSheet) {
-        List<StorageField[]> result = this.storage.executeQuery(this.scaleAnswerTable, this.scaleAnswerFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scaleAnswerTable, this.scaleAnswerFields,
                 new Conditional[] {
                         Conditional.createEqualTo("scale_sn", answerSheet.scaleSn)
                 });
@@ -1532,19 +1532,19 @@ public class PsychologyStorage implements Storagable {
     }
 
     public int countScaleReports(long contactId) {
-        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(sn) FROM " + this.scaleReportTable +
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty("SELECT COUNT(sn) FROM " + this.scaleReportTable +
                 " WHERE `state`=0 AND `contact_id`=" + contactId);
         return result.get(0)[0].getInt();
     }
 
     public int countScaleReports(long contactId, int state) {
-        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(sn) FROM " + this.scaleReportTable +
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty("SELECT COUNT(sn) FROM " + this.scaleReportTable +
                 " WHERE `state`=" + state + " AND `contact_id`=" + contactId);
         return result.get(0)[0].getInt();
     }
 
     public ScaleReport readScaleReport(long sn) {
-        List<StorageField[]> result = this.storage.executeQuery(this.scaleReportTable, this.scaleReportFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scaleReportTable, this.scaleReportFields,
                 new Conditional[] {
                         Conditional.createEqualTo("sn", sn)
                 });
@@ -1585,7 +1585,7 @@ public class PsychologyStorage implements Storagable {
 
     public List<ScaleReport> readScaleReports(long contactId, boolean descending) {
         List<ScaleReport> list = new ArrayList<>();
-        List<StorageField[]> result = this.storage.executeQuery(this.scaleReportTable, this.scaleReportFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scaleReportTable, this.scaleReportFields,
                 new Conditional[] {
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createOrderBy("timestamp", descending)
@@ -1620,7 +1620,7 @@ public class PsychologyStorage implements Storagable {
 
     public List<ScaleReport> readScaleReports(long contactId, int state, boolean descending) {
         List<ScaleReport> list = new ArrayList<>();
-        List<StorageField[]> result = this.storage.executeQuery(this.scaleReportTable, this.scaleReportFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scaleReportTable, this.scaleReportFields,
                 new Conditional[] {
                         Conditional.createEqualTo("contact_id", contactId),
                         Conditional.createAnd(),
@@ -1660,7 +1660,7 @@ public class PsychologyStorage implements Storagable {
         dataString = EmojiFilter.filterEmoji(dataString);
         dataString = JSONStorageUtils.encode(dataString);
 
-        List<StorageField[]> result = this.storage.executeQuery(this.scaleReportTable, this.scaleReportFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scaleReportTable, this.scaleReportFields,
                 new Conditional[] {
                         Conditional.createEqualTo("sn", scaleReport.sn)
                 });
@@ -1701,7 +1701,7 @@ public class PsychologyStorage implements Storagable {
 
     public List<PaintingLabel> readPaintingLabels(long sn) {
         List<PaintingLabel> list = new ArrayList<>();
-        List<StorageField[]> result = this.storage.executeQuery(this.paintingLabelTable, this.paintingLabelFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.paintingLabelTable, this.paintingLabelFields,
                 new Conditional[] {
                         Conditional.createEqualTo("sn", sn)
                 });
@@ -1763,7 +1763,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public int readPaintingManagementState(long reportSn) {
-        List<StorageField[]> result = this.storage.executeQuery(this.paintingReportManagementTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.paintingReportManagementTable,
                 this.paintingReportManagementFields, new Conditional[] {
                         Conditional.createEqualTo("report_sn", reportSn)
                 });
@@ -1786,7 +1786,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public boolean writeReportArticle(ReportArticle article) {
-        List<StorageField[]> result = this.storage.executeQuery(this.reportArticleTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.reportArticleTable, new StorageField[] {
                 new StorageField("state", LiteralBase.INT)
         }, new Conditional[] {
                 Conditional.createEqualTo("sn", article.sn)
@@ -1839,7 +1839,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public ReportArticle readReportArticle(long sn) {
-        List<StorageField[]> result = this.storage.executeQuery(this.reportArticleTable, this.reportArticleFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.reportArticleTable, this.reportArticleFields,
                 new Conditional[] {
                     Conditional.createEqualTo("sn", sn)
         });
@@ -1875,7 +1875,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public ComprehensiveReport readComprehensiveReport(long reportSn) {
-        List<StorageField[]> result = this.storage.executeQuery(this.comprehensiveReportTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.comprehensiveReportTable,
                 this.comprehensiveReportFields, new Conditional[] {
                         Conditional.createEqualTo("sn", reportSn)
                 });
@@ -1921,7 +1921,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public boolean writeComprehensiveReport(long contactId, ComprehensiveReport report) {
-        List<StorageField[]> result = this.storage.executeQuery(this.comprehensiveReportTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.comprehensiveReportTable,
                 new StorageField[] {
                         new StorageField("state", LiteralBase.INT)
                 }, new Conditional[] {
@@ -1981,7 +1981,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public boolean writeCustomer(long contactId, Customer customer) {
-        List<StorageField[]> result = this.storage.executeQuery(this.customerTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.customerTable, new StorageField[] {
                 new StorageField("id", LiteralBase.LONG),
         }, new Conditional[] {
                 Conditional.createEqualTo("id", customer.id),
@@ -2030,7 +2030,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public Customer readCustomer(long contactId, long id) {
-        List<StorageField[]> result = this.storage.executeQuery(this.customerTable, this.customerFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.customerTable, this.customerFields,
                 new Conditional[] {
                         Conditional.createEqualTo("id", id),
                         Conditional.createAnd(),
@@ -2068,7 +2068,7 @@ public class PsychologyStorage implements Storagable {
     public List<Customer> readCustomers(long contactId) {
         List<Customer> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.customerTable, this.customerFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.customerTable, this.customerFields,
                 new Conditional[] {
                         Conditional.createEqualTo("cid", contactId),
                         Conditional.createAnd(),
@@ -2109,13 +2109,13 @@ public class PsychologyStorage implements Storagable {
     }
 
     public int countCustomers(long contactId) {
-        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(*) FROM " + this.customerTable +
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty("SELECT COUNT(*) FROM " + this.customerTable +
                 " WHERE `cid`=" + contactId + " AND `state`=" + Customer.STATE_NORMAL);
         return result.get(0)[0].getInt();
     }
 
     public boolean writeSchedule(long contactId, ConsultationSchedule schedule) {
-        List<StorageField[]> result = this.storage.executeQuery(this.scheduleTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scheduleTable, new StorageField[] {
                 new StorageField("id", LiteralBase.LONG),
         }, new Conditional[] {
                 Conditional.createEqualTo("id", schedule.id),
@@ -2168,7 +2168,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public ConsultationSchedule readSchedule(long contactId, long id) {
-        List<StorageField[]> result = this.storage.executeQuery(this.scheduleTable, this.scheduleFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scheduleTable, this.scheduleFields, new Conditional[] {
                 Conditional.createEqualTo("id", id),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("cid", contactId)
@@ -2198,7 +2198,7 @@ public class PsychologyStorage implements Storagable {
     public List<ConsultationSchedule> readSchedules(long contactId, long starting, long ending) {
         List<ConsultationSchedule> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(this.scheduleTable, this.scheduleFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.scheduleTable, this.scheduleFields,
                 new Conditional[] {
                         Conditional.createEqualTo("cid", contactId),
                         Conditional.createAnd(),
@@ -2245,7 +2245,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public int countSchedules(long contactId, long starting, long ending) {
-        List<StorageField[]> result = this.storage.executeQuery("SELECT COUNT(*) FROM " + this.scheduleTable +
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty("SELECT COUNT(*) FROM " + this.scheduleTable +
                 " WHERE `cid`=" + contactId + " AND `state`<>" + ConsultationScheduleState.Deleted.code +
                 " AND (`appointment_time`>=" + starting + " OR `counseling_time`>=" + starting + ")" +
                 " AND (`appointment_time`<=" + ending + " OR `counseling_time`<=" + ending + ")");
@@ -2253,7 +2253,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public boolean writeAppointment(Appointment appointment) {
-        List<StorageField[]> result = this.storage.executeQuery(this.appointmentTable, this.appointmentFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appointmentTable, this.appointmentFields,
                 new Conditional[] {
                         Conditional.createEqualTo("uid", appointment.getUserId())
                 });
@@ -2279,7 +2279,7 @@ public class PsychologyStorage implements Storagable {
     }
 
     public Appointment readAppointment(long id) {
-        List<StorageField[]> result = this.storage.executeQuery(this.appointmentTable, this.appointmentFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.appointmentTable, this.appointmentFields,
                 new Conditional[] {
                         Conditional.createEqualTo("uid", id)
                 });
@@ -2388,7 +2388,7 @@ public class PsychologyStorage implements Storagable {
 
         List<StorageField[]> fields = null;
 
-        fields = this.storage.executeQuery(this.reportTextTable,
+        fields = this.storage.executeQueryOrEmpty(this.reportTextTable,
                 this.reportTextFields, new Conditional[] {
                         Conditional.createEqualTo("report_sn", report.sn)
                 });
@@ -2410,7 +2410,7 @@ public class PsychologyStorage implements Storagable {
             HexagonDimensionScore normDimensionScore = new HexagonDimensionScore(
                     80, 80, 80, 80, 80, 80);
 
-            fields = this.storage.executeQuery(this.reportHexagonTable, this.reportHexagonFields, new Conditional[] {
+            fields = this.storage.executeQueryOrEmpty(this.reportHexagonTable, this.reportHexagonFields, new Conditional[] {
                     Conditional.createEqualTo("sn", report.sn)
             });
             if (fields.isEmpty()) {
@@ -2496,7 +2496,7 @@ public class PsychologyStorage implements Storagable {
      *         {@code theme} / {@code fileCode} 的对象；无记录时返回 <code>null</code>。
      */
     public JSONObject readCounselingRecording(String streamName) {
-        List<StorageField[]> storageFields = this.storage.executeQuery(this.counselingRecordingTable,
+        List<StorageField[]> storageFields = this.storage.executeQueryOrEmpty(this.counselingRecordingTable,
                 this.counselingRecordingFields, new Conditional[] {
                         Conditional.createEqualTo("stream", streamName)
                 });
@@ -2522,7 +2522,7 @@ public class PsychologyStorage implements Storagable {
      * @return 返回文件码；无记录时返回 <code>null</code>。
      */
     public String readCounselingRecordingFileCode(String streamName) {
-        List<StorageField[]> result = this.storage.executeQuery(this.counselingRecordingTable,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.counselingRecordingTable,
                 new StorageField[] {
                         new StorageField("file_code", LiteralBase.STRING)
                 }, new Conditional[] {

@@ -134,7 +134,7 @@ public class AccountStorage extends AbstractStorage {
 
     public Token readToken(String code) {
         String sql = "SELECT * FROM " + TABLE_TOKEN + " WHERE `token`='" + code + "'";
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return null;
         }
@@ -171,7 +171,7 @@ public class AccountStorage extends AbstractStorage {
 
     public Account readAccount(Long accountId) {
         String sql = "SELECT * FROM " + TABLE_ACCOUNT + " WHERE `id`=" + accountId;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return null;
         }
@@ -190,7 +190,7 @@ public class AccountStorage extends AbstractStorage {
     public Account readAccount(String accountName, String password) {
         String sql = "SELECT * FROM " + TABLE_ACCOUNT +
                 " WHERE `account`='" + accountName + "' AND `password`='" + password.toLowerCase() + "'";
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return null;
         }
@@ -208,7 +208,7 @@ public class AccountStorage extends AbstractStorage {
 
     public Account readAccountByPhoneNumber(String phoneNumber) {
         String sql = "SELECT * FROM " + TABLE_ACCOUNT + " WHERE `phone`='" + phoneNumber + "'";
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return null;
         }
@@ -226,7 +226,7 @@ public class AccountStorage extends AbstractStorage {
 
     public Account readAccountByAccountName(String accountName) {
         String sql = "SELECT * FROM " + TABLE_ACCOUNT + " WHERE `account`='" + accountName + "'";
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return null;
         }
@@ -341,7 +341,7 @@ public class AccountStorage extends AbstractStorage {
     }
 
     public boolean existsAccount(long accountId, String accountName, String phoneNumber) {
-        List<StorageField[]> result = this.storage.executeQuery(TABLE_ACCOUNT, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(TABLE_ACCOUNT, new StorageField[] {
                 new StorageField("state", LiteralBase.INT)
         }, new Conditional[] {
                 Conditional.createEqualTo("id", accountId),
@@ -355,19 +355,19 @@ public class AccountStorage extends AbstractStorage {
 
     public boolean existsAccountId(Long accountId) {
         String sql = "SELECT `state` FROM " + TABLE_ACCOUNT + " WHERE `id`=" + accountId;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         return (!result.isEmpty());
     }
 
     public boolean existsAccountName(String accountName) {
         String sql = "SELECT `state` FROM " + TABLE_ACCOUNT + " WHERE `account`=" + accountName;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         return (!result.isEmpty());
     }
 
     public boolean existsPhoneNumber(String phoneNumber) {
         String sql = "SELECT `state` FROM " + TABLE_ACCOUNT + " WHERE `phone`=" + phoneNumber;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         return (!result.isEmpty());
     }
 }

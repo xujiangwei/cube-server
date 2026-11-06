@@ -105,8 +105,28 @@ public interface Storage {
      */
     List<StorageField[]> executeQuery(String table, StorageField[] fields, Conditional[] conditionals);
 
+    /**
+     * 跨表查询数据。
+     *
+     * <p><b>契约</b>：同 {@link #executeQuery(String, StorageField[])}——失败返回 {@code null}，
+     * 无数据返回空列表。</p>
+     *
+     * @param tables       参与查询的表名。
+     * @param fields       字段列表。
+     * @param conditionals 条件列表，允许为 {@code null} 。
+     * @return 查询结果；失败返回 {@code null} 。
+     */
     List<StorageField[]> executeQuery(String[] tables, StorageField[] fields, Conditional[] conditionals);
 
+    /**
+     * 执行原生查询语句。
+     *
+     * <p><b>契约</b>：同 {@link #executeQuery(String, StorageField[])}——失败返回 {@code null}，
+     * 无数据返回空列表。</p>
+     *
+     * @param sql 完整查询语句。
+     * @return 查询结果；失败返回 {@code null} 。
+     */
     List<StorageField[]> executeQuery(String sql);
 
     /**
@@ -130,6 +150,65 @@ public interface Storage {
         }
 
         return rows;
+    }
+
+    /**
+     * 查询数据，失败时返回空列表。
+     *
+     * <p>与 {@link #executeQuery(String, StorageField[], Conditional[])} 的唯一区别是失败语义：
+     * 前者返回 {@code null}，本方法返回空列表。用于「只关心有没有数据、不关心是否失败」的调用点，
+     * 避免逐点判空时漏判导致 NPE。</p>
+     *
+     * <p><b>注意</b>：本方法把「查询失败」与「查询成功但无数据」合并成同一种结果，
+     * 因此无法据此判断数据是否可信。需要区分两者的调用点必须使用
+     * {@link #executeQuery(String, StorageField[], Conditional[])} 并自行判空。</p>
+     *
+     * @param table        表名。
+     * @param fields       字段列表，{@code null} 表示全部字段。
+     * @param conditionals 条件列表，允许为 {@code null} 。
+     * @return 查询结果，永不为 {@code null} （失败或无数据时为空列表）。
+     */
+    default List<StorageField[]> executeQueryOrEmpty(String table, StorageField[] fields,
+                                                      Conditional[] conditionals) {
+        List<StorageField[]> rows = this.executeQuery(table, fields, conditionals);
+        return (null == rows) ? new ArrayList<StorageField[]>() : rows;
+    }
+
+    /**
+     * 查询数据，失败时返回空列表。
+     *
+     * @param table  表名。
+     * @param fields 字段列表，{@code null} 表示全部字段。
+     * @return 查询结果，永不为 {@code null} （失败或无数据时为空列表）。
+     */
+    default List<StorageField[]> executeQueryOrEmpty(String table, StorageField[] fields) {
+        List<StorageField[]> rows = this.executeQuery(table, fields);
+        return (null == rows) ? new ArrayList<StorageField[]>() : rows;
+    }
+
+    /**
+     * 跨表查询数据，失败时返回空列表。
+     *
+     * @param tables       参与查询的表名。
+     * @param fields       字段列表。
+     * @param conditionals 条件列表，允许为 {@code null} 。
+     * @return 查询结果，永不为 {@code null} （失败或无数据时为空列表）。
+     */
+    default List<StorageField[]> executeQueryOrEmpty(String[] tables, StorageField[] fields,
+                                                      Conditional[] conditionals) {
+        List<StorageField[]> rows = this.executeQuery(tables, fields, conditionals);
+        return (null == rows) ? new ArrayList<StorageField[]>() : rows;
+    }
+
+    /**
+     * 执行原生查询语句，失败时返回空列表。
+     *
+     * @param sql 完整查询语句。
+     * @return 查询结果，永不为 {@code null} （失败或无数据时为空列表）。
+     */
+    default List<StorageField[]> executeQueryOrEmpty(String sql) {
+        List<StorageField[]> rows = this.executeQuery(sql);
+        return (null == rows) ? new ArrayList<StorageField[]>() : rows;
     }
 
     /**

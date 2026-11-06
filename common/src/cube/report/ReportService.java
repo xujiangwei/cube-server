@@ -8,11 +8,7 @@ package cube.report;
 
 import cell.util.log.Logger;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -265,8 +261,7 @@ public class ReportService {
                     this.maxQueueLength, this.retries, this.running);
             thread.setDaemon(true);
             thread.start();
-        }
-        catch (Throwable t) {
+        } catch (Throwable t) {
             // 线程启动失败必须复位标志位，否则后续报告永远不会被提交
             this.running.set(false);
             throw t;

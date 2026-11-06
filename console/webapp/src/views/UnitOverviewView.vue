@@ -266,6 +266,10 @@ async function load(): Promise<void> {
     }
   } catch (error) {
     if (sequence !== loadSequence) return
+    // 限流是服务端在保护自己：静默处理并向上抛出，交由轮询退避，不打扰用户
+    if (error instanceof ApiError && error.status === 429) {
+      throw error
+    }
     const message = error instanceof Error ? error.message : `加载域「${requestedDomain}」的单元信息失败`
     if (requestedTab === 'ledger') {
       overview.value = null
@@ -303,7 +307,8 @@ watch([domain, activeTab], ([newDomain], [oldDomain]) => {
     deployments.value = null
     resetView()
   }
-  void load()
+  // 限流错误由 load 向上抛出，这里吞掉以免产生未处理的拒绝
+  void load().catch(() => undefined)
 })
 
 watch(activeTab, async (tab) => {
@@ -314,9 +319,10 @@ watch(activeTab, async (tab) => {
 })
 
 // 上报恢复后自动刷新连接状态，避免页面一直停留在暂停上报时的离线快照。
+// 台账统计由服务端缓存，60 秒一轮足够；命中 429 时静默退避，不弹错误提示。
 usePolling(async () => {
   if (domain.value && !loading.value) await load()
-}, 30000, { immediate: false })
+}, 60000, { immediate: false, backoffOnTooManyRequests: true })
 
 onMounted(bootstrap)
 </script>

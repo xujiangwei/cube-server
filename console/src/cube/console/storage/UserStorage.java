@@ -89,7 +89,7 @@ public class UserStorage extends AbstractStorage {
     }
 
     public User readUser(String name) {
-        List<StorageField[]> result = this.storage.executeQuery(this.userTable, this.userFields, new Conditional[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.userTable, this.userFields, new Conditional[]{
                 Conditional.createEqualTo(new StorageField("name", LiteralBase.STRING, name))
         });
 
@@ -106,7 +106,7 @@ public class UserStorage extends AbstractStorage {
     }
 
     public User readUser(long id) {
-        List<StorageField[]> result = this.storage.executeQuery(this.userTable, this.userFields, new Conditional[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.userTable, this.userFields, new Conditional[]{
                 Conditional.createEqualTo(new StorageField("id", LiteralBase.LONG, id))
         });
 
@@ -134,7 +134,7 @@ public class UserStorage extends AbstractStorage {
     }
 
     public UserToken readToken(String tokenString) {
-        List<StorageField[]> result = this.storage.executeQuery(this.tokenTable, this.tokenFields, new Conditional[]{
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.tokenTable, this.tokenFields, new Conditional[]{
                 Conditional.createEqualTo(new StorageField("token", LiteralBase.STRING, tokenString))
         });
 

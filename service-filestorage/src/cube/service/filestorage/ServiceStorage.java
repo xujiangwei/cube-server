@@ -432,7 +432,7 @@ public class ServiceStorage implements Storagable {
     public boolean existsFileLabel(String domain, String fileCode) {
         String labelTable = this.labelTableNameMap.get(domain);
 
-        List<StorageField[]> result = this.storage.executeQuery(labelTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(labelTable, new StorageField[] {
                 new StorageField("id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("file_code", LiteralBase.STRING, fileCode))
@@ -508,7 +508,7 @@ public class ServiceStorage implements Storagable {
                 };
 
                 // 判断是否已经写入数据
-                List<StorageField[]> result = storage.executeQuery(labelTable, new StorageField[] {
+                List<StorageField[]> result = storage.executeQueryOrEmpty(labelTable, new StorageField[] {
                         new StorageField("sn", LiteralBase.LONG)
                 }, new Conditional[] {
                         Conditional.createEqualTo(new StorageField("file_code", fileLabel.getFileCode()))
@@ -552,7 +552,7 @@ public class ServiceStorage implements Storagable {
         }
 
         try {
-            List<StorageField[]> result = this.storage.executeQuery(labelTable, this.labelFields, new Conditional[] {
+            List<StorageField[]> result = this.storage.executeQueryOrEmpty(labelTable, this.labelFields, new Conditional[] {
                     Conditional.createEqualTo(new StorageField("file_code", fileCode))
             });
 
@@ -690,7 +690,7 @@ public class ServiceStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> list = this.storage.executeQuery(labelTable, new StorageField[] {
+        List<StorageField[]> list = this.storage.executeQueryOrEmpty(labelTable, new StorageField[] {
                 new StorageField("file_code", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo("owner_id", contactId),
@@ -753,7 +753,7 @@ public class ServiceStorage implements Storagable {
             return list;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(labelTable, this.labelFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(labelTable, this.labelFields, new Conditional[] {
                 Conditional.createLessThan(new StorageField("expiry_time", expiryTime)),
                 Conditional.createAnd(),
                 Conditional.createUnequalTo("expiry_time", 0)
@@ -807,7 +807,7 @@ public class ServiceStorage implements Storagable {
             return list;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(labelTable, this.labelFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(labelTable, this.labelFields, new Conditional[] {
                 Conditional.createEqualTo("owner_id", ownerId),
                 Conditional.createOrderBy("sn", true),
                 Conditional.createLimitOffset(end - begin + 1, begin)
@@ -859,7 +859,7 @@ public class ServiceStorage implements Storagable {
         }
 
         String sql = "SELECT COUNT(sn) FROM `" + labelTable + "` WHERE `owner_id`=" + ownerId;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (result.isEmpty()) {
             return 0;
         }
@@ -883,7 +883,7 @@ public class ServiceStorage implements Storagable {
         }
 
         String fileCode = null;
-        List<StorageField[]> result = this.storage.executeQuery(labelTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(labelTable, new StorageField[] {
                 new StorageField("file_code", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo("owner_id", contactId.longValue()),
@@ -918,7 +918,7 @@ public class ServiceStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> list = this.storage.executeQuery(labelTable, new StorageField[] {
+        List<StorageField[]> list = this.storage.executeQueryOrEmpty(labelTable, new StorageField[] {
                 new StorageField("file_code", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo("owner_id", contactId),
@@ -949,7 +949,7 @@ public class ServiceStorage implements Storagable {
             return result;
         }
 
-        List<StorageField[]> list = this.storage.executeQuery(labelTable, new StorageField[] {
+        List<StorageField[]> list = this.storage.executeQueryOrEmpty(labelTable, new StorageField[] {
                 new StorageField("file_code", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo("owner_id", contactId),
@@ -977,7 +977,7 @@ public class ServiceStorage implements Storagable {
             return -1;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("completed_time", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("file_code", fileCode)
@@ -1002,7 +1002,7 @@ public class ServiceStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.performanceFields,
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.performanceFields,
                 new Conditional[] {
                         Conditional.createEqualTo("contact_id", contactId)
                 });
@@ -1032,7 +1032,7 @@ public class ServiceStorage implements Storagable {
             return;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("contact_id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("contact_id", performance.getContactId())
@@ -1083,7 +1083,7 @@ public class ServiceStorage implements Storagable {
         sql.append("` WHERE `owner_id`=");
         sql.append(contactId);
 
-        List<StorageField[]> result = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql.toString());
         if (!result.isEmpty()) {
             total = result.get(0)[0].getLong();
         }
@@ -1107,7 +1107,7 @@ public class ServiceStorage implements Storagable {
             return list;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.hierarchyFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.hierarchyFields, new Conditional[] {
                 Conditional.createEqualTo("root_id", rootId),
                 Conditional.createAnd(),
                 Conditional.createGreaterThanEqual(new StorageField("last_modified", beginTime)),
@@ -1142,7 +1142,7 @@ public class ServiceStorage implements Storagable {
                 new StorageField("data", json.toString())
         };
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("node_id", nodeId))
@@ -1171,7 +1171,7 @@ public class ServiceStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.hierarchyFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.hierarchyFields, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("node_id", nodeId))
         });
 
@@ -1238,7 +1238,7 @@ public class ServiceStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("data", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("root_id", LiteralBase.LONG, rootId)),
@@ -1323,7 +1323,7 @@ public class ServiceStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("data", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo(new StorageField("id", LiteralBase.LONG, id)),
@@ -1392,7 +1392,7 @@ public class ServiceStorage implements Storagable {
      * @return
      */
     public String querySharingCodeDomain(String code) {
-        List<StorageField[]> result = this.storage.executeQuery(this.sharingCodeTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.sharingCodeTable, new StorageField[] {
                         new StorageField("domain", LiteralBase.STRING)
                 }, new Conditional[] {
                         Conditional.createEqualTo("code", code)
@@ -1459,7 +1459,7 @@ public class ServiceStorage implements Storagable {
             return 0;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("contact_id", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("code", sharingCode)
@@ -1485,7 +1485,7 @@ public class ServiceStorage implements Storagable {
             return null;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.sharingTagFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.sharingTagFields, new Conditional[] {
                 Conditional.createEqualTo("code", code)
         });
 
@@ -1568,7 +1568,7 @@ public class ServiceStorage implements Storagable {
                     + " AND (`expiry`<>0 AND `expiry`<" + System.currentTimeMillis() + ")";
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         return result.get(0)[0].getInt();
     }
 
@@ -1597,7 +1597,7 @@ public class ServiceStorage implements Storagable {
         else {
             sql.append(" AND (`expiry`<>0 AND `expiry`<").append(System.currentTimeMillis()).append(")");
         }
-        List<StorageField[]> result = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql.toString());
         if (result.isEmpty()) {
             return data;
         }
@@ -1611,7 +1611,7 @@ public class ServiceStorage implements Storagable {
             sql = new StringBuilder();
             sql.append("SELECT `file_type` FROM `").append(table).append("`");
             sql.append(" WHERE `file_code`='").append(fileCode).append("'");
-            List<StorageField[]> fileTypeResult = this.storage.executeQuery(sql.toString());
+            List<StorageField[]> fileTypeResult = this.storage.executeQueryOrEmpty(sql.toString());
             if (!fileTypeResult.isEmpty()) {
                 String fileType = fileTypeResult.get(0)[0].getString();
 
@@ -1685,7 +1685,7 @@ public class ServiceStorage implements Storagable {
         }
 
         // 查库
-        List<StorageField[]> result = this.storage.executeQuery(table, this.sharingTagFields, conditionals);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.sharingTagFields, conditionals);
         for (StorageField[] fields : result) {
             Map<String, StorageField> map = StorageFields.get(fields);
 
@@ -1753,7 +1753,7 @@ public class ServiceStorage implements Storagable {
         }
 
         // 查库
-        List<StorageField[]> result = this.storage.executeQuery(table, this.sharingTagFields, conditionals);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.sharingTagFields, conditionals);
         for (StorageField[] fields : result) {
             Map<String, StorageField> map = StorageFields.get(fields);
 
@@ -1802,7 +1802,7 @@ public class ServiceStorage implements Storagable {
 
         List<FileLabel> list = new ArrayList<>();
 
-        List<StorageField[]> result = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, new StorageField[] {
                 new StorageField("file_label", LiteralBase.STRING)
         }, new Conditional[] {
                 Conditional.createEqualTo("tag_code", code)
@@ -1935,7 +1935,7 @@ public class ServiceStorage implements Storagable {
             return list;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.visitTraceFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.visitTraceFields, new Conditional[] {
                 Conditional.createEqualTo("code", code),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("parent", contactId),
@@ -1969,7 +1969,7 @@ public class ServiceStorage implements Storagable {
             return list;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.visitTraceFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.visitTraceFields, new Conditional[] {
                 Conditional.createBracket(new Conditional[] {
                         Conditional.createGreaterThanEqual(new StorageField("time", beginTime)),
                         Conditional.createAnd(),
@@ -2003,7 +2003,7 @@ public class ServiceStorage implements Storagable {
             return list;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.visitTraceFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.visitTraceFields, new Conditional[] {
                 Conditional.createEqualTo("code", code),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("sharer", sharerId),
@@ -2035,7 +2035,7 @@ public class ServiceStorage implements Storagable {
             return list;
         }
 
-        List<StorageField[]> result = this.storage.executeQuery(table, this.visitTraceFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(table, this.visitTraceFields, new Conditional[] {
                 Conditional.createEqualTo("code", code),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("parent", parentId),
@@ -2071,7 +2071,7 @@ public class ServiceStorage implements Storagable {
         }
 
         String sql = "SELECT COUNT(sn) FROM `" + table + "` WHERE `code`='" + code + "'";
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         return result.get(0)[0].getInt();
     }
 
@@ -2090,7 +2090,7 @@ public class ServiceStorage implements Storagable {
 
         String sql = "SELECT COUNT(sn) FROM `" + table + "` WHERE `event`='" +
                     event + "' AND `parent`=" + contactId;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         return result.get(0)[0].getInt();
     }
 
@@ -2111,14 +2111,14 @@ public class ServiceStorage implements Storagable {
 
         String sql = "SELECT DISTINCT(code) FROM `" + table + "` WHERE `event`='" + event + "' AND `parent`="
                 + countId;
-        List<StorageField[]> result = this.storage.executeQuery(sql);
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql);
         if (!result.isEmpty()) {
             for (StorageField[] fields : result) {
                 String code = fields[0].getString();
                 // 查询指定 code 对应事件的数量
                 sql = "SELECT COUNT(sn) FROM `" + table + "` WHERE `event`='" + event + "' AND `parent`="
                         + countId + " AND `code`='" + code + "'";
-                List<StorageField[]> countResult = this.storage.executeQuery(sql);
+                List<StorageField[]> countResult = this.storage.executeQueryOrEmpty(sql);
                 int count = countResult.get(0)[0].getInt();
                 map.put(code, count);
             }
@@ -2150,7 +2150,7 @@ public class ServiceStorage implements Storagable {
         sql.append(" AND `time`>").append(beginTime);
         sql.append(" AND `time`<=").append(endTime);
 
-        List<StorageField[]> result = this.storage.executeQuery(sql.toString());
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(sql.toString());
         if (result.isEmpty()) {
             return list;
         }

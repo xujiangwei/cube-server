@@ -147,7 +147,7 @@ public class AuthStorage implements Storagable {
      * @return
      */
     public List<String> listDomains() {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainTable, new StorageField[] {
                 new StorageField("domain", LiteralBase.STRING)
         });
 
@@ -175,7 +175,7 @@ public class AuthStorage implements Storagable {
      * @return
      */
     public boolean existsDomain(String domainName) {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainTable, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("domain", domainName)
@@ -202,7 +202,7 @@ public class AuthStorage implements Storagable {
      */
     public void addDomainApp(String domain, String appId, String appKey, Endpoint main, Endpoint http, Endpoint https,
         JSONArray iceServers, boolean ferry) {
-        List<StorageField[]> result = this.storage.executeQuery(this.domainTable, this.domainFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.domainTable, this.domainFields, new Conditional[] {
                 Conditional.createEqualTo("domain", domain),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("app_id", appId)
@@ -301,7 +301,7 @@ public class AuthStorage implements Storagable {
         List<StorageField[]> result = null;
 
         if (null != appKey) {
-            result = this.storage.executeQuery(this.domainTable, this.domainFields,
+            result = this.storage.executeQueryOrEmpty(this.domainTable, this.domainFields,
                     new Conditional[] {
                             Conditional.createEqualTo("domain", LiteralBase.STRING, domain),
                             Conditional.createAnd(),
@@ -309,7 +309,7 @@ public class AuthStorage implements Storagable {
                     });
         }
         else {
-            result = this.storage.executeQuery(this.domainTable, this.domainFields,
+            result = this.storage.executeQueryOrEmpty(this.domainTable, this.domainFields,
                     new Conditional[] {
                             Conditional.createEqualTo("domain", LiteralBase.STRING, domain)
                     });
@@ -349,7 +349,7 @@ public class AuthStorage implements Storagable {
     }
 
     public AuthToken readToken(String code) {
-        List<StorageField[]> result = this.storage.executeQuery(this.tokenTable, this.tokenFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.tokenTable, this.tokenFields, new Conditional[] {
                 Conditional.createEqualTo("code", LiteralBase.STRING, code)
         });
         if (null == result || result.isEmpty()) {
@@ -369,7 +369,7 @@ public class AuthStorage implements Storagable {
     }
 
     public AuthToken readToken(String domain, long contactId) {
-        List<StorageField[]> result = this.storage.executeQuery(this.tokenTable, this.tokenFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.tokenTable, this.tokenFields, new Conditional[] {
                 Conditional.createEqualTo("domain", domain),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("cid", contactId)
@@ -407,7 +407,7 @@ public class AuthStorage implements Storagable {
     }
 
     public boolean updateTokenByCid(AuthToken token) {
-        List<StorageField[]> result = this.storage.executeQuery(this.tokenTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.tokenTable, new StorageField[] {
                 new StorageField("sn", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("cid", token.getContactId())
@@ -426,7 +426,7 @@ public class AuthStorage implements Storagable {
     }
 
     public boolean existsToken(String tokenCode) {
-        List<StorageField[]> result = this.storage.executeQuery(this.tokenTable, new StorageField[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.tokenTable, new StorageField[] {
                 new StorageField("cid", LiteralBase.LONG)
         }, new Conditional[] {
                 Conditional.createEqualTo("code", tokenCode)
@@ -442,7 +442,7 @@ public class AuthStorage implements Storagable {
      * @return 返回授权令牌实例。
      */
     public AuthToken queryToken(long cid) {
-        List<StorageField[]> result = this.storage.executeQuery(this.tokenTable, this.tokenFields, new Conditional[] {
+        List<StorageField[]> result = this.storage.executeQueryOrEmpty(this.tokenTable, this.tokenFields, new Conditional[] {
                 Conditional.createEqualTo("cid", cid)
         });
         if (result.isEmpty()) {
