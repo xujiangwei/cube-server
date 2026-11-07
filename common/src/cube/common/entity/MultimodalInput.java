@@ -45,11 +45,25 @@ public class MultimodalInput implements JSONable {
 
     public MultimodalInput(JSONObject json) {
         this.unit = json.has("unit") ? json.getString("unit") : "OmniGround";
-        this.content = json.getString("content");
+        if (isOmniUnit()) {
+            for (String key : json.keySet()) {
+                if (!"unit".equals(key) && !"content".equals(key) && !"history".equals(key)
+                        && !"files".equals(key) && !"option".equals(key) && !"recordable".equals(key)) {
+                    throw new IllegalArgumentException("Unsupported Omni input field: " + key);
+                }
+            }
+        }
+        this.content = json.has("content") ? json.getString("content") : "";
         this.history = json.has("history") ? JSONUtils.toObjectList(json.getJSONArray("history")) : null;
         this.fileCodes = json.has("files") ? JSONUtils.toStringList(json.getJSONArray("files")) : new ArrayList<>();
-        this.option = json.has("option") ? json.getJSONObject("option") : null;
+        this.option = json.has("option") ? new JSONObject(json.getJSONObject("option").toString()) : null;
         this.recordable = json.has("recordable") && json.getBoolean("recordable");
+    }
+
+    /** 是否使用统一 Omni 请求契约；插件单元保留各自的扩展约定。 */
+    public boolean isOmniUnit() {
+        return "OmniGround".equals(this.unit) || "OmniPerception".equals(this.unit)
+                || "OmniVL".equals(this.unit) || "OmniMultimodal".equals(this.unit);
     }
 
     /**

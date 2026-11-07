@@ -17,7 +17,7 @@
  *                 <tr><td>OmniPerception</td><td>一张图片；task 选择检测、计数、区域描述、区域 OCR 或视觉问答。</td><td>answer 中的文字，以及 resultPayload.refs 中的目标框。</td></tr>
  *                 </tbody></table></div>
  *                 <p>REST 应答的文字字段为 <code>answer</code>。绘制目标框、定位点时读取 <code>resultPayload</code>，坐标以原图像素为单位，缩放显示时按返回的 width、height 换算。空 refs 表示没有返回目标位置；OCR、问答等任务仍可在 answer 中返回文字。计数结果由 answer 描述，不提供独立的 count 字段。</p>
- *                 <p>GUI 定位选择 <code>task="ground_gui"</code>：output 默认为 box，从 refs[].boxes 读取边界框；设为 point 时从 refs[].points 读取定位点。接口只返回位置，不执行界面操作。</p>
+ *                 <p>扩展参数统一放在 <code>option.parameters</code>；仅支持新任务名和字段结构，旧的 detect、ground_gui、平铺 lang/mode 等字段会被拒绝。GUI 定位选择 <code>task="gui_grounding"</code>：parameters.outputType 默认为 box，从 refs[].boxes 读取边界框；设为 point 时从 refs[].points 读取定位点。接口只返回位置，不执行界面操作。</p>
  *                 <p>区域描述与 OCR 应同时提供 bboxList 和从 0 开始的 targetRegionIndexes；vqa 直接对整图提问，省略这两个字段。只发送所选模型和任务支持的选项。下方应答展示代表性结果，文字与坐标以实际输入为准。</p>
  *
  * @apiParam {String} token 授权令牌。
@@ -25,20 +25,23 @@
  * @apiBody {String} channel 通道的频道码。
  * @apiBody {Object} input 多模态输入信息。
  * @apiBody {String} [input.unit=OmniGround] 模型名称；建议显式指定，取值见上方模型表。
- * @apiBody {String} input.content 输入的文本内容。允许该字段为文件码，URL地址或文本内容。文本内容可以是自然语言描述、问题、指令等。使用 <code>OmniPerception</code> 时，除 <code>brief_region_caption</code> 和 <code>region_ocr</code> 外，该字段不能为空。
+ * @apiBody {String} [input.content] 当前提示词，省略时为 ""；不会自动下载此字段中的 URL。OmniMultimodal 还可使用语音文件码。OmniPerception 除区域任务外必须非空；OmniGround 的 text_detection 或使用 parameters.categories 的 detection 可省略；OmniVL 为空时使用内置描述提示词。
  * @apiBody {Object[]} [input.history] OmniMultimodal 的文字对话上下文，每项包含 query 和 answer；后续请求按需提交完整上下文。
  * @apiBody {String} input.history.query 每条历史对话中的用户输入。
  * @apiBody {String} input.history.answer 每条历史对话中的模型输出。
  * @apiBody {String[]} [input.files] 文件码或文件 URL 列表。OmniGround、OmniPerception 必须提供一张图片，OmniVL 必须提供一个视频；OmniMultimodal 按需提供媒体附件。
  * @apiBody {Object} [input.option] 指定的任务描述。
+ * @apiBody {String} [input.option.operation=analyze] 同步分析使用 analyze；RTSP 输入默认 start，参见流式接口。
+ * @apiBody {Object} [input.option.parameters] 图片任务的扩展参数；OmniVL、OmniMultimodal 仅接受空对象。
+ * @apiBody {String[]} [input.option.parameters.categories] 仅用于 OmniGround 的 detection，非空类别数组，优先于 content。
  * @apiBody {String} [input.option.task] 指定的任务名称。<br/>
  *                   <code>OmniGround</code> 的任务名称。<br/>
- *                   <code>detect</code> - 检测并定位所有符合描述的目标<br/>
- *                   <code>ground_single</code> - 检测并定位单个目标<br/>
- *                   <code>ground_multi</code> - 检测并定位多个目标<br/>
- *                   <code>ground_text</code> - 请找到标有指定描述的文本<br/>
- *                   <code>detect_text</code> - 检测所有文本<br/>
- *                   <code>ground_gui</code> - 根据描述定位界面截图中的 GUI 元素，支持边界框或定位点输出<br/>
+ *                   <code>detection</code> - 检测并定位所有符合描述的目标<br/>
+ *                   <code>grounding_single</code> - 检测并定位单个目标<br/>
+ *                   <code>grounding_multi</code> - 检测并定位多个目标<br/>
+ *                   <code>text_grounding</code> - 请找到标有指定描述的文本<br/>
+ *                   <code>text_detection</code> - 检测所有文本<br/>
+ *                   <code>gui_grounding</code> - 根据描述定位界面截图中的 GUI 元素，支持边界框或定位点输出<br/>
  *                   <code>point</code> - 点检测。
  *                   <hr/>
  *                   <code>OmniPerception</code> 的任务名称。<br/>
@@ -49,11 +52,11 @@
  *                   <code>brief_region_caption</code> - 描述指定区域。<br/>
  *                   <code>region_ocr</code> - 识别指定区域中的文字。<br/>
  *                   <code>vqa</code> - 针对整张图片进行视觉问答。
- * @apiBody {String} [input.option.mode] 仅用于 <code>OmniGround</code> 的图片任务。<br/><code>hybrid</code> - 默认平衡模式。<br/><code>fast</code> - 快速模式，适合低延迟或规则场景。<br/><code>slow</code> - 精准模式，适合离线高精度或复杂场景。
- * @apiBody {String} [input.option.output=box] <code>OmniGround</code> 的 <code>ground_gui</code> 任务输出模式。<code>box</code> 表示输出边界框（<code>resultPayload.refs[].boxes</code>），<code>point</code> 表示输出定位点（<code>resultPayload.refs[].points</code>）。
- * @apiBody {String} [input.option.lang=zh] <code>OmniPerception</code> 的任务语言。支持 <code>zh</code> 和 <code>en</code>。
- * @apiBody {Array} [input.option.bboxList] 仅用于 <code>OmniPerception</code> 的候选边界框列表，每个元素使用原图像素坐标 <code>[x1, y1, x2, y2]</code>，最多 100 个。定位类任务可省略；<code>brief_region_caption</code> 和 <code>region_ocr</code> 应显式提供；<code>vqa</code> 不允许提供该字段。
- * @apiBody {Number[]} [input.option.targetRegionIndexes] 需要处理的候选框索引列表，索引从 0 开始且必须小于 bboxList 的长度。仅用于 <code>brief_region_caption</code> 和 <code>region_ocr</code>，使用这两个任务时必填。
+ * @apiBody {String} [input.option.parameters.mode] 仅用于 <code>OmniGround</code> 的图片任务。<br/><code>hybrid</code> - 默认平衡模式。<br/><code>fast</code> - 快速模式，适合低延迟或规则场景。<br/><code>slow</code> - 精准模式，适合离线高精度或复杂场景。
+ * @apiBody {String} [input.option.parameters.outputType=box] <code>OmniGround</code> 的 <code>gui_grounding</code> 任务输出模式。<code>box</code> 表示输出边界框（<code>resultPayload.refs[].boxes</code>），<code>point</code> 表示输出定位点（<code>resultPayload.refs[].points</code>）。
+ * @apiBody {String} [input.option.parameters.lang] <code>OmniPerception</code> 的任务语言。支持 <code>zh</code> 和 <code>en</code>，省略时使用服务端配置。
+ * @apiBody {Array} [input.option.parameters.bboxList] 仅用于 <code>OmniPerception</code> 的候选边界框列表，每个元素使用原图像素坐标 <code>[x1, y1, x2, y2]</code>，最多 100 个。定位类任务可省略；<code>brief_region_caption</code> 和 <code>region_ocr</code> 应显式提供；<code>vqa</code> 不允许提供该字段。
+ * @apiBody {Number[]} [input.option.parameters.targetRegionIndexes] 需要处理的候选框索引列表，索引从 0 开始且必须小于 bboxList 的长度。仅用于 <code>brief_region_caption</code> 和 <code>region_ocr</code>，使用这两个任务时必填。
  *
  * 
  * @apiParamExample {json} OmniGround -一般示例
@@ -66,8 +69,8 @@
  *             ]
  *         }
  *     }
- * 
- * @apiParamExample {json} OmniGround - detect 任务示例
+ *
+ * @apiParamExample {json} OmniGround - detection 任务示例
  *     {
  *         "channel": "mnxRSaLdPuHEVaKY",
  *         "input": {
@@ -76,12 +79,12 @@
  *                 "unpmAGrMYphCHatmTRmoPMbrMCKGLHOlWOTHGviJSLDQyIwtSLdBTRLUpOQeMxLg"
  *             ],
  *             "option": {
- *                 "task": "detect"
+ *                 "task": "detection"
  *             }
  *         }
  *     }
- * 
- * @apiParamExample {json} OmniGround - ground_text 任务示例
+ *
+ * @apiParamExample {json} OmniGround - text_grounding 任务示例
  *     {
  *         "channel": "mnxRSaLdPuHEVaKY",
  *         "input": {
@@ -90,28 +93,12 @@
  *                 "https://my.domain.com/images/photo.jpg"
  *             ],
  *             "option": {
- *                 "task": "ground_text"
- *             }
- *         }
- *     }
- * 
- * @apiParamExample {json} OmniGround - ground_gui 边界框示例
- *     {
- *         "channel": "mnxRSaLdPuHEVaKY",
- *         "input": {
- *             "unit": "OmniGround",
- *             "content": "界面右上角的搜索按钮",
- *             "files": [
- *                 "https://my.domain.com/images/screenshot.png"
- *             ],
- *             "option": {
- *                 "task": "ground_gui",
- *                 "output": "box"
+ *                 "task": "text_grounding"
  *             }
  *         }
  *     }
  *
- * @apiParamExample {json} OmniGround - ground_gui 定位点示例
+ * @apiParamExample {json} OmniGround - gui_grounding 边界框示例
  *     {
  *         "channel": "mnxRSaLdPuHEVaKY",
  *         "input": {
@@ -121,8 +108,28 @@
  *                 "https://my.domain.com/images/screenshot.png"
  *             ],
  *             "option": {
- *                 "task": "ground_gui",
- *                 "output": "point"
+ *                 "task": "gui_grounding",
+ *                 "parameters": {
+ *                     "outputType": "box"
+ *                 }
+ *             }
+ *         }
+ *     }
+ *
+ * @apiParamExample {json} OmniGround - gui_grounding 定位点示例
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniGround",
+ *             "content": "界面右上角的搜索按钮",
+ *             "files": [
+ *                 "https://my.domain.com/images/screenshot.png"
+ *             ],
+ *             "option": {
+ *                 "task": "gui_grounding",
+ *                 "parameters": {
+ *                     "outputType": "point"
+ *                 }
  *             }
  *         }
  *     }
@@ -138,7 +145,7 @@
  *             ]
  *         }
  *     }
- * 
+ *
  * @apiParamExample {json} OmniMultimodal - 语音提问与媒体附件
  *     {
  *         "channel": "mnxRSaLdPuHEVaKY",
@@ -150,7 +157,7 @@
  *             ]
  *         }
  *     }
- * 
+ *
  * @apiParamExample {json} OmniMultimodal - 图片问答与文字上下文
  *     {
  *         "channel": "mnxRSaLdPuHEVaKY",
@@ -180,7 +187,9 @@
  *             ],
  *             "option": {
  *                 "task": "detection",
- *                 "lang": "zh"
+ *                 "parameters": {
+ *                     "lang": "zh"
+ *                 }
  *             }
  *         }
  *     }
@@ -196,7 +205,9 @@
  *             ],
  *             "option": {
  *                 "task": "grounding_single",
- *                 "lang": "zh"
+ *                 "parameters": {
+ *                     "lang": "zh"
+ *                 }
  *             }
  *         }
  *     }
@@ -212,7 +223,9 @@
  *             ],
  *             "option": {
  *                 "task": "counting",
- *                 "lang": "zh"
+ *                 "parameters": {
+ *                     "lang": "zh"
+ *                 }
  *             }
  *         }
  *     }
@@ -228,7 +241,9 @@
  *             ],
  *             "option": {
  *                 "task": "reasoning_detection",
- *                 "lang": "zh"
+ *                 "parameters": {
+ *                     "lang": "zh"
+ *                 }
  *             }
  *         }
  *     }
@@ -244,12 +259,26 @@
  *             ],
  *             "option": {
  *                 "task": "brief_region_caption",
- *                 "lang": "zh",
- *                 "bboxList": [
- *                     [120, 80, 560, 720],
- *                     [620, 140, 980, 760]
- *                 ],
- *                 "targetRegionIndexes": [0]
+ *                 "parameters": {
+ *                     "lang": "zh",
+ *                     "bboxList": [
+ *                         [
+ *                             120,
+ *                             80,
+ *                             560,
+ *                             720
+ *                         ],
+ *                         [
+ *                             620,
+ *                             140,
+ *                             980,
+ *                             760
+ *                         ]
+ *                     ],
+ *                     "targetRegionIndexes": [
+ *                         0
+ *                     ]
+ *                 }
  *             }
  *         }
  *     }
@@ -265,11 +294,20 @@
  *             ],
  *             "option": {
  *                 "task": "region_ocr",
- *                 "lang": "zh",
- *                 "bboxList": [
- *                     [220, 110, 1060, 360]
- *                 ],
- *                 "targetRegionIndexes": [0]
+ *                 "parameters": {
+ *                     "lang": "zh",
+ *                     "bboxList": [
+ *                         [
+ *                             220,
+ *                             110,
+ *                             1060,
+ *                             360
+ *                         ]
+ *                     ],
+ *                     "targetRegionIndexes": [
+ *                         0
+ *                     ]
+ *                 }
  *             }
  *         }
  *     }
@@ -285,7 +323,9 @@
  *             ],
  *             "option": {
  *                 "task": "vqa",
- *                 "lang": "zh"
+ *                 "parameters": {
+ *                     "lang": "zh"
+ *                 }
  *             }
  *         }
  *     }
@@ -298,12 +338,12 @@
  * @apiSuccess {Object} [resultPayload] 结构化结果；定位任务返回图片尺寸及目标位置，纯文字任务可能为空对象或省略。
  * @apiSuccess {Object[]} [resultPayload.refs] 目标分组列表；没有匹配位置时为空数组。
  * @apiSuccess {String} resultPayload.refs.content 结果参考数据的文本内容。<code>OmniGround</code> 输出未包含文本标签时为空字符串。
- * @apiSuccess {Object[]} resultPayload.refs.boxes 结果参考数据的边界框列表，每项为原图像素坐标 <code>{x1,y1,x2,y2}</code>，分别表示左上角和右下角。<code>ground_gui</code> 的 <code>box</code> 模式从此字段读取定位框。
+ * @apiSuccess {Object[]} resultPayload.refs.boxes 结果参考数据的边界框列表，每项为原图像素坐标 <code>{x1,y1,x2,y2}</code>，分别表示左上角和右下角。<code>gui_grounding</code> 的 <code>box</code> 模式从此字段读取定位框。
  * @apiSuccess {Number} resultPayload.refs.boxes.x1 左上角横坐标，原图像素。
  * @apiSuccess {Number} resultPayload.refs.boxes.y1 左上角纵坐标，原图像素。
  * @apiSuccess {Number} resultPayload.refs.boxes.x2 右下角横坐标，原图像素。
  * @apiSuccess {Number} resultPayload.refs.boxes.y2 右下角纵坐标，原图像素。
- * @apiSuccess {Object[]} resultPayload.refs.points 结果参考数据的点列表，每项为原图像素坐标 <code>{x,y}</code>。<code>ground_gui</code> 的 <code>point</code> 模式从此字段读取定位点。
+ * @apiSuccess {Object[]} resultPayload.refs.points 结果参考数据的点列表，每项为原图像素坐标 <code>{x,y}</code>。<code>gui_grounding</code> 的 <code>point</code> 模式从此字段读取定位点。
  * @apiSuccess {Number} resultPayload.refs.points.x 点横坐标，原图像素。
  * @apiSuccess {Number} resultPayload.refs.points.y 点纵坐标，原图像素。
  * @apiSuccess {Number} [resultPayload.width] 输入图片宽度，单位像素。
@@ -314,7 +354,7 @@
  * @apiSuccess {String} usage.model 模型名称。
  * @apiSuccess {Number} usage.elapsed 服务端耗时，单位毫秒。
  * 
- * @apiSuccessExample {json} OmniGround - detect 应答示例
+ * @apiSuccessExample {json} OmniGround - detection 应答示例
  *     HTTP/1.1 200 OK
  *     {
  *         "sn": 887736204,
@@ -352,7 +392,7 @@
  *         }
  *     }
  * 
- * @apiSuccessExample {json} OmniGround - ground_gui 边界框应答示例
+ * @apiSuccessExample {json} OmniGround - gui_grounding 边界框应答示例
  *     HTTP/1.1 200 OK
  *     {
  *         "sn": 887736205,
@@ -376,7 +416,7 @@
  *         }
  *     }
  *
- * @apiSuccessExample {json} OmniGround - ground_gui 定位点应答示例
+ * @apiSuccessExample {json} OmniGround - gui_grounding 定位点应答示例
  *     HTTP/1.1 200 OK
  *     {
  *         "sn": 887736206,
@@ -571,6 +611,7 @@
  *             ]
  *         }
  *     }
+ *
  */
 
 
@@ -582,12 +623,12 @@
  *
  * @apiDescription 持续分析一个 RTSP(S) 视频源。先创建频道，准备可用的视频地址和结果接收地址；所有启动、查询、更新和停止操作均向本路径发送 POST，用 <code>input.option.operation</code> 区分。
  *                 <div class="table-scroll" tabindex="0" role="region" aria-label="流式模型选择"><table><thead><tr><th>模型</th><th>启动条件</th><th>结果形式</th></tr></thead><tbody>
- *                 <tr><td>OmniGround</td><td>必须提供可接收 RTSP(S) 推流的 outputUrl；content 可为空。</td><td>outputUrl 中带目标标注的视频，当前自动检测目标，不提供自定义类别筛选。</td></tr>
- *                 <tr><td>OmniVL</td><td>content 描述关注内容；建议显式提供 callbackUrl。</td><td>向 callbackUrl POST application/json，按片段返回文字 response。</td></tr>
- *                 <tr><td>OmniPerception</td><td>非空 content、HTTP(S) callbackUrl；task 支持 detection、grounding_single、reasoning_detection、counting。</td><td>命中目标时向 callbackUrl POST image/png；从 PNG 的 vlm_meta 读取 JSON。</td></tr>
+ *                 <tr><td>OmniGround</td><td>必须提供可接收 RTSP 推流的 output.url；content 可为空。</td><td>output.url 中带目标标注的视频，当前自动检测目标，不提供自定义类别筛选。</td></tr>
+ *                 <tr><td>OmniVL</td><td>content 描述关注内容；建议显式提供 output.url。</td><td>向 output.url POST application/json，按片段返回文字 response。</td></tr>
+ *                 <tr><td>OmniPerception</td><td>非空 content、HTTP(S) output.url；task 支持 detection、grounding_single、reasoning_detection、counting。</td><td>命中目标时向 output.url POST image/png；从 PNG 的 vlm_meta 读取 JSON。</td></tr>
  *                 </tbody></table></div>
  *                 <p>接入顺序：start 后保存 <code>resultPayload.streamId</code> → status 确认运行状态 → 接收结果 → 按需 update 提示词 → stop → 继续 status，直到 stopped 或 failed。启动返回 starting 只表示已创建会话，stopping 表示仍在停止。不要用未收到回调判断会话是否结束；检查 status、lastError 和回调计数。sn 是本次请求的流水号，不能代替字符串 streamId。</p>
- *                 <p>后续操作使用创建会话的用户身份、频道和模型，同一频道按顺序发送请求。status、stop 的 content 传空字符串、files 传 []；OmniVL、OmniPerception 的 update 用非空 content 替换提示词。OmniPerception 启动时 option 仅使用 operation、task、callbackUrl、intervalSeconds，控制请求仅使用 operation、streamId；更新后用 queryVersion、activeQueryVersion 判断新提示词是否已应用。</p>
+ *                 <p>后续操作使用创建会话的用户身份、频道和模型，同一频道按顺序发送请求。status、stop 的 content 可省略或传空字符串，files/history 可省略或传 []；OmniVL、OmniPerception 的 update 用非空 content 替换提示词。启动时 option 使用 operation、task 和 output 对象，output 中使用 url、headers、intervalSeconds；控制请求的 option 仅使用 operation、streamId。流请求 parameters 仅接受空对象；控制请求不能携带 task、parameters 或 output。更新后用 queryVersion、activeQueryVersion 判断新提示词是否已应用。</p>
  *                 <p>OmniVL 的 JSON 回调包含 sequence、streamId、response、timestamp、timeRange 和 performance；timeRange 的 Offset 为秒，Timestamp 为毫秒，performance.elapsed 为毫秒。按 streamId、sequence 关联片段。</p>
  *                 <p>OmniPerception 仅在返回非空目标框时发送 PNG；未命中时最多每秒检测一帧，命中后至少间隔 intervalSeconds 秒再检测。接收端按二进制读取图片，vlm_meta 为 UTF-8 JSON，含 eventId、streamId、queryVersion、timestamp、task、prompt、response、resultPayload、performance。以 X-VLM-Event-Id 或元数据中的 eventId 去重；成功保存后返回 2xx。20 MiB 以上 PNG 不推送。网络错误、408、429、5xx 最多尝试3次（含首次），不跟随重定向。下方示例展示同一会话的完整控制与回调。</p>
  *
@@ -596,14 +637,15 @@
  * @apiBody {String} channel 通道的频道码。
  * @apiBody {Object} input 多模态输入信息。
  * @apiBody {String} input.unit 指定使用的多模态单元名称。<br/><code>OmniGround</code> - 流式分类。<br/><code>OmniVL</code> - 流式自然语言推理。<br/><code>OmniPerception</code> - 命中原帧 PNG 回调。
- * @apiBody {String} input.content 必须保留的提示词字段。OmniPerception 的 start、update 必须非空；OmniVL 用于描述关注内容，update 时提供新提示词；status、stop 以及 OmniGround 的 start 可传空字符串。
- * @apiBody {String[]} input.files 启动时填写且仅填写一个 RTSP(S) 地址；status、update、stop 时必须传空数组 []。
+ * @apiBody {String} [input.content] 提示词，省略时为 ""。OmniPerception 的 start、update 必须非空；OmniVL 的 update 必须非空；status、stop 应省略或为空字符串。
+ * @apiBody {String[]} [input.files] 启动时填写且仅填写一个 RTSP(S) 地址；status、update、stop 时应省略或传空数组 []。
  * @apiBody {Object} input.option 流式任务的选项。
  * @apiBody {String} [input.option.operation=start] start 创建会话；status 查询状态；stop 停止会话；OmniVL、OmniPerception 还支持 update 替换提示词。status、update、stop 必须同时提供 streamId，input.files 传 []。
- * @apiBody {String} [input.option.outputUrl] 仅用于 OmniGround，启动时必填。可接收推流的 RTSP(S) 输出地址；在该地址观看标注视频，从 resultPayload.output 查看输出状态。
- * @apiBody {String} [input.option.callbackUrl] 服务端可访问的 HTTP(S) 接收地址。OmniPerception 启动时必填，用于 PNG 回调；OmniVL 用于 JSON 回调，省略时需确认服务提供方已配置默认接收地址。
- * @apiBody {String} [input.option.task=detection] <code>OmniPerception</code> 流任务类型：detection、grounding_single、reasoning_detection、counting；启动后不可修改。
- * @apiBody {Number} [input.option.intervalSeconds=5] <code>OmniPerception</code> 命中后的检测间隔，不小于 1 的整数；只可在启动时指定。
+ * @apiBody {Object} [input.option.output] 仅用于 start 的输出配置；不再支持平铺的 callbackUrl、callbackHeaders、outputUrl。
+ * @apiBody {String} [input.option.output.url] OmniGround 启动必填 RTSP 输出地址；OmniPerception 启动必填 HTTP(S) PNG 回调地址；OmniVL 可选 HTTP(S) JSON 回调地址，省略时使用静态配置及服务事件通道。
+ * @apiBody {Object} [input.option.output.headers] OmniVL、OmniPerception 的回调请求头，键和值均为字符串且禁止换行。
+ * @apiBody {String} [input.option.task] OmniGround 仅 detection；OmniVL 仅 understanding；OmniPerception 支持 detection、grounding_single、reasoning_detection、counting，默认 detection；启动后不可修改。
+ * @apiBody {Number} [input.option.output.intervalSeconds] <code>OmniPerception</code> 的回调间隔，不小于 1 的整数；省略时使用静态配置，只可在启动时指定。
  * @apiBody {String} [input.option.streamId] 启动任务时返回的 ID；查询、更新和停止时必填。
  *
  * @apiParamExample {json} OmniPerception - 第一步：启动会话
@@ -618,8 +660,10 @@
  *             "option": {
  *                 "operation": "start",
  *                 "task": "reasoning_detection",
- *                 "intervalSeconds": 5,
- *                 "callbackUrl": "https://receiver.example.com/vlm"
+ *                 "output": {
+ *                     "url": "https://receiver.example.com/vlm",
+ *                     "intervalSeconds": 5
+ *                 }
  *             }
  *         }
  *     }
@@ -677,7 +721,9 @@
  *             ],
  *             "option": {
  *                 "operation": "start",
- *                 "outputUrl": "rtsp://211.157.179.37:8554/live/grounding"
+ *                 "output": {
+ *                     "url": "rtsp://211.157.179.37:8554/live/grounding"
+ *                 }
  *             }
  *         }
  *     }
@@ -720,7 +766,9 @@
  *                 "rtsp://211.157.179.37:8554/live"
  *             ],
  *             "option": {
- *                 "callbackUrl": "http://211.157.179.37:9410/omni/vl/callback"
+ *                 "output": {
+ *                     "url": "http://211.157.179.37:9410/omni/vl/callback"
+ *                 }
  *             }
  *         }
  *     }
@@ -770,7 +818,7 @@
  * @apiSuccess {Number} sn 本次请求的流水号。
  * @apiSuccess {Number} timestamp 本次请求的时间戳（毫秒）。
  * @apiSuccess {String} unit 本次任务使用的多模态单元名称。
- * @apiSuccess {String} answer 多模态模型生成的文本内容。流式任务的启动/停止应答中为空字符串，识别结果通过输出视频流或 <code>callbackUrl</code> 持续推送。
+ * @apiSuccess {String} answer 多模态模型生成的文本内容。流式任务的启动/停止应答中为空字符串，识别结果通过输出视频流或 <code>output.url</code> 持续推送。
  * @apiSuccess {String} thought 多模态模型生成的思路。流式任务的启动/停止应答中为空字符串。
  * @apiSuccess {Object} resultPayload 流式任务的状态快照，随任务推进而变化。
  * @apiSuccess {String} resultPayload.streamId 流式会话 ID，按字符串保存；status、update、stop 时作为 input.option.streamId 传入。
@@ -790,7 +838,7 @@
  * @apiSuccess {Number} [resultPayload.input.height] 输入画面高度。尚未探测到时为 <code>null</code>。
  * @apiSuccess {Number} [resultPayload.input.fps] 输入视频流帧率。尚未探测到时为 <code>null</code>。
  * @apiSuccess {Object} [resultPayload.output] 标注后输出视频流的信息（仅 <code>OmniGround</code> 任务返回）。
- * @apiSuccess {String} resultPayload.output.url 输出视频流的推送地址，即请求 <code>input.option.outputUrl</code> 中传入的地址。应答中的地址会隐去账号密码。
+ * @apiSuccess {String} resultPayload.output.url 输出视频流的推送地址，即请求 <code>input.option.output.url</code> 中传入的地址。应答中的地址会隐去账号密码。
  * @apiSuccess {String} resultPayload.output.status 输出视频发布状态，例如 starting、running、reconnecting、stopped；会话是否结束应以外层 resultPayload.status 为准。
  * @apiSuccess {String} [resultPayload.output.codec] 输出视频流的编码格式，例如 <code>libx264</code>。尚未确定时为 <code>null</code>。
  * @apiSuccess {Number} [resultPayload.output.width] 输出画面宽度。尚未确定时为 <code>null</code>。
@@ -1243,7 +1291,7 @@
  *         "timestamp": 1789121491146
  *     }
  *
- * @apiSuccessExample {json} OmniVL - callbackUrl 回调数据
+ * @apiSuccessExample {json} OmniVL - output.url 回调数据
  *     {
  *         "sequence": 5,
  *         "performance": {
@@ -1262,7 +1310,7 @@
  *         }
  *     }
  *
- * @apiSuccessExample {text} OmniPerception - callbackUrl 原始请求
+ * @apiSuccessExample {text} OmniPerception - output.url 原始请求
  *     POST /vlm HTTP/1.1
  *     Content-Type: image/png
  *     X-VLM-Event-Id: 8f03be6f-0dbd-4b3a-9d8c-3f189bb57f31:1:1
@@ -1337,9 +1385,12 @@
  *             "option": {
  *                 "operation": "start",
  *                 "task": "reasoning_detection",
- *                 "intervalSeconds": 5,
- *                 "callbackUrl": "https://receiver.example.com/vlm"
+ *                 "output": {
+ *                     "url": "https://receiver.example.com/vlm",
+ *                     "intervalSeconds": 5
+ *                 }
  *             }
  *         }
  *     }
+ *
  */

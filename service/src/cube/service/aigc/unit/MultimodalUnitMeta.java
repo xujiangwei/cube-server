@@ -89,9 +89,9 @@ public class MultimodalUnitMeta extends UnitMeta {
             try {
                 Logger.d(this.getClass(), "#process - Model: " + this.unit.getCapability().getName());
 
-                // 如果内容是超链接，先下载内容
-                if (this.input.content.toLowerCase().startsWith("http://")
-                        || this.input.content.toLowerCase().startsWith("https://")) {
+                // Omni 的 content 是提示词；旧插件的超链接内容仍先下载。
+                if (!this.input.isOmniUnit() && (this.input.content.toLowerCase().startsWith("http://")
+                        || this.input.content.toLowerCase().startsWith("https://"))) {
                     FileLabel fileLabel = this.service.downloadFile(this.channel.getAuthToken(), this.input.content);
                     if (null != fileLabel) {
                         if (fileLabel.getFileType() == FileType.TEXT || fileLabel.getFileType() == FileType.MD) {
@@ -129,8 +129,12 @@ public class MultimodalUnitMeta extends UnitMeta {
                         FileLabel fileLabel = this.service.downloadFile(this.channel.getAuthToken(), fileItem);
                         if (null != fileLabel) {
                             fileLabelList.add(fileLabel);
+                        } else {
+                            this.listener.onFailed(this.channel, AIGCStateCode.FileError);
+                            return;
                         }
-                    } else if (fileItem.startsWith("rtsp") || fileItem.startsWith("rtmp")) {
+                    } else if (fileItem.regionMatches(true, 0, "rtsp", 0, 4)
+                            || fileItem.regionMatches(true, 0, "rtmp", 0, 4)) {
                         // RTSP 或 RTMP 视频流
                         fileLabelList = null;
                         break;
@@ -139,6 +143,9 @@ public class MultimodalUnitMeta extends UnitMeta {
                         FileLabel fileLabel = this.service.getFile(this.channel.getAuthToken().getDomain(), fileItem);
                         if (null != fileLabel) {
                             fileLabelList.add(fileLabel);
+                        } else {
+                            this.listener.onFailed(this.channel, AIGCStateCode.NotFound);
+                            return;
                         }
                     }
                 }
@@ -170,8 +177,9 @@ public class MultimodalUnitMeta extends UnitMeta {
                 Packet response = new Packet(dialect);
                 if (Packet.extractCode(response) != AIGCStateCode.Ok.code) {
                     Logger.w(this.getClass(), "#process - unit failed: " + Packet.extractCode(response));
+                    meterFinish(Packet.extractDataPayload(response), "failed");
                     // 回调错误
-                    this.listener.onFailed(this.channel, AIGCStateCode.Failure);
+                    this.listener.onFailed(this.channel, AIGCStateCode.parse(Packet.extractCode(response)));
                     return;
                 }
 

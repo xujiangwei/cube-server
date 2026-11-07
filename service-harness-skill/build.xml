@@ -44,6 +44,7 @@
   </target>
   <path id="test.cp"><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/><pathelement location="${build.dir}/test-classes"/></path>
   <target name="test" depends="compile-tests,test-media">
+    <java classname="cube.service.harness.skill.OmniOptionsTest" fork="true" failonerror="true"><classpath refid="test.cp"/></java>
     <exec executable="${python.exe}" failonerror="true"><arg value="-B"/><arg value="scripts/test_smoke.py"/></exec>
     <java classname="cube.service.harness.skill.ProviderTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/></java>
     <java classname="cube.service.harness.test.CommonToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/></java>

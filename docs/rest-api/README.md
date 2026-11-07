@@ -64,10 +64,12 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 | --- | --- | --- |
 | 图片目标、文字或 GUI 定位 | `OmniGround`，用 `task` 选择任务 | `resultPayload.refs[].boxes` 或 `points`，原图像素坐标。 |
 | 视频总结、媒体问答 | `OmniVL` 分析一个视频；`OmniMultimodal` 结合媒体、问题及文字历史回答 | REST 应答的 `answer`。 |
-| 图片计数、OCR、区域描述、问答 | `OmniPerception`，单张图片；区域任务提供 `bboxList` 与 `targetRegionIndexes`，整图 `vqa` 省略它们 | `answer` 与目标框；计数不提供独立的 `count` 字段。 |
-| 实时视频 | `OmniGround` 提供 RTSP(S) `outputUrl`；`OmniVL` 接收 JSON 回调；`OmniPerception` 提供必填的 HTTP(S) PNG 回调地址 | 保存 `resultPayload.streamId`；回调的文字字段为 `response`。 |
+| 图片计数、OCR、区域描述、问答 | `OmniPerception`，单张图片；区域参数放在 `option.parameters`，区域任务提供 `targetRegionIndexes`，可用 `bboxList` 指定候选框；整图 `vqa` 省略它们 | `answer` 与目标框；计数不提供独立的 `count` 字段。 |
+| 实时视频 | `OmniGround` 的 `option.output.url` 为 RTSP 输出地址；`OmniVL` 接收 JSON 回调；`OmniPerception` 的该字段为必填的 HTTP(S) PNG 回调地址 | 保存 `resultPayload.streamId`；回调的文字字段为 `response`。 |
 
-实时会话全部使用 POST：`start` → 保存字符串 `streamId` → `status` 确认状态 → 接收结果 → 按需 `update` → `stop` → `status` 确认 `stopped` 或 `failed`。始终保留 `input.content`，查询和停止时传 `""`，`input.files` 传 `[]`；沿用创建会话的用户身份、频道和模型，同一频道顺序发送控制请求。`sn` 是请求流水号，不能用来代替 `streamId`。
+实时会话全部使用 POST：`start` → 保存字符串 `streamId` → `status` 确认状态 → 接收结果 → 按需 `update` → `stop` → `status` 确认 `stopped` 或 `failed`。查询和停止时 `input.content` 可省略或传 `""`，`input.files/history` 可省略或传 `[]`；控制请求的 `option` 仅接受 `operation`、`streamId`。沿用创建会话的用户身份、频道和模型，同一频道顺序发送控制请求。`sn` 是请求流水号，不能用来代替 `streamId`。
+
+Omni 请求统一使用 `option.operation/task/parameters/output`，旧的平铺 `lang/mode/bboxList`、`callbackUrl/outputUrl` 以及 `detect/ground_gui` 等旧任务名不再支持。Java REST 的 `files` 仍接受已上传文件码或 HTTP(S) 媒体 URL，媒体 URL 由 Java 下载后转换为 FileLabel 再发给 Python；`content` 中的 URL 作为提示词原样传递。Python 单元直接调用的本地路径与 FileLabel 输入不属于此 REST 入口。
 
 `starting` 只表示会话创建成功，`stopping` 仍需继续查询。未收到回调时检查状态、`lastError` 与回调计数；OmniPerception 只有命中目标时才发送 PNG。接收端按 `eventId` 去重，从 PNG 的 `vlm_meta` 读取 JSON，成功保存后返回 2xx。启动和控制请求应按各模型的字段限制分别构造，不要直接复用整份启动选项。
 
@@ -75,9 +77,9 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 
 ## GUI 元素定位 OmniGround
 
-使用 dispatcher 的 `POST /multimodal/base/{token}` 调用 `ground_gui`，可在界面截图中定位按钮、输入框、图标等元素。先创建频道并取得频道码，将截图上传后的文件码或服务端可访问的图片 URL 放入 `input.files`，用 `input.content` 描述目标元素，指定 `input.unit="OmniGround"`、`input.option.task="ground_gui"`。
+使用 dispatcher 的 `POST /multimodal/base/{token}` 调用 `gui_grounding`，可在界面截图中定位按钮、输入框、图标等元素。先创建频道并取得频道码，将截图上传后的文件码或服务端可访问的图片 URL 放入 `input.files`，用 `input.content` 描述目标元素，指定 `input.unit="OmniGround"`、`input.option.task="gui_grounding"`。
 
-`input.option.output` 默认为 `box`，从 `resultPayload.refs[].boxes` 读取边界框；设为 `point` 时，从 `resultPayload.refs[].points` 读取定位点。结果使用原图像素坐标，图片尺寸见 `resultPayload.width`、`resultPayload.height`。该接口直接返回业务 JSON；GUI 定位只返回位置，不执行点击或输入操作。
+`input.option.parameters.outputType` 默认为 `box`，从 `resultPayload.refs[].boxes` 读取边界框；设为 `point` 时，从 `resultPayload.refs[].points` 读取定位点。结果使用原图像素坐标，图片尺寸见 `resultPayload.width`、`resultPayload.height`。该接口直接返回业务 JSON；GUI 定位只返回位置，不执行点击或输入操作。
 
 两种模式的完整请求及应答示例见 [多模态数据推理](output/index.html#api-Multimodal-多模态数据推理)。示例中的令牌、频道码和截图地址应替换为实际值。
 

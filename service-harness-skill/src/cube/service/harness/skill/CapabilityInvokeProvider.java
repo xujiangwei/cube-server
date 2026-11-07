@@ -207,7 +207,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         JSONObject request = new JSONObject()
                 .put("unit", profile.getString("unit"))
                 .put("adapter", profile.getString("adapter"))
-                .put("option", ConnectorConfig.arguments(profile.getString("optionsJson")))
+                .put("option", unitOptions(profile))
                 .put("content", args.getString("content"))
                 .put("tenant", context.tenant)
                 .put("subject", context.subject)
@@ -281,6 +281,19 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         }
         context.textArtifact("media-source.json", provenance.toString());
         return out;
+    }
+
+    /** 把 Harness 分析档案的选项转换为目标 Unit 的请求契约。 */
+    static JSONObject unitOptions(JSONObject profile) {
+        JSONObject options = ConnectorConfig.arguments(profile.getString("optionsJson"));
+        if (!"multimodal".equals(profile.getString("adapter"))) {
+            return options;
+        }
+        String task = "OmniPerception".equals(profile.getString("unit"))
+                ? options.getString("task") : "understanding";
+        options.remove("task");
+        return new JSONObject().put("operation", "analyze").put("task", task)
+                .put("parameters", options);
     }
 
     /**

@@ -53,8 +53,17 @@ public class MultimodalTask extends ServiceTask {
 
         AIGCService service = ((AIGCCellet) this.cellet).getService();
 
-        String channelCode = packet.data.getString("channel");
-        MultimodalInput input = new MultimodalInput(packet.data.getJSONObject("input"));
+        String channelCode;
+        MultimodalInput input;
+        try {
+            channelCode = packet.data.getString("channel");
+            input = new MultimodalInput(packet.data.getJSONObject("input"));
+        } catch (RuntimeException invalid) {
+            this.cellet.speak(this.talkContext,
+                    this.makeResponse(dialect, packet, AIGCStateCode.InvalidParameter.code, new JSONObject()));
+            markResponseTime();
+            return;
+        }
 
         boolean success = service.executeMultimodal(token, channelCode, input, new MultimodalListener() {
             @Override
@@ -67,7 +76,7 @@ public class MultimodalTask extends ServiceTask {
             @Override
             public void onFailed(AIGCChannel channel, AIGCStateCode errorCode) {
                 cellet.speak(talkContext,
-                        makeResponse(dialect, packet, AIGCStateCode.UnitError.code, new JSONObject()));
+                        makeResponse(dialect, packet, errorCode.code, new JSONObject()));
                 markResponseTime();
             }
         });

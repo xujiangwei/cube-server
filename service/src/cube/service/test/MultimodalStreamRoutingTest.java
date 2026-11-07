@@ -49,6 +49,7 @@ public class MultimodalStreamRoutingTest {
         FakeCellet cellet = new FakeCellet();
         FakeService service = new FakeService(cellet);
         try {
+            testOmniProtocol(service, cellet);
             testControlRouting(service, cellet);
             testImmediateFollowup(service, cellet);
             testResponseRegistration(service, cellet);
@@ -60,6 +61,62 @@ public class MultimodalStreamRoutingTest {
             service.executor.shutdown();
             service.accounting.close();
         }
+    }
+
+    private static void testOmniProtocol(FakeService service, FakeCellet cellet) throws Exception {
+        MultimodalInput control = new MultimodalInput(new JSONObject().put("unit", "OmniVL")
+                .put("option", new JSONObject().put("operation", "status").put("streamId", "session")));
+        check("".equals(control.content), "omitted content defaults to an empty string");
+        check(control.toUnitJson().getJSONArray("files").length() == 0, "omitted files stay empty");
+        check(!control.toUnitJson().has("recordable"), "Java-only fields never reach Python");
+        for (String key : new String[] {"task", "operation", "image"}) {
+            try {
+                new MultimodalInput(new JSONObject().put(key, "legacy"));
+                throw new AssertionError("legacy top-level field was silently discarded: " + key);
+            } catch (IllegalArgumentException expected) {
+                check(true, "legacy top-level field rejected");
+            }
+        }
+        try {
+            new MultimodalInput(new JSONObject().put("content", JSONObject.NULL));
+            throw new AssertionError("explicit null content accepted");
+        } catch (RuntimeException expected) {
+            check(true, "null differs from omitted content");
+        }
+
+        JSONObject option = new JSONObject().put("operation", "start").put("task", "detection")
+                .put("output", new JSONObject().put("url", "rtsp://output/live"));
+        JSONObject source = new JSONObject().put("unit", "OmniGround").put("content", "https://example.com/prompt")
+                .put("files", new JSONArray().put("RTSP://camera/live")).put("option", option);
+        MultimodalInput start = new MultimodalInput(source);
+        cellet.reset("new-contract", "starting");
+        Reply reply = new Reply();
+        new MultimodalUnitMeta(service, unit(100000L), service.channel, start, reply).process();
+        reply.await();
+        check(cellet.request.getJSONObject("option").toString().equals(option.toString()),
+                "nested output is forwarded without rewriting");
+        check("RTSP://camera/live".equals(cellet.request.getJSONArray("files").getString(0)),
+                "uppercase RTSP source survives file resolution");
+        check("https://example.com/prompt".equals(cellet.request.getString("content")),
+                "Omni content is a prompt and is not downloaded");
+        check(source.getJSONObject("option").toString().equals(option.toString()), "request options are unchanged");
+
+        for (AIGCStateCode code : new AIGCStateCode[] {AIGCStateCode.InvalidParameter,
+                AIGCStateCode.NotFound, AIGCStateCode.Processing, AIGCStateCode.UnitNoReady}) {
+            cellet.reset("error", "running");
+            cellet.responseCode = code.code;
+            Reply failure = new Reply() {
+                @Override
+                public void onFailed(AIGCChannel channel, AIGCStateCode actual) {
+                    check(actual == code, "Python error code preserved: " + code);
+                    done.countDown();
+                }
+            };
+            meta(service, unit(100000L), failure).process();
+            failure.await();
+            check(!service.channel.isProcessing(), "failed request releases channel");
+        }
+        CENTER.stop();
     }
 
     private static void testControlRouting(FakeService service, FakeCellet cellet) throws Exception {
@@ -295,6 +352,7 @@ public class MultimodalStreamRoutingTest {
         boolean stopBeforeResponse;
         boolean omitPayload;
         boolean withUsage;
+        int responseCode;
         volatile TalkContext context;
         volatile JSONObject request;
         final AtomicInteger calls = new AtomicInteger();
@@ -303,6 +361,7 @@ public class MultimodalStreamRoutingTest {
             streamId = id;
             status = state;
             stopBeforeResponse = omitPayload = withUsage = false;
+            responseCode = 0;
         }
 
         @Override
@@ -320,7 +379,7 @@ public class MultimodalStreamRoutingTest {
             if (withUsage) {
                 result.put("performance", new JSONObject().put("inputTokens", 0).put("outputTokens", 0));
             }
-            return new Packet("multimodal", new JSONObject().put("code", 0).put("data", result)).toDialect();
+            return new Packet("multimodal", new JSONObject().put("code", responseCode).put("data", result)).toDialect();
         }
     }
 
