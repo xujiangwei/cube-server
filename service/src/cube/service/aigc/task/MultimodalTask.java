@@ -27,7 +27,9 @@ import org.json.JSONObject;
  */
 public class MultimodalTask extends ServiceTask {
 
-    /** 构造任务实例，参数由单元统一注入。 */
+    /**
+     * 构造任务实例，参数由单元统一注入。
+     */
     public MultimodalTask(Cellet cellet, TalkContext talkContext, Primitive primitive, ResponseTime responseTime) {
         super(cellet, talkContext, primitive, responseTime);
     }

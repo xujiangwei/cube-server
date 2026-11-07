@@ -19,28 +19,44 @@ import java.util.List;
  */
 public class MultimodalInput implements JSONable {
 
-    /** 单元。 */
+    /**
+     * 单元。
+     */
     public String unit;
 
-    /** 内容。 */
+    /**
+     * 内容。
+     */
     public String content;
 
-    /** 历史。 */
+    /**
+     * 历史。
+     */
     public List<JSONObject> history;
 
-    /** 文件码列表。 */
+    /**
+     * 文件码列表。
+     */
     public List<String> fileCodes;
 
-    /** 文件标签列表。 */
+    /**
+     * 文件标签列表。
+     */
     public List<FileLabel> fileLabels;
 
-    /** 流列表。 */
+    /**
+     * 流列表。
+     */
     public List<String> streams;
 
-    /** 选项。 */
+    /**
+     * 选项。
+     */
     public JSONObject option;
 
-    /** 是否可记录。 */
+    /**
+     * 是否可记录。
+     */
     public boolean recordable = false;
 
     public MultimodalInput(JSONObject json) {
@@ -60,7 +76,9 @@ public class MultimodalInput implements JSONable {
         this.recordable = json.has("recordable") && json.getBoolean("recordable");
     }
 
-    /** 是否使用统一 Omni 请求契约；插件单元保留各自的扩展约定。 */
+    /**
+     * 是否使用统一 Omni 请求契约；插件单元保留各自的扩展约定。
+     */
     public boolean isOmniUnit() {
         return "OmniGround".equals(this.unit) || "OmniPerception".equals(this.unit)
                 || "OmniVL".equals(this.unit) || "OmniMultimodal".equals(this.unit);
@@ -87,11 +105,9 @@ public class MultimodalInput implements JSONable {
                 files.put(fileLabel.toJSON());
             }
             json.put("files", files);
-        }
-        else if (null != this.fileCodes) {
+        } else if (null != this.fileCodes) {
             json.put("files", JSONUtils.toStringArray(this.fileCodes));
-        }
-        else {
+        } else {
             json.put("files", new JSONArray());
         }
 
@@ -120,8 +136,7 @@ public class MultimodalInput implements JSONable {
 
         if (null != this.fileCodes) {
             json.put("files", JSONUtils.toStringArray(this.fileCodes));
-        }
-        else {
+        } else {
             json.put("files", new JSONArray());
         }
 

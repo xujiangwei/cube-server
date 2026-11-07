@@ -18,13 +18,7 @@ import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Locale;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -283,7 +277,9 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         return out;
     }
 
-    /** 把 Harness 分析档案的选项转换为目标 Unit 的请求契约。 */
+    /**
+     * 把 Harness 分析档案的选项转换为目标 Unit 的请求契约。
+     */
     static JSONObject unitOptions(JSONObject profile) {
         JSONObject options = ConnectorConfig.arguments(profile.getString("optionsJson"));
         if (!"multimodal".equals(profile.getString("adapter"))) {
