@@ -82,7 +82,7 @@ Harness 已将这些表纳入严格结构校验，启动时仅允许已知旧版
 
 需要同时更新配套 Python 工程 `cube/aigc_capability.py` 和 `cube/unit_omni_vl.py`。新单元声明 usageProtocol=1；新 service 拒绝向未声明协议的 OmniVL 单元启动 RTSP 推理，返回 34，提示升级。
 
-每段推理先以 `segmentBegin` 同步取得 service 持久 meter ID，再执行模型。`segmentUsage` 在用户回调前确认计量收据，取消时已产生的消费也照常保存。终态收据在 Python 落盘，重启或数据库恢复后重放；service 按库中记录及已注册物理单元身份验证收据，客户端不能指定结算 Contact。启动、状态、提示更新、停止控制本身不计模型调用。
+每段推理先以 `segmentBegin` 同步取得 service 持久 meter ID，再执行模型。配置 HTTP 回调时，结果准备完成后立即异步提交，不等待 `segmentUsage` 的计量收据确认；收据处理失败会暂停新的推理并重试。取消时已产生的消费也照常保存。终态收据在 Python 落盘，重启或数据库恢复后重放；service 按库中记录及已注册物理单元身份验证收据，客户端不能指定结算 Contact。启动、状态、提示更新、停止控制本身不计模型调用。
 
 ## Console 接口
 
@@ -102,4 +102,4 @@ Contact 名称从 Console 当前联系人库读取，删除时回退为 ID。名
 
 升级时使用 JDK 8：先备份数据库与补记目录，更新 common、service、service-harness，配套更新 OmniVL Python 文件，再更新 dispatcher、console 和整个 console/web 目录。启动 service 等待自动建表/严格校验通过，配置 Console 只读数据源后重启 Console。不要只替换 index.html；新哈希静态资源需成套更新。首月采集前的时间显示不完整是预期行为。
 
-本次交付未执行线上部署。验证及其环境限制见交付包 VALIDATION.md。
+回归入口为 `ant -f verify/ai-usage.xml test`，使用实际 JDK 8 和独立测试数据库。Python 流计量回归在配套 apexnova-wisdom 根目录运行 `python -m unittest discover -s tests -p test_ai_usage_stream.py`。隔离测试不代替目标环境的真实模型和部署验收。

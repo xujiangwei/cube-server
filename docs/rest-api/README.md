@@ -63,7 +63,7 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 | 场景 | 模型与参数选择 | 读取结果 |
 | --- | --- | --- |
 | 图片目标、文字或 GUI 定位 | `OmniGround`，用 `task` 选择任务 | `resultPayload.refs[].boxes` 或 `points`，原图像素坐标。 |
-| 视频总结、媒体问答 | `OmniVL` 分析一个视频；`OmniMultimodal` 结合媒体、问题及文字历史回答 | REST 应答的 `answer`。 |
+| 视频总结、媒体问答 | `OmniVL` 对一个视频抽帧、缩放后分析；`OmniMultimodal` 结合媒体、问题及文字历史回答 | REST 应答的 `answer`；视频分析不保证覆盖每一帧。 |
 | 图片计数、OCR、区域描述、问答 | `OmniPerception`，单张图片；区域参数放在 `option.parameters`，区域任务提供 `targetRegionIndexes`，可用 `bboxList` 指定候选框；整图 `vqa` 省略它们 | `answer` 与目标框；计数不提供独立的 `count` 字段。 |
 | 实时视频 | `OmniGround` 的 `option.output.url` 为 RTSP 输出地址；`OmniVL` 接收 JSON 回调；`OmniPerception` 的该字段为必填的 HTTP(S) PNG 回调地址 | 保存 `resultPayload.streamId`；回调的文字字段为 `response`。 |
 
@@ -71,9 +71,17 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 
 Omni 请求统一使用 `option.operation/task/parameters/output`，旧的平铺 `lang/mode/bboxList`、`callbackUrl/outputUrl` 以及 `detect/ground_gui` 等旧任务名不再支持。Java REST 的 `files` 仍接受已上传文件码或 HTTP(S) 媒体 URL，媒体 URL 由 Java 下载后转换为 FileLabel 再发给 Python；`content` 中的 URL 作为提示词原样传递。Python 单元直接调用的本地路径与 FileLabel 输入不属于此 REST 入口。
 
-`starting` 只表示会话创建成功，`stopping` 仍需继续查询。未收到回调时检查状态、`lastError` 与回调计数；OmniPerception 只有命中目标时才发送 PNG。接收端按 `eventId` 去重，从 PNG 的 `vlm_meta` 读取 JSON，成功保存后返回 2xx。启动和控制请求应按各模型的字段限制分别构造，不要直接复用整份启动选项。
+OmniVL 视频文件默认不超过 512 MiB、3600 秒及 33177600 源像素，须有可用视频轨道和有限正时长。服务端默认最多抽取 32 帧，按比例缩小至不超过 1280×720；探测与解码共用默认 30 秒时限。实际限额由服务提供方配置，不能通过请求参数修改。视频不符时压缩、裁剪或转码后重新上传；繁忙时延迟重试。
 
-接口条目包含计数、区域描述、OCR、问答、未检出目标的应答，以及完整实时会话和 PNG 元数据读取示例。多模态接口失败时先检查 HTTP 状态码，响应体可能为空。
+OmniVL 与 OmniPerception 的 HTTP 回调在结果准备完成后异步发送，每个会话最多一个在途请求，并保留最新待发送结果。新结果会取消旧请求及其重试，中间结果可能被覆盖；`stop` 取消未完成回调，Perception 的 `update` 也使旧版本回调失效。回调不保证逐条送达或重启后补发；取消连接不能撤回接收端已执行的业务。按 OmniVL 的 `(streamId, sequence)` 或 Perception 的 `eventId` 持久化去重，保存成功后返回 2xx。默认每次尝试总时限 10 秒、最多 3 次（含首次），仅网络错误、408、429、5xx 重试，不跟随重定向；实际策略由服务提供方配置。
+
+OmniPerception 只有命中目标时才发送 PNG，从 PNG 的 `vlm_meta` 读取 JSON。PNG 是按预算缩放后的分析画面，默认不超过 1920×1080，框坐标相对于该 PNG；默认超过 20 MiB 不推送。未命中时推理结束后至少等待 1 秒，命中后至少等待 `intervalSeconds` 秒再检测，HTTP 耗时不延长间隔。OmniVL 的回调包含实际推理使用的 `queryVersion`；非空短回答仍会发送，空回答按失败处理，不能视为“无变化”。
+
+`starting` 只表示会话创建成功，`stopping` 仍需继续查询。OmniVL 的 `paused` 也是可恢复状态：`pauseReason=accountingUnavailable` 时暂停新的推理并重试用量处理；无 HTTP 回调且服务事件投递失败时为 `deliveryUnavailable`，保留一个已计算结果重试，不重复推理。继续查询 `status`，检查 `lastError`、`pendingResults`、`accountingFailures` 与 `eventFailures`。
+
+未收到回调时结合 `pendingCallbacks`、`supersededCallbacks`（新结果替代或 Perception 更新失效）、`cancelledCallbacks`（停止取消）与 `callbackFailures` 判断；成功投递读取 OmniVL 的 `successfulCallbacks` 或 Perception 的 `postedFrames`。视频会因预算或积压丢帧，OmniVL 另提供 `bufferedBytes`、`peakBufferedBytes`、`droppedSegments` 和 `droppedFrames`。`idleTimeoutSeconds` 为实际无画面超时，至少覆盖两个有效采样间隔，重连本身不重置最后收帧时间。启动和控制请求应按各模型的字段限制分别构造，不要直接复用整份启动选项。
+
+接口条目包含计数、区域描述、OCR、问答、未检出目标的应答，以及实时会话、暂停状态、回调统计和 PNG 元数据读取示例。多模态 REST 当前在执行失败时返回 HTTP 400（包括单元参数错误、资源繁忙或文件处理失败），请求体解析失败为 403，认证失败为 401；响应体可能为空，不能按 Python 内部错误名推断 REST 会返回 429 或 503。
 
 ## GUI 元素定位 OmniGround
 

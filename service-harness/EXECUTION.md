@@ -35,7 +35,7 @@ Python model worker 不直接连接模型 HTTP、不加载模型权重；模型�
 4. 默认 `type=unit` 要求 Harness 与 AIGCService 同 Kernel/JVM，并有对应模型 Unit。独立 Cell 不具备默认 Unit 推理能力。外部模型须显式配置 `type=openai`、`baseUrl`、`model`、`token`、`capacity`、`timeoutSeconds`；字段示例见[主配置模板](config/harness.properties.template)。
 5. 修改模型或执行器时更新服务端配置并重启，新任务按请求选择或采用新的默认值；在途任务保留原快照。`RuntimeAdmin` 只管理租户技能和业务策略。`ExecutionAdmin <新目录>` 导出分离的 `harness-execution/` 与 `harness-tenant/`，不写数据库。
 
-新租户模板的 `skillReleases` 必须为空。技能包、业务 provider 和可执行工具需要单独安装、发布及授权，见 [RUNTIME.md](RUNTIME.md)、[TOOLS.md](TOOLS.md)。开发环境经同 JVM AIGCService 的 [Relay](../service/RELAY.md) 联调远端 Cube 时，仍按远端实际能力和共享容量判断就绪。
+新租户模板的 `skillReleases` 必须为空。技能包、业务 provider 和可执行工具需要单独安装、发布及授权，见 [RUNTIME.md](RUNTIME.md)、[TOOLS.md](TOOLS.md)。开发环境经同 JVM AIGCService 的 [Relay](../docs/RELAY.md) 联调远端 Cube 时，仍按远端实际能力和共享容量判断就绪。
 
 ## 多单元与容量
 

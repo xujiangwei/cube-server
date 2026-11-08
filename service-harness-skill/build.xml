@@ -60,7 +60,6 @@
     <copy todir="${stage.dir}/harness-skill/config"><fileset dir="config"/></copy>
     <copy todir="${stage.dir}/harness-skill/packages"><fileset dir="${build.dir}/packages" includes="*.zip"/></copy>
     <copy file="README.md" todir="${stage.dir}/harness-skill"/>
-    <copy file="VERIFICATION.md" todir="${stage.dir}/harness-skill"/>
   </target>
   <target name="clean"><delete dir="${build.dir}/classes"/><delete dir="${build.dir}/test-classes"/><delete dir="${build.dir}/packages"/><delete file="${build.dir}/cube-service-harness-skill-${version.brand}.jar"/></target>
 </project>

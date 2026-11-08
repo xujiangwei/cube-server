@@ -31,7 +31,7 @@
 
 支持 text/plain、text/csv、application/json（顶层 object）、application/octet-stream。文本严格 UTF-8、拒绝 NUL；JSON 拒绝重复字段。文件大小默认 10 MiB、根配额默认 1 GiB。每个文件身份使用独立随机 storageKey，**不共享或去重 blob**；同内容文件分别计额、分别到期，避免一个引用的删除影响另一个身份。上传意图与可信工具调用分账，失败仅补传/complete，不重做业务工具。
 
-`harness.properties` 参数、单位与范围见 [设计](../../harness/FILE-LIFECYCLE-DESIGN.md) 和 [主配置模板](config/harness.properties.template)。默认 Input 7 天、Artifact 30 天、未完成上传 24 小时；重启应用新配置，不追溯重算已保存 expiresAt。活跃多 JVM 的同根策略不同会拒绝启动，需先 drain 全部旧策略节点再改。
+`harness.properties` 参数、单位与范围见 [主配置模板](config/harness.properties.template)。默认 Input 7 天、Artifact 30 天、未完成上传 24 小时；重启应用新配置，不追溯重算已保存 expiresAt。活跃多 JVM 的同根策略不同会拒绝启动，需先 drain 全部旧策略节点再改。
 
 到期时间满足 `now >= expiresAt` 就禁止新绑定、消费、下载和句柄；有权主体返回 FILE_EXPIRED/410。`cleanup.enabled=false` 只暂停物理删除。消费 pin 保留到 call.confirmed；下载 pin 保留至流关闭，下载最长 `file.download.lease.seconds`。到期前开始的消费可按原 run/call pin 恢复；新增消费仍拒绝。unknown 执行、未确认结果及在途 pin 不因 TTL 被清除。
 
