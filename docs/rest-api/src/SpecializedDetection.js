@@ -10,6 +10,7 @@
  * @apiDescription 按所选 profile 检测图片中的目标，支持火烟和通用物体，返回类别、置信度及矩形位置。
  *                 <p>调用前先<a href="#api-Data_Management-申请对话频道">创建频道</a>，再通过<a href="#api-File_Processing-上传文件数据">上传文件数据</a>接口上传图片，并确认文件可查询。将频道码填入 <code>channel</code>，将文件码填入 <code>input.files</code>；频道和文件须属于当前用户和域。</p>
  *                 <p><code>fire-smoke</code> 用于火焰、烟雾检测；<code>uav-fire-smoke</code> 用于无人机巡检画面；<code>thing</code> 用于 COCO 80 类通用物体。可用方案和切片支持以节点注册及生效模型绑定为准。提高 <code>confidence</code> 可减少低置信度结果，降低阈值可保留更多候选目标。</p>
+ *                 <p><code>classes</code> 使用所选方案的规范英文类别名：火烟为 <code>fire</code>、<code>smoke</code>，通用物体例如 <code>person</code>、<code>car</code>、<code>stop sign</code>。省略时不过滤类别；类别编号由 <code>labelSpace</code> 定义，过滤不会重新编号。所有 profile 共享节点容量，不会因切换 profile 获得额外配额。</p>
  *                 <p>本接口在一次请求中返回结果。遍历 <code>resultPayload.refs[].boxes[]</code> 绘制检测框，按 <code>content</code> 区分类别；坐标以方向校正后的原图像素为准，缩放展示时按 <code>width</code>、<code>height</code> 同比换算。<code>refs=[]</code> 表示未检出目标，仍是成功结果，应以检测区域判断是否命中。</p>
  *                 <p>请求体最大 <code>64 KiB</code>，每次提交一张图片。检测可能需要较长时间，客户端请求超时建议大于 <code>190 秒</code>；出现 <code>429</code> 或 <code>503</code> 时延迟重试，其他错误按下方状态说明处理。</p>
  * @apiParam {String} token 授权令牌。
@@ -22,8 +23,8 @@
  * @apiBody {String[]} input.files 一个上传完成的 64 位文件码；不接受本地路径、HTTP 媒体地址或文件元数据对象。
  * @apiBody {Object} input.option 检测参数。
  * @apiBody {String} [input.option.operation=detect] 图片操作。
- * @apiBody {String} input.option.profile 检测方案：<code>fire-smoke</code>、<code>uav-fire-smoke</code> 或通用物体 <code>thing</code>。按节点实际启用能力选路；未开通返回 HTTP 400，无就绪节点返回 503。
- * @apiBody {String[]} [input.option.classes] 非空规范类别名称数组，如 thing 使用 ["person","car"]。省略时输出该服务全部类别；重复名称去重，null、空数组及未知类别报错。
+ * @apiBody {String} input.option.profile 检测方案名称字符串，当前目录为 <code>fire-smoke</code>、<code>uav-fire-smoke</code>、<code>thing</code>，支持范围以节点实际注册能力为准。无有效提供方或匹配节点未就绪返回 503，不支持请求能力返回 400。
+ * @apiBody {String[]} [input.option.classes] 非空规范类别名称数组，如 thing 使用 ["person","car"]。省略时不过滤类别；按首次出现顺序去重，null、空数组、非字符串项、空白名称及未知类别均返回 400。
  * @apiBody {Number} [input.option.confidence] 阈值 [0,1]，省略时使用服务默认值。
  * @apiBody {Boolean} [input.option.sliced=false] 是否启用切片检测，按节点生效绑定的能力校验；当前仅 uav-fire-smoke 支持。
  * @apiParamExample {json} 图片检测请求:
@@ -35,7 +36,13 @@
  *   }
  * }
  * @apiParamExample {json} 通用物体：只检测人和车
- * {"channel":"inspection-001","input":{"files":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],"option":{"profile":"thing","classes":["person","car"],"confidence":0.4}}}
+ * {
+ *   "channel": "inspection-001",
+ *   "input": {
+ *     "files": ["UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHlbzAxepzvKBXapMJJZcNkOXiZpEx"],
+ *     "option": {"profile": "thing", "classes": ["person", "car"], "confidence": 0.5}
+ *   }
+ * }
  * @apiSuccess {Number} sn 本次检测的请求编号，可用于关联请求与结果。
  * @apiSuccess {String} unit SpecializedDetection。
  * @apiSuccess {Number} timestamp 检测结果的 Unix 毫秒时间戳。
@@ -44,17 +51,17 @@
  * @apiSuccess {Object} resultPayload 检测结果，坐标基于方向校正后的原图像素。
  * @apiSuccess {String} resultPayload.profile 本次请求的 profile。
  * @apiSuccess {String} resultPayload.labelSpace 类别契约：火烟为 fire-smoke-v1，thing 为 coco80-v1。
- * @apiSuccess {String} resultPayload.modelId 服务端生效模型配置 ID。
+ * @apiSuccess {String} resultPayload.modelId 服务端生效模型配置 ID；模型绑定由服务端配置，示例展示默认绑定。
  * @apiSuccess {String} resultPayload.modelVariant 模型规格。
  * @apiSuccess {String} resultPayload.backend 推理后端。
  * @apiSuccess {Number} resultPayload.inputResolution 模型输入尺寸。
- * @apiSuccess {String} [resultPayload.artifactSha256] 真实模型工件摘要。
+ * @apiSuccess {String} [resultPayload.artifactSha256] 实际加载的模型工件 SHA-256 摘要；与模型配置字段一同用于追溯结果。
  * @apiSuccess {Number} resultPayload.width 图片宽度，单位：像素。
  * @apiSuccess {Number} resultPayload.height 图片高度，单位：像素。
  * @apiSuccess {Object[]} resultPayload.refs 检测区域，未命中时为 []；命中时包含 content、classId、boxes 和 points。
  * @apiSuccess {String} resultPayload.refs.content 当前类别契约中的规范类别名。
  * @apiSuccess {Number} resultPayload.refs.classId fire-smoke-v1 中 fire=0、smoke=1；coco80-v1 固定为 0…79，例如 person=0、car=2。
- * @apiSuccess {Array} resultPayload.refs.points 预留的检测点列表；当前火焰、烟雾模型固定返回 []，无需读取子字段。
+ * @apiSuccess {Array} resultPayload.refs.points 预留的检测点列表；当前三个检测方案均返回 []，无需读取子字段。
  * @apiSuccess {Object[]} resultPayload.refs.boxes 检测框，字段为 x1、y1、x2、y2、confidence；左上角为 (x1,y1)，右下角为 (x2,y2)。
  * @apiSuccess {Number} resultPayload.refs.boxes.x1 左上角横坐标，单位：原图像素。
  * @apiSuccess {Number} resultPayload.refs.boxes.y1 左上角纵坐标，单位：原图像素。
@@ -76,6 +83,11 @@
  *         "thought": "",
  *         "resultPayload": {
  *             "profile": "fire-smoke",
+ *             "labelSpace": "fire-smoke-v1",
+ *             "modelId": "fire-smoke-default",
+ *             "modelVariant": "yolov8n",
+ *             "backend": "yolo",
+ *             "inputResolution": 640,
  *             "width": 1920,
  *             "height": 1080,
  *             "refs": [
@@ -127,7 +139,32 @@
  *   "resultPayload": {"profile": "fire-smoke", "width": 1920, "height": 1080, "refs": []},
  *   "performance": {"inputTokens": 0, "outputTokens": 0, "elapsed": "30"}
  * }
- * @apiError {Object} error state 为 HTTP 状态码，code 为业务状态码，另含 reason、message。400 参数或不支持的 profile；401 认证；403 归属；404 文件不存在；413 请求体过大；429 忙碌；503 未就绪；422 文件错误；502 检测服务错误；504 超时。
+ * @apiSuccessExample {json} 通用物体检测：类别过滤后仍使用原类别编号
+ * HTTP/1.1 200 OK
+ * {
+ *   "sn": 123456790,
+ *   "unit": "SpecializedDetection",
+ *   "timestamp": 1793322000000,
+ *   "response": "",
+ *   "thought": "",
+ *   "resultPayload": {
+ *     "profile": "thing",
+ *     "labelSpace": "coco80-v1",
+ *     "modelId": "thing-default",
+ *     "modelVariant": "large-2026",
+ *     "backend": "rfdetr-native",
+ *     "inputResolution": 704,
+ *     "artifactSha256": "0f4e20e19a99c0f8a62b5685f57f6c8b5c371c59081feda6752a0561a79ccf38",
+ *     "width": 1920,
+ *     "height": 1080,
+ *     "refs": [
+ *       {"content":"person","classId":0,"boxes":[{"x1":100,"y1":120,"x2":240,"y2":600,"confidence":0.93}],"points":[]},
+ *       {"content":"car","classId":2,"boxes":[{"x1":500,"y1":350,"x2":950,"y2":700,"confidence":0.89}],"points":[]}
+ *     ]
+ *   },
+ *   "performance": {"inputTokens":0,"outputTokens":0,"elapsed":"120"}
+ * }
+ * @apiError {Object} error state 为 HTTP 状态码，code 为业务状态码，另含 reason、message。400 参数、类别或切片能力不支持；401 认证；403 归属；404 文件不存在；413 请求体过大；429 匹配且就绪的节点容量耗尽；503 无有效提供方或匹配节点未就绪；422 文件错误；502 检测服务错误；504 超时。
  * @apiError {Number} error.state HTTP 状态码，与本次 HTTP 响应状态一致。
  * @apiError {Number} error.code 业务状态码，例如 1 参数错误、7 忙碌、31 检测失败或超时。
  * @apiError {String} error.reason 稳定的错误原因标识，如 UNIT_REJECTED、REQUEST_TOO_LARGE、DETECTION_TIMEOUT。
@@ -170,15 +207,15 @@
  *             }
  *         }
  *     }
- * @apiError 400 参数或检测方案不可用。检查字段、取值范围及 profile，确认所选方案已开通。
+ * @apiError 400 参数或请求能力不支持。检查 profile、classes、sliced、字段类型及取值范围；input 仅接受 unit、files、option。
  * @apiError 401 认证失败。检查令牌有效期及设备、平台请求头。
  * @apiError 403 无权访问频道或文件。使用当前用户和域所属的资源。
  * @apiError 404 资源不存在。确认文件码正确且图片已上传完成。
  * @apiError 413 请求体过大。JSON 请求体须在 64 KiB 内，媒体通过文件接口上传。
  * @apiError 422 媒体无法处理。检查上传文件是否完整、格式是否可用。
- * @apiError 429 服务繁忙。降低并发并延迟重试。
+ * @apiError 429 匹配且就绪的节点容量耗尽。所有 profile 共用节点容量，降低并发并延迟重试。
  * @apiError 502 检测失败。可稍后重试，持续失败时提供错误码并联系服务提供方。
- * @apiError 503 服务暂不可用。稍后重试或联系服务提供方。
+ * @apiError 503 无有效提供方或匹配节点未就绪。模型初始化、状态过期及重连后的状态确认期间需稍后重试。
  * @apiError 504 请求超时。提示本次检测未能及时完成，避免连续重复提交同一图片。
 
  */
@@ -193,7 +230,8 @@
  *                 <p>启动成功表示会话已创建，媒体仍可能处于 <code>starting</code> 状态。查询返回 <code>running</code> 后开始检测；<code>reconnecting</code> 表示正在重新连接视频源；<code>stopping</code> 表示正在停止；<code>stopped</code>、<code>failed</code> 表示会话已结束。视频文件可读取 <code>progress</code> 展示进度，实时视频的进度为 <code>null</code>。</p>
  *                 <p>接收回调的地址须可被检测服务访问，并支持 <code>POST</code> 二进制请求。请求类型为 <code>image/png</code>，<code>X-VLM-Event-Id</code> 为事件标识，同一事件可能重复投递，请据此去重。检测元数据位于 PNG 的 <code>vlm_meta</code> 文本信息中，包含会话标识、时间、画面位置和检测框；下方示例展示读取方法。</p>
  *                 <p>只有命中目标的画面才会回调，未收到回调不代表会话已结束。可通过 <code>inferenceFps</code> 调整每秒检测帧数，通过 <code>intervalSeconds</code> 控制命中画面的推送间隔；回调发送失败不会自动停止检测，可通过状态中的 <code>callbackFailures</code> 排查。</p>
- *                 <p>查询和停止时使用创建会话的用户身份，并将 <code>files</code> 设为空数组；<code>option</code> 仅传 <code>operation</code> 和 <code>streamId</code>。启动请求超时后，检测仍可能继续，请先核查已收到的回调或联系服务提供方，避免立即重复创建；服务重启后需重新建立会话。</p>
+ *                 <p><code>classes</code> 过滤后仍有达到阈值的目标才算命中。profile、类别过滤、阈值、切片策略与模型绑定在启动时固定，可从快照 <code>parameters</code> 查看；更改参数需停止后重新启动。多个 profile 共享节点的会话上限，匹配节点就绪但容量耗尽时返回 <code>429</code>。</p>
+ *                 <p>查询和停止时使用创建会话的用户身份，并将 <code>files</code> 设为空数组；<code>option</code> 仅传 <code>operation</code> 和 <code>streamId</code>，请求仍回到原会话节点，停止期间允许继续查询或停止。启动请求超时后，检测仍可能继续，请先核查已收到的回调或联系服务提供方，避免立即重复创建；服务重启后需重新建立会话。</p>
  * @apiParam {String} token 授权令牌。
  * @apiHeader {String} Content-Type application/json
  * @apiHeader {String} [x-baize-api-device] 获取令牌时使用的客户端设备名。
@@ -201,11 +239,11 @@
  * @apiBody {String} channel 调用者所属频道。
  * @apiBody {Object} input 专项输入。
  * @apiBody {String} [input.unit=SpecializedDetection] 固定能力名。
- * @apiBody {String[]} input.files start 为一个视频文件码或 RTSP(S) 地址，status/stop 为 []。
+ * @apiBody {String[]} input.files start 为一个上传完成的 64 位视频文件码或 RTSP(S) 地址，status/stop 为 []；不接受本地路径、HTTP 媒体地址或文件元数据对象。
  * @apiBody {Object} input.option start 参数或控制参数。
  * @apiBody {String="start","status","stop"} input.option.operation 操作。
- * @apiBody {String} [input.option.profile] start 必填：fire-smoke、uav-fire-smoke 或 thing，按实际启用且就绪的节点选路。
- * @apiBody {String[]} [input.option.classes] start 可选，非空规范类别名称数组；先过滤再判断视频命中，绑定到会话，不用于 status/stop。
+ * @apiBody {String} [input.option.profile] start 必填，检测方案名称字符串，当前目录为 fire-smoke、uav-fire-smoke、thing，按实际注册能力选路。
+ * @apiBody {String[]} [input.option.classes] start 可选，非空规范类别名称数组，按首次出现顺序去重；省略时不过滤类别。null、空数组、错误类型、空白名称及未知类别返回 400。先过滤再判断视频命中，绑定到会话，不用于 status/stop。
  * @apiBody {String} [input.option.callbackUrl] start 必填，检测服务可访问的 HTTP(S) PNG 接收地址。
  * @apiBody {Number} [input.option.confidence] start 可选，置信度阈值 [0,1]；提高阈值可减少低置信度检测框。
  * @apiBody {Boolean} [input.option.sliced=false] start 可选，按节点生效绑定校验；当前仅 uav-fire-smoke 支持。
@@ -249,7 +287,18 @@
  * @apiSuccess {Number} resultPayload.positionSeconds 当前媒体位置，单位：秒。
  * @apiSuccess {Number/Null} resultPayload.progress 已处理媒体进度 [0,1]；总时长未知时为 null。
  * @apiSuccess {Number} resultPayload.inferenceFps 实际采用的每秒检测帧数。
+ * @apiSuccess {Number/Null} resultPayload.idleTimeoutSeconds RTSP 实际生效的无输入超时秒数，至少覆盖两个采样间隔；视频文件为 null。
  * @apiSuccess {Number} resultPayload.intervalSeconds 实际采用的命中回调间隔，单位：秒。
+ * @apiSuccess {Object} resultPayload.parameters 会话启动时固定的检测参数与模型绑定信息。
+ * @apiSuccess {Number} resultPayload.parameters.confidence 生效的置信度阈值。
+ * @apiSuccess {Boolean} resultPayload.parameters.sliced 是否使用切片检测。
+ * @apiSuccess {String[]/Null} resultPayload.parameters.classes 去重后的规范类别名；未指定过滤条件时为 null，类别编号保持不变。
+ * @apiSuccess {String} resultPayload.parameters.labelSpace 类别契约，fire-smoke-v1 或 coco80-v1。
+ * @apiSuccess {String} resultPayload.parameters.modelId 生效模型配置 ID。
+ * @apiSuccess {String} resultPayload.parameters.modelVariant 模型规格。
+ * @apiSuccess {String} resultPayload.parameters.backend 推理后端。
+ * @apiSuccess {Number} resultPayload.parameters.inputResolution 模型输入尺寸。
+ * @apiSuccess {String} [resultPayload.parameters.artifactSha256] 实际加载的模型工件 SHA-256 摘要。
  * @apiSuccess {Object} resultPayload.input 输入媒体状态。
  * @apiSuccess {String} resultPayload.input.url 输入源的描述地址，仅供展示和诊断；后续查询、停止仍使用 streamId，文件访问仍使用原文件码。
  * @apiSuccess {String} resultPayload.input.status 输入当前的会话状态。
@@ -275,7 +324,7 @@
  * @apiSuccess {Number} sn 本次操作的请求编号。
  * @apiSuccess {String} unit SpecializedDetection。
  * @apiSuccess {Number} timestamp 本次操作结果的 Unix 毫秒时间戳。
- * @apiError {Object} error 400 参数或不支持的 profile；401 认证；403 归属；404 不存在；413 请求体超过 64 KiB；429 忙碌；503 未就绪；422 文件错误；502 检测服务错误；504 超时（远端可能仍运行）。含 state/code/reason/message。
+ * @apiError {Object} error 400 参数、类别或切片能力不支持；401 认证；403 归属；404 不存在；413 请求体超过 64 KiB；429 匹配且就绪的节点容量耗尽；503 无有效提供方或匹配节点未就绪；422 文件错误；502 检测服务错误；504 超时（远端可能仍运行）。含 state/code/reason/message。
  * @apiError {Number} error.state HTTP 状态码，与本次 HTTP 响应状态一致。
  * @apiError {Number} error.code 业务状态码，例如 1 参数错误、7 忙碌、31 检测失败或超时。
  * @apiError {String} error.reason 稳定的错误原因标识，如 UNIT_REJECTED、REQUEST_TOO_LARGE、DETECTION_TIMEOUT。
@@ -283,6 +332,9 @@
  * @apiErrorExample {json} 启动请求超时:
  * HTTP/1.1 504 Gateway Timeout
  * {"error":{"state":504,"code":31,"reason":"DETECTION_TIMEOUT","message":"Detection request timed out; remote execution may still be running"}}
+ * @apiErrorExample {json} 无有效提供方或匹配节点尚未就绪
+ * HTTP/1.1 503 Service Unavailable
+ * {"error":{"state":503,"code":30,"reason":"UNIT_REJECTED","message":"Specialized detection failed (code 30)"}}
  *
  * @apiExample {http} 完整请求示例
  *     POST http://211.157.179.37:7010/specialized-detection/stream/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
@@ -323,6 +375,23 @@
  *         }
  *     }
  *
+ * @apiParamExample {json} 通用物体视频：仅在人或车达到阈值时回调
+ * {
+ *   "channel": "inspection-001",
+ *   "input": {
+ *     "files": ["UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHlbzAxepzvKBXapMJJZcNkOXiZpEx"],
+ *     "option": {
+ *       "operation": "start",
+ *       "profile": "thing",
+ *       "classes": ["person", "car"],
+ *       "confidence": 0.5,
+ *       "callbackUrl": "https://receiver.example.com/detection",
+ *       "intervalSeconds": 5,
+ *       "inferenceFps": 1
+ *     }
+ *   }
+ * }
+ *
  * @apiExample {python} 在回调接收程序中读取 PNG 元数据（需安装 Pillow）
  *     import json
  *     from io import BytesIO
@@ -361,7 +430,18 @@
  *             "positionSeconds": 0,
  *             "progress": null,
  *             "inferenceFps": 2,
+ *             "idleTimeoutSeconds": null,
  *             "intervalSeconds": 5,
+ *             "parameters": {
+ *                 "confidence": 0.4,
+ *                 "sliced": false,
+ *                 "classes": null,
+ *                 "labelSpace": "fire-smoke-v1",
+ *                 "modelId": "fire-smoke-default",
+ *                 "modelVariant": "yolov8n",
+ *                 "backend": "yolo",
+ *                 "inputResolution": 640
+ *             },
  *             "input": {
  *                 "url": "<输入视频的描述地址>",
  *                 "status": "starting",

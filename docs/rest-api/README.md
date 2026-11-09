@@ -38,16 +38,18 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 
 ## 专项检测 SpecializedDetection
 
-专项检测用于识别图片、视频及实时画面中的火焰和烟雾。先创建频道；图片和视频文件先上传并取得文件码，实时视频则使用 RTSP(S) 地址。图片请求直接返回检测区域；视频会话在命中目标时向指定地址推送带检测框的 PNG 图片。
+专项检测用于识别图片、视频及实时画面中的火烟或通用物体。先创建频道；图片和视频文件先上传并取得 64 位文件码，实时视频则使用 RTSP(S) 地址。图片请求直接返回检测区域；视频会话在类别过滤后命中目标时向指定地址推送带检测框的 PNG 图片。
 
 | 接口 | 用途 | 生成页面 |
 | --- | --- | --- |
 | `POST /specialized-detection/base/{token}` | 火烟或通用物体图片检测 | [专项图片检测](output/index.html#api-SpecializedDetection-SpecializedDetectionImage) |
 | `POST /specialized-detection/stream/{token}` | 视频文件或 RTSP(S) 后台检测，支持 `start/status/stop` | [专项视频后台会话](output/index.html#api-SpecializedDetection-SpecializedDetectionStream) |
 
-`fire-smoke` 用于火烟，`uav-fire-smoke` 用于无人机巡检并支持切片，`thing` 提供 COCO 80 类通用检测。可选 `classes` 用规范类别名过滤，例如 `["person","car"]`；视频先过滤再判断命中。模型与类别信息通过 `labelSpace`、`modelId` 等结果字段追溯。按节点实际注册能力、切片支持、就绪状态和共享容量选路；启用多个 profile 不增加节点吞吐或会话上限。空 `refs` 表示未检出所选目标。
+`fire-smoke` 用于火烟，`uav-fire-smoke` 用于无人机巡检，`thing` 提供 COCO 80 类通用检测；profile 是名称字符串，可用方案及切片支持以节点实际注册能力和生效绑定为准。可选 `classes` 用非空规范类别名数组过滤，例如 `["person","car"]`，重复项按首次出现顺序去重；null、空数组、错误类型及未知类别返回 400。过滤不会改变 `classId`，例如 thing 中 person=0、car=2。空 `refs` 表示未检出所选目标。
 
-视频接入顺序为：准备可接收 PNG 二进制的回调地址 → `start` 创建会话 → 保存 `streamId` → `status` 查询状态与进度 → 不再需要时 `stop`。回调使用 `X-VLM-Event-Id` 去重，元数据从 PNG 的 `vlm_meta` 文本信息读取；未收到回调时应查询会话状态。
+图片结果与视频 PNG 元数据通过 `labelSpace`、`modelId`、`modelVariant`、`backend`、`inputResolution`、`artifactSha256` 追溯类别和模型；视频快照的 `parameters` 保存启动时固定的绑定、阈值、切片与类别过滤条件。按节点实际注册能力、切片支持、就绪状态和共享容量选路；启用多个 profile 不增加节点吞吐或会话上限。无有效提供方或匹配节点未就绪返回 503，不支持请求能力返回 400，匹配且就绪但容量耗尽返回 429。
+
+视频接入顺序为：准备可接收 PNG 二进制的回调地址 → `start` 创建会话 → 保存 `streamId` → `status` 查询状态与进度 → 不再需要时 `stop`。查询和停止回到原会话节点，停止期间仍允许控制请求；更改检测参数需停止后重新启动。回调使用 `X-VLM-Event-Id` 去重，元数据从 PNG 的 `vlm_meta` 文本信息读取；未收到回调时应查询会话状态。
 
 完整图片请求、视频文件与 RTSP 请求、状态响应及回调解析示例见 [专项检测接口](output/index.html#api-SpecializedDetection)。
 
