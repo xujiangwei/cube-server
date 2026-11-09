@@ -12,6 +12,8 @@ import cell.util.Utils;
 import cell.util.log.Logger;
 import cube.aigc.*;
 import cube.aigc.app.Notification;
+import cube.aigc.completion.CompletionProvider;
+import cube.aigc.completion.MediaProvider;
 import cube.aigc.complex.attachment.Attachment;
 import cube.aigc.complex.widget.Event;
 import cube.aigc.complex.widget.EventResult;
@@ -19,8 +21,11 @@ import cube.aigc.listener.GenerateTextListener;
 import cube.aigc.listener.SpeechModuleListener;
 import cube.aigc.listener.VoiceDiarizationListener;
 import cube.aigc.spi.AIGCHost;
+import cube.aigc.spi.ActionBinding;
+import cube.aigc.spi.ActionModule;
 import cube.aigc.usage.UsageContext;
 import cube.aigc.usage.UsageLedger;
+import cube.aigc.usage.UsageTokens;
 import cube.auth.AuthConsts;
 import cube.auth.AuthToken;
 import cube.common.Language;
@@ -69,6 +74,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * AIGC 服务。
@@ -81,25 +87,27 @@ import java.util.concurrent.atomic.AtomicInteger;
  * </ul>
  * <p>本类自身只保留与上述三者无关的业务编排（用户、令牌、会员、知识库、文件、内容理解等）。</p>
  */
-public class AIGCService extends AbstractModule implements Generatable, cube.aigc.completion.CompletionProvider, cube.aigc.completion.MediaProvider {
-    private final HarnessMediaBridge harnessMedia = new HarnessMediaBridge(this);
-    public org.json.JSONArray mediaUnits() { return harnessMedia.mediaUnits(); }
-    public void invokeMedia(JSONObject execution, byte[] image, java.util.function.Consumer<JSONObject> receipt) { harnessMedia.invokeMedia(execution, image, receipt); }
-    public void cancelMedia(String requestId) { harnessMedia.cancelMedia(requestId); }
-    public HarnessMediaBridge getHarnessMedia() { return harnessMedia; }
-    /** Called exclusively by the trusted in-process Harness bridge. */
-    FileLabel saveHarnessMedia(JSONObject execution, String code, java.io.File file) {
-        AbstractModule storage = getFileStorage();
-        if (storage == null) return null;
-        FileLabel label = FileUtils.makeFileLabel(execution.getString("tenant"), code, Long.parseLong(execution.getString("subject")), file);
-        label.setContext(new JSONObject().put("harnessRunId", execution.getString("runId")).put("harnessRequestId", execution.getString("requestId")));
-        return new FileLabel(storage.notify(new SaveFile(file.getAbsolutePath(), label)));
-    }
+public class AIGCService extends AbstractModule implements Generatable, CompletionProvider, MediaProvider {
 
     /**
      * 服务名称，同时作为单元名与配置段名。
      */
     public final static String NAME = "AIGC";
+
+    /**
+     * 工作路径。
+     */
+    public final File workingPath = new File("storage/tmp/");
+
+    /**
+     * 是否通过中继（Relay）访问，仅用于本地测试。
+     */
+    public boolean useRelay = false;
+
+    /**
+     * Harness 媒体桥接器：把进程内 Harness 的媒体请求转接到宿主的文件与能力链路。
+     */
+    private final HarnessMediaBridge harnessMedia = new HarnessMediaBridge(this);
 
     /**
      * 服务所属的 Cellet 实例，负责单元通信与业务模块装载。
@@ -195,16 +203,6 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     private AIGCPluginSystem pluginSystem;
 
     /**
-     * 工作路径。
-     */
-    public final File workingPath = new File("storage/tmp/");
-
-    /**
-     * 是否通过中继（Relay）访问，仅用于本地测试。
-     */
-    public boolean useRelay = false;
-
-    /**
      * 是否按技能声明的 keywords 自动装载技能（自动引入）。
      */
     private boolean skillAuto = true;
@@ -238,13 +236,54 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         this.cellet = cellet;
         this.unitScheduler = new UnitScheduler();
         this.taskExecutor = new AIGCTaskExecutor();
-        this.specializedDetections = new cube.service.aigc.unit.SpecializedDetectionScheduler(this);
-        this.completions = new cube.service.aigc.completion.ChatCompletionService(this, cellet);
+        this.specializedDetections = new SpecializedDetectionScheduler(this);
+        this.completions = new ChatCompletionService(this, cellet);
         // 频道创建需要把令牌码解析为访问令牌，这里注入解析器，避免频道管理器反向依赖服务
         this.channelManager = new ChannelManager(cellet, token -> this.getAuthService().getToken(token));
         this.waitingVoiceStreamSinks = new ConcurrentHashMap<>();
         this.speechModuleListeners = new CopyOnWriteArrayList<>();
         this.tokenizer = new Tokenizer();
+    }
+
+    /**
+     * 获取当前可用于媒体推理的单元清单。
+     *
+     * @return 媒体提供方描述数组。
+     */
+    @Override
+    public JSONArray mediaUnits() {
+        return harnessMedia.mediaUnits();
+    }
+
+    /**
+     * 触发一次媒体推理，并把物理回执交给调用方。
+     *
+     * @param execution 持久化的执行意图。
+     * @param image     待推理的图片字节。
+     * @param receipt   物理回执回调。
+     */
+    @Override
+    public void invokeMedia(JSONObject execution, byte[] image, Consumer<JSONObject> receipt) {
+        harnessMedia.invokeMedia(execution, image, receipt);
+    }
+
+    /**
+     * 取消指定请求标识对应的媒体推理。
+     *
+     * @param requestId 请求标识。
+     */
+    @Override
+    public void cancelMedia(String requestId) {
+        harnessMedia.cancelMedia(requestId);
+    }
+
+    /**
+     * 获取 Harness 媒体桥接器，供进程内 Harness 链路调用。
+     *
+     * @return 媒体桥接器实例。
+     */
+    public HarnessMediaBridge getHarnessMedia() {
+        return harnessMedia;
     }
 
     /**
@@ -313,7 +352,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
         if (!token.getDomain().equals(owner.getDomain()) || token.getContactId() != owner.getContactId()) {
             throw SpecializedDetectionException.unit(25);
         }
-        UsageContext visitor = cube.aigc.usage.UsageContext.visitor(token, "AIGC", "");
+        UsageContext visitor = UsageContext.visitor(token, "AIGC", "");
         SpecializedDetectionScheduler.Reservation reservation = specializedDetections.reserve(input, token);
         SpecializedDetectionUnitMeta meta = new SpecializedDetectionUnitMeta(
                 this, reservation, channel, input, listener);
@@ -849,11 +888,11 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             }
         }
         JSONArray modules = new JSONArray();
-        cube.service.aigc.spi.ModuleRegistry registry = this.cellet == null ? null : this.cellet.getModuleRegistry();
+        ModuleRegistry registry = this.cellet == null ? null : this.cellet.getModuleRegistry();
         if (registry != null) {
-            for (cube.aigc.spi.ActionModule module : registry.getModules()) {
+            for (ActionModule module : registry.getModules()) {
                 JSONArray actions = new JSONArray();
-                for (cube.aigc.spi.ActionBinding binding : module.getActions()) {
+                for (ActionBinding binding : module.getActions()) {
                     actions.put(binding.action);
                 }
                 modules.put(new JSONObject().put("name", module.getName()).put("actions", actions));
@@ -903,7 +942,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     @Override
     public void submitCompletion(String token, String requestId, JSONObject request, long timeoutMillis,
-                                 cube.aigc.completion.CompletionProvider.Listener listener) {
+                                 CompletionProvider.Listener listener) {
         completions.generateInternal(token, requestId, request, timeoutMillis, listener);
     }
 
@@ -922,7 +961,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     @Override
     public void submitCompletion(String token, String requestId, JSONObject request, long timeoutMillis,
-                                 cube.aigc.usage.UsageContext accounting, cube.aigc.completion.CompletionProvider.Listener listener) {
+                                 UsageContext accounting, CompletionProvider.Listener listener) {
         completions.generateInternal(token, requestId, request, timeoutMillis, accounting, listener);
     }
 
@@ -931,7 +970,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      *
      * @return 兼容层服务实例。
      */
-    public cube.service.aigc.completion.ChatCompletionService getCompletions() {
+    public ChatCompletionService getCompletions() {
         return this.completions;
     }
 
@@ -1860,7 +1899,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                                 List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
                                 List<String> categories, boolean recordable, boolean networking,
                                 GenerateTextListener listener) {
-        return generateText(cube.aigc.usage.UsageContext.system("AIGC"), channelCode, content, unitName, option, histories, maxHistories, attachments, categories, recordable, networking, listener);
+        return generateText(UsageContext.system("AIGC"), channelCode, content, unitName, option, histories, maxHistories, attachments, categories, recordable, networking, listener);
     }
 
     /**
@@ -1884,7 +1923,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      * @return 任务受理返回 {@code true}；服务未就绪、内容超限、频道不存在或
      * 正在处理、无可用单元返回 {@code false}。
      */
-    public boolean generateText(cube.aigc.usage.UsageContext accounting, String channelCode, String content, String unitName, GeneratingOption option,
+    public boolean generateText(UsageContext accounting, String channelCode, String content, String unitName, GeneratingOption option,
                                 List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
                                 List<String> categories, boolean recordable, boolean networking,
                                 GenerateTextListener listener) {
@@ -1972,7 +2011,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             return null;
         }
 
-        return this.syncGenerateText(cube.aigc.usage.UsageContext.visitor(authToken, "AIGC", ""), unit, prompt, option, null, participant);
+        return this.syncGenerateText(UsageContext.visitor(authToken, "AIGC", ""), unit, prompt, option,
+                null, participant);
     }
 
     /**
@@ -2013,7 +2053,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             Logger.w(this.getClass(), "#syncGenerateText - Can NOT find unit: " + unitName);
             return null;
         }
-        return this.syncGenerateText(cube.aigc.usage.UsageContext.visitor(authToken, "AIGC", ""), unit, prompt, option, history, participantContact);
+        return this.syncGenerateText(UsageContext.visitor(authToken, "AIGC", ""), unit, prompt, option,
+                history, participantContact);
     }
 
     /**
@@ -2032,7 +2073,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     public GeneratingRecord syncGenerateText(AIGCUnit unit, String prompt, GeneratingOption option,
                                              List<GeneratingRecord> history, Contact participantContact) {
-        return syncGenerateText(cube.aigc.usage.UsageContext.system("AIGC"), unit, prompt, option, history, participantContact);
+        return syncGenerateText(UsageContext.system("AIGC"), unit, prompt, option, history, participantContact);
     }
 
     /**
@@ -2050,7 +2091,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      * @param participantContact 参与方联系人，为 {@code null} 时使用单元所属联系人。
      * @return 返回生成记录；传输失败、状态码非 Ok 或应答缺字段返回 {@code null}。
      */
-    public GeneratingRecord syncGenerateText(cube.aigc.usage.UsageContext accounting, AIGCUnit unit, String prompt, GeneratingOption option,
+    public GeneratingRecord syncGenerateText(UsageContext accounting, AIGCUnit unit, String prompt, GeneratingOption option,
                                              List<GeneratingRecord> history, Contact participantContact) {
         String accountingId = java.util.UUID.randomUUID().toString();
         boolean accountingStarted = false;
@@ -2106,9 +2147,9 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
                 return null;
             }
             JSONObject payload = Packet.extractDataPayload(response);
-            long[] measured = cube.aigc.usage.UsageTokens.read(payload);
+            long[] measured = UsageTokens.read(payload);
             if (!accounting.delegated) {
-                getStorage().getUsageWriter().finish(cube.aigc.usage.UsageLedger.evidence(accountingId, 2, "succeeded",
+                getStorage().getUsageWriter().finish(UsageLedger.evidence(accountingId, 2, "succeeded",
                         measured == null ? "unknown" : "actual", measured == null ? null : measured[0], measured == null ? null : measured[1], System.currentTimeMillis()));
             }
 
@@ -2190,7 +2231,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     public void generateText(AIGCChannel channel, AIGCUnit unit, String query, String prompt, GeneratingOption option,
                              List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
                              List<String> categories, boolean recordable, GenerateTextListener listener) {
-        generateText(cube.aigc.usage.UsageContext.system("AIGC"), channel, unit, query, prompt, option, histories, maxHistories, attachments, categories, recordable, listener);
+        generateText(UsageContext.system("AIGC"), channel, unit, query, prompt, option, histories,
+                maxHistories, attachments, categories, recordable, listener);
     }
 
     /**
@@ -2212,7 +2254,8 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      * @param recordable   是否记录到库。
      * @param listener     监听器。
      */
-    public void generateText(cube.aigc.usage.UsageContext accounting, AIGCChannel channel, AIGCUnit unit, String query, String prompt, GeneratingOption option,
+    public void generateText(UsageContext accounting, AIGCChannel channel, AIGCUnit unit, String query, String prompt,
+                             GeneratingOption option,
                              List<GeneratingRecord> histories, int maxHistories, List<Attachment> attachments,
                              List<String> categories, boolean recordable, GenerateTextListener listener) {
         if (null == unit) {
@@ -2259,7 +2302,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
      */
     public boolean executeMultimodal(String tokenCode, String channelCode,
                                      MultimodalInput input, MultimodalListener listener) {
-        cube.aigc.usage.UsageContext visitor = cube.aigc.usage.UsageContext.visitor(this.getToken(tokenCode), "AIGC", "");
+        UsageContext visitor = UsageContext.visitor(this.getToken(tokenCode), "AIGC", "");
         if (!this.isStarted()) {
             Logger.w(AIGCService.class, "#executeMultimodal - Service is NOT ready");
             return false;
@@ -3397,6 +3440,27 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
             result.put("jobs", this.getCompletions().monitoringSnapshot());
         }
         return result;
+    }
+
+    /**
+     * 保存 Harness 媒体文件，仅由受信任的进程内 Harness 桥接器调用。
+     *
+     * <p>文件标签会带上 Harness 的 runId 与 requestId，便于物理回执回溯；
+     * 文件存储模块未部署时返回 {@code null}。</p>
+     *
+     * @param execution 持久化的执行意图。
+     * @param code      文件码。
+     * @param file      待保存的本地文件。
+     * @return 保存后的文件标签；文件存储模块不可用时返回 {@code null}。
+     */
+    FileLabel saveHarnessMedia(JSONObject execution, String code, File file) {
+        AbstractModule storage = getFileStorage();
+        if (storage == null) {
+            return null;
+        }
+        FileLabel label = FileUtils.makeFileLabel(execution.getString("tenant"), code, Long.parseLong(execution.getString("subject")), file);
+        label.setContext(new JSONObject().put("harnessRunId", execution.getString("runId")).put("harnessRequestId", execution.getString("requestId")));
+        return new FileLabel(storage.notify(new SaveFile(file.getAbsolutePath(), label)));
     }
 
     /**

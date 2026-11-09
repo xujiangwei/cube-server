@@ -17,11 +17,15 @@ public enum SpecializedDetectionProfile {
      * 地面视角的烟火检测。
      */
     FireSmoke("fire-smoke"),
+
     /**
      * 无人机视角的烟火检测，可选启用切片推理。
      */
     UavFireSmoke("uav-fire-smoke"),
-    /** General object detection. */
+
+    /**
+     * General object detection.
+     */
     Thing("thing");
 
     /**

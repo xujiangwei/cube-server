@@ -17,10 +17,12 @@ public final class SpecializedDetectionOutput implements JSONable {
      * 结果序号。
      */
     public final long sn;
+
     /**
      * 检测结果载荷。
      */
     public final JSONObject resultPayload;
+
     /**
      * 带有单元名与时间戳的完整结果 JSON。
      */
