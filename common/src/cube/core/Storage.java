@@ -182,7 +182,7 @@ public interface Storage {
      * @return 查询结果，永不为 {@code null} （失败或无数据时为空列表）。
      */
     default List<StorageField[]> executeQueryOrEmpty(String table, StorageField[] fields,
-                                                      Conditional[] conditionals) {
+                                                     Conditional[] conditionals) {
         List<StorageField[]> rows = this.executeQuery(table, fields, conditionals);
         return (null == rows) ? new ArrayList<StorageField[]>() : rows;
     }
@@ -208,7 +208,7 @@ public interface Storage {
      * @return 查询结果，永不为 {@code null} （失败或无数据时为空列表）。
      */
     default List<StorageField[]> executeQueryOrEmpty(String[] tables, StorageField[] fields,
-                                                      Conditional[] conditionals) {
+                                                     Conditional[] conditionals) {
         List<StorageField[]> rows = this.executeQuery(tables, fields, conditionals);
         return (null == rows) ? new ArrayList<StorageField[]>() : rows;
     }

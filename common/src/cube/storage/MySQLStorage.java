@@ -32,15 +32,29 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class MySQLStorage extends AbstractStorage {
 
-    /** 配置项：数据库主机地址。 */
+    /**
+     * 配置项：数据库主机地址。
+     */
     public final static String CONFIG_HOST = "host";
-    /** 配置项：数据库端口，默认 3306 。 */
+
+    /**
+     * 配置项：数据库端口，默认 3306 。
+     */
     public final static String CONFIG_PORT = "port";
-    /** 配置项：库名，默认 {@code cube} 。 */
+
+    /**
+     * 配置项：库名，默认 {@code cube} 。
+     */
     public final static String CONFIG_SCHEMA = "schema";
-    /** 配置项：登录用户名。 */
+
+    /**
+     * 配置项：登录用户名。
+     */
     public final static String CONFIG_USER = "user";
-    /** 配置项：登录密码。 */
+
+    /**
+     * 配置项：登录密码。
+     */
     public final static String CONFIG_PASSWORD = "password";
 
     /**

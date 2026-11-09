@@ -125,8 +125,7 @@ public final class UnitDayAggregator {
         int slice = (int) ((time - this.beginning) / (60L * 60 * 1000L));
         if (slice < 0) {
             slice = 0;
-        }
-        else if (slice > 23) {
+        } else if (slice > 23) {
             slice = 23;
         }
         this.hourMask |= (1L << slice);
@@ -144,8 +143,7 @@ public final class UnitDayAggregator {
                 this.duration += Math.max(0L, (time - this.sessionStart) - HEARTBEAT_CYCLE);
             }
             this.sessionStart = 0L;
-        }
-        else if (EVENT_SIGN_OUT.equals(event)) {
+        } else if (EVENT_SIGN_OUT.equals(event)) {
             if (this.sessionStart > 0L) {
                 this.duration += Math.max(0L, time - this.sessionStart);
             }

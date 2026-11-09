@@ -60,7 +60,7 @@ public final class StatisticsSystem {
 
     /**
      * 当前统计口径版本。
-     *
+     * <p>
      * 口径发生变化（例如调整用户判定规则、修改时长单位）时必须 <b>递增</b> 该值：
      * 每日统计会比对已入库的 {@link #ITEM_SV} 值，不一致时删除该日旧口径数据并重新统计，
      * 否则历史日期会一直保留旧口径的结果。
@@ -81,10 +81,14 @@ public final class StatisticsSystem {
      */
     private static final int EVENT_RETENTION_DAYS = 90;
 
-    /** 清理事件明细时单条 DELETE 的行数上限，避免长事务长时间持锁。 */
+    /**
+     * 清理事件明细时单条 DELETE 的行数上限，避免长事务长时间持锁。
+     */
     private static final int EVENT_CLEANUP_BATCH = 5000;
 
-    /** 单次清理最多执行的批次数，防止首次上线时一次性删除过多历史行。 */
+    /**
+     * 单次清理最多执行的批次数，防止首次上线时一次性删除过多历史行。
+     */
     private static final int EVENT_CLEANUP_MAX_BATCH = 40;
 
     /**
@@ -96,10 +100,14 @@ public final class StatisticsSystem {
      */
     private static final String EVENT_INDEX_TIME_CONTACT = "idx_time_contact";
 
-    /** 事件表索引：支撑按联系人 + 时间范围读取单人事件序列。 */
+    /**
+     * 事件表索引：支撑按联系人 + 时间范围读取单人事件序列。
+     */
     private static final String EVENT_INDEX_CONTACT_TIME = "idx_contact_time";
 
-    /** 统计表索引：支撑按年月日读取当日指标。 */
+    /**
+     * 统计表索引：支撑按年月日读取当日指标。
+     */
     private static final String STATISTICS_INDEX_PERIOD = "idx_period";
 
     /**
@@ -113,7 +121,7 @@ public final class StatisticsSystem {
      * <p>建表语句不会给已存在的表补列，这些列一旦缺失就会让写入整批失败，
      * 因此启动时要逐一检查并补齐。</p>
      */
-    private static final String[] UNIT_DAILY_REQUIRED_COLUMNS = new String[] {"unit_count"};
+    private static final String[] UNIT_DAILY_REQUIRED_COLUMNS = new String[]{"unit_count"};
 
     /**
      * 单元日汇总表唯一键：一条 (年, 月, 日, 单元) 只允许一行。
@@ -137,7 +145,7 @@ public final class StatisticsSystem {
 
     /**
      * 联系人表名前缀，与 {@code ContactStorage} 保持一致。
-     *
+     * <p>
      * 统计存储器与联系人存储器使用同一份配置，因此可以直接查询联系人表。
      */
     private final String contactTablePrefix = "contact_";
@@ -145,24 +153,24 @@ public final class StatisticsSystem {
     /**
      * 事件表。
      */
-    private final StorageField[] eventTableFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] eventTableFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
             // 事件名
-            new StorageField("event", LiteralBase.STRING, new Constraint[] {
+            new StorageField("event", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 联系人 ID
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 事件时间戳
-            new StorageField("time", LiteralBase.LONG, new Constraint[] {
+            new StorageField("time", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 事件数据
-            new StorageField("event_data", LiteralBase.STRING, new Constraint[] {
+            new StorageField("event_data", LiteralBase.STRING, new Constraint[]{
                     Constraint.DEFAULT_NULL
             })
     };
@@ -187,50 +195,50 @@ public final class StatisticsSystem {
     /**
      * 工作单元日汇总表。
      */
-    private final StorageField[] unitDailyTableFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] unitDailyTableFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
             // 统计日的年、月、日
-            new StorageField("year", LiteralBase.INT, new Constraint[] {
+            new StorageField("year", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("month", LiteralBase.INT, new Constraint[] {
+            new StorageField("month", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
-            new StorageField("date", LiteralBase.INT, new Constraint[] {
+            new StorageField("date", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 单元 ID；标记行为 0
-            new StorageField("contact_id", LiteralBase.LONG, new Constraint[] {
+            new StorageField("contact_id", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 当日事件总数
-            new StorageField("event_count", LiteralBase.INT, new Constraint[] {
+            new StorageField("event_count", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 当日在线时长，单位：毫秒
-            new StorageField("duration", LiteralBase.LONG, new Constraint[] {
+            new StorageField("duration", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 当日首次活动时间
-            new StorageField("first_active", LiteralBase.LONG, new Constraint[] {
+            new StorageField("first_active", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 当日活跃小时掩码：第 n 位为 1 表示该单元在第 n 小时有事件
-            new StorageField("hour_mask", LiteralBase.LONG, new Constraint[] {
+            new StorageField("hour_mask", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 该统计日的起始时间戳，用于校验日界口径是否一致
-            new StorageField("day_begin", LiteralBase.LONG, new Constraint[] {
+            new StorageField("day_begin", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 该日的数据行数：只写在标记行上，供读取侧校验数据是否完整
-            new StorageField("unit_count", LiteralBase.INT, new Constraint[] {
+            new StorageField("unit_count", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 汇总口径版本
-            new StorageField("version", LiteralBase.INT, new Constraint[] {
+            new StorageField("version", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             })
     };
@@ -238,36 +246,36 @@ public final class StatisticsSystem {
     /**
      * 统计表。
      */
-    private final StorageField[] statisticsTableFields = new StorageField[] {
-            new StorageField("sn", LiteralBase.LONG, new Constraint[] {
+    private final StorageField[] statisticsTableFields = new StorageField[]{
+            new StorageField("sn", LiteralBase.LONG, new Constraint[]{
                     Constraint.PRIMARY_KEY, Constraint.AUTOINCREMENT
             }),
             // 统计项目
-            new StorageField("item", LiteralBase.STRING, new Constraint[] {
+            new StorageField("item", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 数据
-            new StorageField("data", LiteralBase.STRING, new Constraint[] {
+            new StorageField("data", LiteralBase.STRING, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 统计时间记录：年
-            new StorageField("year", LiteralBase.INT, new Constraint[] {
+            new StorageField("year", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 统计时间记录：月
-            new StorageField("month", LiteralBase.INT, new Constraint[] {
+            new StorageField("month", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 统计时间记录：日
-            new StorageField("date", LiteralBase.INT, new Constraint[] {
+            new StorageField("date", LiteralBase.INT, new Constraint[]{
                     Constraint.NOT_NULL
             }),
             // 统计时间记录：时
-            new StorageField("hour", LiteralBase.INT, new Constraint[] {
+            new StorageField("hour", LiteralBase.INT, new Constraint[]{
                     Constraint.DEFAULT_0
             }),
             // 入库时间
-            new StorageField("timestamp", LiteralBase.LONG, new Constraint[] {
+            new StorageField("timestamp", LiteralBase.LONG, new Constraint[]{
                     Constraint.NOT_NULL
             })
     };
@@ -404,8 +412,7 @@ public final class StatisticsSystem {
                 if (this.storage.executeCreate(table, this.unitDailyTableFields)) {
                     Logger.i(this.getClass(), "Created table '" + table + "' successfully");
                 }
-            }
-            else {
+            } else {
                 // 表已存在：建表语句是 CREATE TABLE IF NOT EXISTS，不会校验也不会补齐
                 // 已有表的列。缺列时写入会整批失败，必须显式补上。
                 this.ensureUnitDailyColumns(table);
@@ -438,8 +445,7 @@ public final class StatisticsSystem {
 
                 if (this.columnExists(table, column)) {
                     Logger.i(this.getClass(), "Added missing column '" + column + "' to '" + table + "'");
-                }
-                else {
+                } else {
                     Logger.w(this.getClass(), "Failed to add missing column '" + column + "' to '"
                             + table + "'");
                 }
@@ -453,7 +459,7 @@ public final class StatisticsSystem {
     /**
      * 判断表中是否存在指定列。
      *
-     * @param table 表名。
+     * @param table  表名。
      * @param column 列名。
      * @return 存在返回 {@code true} 。
      */
@@ -462,8 +468,7 @@ public final class StatisticsSystem {
 
         if (StorageType.SQLite == this.storage.getType()) {
             sql = "SELECT COUNT(*) FROM `pragma_table_info('" + table + "')` WHERE `name`='" + column + "'";
-        }
-        else {
+        } else {
             sql = "SELECT COUNT(*) FROM `information_schema`.`columns`"
                     + " WHERE `table_schema`=DATABASE()"
                     + " AND `table_name`='" + table + "'"
@@ -516,9 +521,9 @@ public final class StatisticsSystem {
      * <p>{@code execute} 对 DDL 恒返回 {@code false}（不产生结果集），因此执行后必须复查
      * 索引是否存在来判断成败，不能依赖返回值。</p>
      *
-     * @param table 表名，已由 {@link SQLUtils#correctTableName(String)} 收敛。
+     * @param table     表名，已由 {@link SQLUtils#correctTableName(String)} 收敛。
      * @param indexName 索引名。
-     * @param columns 索引列，含反引号的列名列表。
+     * @param columns   索引列，含反引号的列名列表。
      */
     private void ensureIndex(String table, String indexName, String columns) {
         try {
@@ -533,8 +538,7 @@ public final class StatisticsSystem {
             if (this.indexExists(table, indexName)) {
                 Logger.i(this.getClass(), "Created index '" + indexName + "' on '" + table
                         + "' in " + cost + " ms");
-            }
-            else {
+            } else {
                 Logger.w(this.getClass(), "Failed to create index '" + indexName + "' on '" + table + "'");
             }
         } catch (Throwable e) {
@@ -546,7 +550,7 @@ public final class StatisticsSystem {
     /**
      * 判断索引是否已存在。
      *
-     * @param table 表名。
+     * @param table     表名。
      * @param indexName 索引名。
      * @return 存在返回 {@code true} 。
      */
@@ -556,8 +560,7 @@ public final class StatisticsSystem {
         if (StorageType.SQLite == this.storage.getType()) {
             sql = "SELECT COUNT(*) FROM `sqlite_master` WHERE `type`='index' AND `name`='"
                     + indexName + "'";
-        }
-        else {
+        } else {
             sql = "SELECT COUNT(*) FROM `information_schema`.`statistics`"
                     + " WHERE `table_schema`=DATABASE()"
                     + " AND `table_name`='" + table + "'"
@@ -600,8 +603,7 @@ public final class StatisticsSystem {
             if (StorageType.SQLite == this.storage.getType()) {
                 sql = "CREATE UNIQUE INDEX `" + STATISTICS_UNIQUE_KEY + "` ON `" + table
                         + "` (`year`,`month`,`date`,`item`)";
-            }
-            else {
+            } else {
                 sql = "ALTER TABLE `" + table + "` ADD UNIQUE KEY `" + STATISTICS_UNIQUE_KEY
                         + "` (`year`,`month`,`date`,`item`(16))";
             }
@@ -611,8 +613,7 @@ public final class StatisticsSystem {
             if (this.indexExists(table, STATISTICS_UNIQUE_KEY)) {
                 Logger.i(this.getClass(), "Created unique key '" + STATISTICS_UNIQUE_KEY
                         + "' on '" + table + "'");
-            }
-            else {
+            } else {
                 // 历史数据里存在 item 前缀相同的行时会失败，此时退化为「可能重复」但不影响读取
                 Logger.w(this.getClass(), "Failed to create unique key '" + STATISTICS_UNIQUE_KEY
                         + "' on '" + table + "'");
@@ -650,8 +651,7 @@ public final class StatisticsSystem {
             if (StorageType.SQLite == this.storage.getType()) {
                 sql = "CREATE UNIQUE INDEX `" + UNIT_DAILY_UNIQUE_KEY + "` ON `" + table
                         + "` (`year`,`month`,`date`,`contact_id`)";
-            }
-            else {
+            } else {
                 sql = "ALTER TABLE `" + table + "` ADD UNIQUE KEY `" + UNIT_DAILY_UNIQUE_KEY
                         + "` (`year`,`month`,`date`,`contact_id`)";
             }
@@ -661,8 +661,7 @@ public final class StatisticsSystem {
             if (this.indexExists(table, UNIT_DAILY_UNIQUE_KEY)) {
                 Logger.i(this.getClass(), "Created unique key '" + UNIT_DAILY_UNIQUE_KEY + "' on '"
                         + table + "'");
-            }
-            else {
+            } else {
                 // 历史数据里存在重复行时会失败，此时退化为「可能重复」但不影响读取
                 Logger.w(this.getClass(), "Failed to create unique key '" + UNIT_DAILY_UNIQUE_KEY
                         + "' on '" + table + "'");
@@ -683,8 +682,7 @@ public final class StatisticsSystem {
         if (StorageType.SQLite == this.storage.getType()) {
             sql = "DELETE FROM " + table + " WHERE `sn` NOT IN (SELECT MIN(`sn`) FROM " + table
                     + " GROUP BY `year`,`month`,`date`,`contact_id`)";
-        }
-        else {
+        } else {
             sql = "DELETE t1 FROM " + table + " t1 INNER JOIN " + table + " t2"
                     + " ON t1.`year`=t2.`year` AND t1.`month`=t2.`month`"
                     + " AND t1.`date`=t2.`date` AND t1.`contact_id`=t2.`contact_id`"
@@ -705,8 +703,7 @@ public final class StatisticsSystem {
         if (StorageType.SQLite == this.storage.getType()) {
             sql = "DELETE FROM " + table + " WHERE `sn` NOT IN (SELECT MIN(`sn`) FROM " + table
                     + " GROUP BY `year`,`month`,`date`,`item`)";
-        }
-        else {
+        } else {
             sql = "DELETE t1 FROM " + table + " t1 INNER JOIN " + table + " t2"
                     + " ON t1.`year`=t2.`year` AND t1.`month`=t2.`month`"
                     + " AND t1.`date`=t2.`date` AND t1.`item`=t2.`item`"
@@ -809,8 +806,7 @@ public final class StatisticsSystem {
                     delete = "DELETE FROM " + table + " WHERE `sn` IN (SELECT `sn` FROM "
                             + table + " WHERE `time`<" + cutOff
                             + " LIMIT " + EVENT_CLEANUP_BATCH + ")";
-                }
-                else {
+                } else {
                     delete = "DELETE FROM " + table + " WHERE `time`<" + cutOff
                             + " LIMIT " + EVENT_CLEANUP_BATCH;
                 }
@@ -830,7 +826,7 @@ public final class StatisticsSystem {
      * 统计早于指定时间的事件行数。
      *
      * @param table 表名。
-     * @param time 时间上界（不含）。
+     * @param time  时间上界（不含）。
      * @return 返回行数，查询失败时返回 0 。
      */
     private long countEventsBefore(String table, long time) {
@@ -878,8 +874,7 @@ public final class StatisticsSystem {
             // 单元日汇总与明细同保留期：它只服务「回溯窗口内的统计日」查询，
             // 超出保留期后明细已不可重算，保留汇总行也没有意义
             this.cleanupUnitDaily();
-        }
-        finally {
+        } finally {
             this.collecting.set(false);
         }
     }
@@ -1031,10 +1026,10 @@ public final class StatisticsSystem {
      * 读取指定域某日某个指标的原始值。
      *
      * @param domain 指定域。
-     * @param item 指标名。
-     * @param year 年。
-     * @param month 月。
-     * @param date 日。
+     * @param item   指标名。
+     * @param year   年。
+     * @param month  月。
+     * @param date   日。
      * @return 返回指标值；无记录或查询失败返回 {@code null} 。
      */
     private String readItem(String domain, String item, int year, int month, int date) {
@@ -1043,9 +1038,9 @@ public final class StatisticsSystem {
             return null;
         }
 
-        List<StorageField[]> rows = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> rows = this.storage.executeQuery(table, new StorageField[]{
                 new StorageField("data", LiteralBase.STRING)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("year", LiteralBase.INT, year),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("month", LiteralBase.INT, month),
@@ -1070,11 +1065,11 @@ public final class StatisticsSystem {
      * {@link #STATISTICS_UNIQUE_KEY} 唯一键，这里用覆盖写保证同一 (日, 指标) 只有一行。</p>
      *
      * @param table 统计表名。
-     * @param item 指标名。
-     * @param data 指标值。
-     * @param year 年。
+     * @param item  指标名。
+     * @param data  指标值。
+     * @param year  年。
      * @param month 月。
-     * @param date 日。
+     * @param date  日。
      */
     private void writeItem(String table, String item, String data, int year, int month, int date) {
         long timestamp = System.currentTimeMillis();
@@ -1082,8 +1077,7 @@ public final class StatisticsSystem {
         StringBuilder sql = new StringBuilder("INSERT ");
         if (StorageType.SQLite == this.storage.getType()) {
             sql.append("OR REPLACE INTO ");
-        }
-        else {
+        } else {
             sql.append("INTO ");
         }
 
@@ -1108,7 +1102,7 @@ public final class StatisticsSystem {
      * <p>用户总数是采集当时的状态，事件明细里没有「当时一共多少人」的信息，因此重算历史日期
      * 必须沿用已入库的值；只有首次采集的日期（无旧记录）才读取当前总数。</p>
      *
-     * @param domain 指定域。
+     * @param domain      指定域。
      * @param existingTnu 该日已入库的用户总数，{@code null} 表示无记录。
      * @return 返回用户总数；查询失败时返回 -1 。
      */
@@ -1139,7 +1133,7 @@ public final class StatisticsSystem {
      * 读取指定域某日已入库的统计口径版本。
      *
      * @param domain 指定域。
-     * @param day 指定日期。
+     * @param day    指定日期。
      * @return 返回版本号；无记录返回 0 ；查询失败返回 -1 。
      */
     private int readStatisticsVersion(String domain, Calendar day) {
@@ -1153,9 +1147,9 @@ public final class StatisticsSystem {
             return 0;
         }
 
-        List<StorageField[]> rows = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> rows = this.storage.executeQuery(table, new StorageField[]{
                 new StorageField("data", LiteralBase.STRING)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("year", LiteralBase.INT, year),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("month", LiteralBase.INT, month),
@@ -1175,7 +1169,6 @@ public final class StatisticsSystem {
 
         return toStatisticsVersion(rows.get(0)[0].getString());
     }
-
 
 
     /**
@@ -1385,10 +1378,10 @@ public final class StatisticsSystem {
      */
     private boolean isUnitDailyCollected(String table, int year, int month, int date, long beginning) {
         // 字段级查询：失败返回 null，与「没有标记行」区分开
-        List<StorageField[]> rows = this.storage.executeQuery(table, new StorageField[] {
+        List<StorageField[]> rows = this.storage.executeQuery(table, new StorageField[]{
                 new StorageField("day_begin", LiteralBase.LONG),
                 new StorageField("version", LiteralBase.INT)
-        }, new Conditional[] {
+        }, new Conditional[]{
                 Conditional.createEqualTo("year", year),
                 Conditional.createAnd(),
                 Conditional.createEqualTo("month", month),
@@ -1421,7 +1414,7 @@ public final class StatisticsSystem {
                                                 UnitDayAggregator aggregator, long beginning) {
         long duration = aggregator.settle();
 
-        return new StorageField[] {
+        return new StorageField[]{
                 new StorageField("year", LiteralBase.INT, year),
                 new StorageField("month", LiteralBase.INT, month),
                 new StorageField("date", LiteralBase.INT, date),
@@ -1448,7 +1441,7 @@ public final class StatisticsSystem {
      */
     private StorageField[] buildUnitDailyMarker(int year, int month, int date, long beginning,
                                                 int unitCount) {
-        return new StorageField[] {
+        return new StorageField[]{
                 new StorageField("year", LiteralBase.INT, year),
                 new StorageField("month", LiteralBase.INT, month),
                 new StorageField("date", LiteralBase.INT, date),
@@ -1466,7 +1459,7 @@ public final class StatisticsSystem {
 
     /**
      * 统计指定域里的用户总数。
-     *
+     * <p>
      * 仅统计 ID 十进制位数大于等于 8 位的联系人，位数小于 8 位的是 AIGC 工作单元节点。
      *
      * @param domain 指定域。
@@ -1533,9 +1526,9 @@ public final class StatisticsSystem {
      * <p>一次查询取出当日全部用户事件后在内存里按联系人分组，不再对每个用户单独查询：
      * 逐用户查询是「用户数 × 全表扫描」，明细增长后会直接把日统计拖到不可用。</p>
      *
-     * @param domain 指定域。
+     * @param domain    指定域。
      * @param beginning 起始时间戳。
-     * @param ending 结束时间戳。
+     * @param ending    结束时间戳。
      * @return 返回总时长与活跃人数，调用方按需要换算均值。
      */
     private AotResult calcAOT(String domain, long beginning, long ending) {
@@ -1584,15 +1577,13 @@ public final class StatisticsSystem {
                     sessionStart = time;
                 }
                 hasSignIn = true;
-            }
-            else if (ContactHook.DeviceTimeout.equals(name)) {
+            } else if (ContactHook.DeviceTimeout.equals(name)) {
                 if (sessionStart > 0L) {
                     // 超时事件比最后一次心跳晚到，扣掉一个心跳周期
                     duration += Math.max(0L, (time - sessionStart) - 15000L);
                 }
                 sessionStart = 0L;
-            }
-            else if (ContactHook.SignOut.equals(name)) {
+            } else if (ContactHook.SignOut.equals(name)) {
                 if (sessionStart > 0L) {
                     duration += Math.max(0L, time - sessionStart);
                 }
@@ -1620,10 +1611,14 @@ public final class StatisticsSystem {
      */
     private static final class AotResult {
 
-        /** 当日活跃用户的总在线时长，单位：毫秒。 */
+        /**
+         * 当日活跃用户的总在线时长，单位：毫秒。
+         */
         final long totalMillis;
 
-        /** 当日参与统计的活跃用户数。 */
+        /**
+         * 当日参与统计的活跃用户数。
+         */
         final int users;
 
         AotResult(long totalMillis, int users) {
@@ -1653,9 +1648,9 @@ public final class StatisticsSystem {
      * <p>末尾仍未闭合的会话按「到当日结束」计入。旧实现只在「完全没有闭合会话」时才补这一段，
      * 当日存在「先签出、再签入且未签出」时末段被整段丢弃，AOT 因此长期偏低。</p>
      *
-     * @param duration 已累计的时长。
+     * @param duration     已累计的时长。
      * @param sessionStart 未闭合会话的开始时间，0 表示没有未闭合会话。
-     * @param ending 统计区间结束时间。
+     * @param ending       统计区间结束时间。
      * @return 返回当日总时长，单位：毫秒。
      */
     private static long closeSession(long duration, long sessionStart, long ending) {
@@ -1673,9 +1668,9 @@ public final class StatisticsSystem {
      *
      * <p>一次查询取出当日所有签入事件后按小时分桶，替换原先「24 次按小时全表扫描」的实现。</p>
      *
-     * @param domain 指定域。
+     * @param domain    指定域。
      * @param beginning 起始时间戳。
-     * @param ending 结束时间戳。
+     * @param ending    结束时间戳。
      * @return 返回有时间片段的列表，按小时升序。
      */
     private List<TimeSlice> calcTimeDistribution(String domain, long beginning, long ending) {
@@ -1780,7 +1775,7 @@ public final class StatisticsSystem {
                     String domain = contact.getDomain().getName();
                     String table = eventTableNameMap.get(domain);
 
-                    storage.executeInsert(table, new StorageField[] {
+                    storage.executeInsert(table, new StorageField[]{
                             new StorageField("event", LiteralBase.STRING, ctx.getKey()),
                             new StorageField("contact_id", LiteralBase.LONG, contact.getId()),
                             new StorageField("time", LiteralBase.LONG, time),
@@ -1819,7 +1814,7 @@ public final class StatisticsSystem {
                     String domain = contact.getDomain().getName();
                     String table = eventTableNameMap.get(domain);
 
-                    storage.executeInsert(table, new StorageField[] {
+                    storage.executeInsert(table, new StorageField[]{
                             new StorageField("event", LiteralBase.STRING, ctx.getKey()),
                             new StorageField("contact_id", LiteralBase.LONG, contact.getId()),
                             new StorageField("time", LiteralBase.LONG, time),
@@ -1858,7 +1853,7 @@ public final class StatisticsSystem {
                     String domain = contact.getDomain().getName();
                     String table = eventTableNameMap.get(domain);
 
-                    storage.executeInsert(table, new StorageField[] {
+                    storage.executeInsert(table, new StorageField[]{
                             new StorageField("event", LiteralBase.STRING, ctx.getKey()),
                             new StorageField("contact_id", LiteralBase.LONG, contact.getId()),
                             new StorageField("time", LiteralBase.LONG, time),
@@ -1897,7 +1892,7 @@ public final class StatisticsSystem {
                     String domain = contact.getDomain().getName();
                     String table = eventTableNameMap.get(domain);
 
-                    storage.executeInsert(table, new StorageField[] {
+                    storage.executeInsert(table, new StorageField[]{
                             new StorageField("event", LiteralBase.STRING, ctx.getKey()),
                             new StorageField("contact_id", LiteralBase.LONG, contact.getId()),
                             new StorageField("time", LiteralBase.LONG, time),
