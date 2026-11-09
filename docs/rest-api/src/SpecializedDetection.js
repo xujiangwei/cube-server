@@ -7,12 +7,98 @@
  * @apiName SpecializedDetectionImage
  * @apiGroup SpecializedDetection
  * @apiVersion 1.0.0
- * @apiDescription 按所选 profile 检测图片中的目标，支持火烟和通用物体，返回类别、置信度及矩形位置。
+ * @apiDescription 按所选 profile 检测单张图片中的目标，返回类别、置信度及矩形位置。火烟方案识别火焰与烟雾，通用物体方案识别常见物体，其完整类别清单见下方「可识别类别」表。
  *                 <p>调用前先<a href="#api-Data_Management-申请对话频道">创建频道</a>，再通过<a href="#api-File_Processing-上传文件数据">上传文件数据</a>接口上传图片，并确认文件可查询。将频道码填入 <code>channel</code>，将文件码填入 <code>input.files</code>；频道和文件须属于当前用户和域。</p>
- *                 <p><code>fire-smoke</code> 用于火焰、烟雾检测；<code>uav-fire-smoke</code> 用于无人机巡检画面；<code>thing</code> 用于 COCO 80 类通用物体。可用方案和切片支持以节点注册及生效模型绑定为准。提高 <code>confidence</code> 可减少低置信度结果，降低阈值可保留更多候选目标。</p>
- *                 <p><code>classes</code> 使用所选方案的规范英文类别名：火烟为 <code>fire</code>、<code>smoke</code>，通用物体例如 <code>person</code>、<code>car</code>、<code>stop sign</code>。省略时不过滤类别；类别编号由 <code>labelSpace</code> 定义，过滤不会重新编号。所有 profile 共享节点容量，不会因切换 profile 获得额外配额。</p>
- *                 <p>本接口在一次请求中返回结果。遍历 <code>resultPayload.refs[].boxes[]</code> 绘制检测框，按 <code>content</code> 区分类别；坐标以方向校正后的原图像素为准，缩放展示时按 <code>width</code>、<code>height</code> 同比换算。<code>refs=[]</code> 表示未检出目标，仍是成功结果，应以检测区域判断是否命中。</p>
+ *                 <p><code>profile</code> 决定本次可识别的类别。<code>fire-smoke</code> 用于火焰、烟雾检测，<code>uav-fire-smoke</code> 用于无人机巡检画面，两者使用 <code>fire</code>、<code>smoke</code>；<code>thing</code> 可识别 80 类常见物体，类别名与编号见下方表格。可用方案和切片支持以节点注册及生效模型绑定为准。</p>
+ *                 <p><code>classes</code> 是可选的类别过滤数组，元素必须使用所选方案的规范英文类别名，含空格与大小写须与表格一致。<strong>不传 <code>classes</code> 字段表示检测该方案的全部可识别类别</strong>，结果中可能出现表格内任意类别；传入时只返回指定类别，按首次出现顺序去重。<code>null</code>、空数组、非字符串项、空白名称及未知类别返回 400。类别编号由服务端类别契约固定，过滤不会重新编号。所有 profile 共享节点容量，不会因切换 profile 获得额外配额。</p>
+ *                 <p><code>confidence</code> 为置信度阈值 [0,1]：提高可减少低置信度结果，降低可保留更多候选目标；省略时使用服务默认值。</p>
+ *                 <p>本接口在一次请求中返回结果。遍历 <code>resultPayload.refs[].boxes[]</code> 绘制检测框，按 <code>content</code> 区分类别、按 <code>classId</code> 对照下方表格；坐标以方向校正后的原图像素为准，缩放展示时按 <code>width</code>、<code>height</code> 同比换算。<code>refs=[]</code> 表示未检出目标，仍是成功结果，应以检测区域判断是否命中。</p>
  *                 <p>请求体最大 <code>64 KiB</code>，每次提交一张图片。检测可能需要较长时间，客户端请求超时建议大于 <code>190 秒</code>；出现 <code>429</code> 或 <code>503</code> 时延迟重试，其他错误按下方状态说明处理。</p>
+ *                 <h3>通用物体方案（thing）可识别类别</h3>
+ *                 <p>下表列出 <code>thing</code> 方案可识别的全部 80 类目标。<code>classId</code> 与 <code>resultPayload.refs[].classId</code> 一致；<code>classes</code> 与 <code>refs[].content</code> 使用「规范类别名」列的英文值，须完全一致。火烟方案不使用本表，仅识别 <code>fire</code>（0）与 <code>smoke</code>（1）。</p>
+ *                 <div class="table-scroll" tabindex="0" role="region" aria-label="通用物体方案可识别类别">
+ *                 <table><thead><tr><th>classId</th><th>规范类别名</th><th>中文名称</th></tr></thead><tbody>
+ *                 <tr><td><code>0</code></td><td><code>person</code></td><td>人</td></tr>
+ *                 <tr><td><code>1</code></td><td><code>bicycle</code></td><td>自行车</td></tr>
+ *                 <tr><td><code>2</code></td><td><code>car</code></td><td>小汽车</td></tr>
+ *                 <tr><td><code>3</code></td><td><code>motorcycle</code></td><td>摩托车</td></tr>
+ *                 <tr><td><code>4</code></td><td><code>airplane</code></td><td>飞机</td></tr>
+ *                 <tr><td><code>5</code></td><td><code>bus</code></td><td>公交车</td></tr>
+ *                 <tr><td><code>6</code></td><td><code>train</code></td><td>火车</td></tr>
+ *                 <tr><td><code>7</code></td><td><code>truck</code></td><td>卡车</td></tr>
+ *                 <tr><td><code>8</code></td><td><code>boat</code></td><td>船</td></tr>
+ *                 <tr><td><code>9</code></td><td><code>traffic light</code></td><td>交通信号灯</td></tr>
+ *                 <tr><td><code>10</code></td><td><code>fire hydrant</code></td><td>消防栓</td></tr>
+ *                 <tr><td><code>11</code></td><td><code>stop sign</code></td><td>停车标志</td></tr>
+ *                 <tr><td><code>12</code></td><td><code>parking meter</code></td><td>停车计时器</td></tr>
+ *                 <tr><td><code>13</code></td><td><code>bench</code></td><td>长椅</td></tr>
+ *                 <tr><td><code>14</code></td><td><code>bird</code></td><td>鸟</td></tr>
+ *                 <tr><td><code>15</code></td><td><code>cat</code></td><td>猫</td></tr>
+ *                 <tr><td><code>16</code></td><td><code>dog</code></td><td>狗</td></tr>
+ *                 <tr><td><code>17</code></td><td><code>horse</code></td><td>马</td></tr>
+ *                 <tr><td><code>18</code></td><td><code>sheep</code></td><td>绵羊</td></tr>
+ *                 <tr><td><code>19</code></td><td><code>cow</code></td><td>牛</td></tr>
+ *                 <tr><td><code>20</code></td><td><code>elephant</code></td><td>大象</td></tr>
+ *                 <tr><td><code>21</code></td><td><code>bear</code></td><td>熊</td></tr>
+ *                 <tr><td><code>22</code></td><td><code>zebra</code></td><td>斑马</td></tr>
+ *                 <tr><td><code>23</code></td><td><code>giraffe</code></td><td>长颈鹿</td></tr>
+ *                 <tr><td><code>24</code></td><td><code>backpack</code></td><td>背包</td></tr>
+ *                 <tr><td><code>25</code></td><td><code>umbrella</code></td><td>雨伞</td></tr>
+ *                 <tr><td><code>26</code></td><td><code>handbag</code></td><td>手提包</td></tr>
+ *                 <tr><td><code>27</code></td><td><code>tie</code></td><td>领带</td></tr>
+ *                 <tr><td><code>28</code></td><td><code>suitcase</code></td><td>行李箱</td></tr>
+ *                 <tr><td><code>29</code></td><td><code>frisbee</code></td><td>飞盘</td></tr>
+ *                 <tr><td><code>30</code></td><td><code>skis</code></td><td>滑雪双板</td></tr>
+ *                 <tr><td><code>31</code></td><td><code>snowboard</code></td><td>单板滑雪板</td></tr>
+ *                 <tr><td><code>32</code></td><td><code>sports ball</code></td><td>运动球</td></tr>
+ *                 <tr><td><code>33</code></td><td><code>kite</code></td><td>风筝</td></tr>
+ *                 <tr><td><code>34</code></td><td><code>baseball bat</code></td><td>棒球棒</td></tr>
+ *                 <tr><td><code>35</code></td><td><code>baseball glove</code></td><td>棒球手套</td></tr>
+ *                 <tr><td><code>36</code></td><td><code>skateboard</code></td><td>滑板</td></tr>
+ *                 <tr><td><code>37</code></td><td><code>surfboard</code></td><td>冲浪板</td></tr>
+ *                 <tr><td><code>38</code></td><td><code>tennis racket</code></td><td>网球拍</td></tr>
+ *                 <tr><td><code>39</code></td><td><code>bottle</code></td><td>瓶子</td></tr>
+ *                 <tr><td><code>40</code></td><td><code>wine glass</code></td><td>高脚杯</td></tr>
+ *                 <tr><td><code>41</code></td><td><code>cup</code></td><td>杯子</td></tr>
+ *                 <tr><td><code>42</code></td><td><code>fork</code></td><td>叉子</td></tr>
+ *                 <tr><td><code>43</code></td><td><code>knife</code></td><td>餐刀</td></tr>
+ *                 <tr><td><code>44</code></td><td><code>spoon</code></td><td>勺子</td></tr>
+ *                 <tr><td><code>45</code></td><td><code>bowl</code></td><td>碗</td></tr>
+ *                 <tr><td><code>46</code></td><td><code>banana</code></td><td>香蕉</td></tr>
+ *                 <tr><td><code>47</code></td><td><code>apple</code></td><td>苹果</td></tr>
+ *                 <tr><td><code>48</code></td><td><code>sandwich</code></td><td>三明治</td></tr>
+ *                 <tr><td><code>49</code></td><td><code>orange</code></td><td>橙子</td></tr>
+ *                 <tr><td><code>50</code></td><td><code>broccoli</code></td><td>西兰花</td></tr>
+ *                 <tr><td><code>51</code></td><td><code>carrot</code></td><td>胡萝卜</td></tr>
+ *                 <tr><td><code>52</code></td><td><code>hot dog</code></td><td>热狗</td></tr>
+ *                 <tr><td><code>53</code></td><td><code>pizza</code></td><td>披萨</td></tr>
+ *                 <tr><td><code>54</code></td><td><code>donut</code></td><td>甜甜圈</td></tr>
+ *                 <tr><td><code>55</code></td><td><code>cake</code></td><td>蛋糕</td></tr>
+ *                 <tr><td><code>56</code></td><td><code>chair</code></td><td>椅子</td></tr>
+ *                 <tr><td><code>57</code></td><td><code>couch</code></td><td>沙发</td></tr>
+ *                 <tr><td><code>58</code></td><td><code>potted plant</code></td><td>盆栽</td></tr>
+ *                 <tr><td><code>59</code></td><td><code>bed</code></td><td>床</td></tr>
+ *                 <tr><td><code>60</code></td><td><code>dining table</code></td><td>餐桌</td></tr>
+ *                 <tr><td><code>61</code></td><td><code>toilet</code></td><td>马桶</td></tr>
+ *                 <tr><td><code>62</code></td><td><code>tv</code></td><td>电视机</td></tr>
+ *                 <tr><td><code>63</code></td><td><code>laptop</code></td><td>笔记本电脑</td></tr>
+ *                 <tr><td><code>64</code></td><td><code>mouse</code></td><td>鼠标</td></tr>
+ *                 <tr><td><code>65</code></td><td><code>remote</code></td><td>遥控器</td></tr>
+ *                 <tr><td><code>66</code></td><td><code>keyboard</code></td><td>键盘</td></tr>
+ *                 <tr><td><code>67</code></td><td><code>cell phone</code></td><td>手机</td></tr>
+ *                 <tr><td><code>68</code></td><td><code>microwave</code></td><td>微波炉</td></tr>
+ *                 <tr><td><code>69</code></td><td><code>oven</code></td><td>烤箱</td></tr>
+ *                 <tr><td><code>70</code></td><td><code>toaster</code></td><td>烤面包机</td></tr>
+ *                 <tr><td><code>71</code></td><td><code>sink</code></td><td>水槽</td></tr>
+ *                 <tr><td><code>72</code></td><td><code>refrigerator</code></td><td>冰箱</td></tr>
+ *                 <tr><td><code>73</code></td><td><code>book</code></td><td>书</td></tr>
+ *                 <tr><td><code>74</code></td><td><code>clock</code></td><td>时钟</td></tr>
+ *                 <tr><td><code>75</code></td><td><code>vase</code></td><td>花瓶</td></tr>
+ *                 <tr><td><code>76</code></td><td><code>scissors</code></td><td>剪刀</td></tr>
+ *                 <tr><td><code>77</code></td><td><code>teddy bear</code></td><td>泰迪熊</td></tr>
+ *                 <tr><td><code>78</code></td><td><code>hair drier</code></td><td>吹风机</td></tr>
+ *                 <tr><td><code>79</code></td><td><code>toothbrush</code></td><td>牙刷</td></tr>
+ *                 </tbody></table></div>
  * @apiParam {String} token 授权令牌。
  * @apiHeader {String} Content-Type application/json
  * @apiHeader {String} [x-baize-api-device] 获取令牌时使用的客户端设备名。
@@ -24,7 +110,7 @@
  * @apiBody {Object} input.option 检测参数。
  * @apiBody {String} [input.option.operation=detect] 图片操作。
  * @apiBody {String} input.option.profile 检测方案名称字符串，当前目录为 <code>fire-smoke</code>、<code>uav-fire-smoke</code>、<code>thing</code>，支持范围以节点实际注册能力为准。无有效提供方或匹配节点未就绪返回 503，不支持请求能力返回 400。
- * @apiBody {String[]} [input.option.classes] 非空规范类别名称数组，如 thing 使用 ["person","car"]。省略时不过滤类别；按首次出现顺序去重，null、空数组、非字符串项、空白名称及未知类别均返回 400。
+ * @apiBody {String[]} [input.option.classes] 可选类别过滤数组，元素为所选方案的规范英文类别名。<strong>不传该字段即检测该方案的全部可识别类别</strong>（thing 的 80 类见「可识别类别」表，火烟为 fire、smoke）；传入时只返回指定类别，按首次出现顺序去重。null、空数组、非字符串项、空白名称及未知类别均返回 400。
  * @apiBody {Number} [input.option.confidence] 阈值 [0,1]，省略时使用服务默认值。
  * @apiBody {Boolean} [input.option.sliced=false] 是否启用切片检测，按节点生效绑定的能力校验；当前仅 uav-fire-smoke 支持。
  * @apiParamExample {json} 图片检测请求:
@@ -33,6 +119,14 @@
  *   "input": {
  *     "files": ["UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHlbzAxepzvKBXapMJJZcNkOXiZpEx"],
  *     "option": {"profile": "fire-smoke", "confidence": 0.4}
+ *   }
+ * }
+ * @apiParamExample {json} 通用物体：不传 classes，检测全部类别
+ * {
+ *   "channel": "inspection-001",
+ *   "input": {
+ *     "files": ["UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHlbzAxepzvKBXapMJJZcNkOXiZpEx"],
+ *     "option": {"profile": "thing", "confidence": 0.5}
  *   }
  * }
  * @apiParamExample {json} 通用物体：只检测人和车
@@ -50,7 +144,7 @@
  * @apiSuccess {String} thought 补充说明，可能为空。
  * @apiSuccess {Object} resultPayload 检测结果，坐标基于方向校正后的原图像素。
  * @apiSuccess {String} resultPayload.profile 本次请求的 profile。
- * @apiSuccess {String} resultPayload.labelSpace 类别契约：火烟为 fire-smoke-v1，thing 为 coco80-v1。
+ * @apiSuccess {String} resultPayload.labelSpace 类别契约标识，由所选 profile 的生效模型绑定决定，用于解释 content 与 classId 的取值；按返回值读取即可，具体值见成功响应示例。
  * @apiSuccess {String} resultPayload.modelId 服务端生效模型配置 ID；模型绑定由服务端配置，示例展示默认绑定。
  * @apiSuccess {String} resultPayload.modelVariant 模型规格。
  * @apiSuccess {String} resultPayload.backend 推理后端。
@@ -60,7 +154,7 @@
  * @apiSuccess {Number} resultPayload.height 图片高度，单位：像素。
  * @apiSuccess {Object[]} resultPayload.refs 检测区域，未命中时为 []；命中时包含 content、classId、boxes 和 points。
  * @apiSuccess {String} resultPayload.refs.content 当前类别契约中的规范类别名。
- * @apiSuccess {Number} resultPayload.refs.classId fire-smoke-v1 中 fire=0、smoke=1；coco80-v1 固定为 0…79，例如 person=0、car=2。
+ * @apiSuccess {Number} resultPayload.refs.classId 类别编号：火烟方案中 fire=0、smoke=1；通用物体方案固定为 0…79，完整对照见「可识别类别」表，例如 person=0、car=2。类别过滤不会重新编号。
  * @apiSuccess {Array} resultPayload.refs.points 预留的检测点列表；当前三个检测方案均返回 []，无需读取子字段。
  * @apiSuccess {Object[]} resultPayload.refs.boxes 检测框，字段为 x1、y1、x2、y2、confidence；左上角为 (x1,y1)，右下角为 (x2,y2)。
  * @apiSuccess {Number} resultPayload.refs.boxes.x1 左上角横坐标，单位：原图像素。
@@ -230,7 +324,7 @@
  *                 <p>启动成功表示会话已创建，媒体仍可能处于 <code>starting</code> 状态。查询返回 <code>running</code> 后开始检测；<code>reconnecting</code> 表示正在重新连接视频源；<code>stopping</code> 表示正在停止；<code>stopped</code>、<code>failed</code> 表示会话已结束。视频文件可读取 <code>progress</code> 展示进度，实时视频的进度为 <code>null</code>。</p>
  *                 <p>接收回调的地址须可被检测服务访问，并支持 <code>POST</code> 二进制请求。请求类型为 <code>image/png</code>，<code>X-VLM-Event-Id</code> 为事件标识，同一事件可能重复投递，请据此去重。检测元数据位于 PNG 的 <code>vlm_meta</code> 文本信息中，包含会话标识、时间、画面位置和检测框；下方示例展示读取方法。</p>
  *                 <p>只有命中目标的画面才会回调，未收到回调不代表会话已结束。可通过 <code>inferenceFps</code> 调整每秒检测帧数，通过 <code>intervalSeconds</code> 控制命中画面的推送间隔；回调发送失败不会自动停止检测，可通过状态中的 <code>callbackFailures</code> 排查。</p>
- *                 <p><code>classes</code> 过滤后仍有达到阈值的目标才算命中。profile、类别过滤、阈值、切片策略与模型绑定在启动时固定，可从快照 <code>parameters</code> 查看；更改参数需停止后重新启动。多个 profile 共享节点的会话上限，匹配节点就绪但容量耗尽时返回 <code>429</code>。</p>
+ *                 <p><code>classes</code> 为可选类别过滤条件，<strong>不传该字段即按该方案的全部可识别类别检测</strong>；类别名与编号见<a href="#api-SpecializedDetection-SpecializedDetectionImage">专项图片检测</a>的「可识别类别」表。过滤后仍有达到阈值的目标才算命中。profile、类别过滤、阈值、切片策略与模型绑定在启动时固定，可从快照 <code>parameters</code> 查看；更改参数需停止后重新启动。多个 profile 共享节点的会话上限，匹配节点就绪但容量耗尽时返回 <code>429</code>。</p>
  *                 <p>查询和停止时使用创建会话的用户身份，并将 <code>files</code> 设为空数组；<code>option</code> 仅传 <code>operation</code> 和 <code>streamId</code>，请求仍回到原会话节点，停止期间允许继续查询或停止。启动请求超时后，检测仍可能继续，请先核查已收到的回调或联系服务提供方，避免立即重复创建；服务重启后需重新建立会话。</p>
  * @apiParam {String} token 授权令牌。
  * @apiHeader {String} Content-Type application/json
@@ -243,7 +337,7 @@
  * @apiBody {Object} input.option start 参数或控制参数。
  * @apiBody {String="start","status","stop"} input.option.operation 操作。
  * @apiBody {String} [input.option.profile] start 必填，检测方案名称字符串，当前目录为 fire-smoke、uav-fire-smoke、thing，按实际注册能力选路。
- * @apiBody {String[]} [input.option.classes] start 可选，非空规范类别名称数组，按首次出现顺序去重；省略时不过滤类别。null、空数组、错误类型、空白名称及未知类别返回 400。先过滤再判断视频命中，绑定到会话，不用于 status/stop。
+ * @apiBody {String[]} [input.option.classes] start 可选，规范英文类别名数组，按首次出现顺序去重；<strong>不传该字段即检测该方案的全部可识别类别</strong>。null、空数组、错误类型、空白名称及未知类别返回 400。先过滤再判断视频命中，绑定到会话，不用于 status/stop。
  * @apiBody {String} [input.option.callbackUrl] start 必填，检测服务可访问的 HTTP(S) PNG 接收地址。
  * @apiBody {Number} [input.option.confidence] start 可选，置信度阈值 [0,1]；提高阈值可减少低置信度检测框。
  * @apiBody {Boolean} [input.option.sliced=false] start 可选，按节点生效绑定校验；当前仅 uav-fire-smoke 支持。
@@ -293,7 +387,7 @@
  * @apiSuccess {Number} resultPayload.parameters.confidence 生效的置信度阈值。
  * @apiSuccess {Boolean} resultPayload.parameters.sliced 是否使用切片检测。
  * @apiSuccess {String[]/Null} resultPayload.parameters.classes 去重后的规范类别名；未指定过滤条件时为 null，类别编号保持不变。
- * @apiSuccess {String} resultPayload.parameters.labelSpace 类别契约，fire-smoke-v1 或 coco80-v1。
+ * @apiSuccess {String} resultPayload.parameters.labelSpace 类别契约标识，由所选 profile 的生效模型绑定决定；按返回值读取即可。
  * @apiSuccess {String} resultPayload.parameters.modelId 生效模型配置 ID。
  * @apiSuccess {String} resultPayload.parameters.modelVariant 模型规格。
  * @apiSuccess {String} resultPayload.parameters.backend 推理后端。

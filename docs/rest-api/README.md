@@ -45,7 +45,9 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 | `POST /specialized-detection/base/{token}` | 火烟或通用物体图片检测 | [专项图片检测](output/index.html#api-SpecializedDetection-SpecializedDetectionImage) |
 | `POST /specialized-detection/stream/{token}` | 视频文件或 RTSP(S) 后台检测，支持 `start/status/stop` | [专项视频后台会话](output/index.html#api-SpecializedDetection-SpecializedDetectionStream) |
 
-`fire-smoke` 用于火烟，`uav-fire-smoke` 用于无人机巡检，`thing` 提供 COCO 80 类通用检测；profile 是名称字符串，可用方案及切片支持以节点实际注册能力和生效绑定为准。可选 `classes` 用非空规范类别名数组过滤，例如 `["person","car"]`，重复项按首次出现顺序去重；null、空数组、错误类型及未知类别返回 400。过滤不会改变 `classId`，例如 thing 中 person=0、car=2。空 `refs` 表示未检出所选目标。
+`fire-smoke` 用于火烟，`uav-fire-smoke` 用于无人机巡检，`thing` 用于常见通用物体；`thing` 可识别的全部 80 类目标（规范类别名与 `classId` 对照表）见 [专项图片检测](output/index.html#api-SpecializedDetection-SpecializedDetectionImage) 的「通用物体方案（thing）可识别类别」。profile 是名称字符串，可用方案及切片支持以节点实际注册能力和生效绑定为准。
+
+`classes` 是可选的类别过滤数组，元素使用规范英文类别名，例如 `["person","car"]`，重复项按首次出现顺序去重。**不传 `classes` 字段表示检测所选方案的全部可识别类别**；null、空数组、错误类型及未知类别返回 400。过滤不会改变 `classId`，例如 `thing` 中 person=0、car=2。空 `refs` 表示未检出所选目标。
 
 图片结果与视频 PNG 元数据通过 `labelSpace`、`modelId`、`modelVariant`、`backend`、`inputResolution`、`artifactSha256` 追溯类别和模型；视频快照的 `parameters` 保存启动时固定的绑定、阈值、切片与类别过滤条件。按节点实际注册能力、切片支持、就绪状态和共享容量选路；启用多个 profile 不增加节点吞吐或会话上限。无有效提供方或匹配节点未就绪返回 503，不支持请求能力返回 400，匹配且就绪但容量耗尽返回 429。
 
