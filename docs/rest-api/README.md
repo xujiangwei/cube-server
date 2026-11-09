@@ -49,7 +49,7 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 
 `classes` 是可选的类别过滤数组，元素使用规范英文类别名，例如 `["person","car"]`，重复项按首次出现顺序去重。**不传 `classes` 字段表示检测所选方案的全部可识别类别**；null、空数组、错误类型及未知类别返回 400。过滤不会改变 `classId`，例如 `thing` 中 person=0、car=2。空 `refs` 表示未检出所选目标。
 
-图片结果与视频 PNG 元数据通过 `labelSpace`、`modelId`、`modelVariant`、`backend`、`inputResolution`、`artifactSha256` 追溯类别和模型；视频快照的 `parameters` 保存启动时固定的绑定、阈值、切片与类别过滤条件。按节点实际注册能力、切片支持、就绪状态和共享容量选路；启用多个 profile 不增加节点吞吐或会话上限。无有效提供方或匹配节点未就绪返回 503，不支持请求能力返回 400，匹配且就绪但容量耗尽返回 429。
+图片结果与视频 PNG 元数据中的类别按 `profile`、`refs[].content`、`refs[].classId` 对照上述类别说明读取；`modelId`、`modelVariant`、`backend`、`inputResolution`、`artifactSha256` 用于追溯模型。视频快照的 `parameters` 保存启动时固定的绑定、阈值、切片与类别过滤条件。按节点实际注册能力、切片支持、就绪状态和共享容量选路；启用多个 profile 不增加节点吞吐或会话上限。无有效提供方或匹配节点未就绪返回 503，不支持请求能力返回 400，匹配且就绪但容量耗尽返回 429。
 
 视频接入顺序为：准备可接收 PNG 二进制的回调地址 → `start` 创建会话 → 保存 `streamId` → `status` 查询状态与进度 → 不再需要时 `stop`。查询和停止回到原会话节点，停止期间仍允许控制请求；更改检测参数需停止后重新启动。回调使用 `X-VLM-Event-Id` 去重，元数据从 PNG 的 `vlm_meta` 文本信息读取；未收到回调时应查询会话状态。
 

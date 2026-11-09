@@ -143,8 +143,7 @@
  * @apiSuccess {String} response 检测结果的文字说明，可能为空；目标信息以 resultPayload 为准。
  * @apiSuccess {String} thought 补充说明，可能为空。
  * @apiSuccess {Object} resultPayload 检测结果，坐标基于方向校正后的原图像素。
- * @apiSuccess {String} resultPayload.profile 本次请求的 profile。
- * @apiSuccess {String} resultPayload.labelSpace 类别契约标识，由所选 profile 的生效模型绑定决定，用于解释 content 与 classId 的取值；按返回值读取即可，具体值见成功响应示例。
+ * @apiSuccess {String} resultPayload.profile 本次请求的检测方案；类别名与编号见上述「可识别类别」说明。
  * @apiSuccess {String} resultPayload.modelId 服务端生效模型配置 ID；模型绑定由服务端配置，示例展示默认绑定。
  * @apiSuccess {String} resultPayload.modelVariant 模型规格。
  * @apiSuccess {String} resultPayload.backend 推理后端。
@@ -153,7 +152,7 @@
  * @apiSuccess {Number} resultPayload.width 图片宽度，单位：像素。
  * @apiSuccess {Number} resultPayload.height 图片高度，单位：像素。
  * @apiSuccess {Object[]} resultPayload.refs 检测区域，未命中时为 []；命中时包含 content、classId、boxes 和 points。
- * @apiSuccess {String} resultPayload.refs.content 当前类别契约中的规范类别名。
+ * @apiSuccess {String} resultPayload.refs.content 所选 profile 中的规范类别名，与上述「可识别类别」说明一致。
  * @apiSuccess {Number} resultPayload.refs.classId 类别编号：火烟方案中 fire=0、smoke=1；通用物体方案固定为 0…79，完整对照见「可识别类别」表，例如 person=0、car=2。类别过滤不会重新编号。
  * @apiSuccess {Array} resultPayload.refs.points 预留的检测点列表；当前三个检测方案均返回 []，无需读取子字段。
  * @apiSuccess {Object[]} resultPayload.refs.boxes 检测框，字段为 x1、y1、x2、y2、confidence；左上角为 (x1,y1)，右下角为 (x2,y2)。
@@ -177,7 +176,6 @@
  *         "thought": "",
  *         "resultPayload": {
  *             "profile": "fire-smoke",
- *             "labelSpace": "fire-smoke-v1",
  *             "modelId": "fire-smoke-default",
  *             "modelVariant": "yolov8n",
  *             "backend": "yolo",
@@ -243,7 +241,6 @@
  *   "thought": "",
  *   "resultPayload": {
  *     "profile": "thing",
- *     "labelSpace": "coco80-v1",
  *     "modelId": "thing-default",
  *     "modelVariant": "large-2026",
  *     "backend": "rfdetr-native",
@@ -322,7 +319,7 @@
  * @apiDescription 按所选 profile 持续检测视频文件或 RTSP(S) 实时画面中的火烟或通用物体，在命中目标时向指定地址推送带检测框的 PNG 图片。适合视频巡检、摄像头监控和告警图片留存。
  *                 <p>先创建频道。检测视频文件时先上传并取得文件码；检测实时视频时提供服务端可访问的 RTSP(S) 地址。使用 <code>operation=start</code> 创建会话，保存返回的 <code>resultPayload.streamId</code>，之后通过同一接口的 <code>status</code> 查询进度、<code>stop</code> 停止会话。</p>
  *                 <p>启动成功表示会话已创建，媒体仍可能处于 <code>starting</code> 状态。查询返回 <code>running</code> 后开始检测；<code>reconnecting</code> 表示正在重新连接视频源；<code>stopping</code> 表示正在停止；<code>stopped</code>、<code>failed</code> 表示会话已结束。视频文件可读取 <code>progress</code> 展示进度，实时视频的进度为 <code>null</code>。</p>
- *                 <p>接收回调的地址须可被检测服务访问，并支持 <code>POST</code> 二进制请求。请求类型为 <code>image/png</code>，<code>X-VLM-Event-Id</code> 为事件标识，同一事件可能重复投递，请据此去重。检测元数据位于 PNG 的 <code>vlm_meta</code> 文本信息中，包含会话标识、时间、画面位置和检测框；下方示例展示读取方法。</p>
+ *                 <p>接收回调的地址须可被检测服务访问，并支持 <code>POST</code> 二进制请求。请求类型为 <code>image/png</code>，<code>X-VLM-Event-Id</code> 为事件标识，同一事件可能重复投递，请据此去重。检测元数据位于 PNG 的 <code>vlm_meta</code> 文本信息中，包含会话标识、时间、画面位置和检测框；其中 <code>resultPayload</code> 与图片检测结果结构一致，按 <code>profile</code>、<code>refs[].content</code> 和 <code>refs[].classId</code> 读取类别。下方示例展示读取方法。</p>
  *                 <p>只有命中目标的画面才会回调，未收到回调不代表会话已结束。可通过 <code>inferenceFps</code> 调整每秒检测帧数，通过 <code>intervalSeconds</code> 控制命中画面的推送间隔；回调发送失败不会自动停止检测，可通过状态中的 <code>callbackFailures</code> 排查。</p>
  *                 <p><code>classes</code> 为可选类别过滤条件，<strong>不传该字段即按该方案的全部可识别类别检测</strong>；类别名与编号见<a href="#api-SpecializedDetection-SpecializedDetectionImage">专项图片检测</a>的「可识别类别」表。过滤后仍有达到阈值的目标才算命中。profile、类别过滤、阈值、切片策略与模型绑定在启动时固定，可从快照 <code>parameters</code> 查看；更改参数需停止后重新启动。多个 profile 共享节点的会话上限，匹配节点就绪但容量耗尽时返回 <code>429</code>。</p>
  *                 <p>查询和停止时使用创建会话的用户身份，并将 <code>files</code> 设为空数组；<code>option</code> 仅传 <code>operation</code> 和 <code>streamId</code>，请求仍回到原会话节点，停止期间允许继续查询或停止。启动请求超时后，检测仍可能继续，请先核查已收到的回调或联系服务提供方，避免立即重复创建；服务重启后需重新建立会话。</p>
@@ -387,7 +384,6 @@
  * @apiSuccess {Number} resultPayload.parameters.confidence 生效的置信度阈值。
  * @apiSuccess {Boolean} resultPayload.parameters.sliced 是否使用切片检测。
  * @apiSuccess {String[]/Null} resultPayload.parameters.classes 去重后的规范类别名；未指定过滤条件时为 null，类别编号保持不变。
- * @apiSuccess {String} resultPayload.parameters.labelSpace 类别契约标识，由所选 profile 的生效模型绑定决定；按返回值读取即可。
  * @apiSuccess {String} resultPayload.parameters.modelId 生效模型配置 ID。
  * @apiSuccess {String} resultPayload.parameters.modelVariant 模型规格。
  * @apiSuccess {String} resultPayload.parameters.backend 推理后端。
@@ -530,7 +526,6 @@
  *                 "confidence": 0.4,
  *                 "sliced": false,
  *                 "classes": null,
- *                 "labelSpace": "fire-smoke-v1",
  *                 "modelId": "fire-smoke-default",
  *                 "modelVariant": "yolov8n",
  *                 "backend": "yolo",
