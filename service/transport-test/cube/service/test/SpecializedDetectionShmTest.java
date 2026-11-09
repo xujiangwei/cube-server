@@ -41,17 +41,30 @@ public final class SpecializedDetectionShmTest {
             python = new ProcessBuilder(args[0], "-u", args[2], args[1], Integer.toString(port))
                     .redirectErrorStream(true).redirectOutput(log.toFile()).start();
             SpecializedDetectionTest.check(cellet.ready.await(15, TimeUnit.SECONDS), "dummy Python connected: " + log);
+            SpecializedDetectionTest.until(() -> cellet.service.getSpecializedDetections()
+                    .descriptor(cellet.service.units.get(0)).optBoolean("ready"), "real Python readiness report accepted");
             EventCenter.getInstance().start(cellet.service);
-            for (String profile : new String[]{"fire-smoke", "uav-fire-smoke"}) {
-                SpecializedDetectionTest.Reply reply = invoke(cellet, SpecializedDetectionTest.image(profile)); reply.success();
+            for (String profile : new String[]{"fire-smoke", "uav-fire-smoke", "thing"}) {
+                org.json.JSONObject input = SpecializedDetectionTest.image(profile);
+                input.getJSONObject("option").put("classes",new org.json.JSONArray().put("thing".equals(profile)?"person":"fire"));
+                if ("uav-fire-smoke".equals(profile)) input.getJSONObject("option").put("sliced",true);
+                SpecializedDetectionTest.Reply reply = invoke(cellet, input); reply.success();
                 SpecializedDetectionTest.check(reply.output.resultPayload.getInt("width") == 32
                         && reply.output.resultPayload.getJSONArray("refs").length() == 0, "real Python empty image result");
+                SpecializedDetectionTest.check(reply.output.resultPayload.getString("labelSpace")
+                        .equals("thing".equals(profile)?"coco80-v1":"fire-smoke-v1"),"Python model metadata retained");
+                org.json.JSONObject video = SpecializedDetectionTest.start();
+                video.getJSONObject("option").put("profile",profile).put("classes",input.getJSONObject("option").getJSONArray("classes"))
+                        .put("sliced","uav-fire-smoke".equals(profile));
+                SpecializedDetectionTest.Reply start = invoke(cellet, video); start.success();
+                org.json.JSONObject parameters=start.output.resultPayload.getJSONObject("parameters");
+                SpecializedDetectionTest.check(parameters.getJSONArray("classes").getString(0).equals("thing".equals(profile)?"person":"fire")
+                        && parameters.has("modelId") && parameters.has("labelSpace"),"video classes and model metadata retained");
+                invoke(cellet, SpecializedDetectionTest.control("status", start.id())).success();
+                SpecializedDetectionTest.Reply stop = invoke(cellet, SpecializedDetectionTest.control("stop", start.id())); stop.success();
+                SpecializedDetectionTest.check("stopped".equals(stop.output.resultPayload.getString("status")), "dummy stop terminal");
+                SpecializedDetectionTest.Reply repeat = invoke(cellet, SpecializedDetectionTest.control("stop", start.id())); repeat.success();
             }
-            SpecializedDetectionTest.Reply start = invoke(cellet, SpecializedDetectionTest.start()); start.success();
-            invoke(cellet, SpecializedDetectionTest.control("status", start.id())).success();
-            SpecializedDetectionTest.Reply stop = invoke(cellet, SpecializedDetectionTest.control("stop", start.id())); stop.success();
-            SpecializedDetectionTest.check("stopped".equals(stop.output.resultPayload.getString("status")), "dummy stop terminal");
-            SpecializedDetectionTest.Reply repeat = invoke(cellet, SpecializedDetectionTest.control("stop", start.id())); repeat.success();
             cellet.speak(cellet.context, new Packet("bridgeDone", new org.json.JSONObject()).toDialect());
             SpecializedDetectionTest.check(python.waitFor(10, TimeUnit.SECONDS) && python.exitValue() == 0, "Python clean shutdown: " + log);
             System.out.println("SpecializedDetectionShmTest: " + SpecializedDetectionTest.assertions + " assertions passed; dummy only, no weights/camera");
@@ -102,8 +115,8 @@ public final class SpecializedDetectionShmTest {
             ActionDialect dialect = new ActionDialect(primitive);
             if ("bridgeReady".equals(dialect.getName())) {
                 this.context = context;
-                service.units.add(new AIGCUnit(new Contact(100L, "domain"), new AICapability("SpecializedDetection",
-                        "ComputerVision", "1.0", Collections.singletonList("ObjectDetection"), "dummy"), context));
+                service.units.add(new AIGCUnit(new Contact(100L, "domain"),
+                        new AICapability(new Packet(dialect).data.getJSONObject("capability")), context));
                 ready.countDown();
             } else super.onListened(context, primitive);
         }

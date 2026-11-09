@@ -12,11 +12,7 @@
     "profile": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 128,
-      "enum": [
-        "fire-smoke",
-        "uav-fire-smoke"
-      ]
+      "maxLength": 128
     },
     "confidence": {
       "type": "number",
@@ -25,6 +21,16 @@
     },
     "sliced": {
       "type": "boolean"
+    },
+    "classes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
     }
   },
   "required": [

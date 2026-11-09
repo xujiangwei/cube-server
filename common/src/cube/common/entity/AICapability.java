@@ -11,6 +11,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -54,7 +55,7 @@ public class AICapability implements JSONable {
 
     private final String version;
 
-    private final List<String> subtasks;
+    private volatile List<String> subtasks;
 
     private final String description;
 
@@ -78,7 +79,7 @@ public class AICapability implements JSONable {
         this.name = name;
         this.task = task;
         this.version = version;
-        this.subtasks = subtasks;
+        setSubtasks(subtasks);
         this.description = description;
     }
 
@@ -150,6 +151,16 @@ public class AICapability implements JSONable {
         return this.subtasks.contains(subtask);
     }
 
+    /** Returns a copy of the ordered subtasks; the first entry defines unit identity. */
+    public List<String> getSubtasks() {
+        return new ArrayList<>(this.subtasks);
+    }
+
+    /** Replaces the list atomically without exposing the caller's mutable list. */
+    public void setSubtasks(List<String> values) {
+        this.subtasks = Collections.unmodifiableList(new ArrayList<>(values));
+    }
+
     /**
      * 获取描述。
      *
@@ -184,17 +195,18 @@ public class AICapability implements JSONable {
      */
     @Override
     public JSONObject toJSON() {
+        List<String> subtasks = this.subtasks;
         JSONObject json = new JSONObject();
         if (usageProtocol > 0) json.put("usageProtocol", usageProtocol);
         json.put("name", this.name);
         json.put("task", this.task);
         json.put("version", this.version);
 
-        if (this.subtasks.size() == 1) {
-            json.put("subtask", this.subtasks.get(0));
+        if (subtasks.size() == 1) {
+            json.put("subtask", subtasks.get(0));
         } else {
             JSONArray array = new JSONArray();
-            for (String subtask : this.subtasks) {
+            for (String subtask : subtasks) {
                 array.put(subtask);
             }
             json.put("subtasks", array);

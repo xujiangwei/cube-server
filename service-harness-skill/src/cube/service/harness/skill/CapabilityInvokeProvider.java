@@ -123,12 +123,18 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         JSONArray profiles = config.getJSONArray("profiles");
         for (int i = 0; i < profiles.length(); i++) {
             String name = profiles.getJSONObject(i).getString("unit");
+            JSONObject option = unitOptions(profiles.getJSONObject(i));
             boolean ready = false;
             for (int j = 0; j < units.length(); j++) {
                 JSONObject instance = units.getJSONObject(j);
                 if (instance.getString("unit").equals(name)
                         && instance.getBoolean("ready")
-                        && instance.getInt("capacity") > 0) {
+                        && instance.getInt("capacity") > 0
+                        && (!"SpecializedDetection".equals(name)
+                        || (cube.aigc.SpecializedDetectionCapabilities.ready(instance)
+                        && instance.optInt("availableImages") > 0
+                        && cube.aigc.SpecializedDetectionCapabilities.supports(instance,
+                        option.getString("profile"), option.optBoolean("sliced"))))) {
                     ready = true;
                 }
             }

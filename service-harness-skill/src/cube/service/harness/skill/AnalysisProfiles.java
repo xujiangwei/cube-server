@@ -23,11 +23,6 @@ import java.util.Set;
  */
 public final class AnalysisProfiles {
     /**
-     * 允许声明切片分析的唯一档案标识。
-     */
-    private static final String SLICED_PROFILE = "uav-fire-smoke";
-
-    /**
      * 工具类，禁止实例化。
      */
     private AnalysisProfiles() {
@@ -53,10 +48,7 @@ public final class AnalysisProfiles {
             String kind = optionsKind(adapter, unit);
             JSONObject options = ConnectorConfig.arguments(p.getString("optionsJson"));
             Contract.validate(options, AbstractProvider.schema("capability", kind));
-            // 切片分析目前只开放给无人机烟火档案，其它档案声明 sliced 即视为非法。
-            if (options.optBoolean("sliced") && !SLICED_PROFILE.equals(options.optString("profile"))) {
-                throw new StoreException("ANALYSIS_PROFILE_INVALID");
-            }
+            // Profile availability and slicing support are checked against live unit reports.
         }
     }
 

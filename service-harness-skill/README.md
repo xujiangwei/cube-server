@@ -148,6 +148,10 @@ result.max.bytes=12288
 
 `ant test` 覆盖八个实际作者 ZIP、输入输出 schema 一致性、算术精度、时区和夏令时、知识 ACL、附件绑定、中文与转义输出预算。网络测试使用真实本地 HTTP/TLS 服务，覆盖 SearXNG 空结果/部分失败/403/429/超时/无效响应，以及公网 DNS 拒绝、TLS 主机名、chunked/gzip 和响应大小。Broker 测试使用真实 SQLite、grant、结果持久化、重复调用和 ACK 重送；`ant test-media` 额外验证签名业务包、分页快照、媒体绑定、来源防伪和物理完成回执，部署与实机验证边界见 [单图调用接入](../service-harness/M1.md)。
 
+专项检测 options 支持 `classes` 和字符串 profile（含 `thing`），保留未知字段拒绝；
+预检、持久预留及发送按节点注册的 profile、状态租约、切片支持与图像余量匹配。
+多个 profile 共用节点的持久物理槽位，示例与部署约束见上述单图接入文档。
+
 多单元冒烟（先运行 `ant test`，使用 Python Harness 已安装依赖的 Python 3.11）：
 
 ```powershell

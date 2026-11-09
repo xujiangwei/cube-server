@@ -3,6 +3,7 @@ package cube.service.aigc;
 import cell.core.talk.TalkContext;
 import cell.core.talk.dialect.ActionDialect;
 import cube.aigc.completion.MediaProvider;
+import cube.aigc.SpecializedDetectionCapabilities;
 import cube.aigc.usage.*;
 import cube.common.Packet;
 import cube.common.entity.*;
@@ -36,8 +37,13 @@ public final class HarnessMediaBridge implements MediaProvider {
         Set<String> names = new HashSet<>(Arrays.asList(config.getProperty("harness.media.units", "").split(",")));
         // Operators enable only warmed-up real routes; the source tree is not a readiness signal.
         for (AIGCUnit unit : service.getAllUnits()) if (names.contains(unit.getCapability().getName())) {
-            out.put(new JSONObject().put("unit", unit.getCapability().getName()).put("instanceId", instance(unit))
-                    .put("capacity", 1).put("ready", unit.getContext().isValid()));
+            JSONObject descriptor = SpecializedDetectionInput.UNIT.equals(unit.getCapability().getName())
+                    ? service.getSpecializedDetections().descriptor(unit) : new JSONObject();
+            boolean ready = unit.getContext() != null && unit.getContext().isValid()
+                    && (!SpecializedDetectionInput.UNIT.equals(unit.getCapability().getName())
+                    || SpecializedDetectionCapabilities.ready(descriptor));
+            out.put(descriptor.put("unit", unit.getCapability().getName()).put("instanceId", instance(unit))
+                    .put("capacity", 1).put("ready", ready));
         }
         return out;
     }
@@ -63,6 +69,7 @@ public final class HarnessMediaBridge implements MediaProvider {
         Path temporary = null;
         try {
             if (unit == null) throw new IllegalStateException("CAPABILITY_NOT_READY");
+            checkDetection(unit, execution);
             if (expired(execution)) throw new IllegalStateException("MEDIA_CANCELLED_BEFORE_SEND");
             if (image.length > 1048576 || image.length == 0) throw new IllegalArgumentException("MEDIA_SIZE");
             temporary = Files.createTempFile("harness-media-", execution.getString("mediaType").equals("image/png") ? ".png" : ".jpg");
@@ -70,11 +77,12 @@ public final class HarnessMediaBridge implements MediaProvider {
             FileLabel label = service.saveHarnessMedia(execution, code, temporary.toFile());
             if (label == null) throw new IllegalStateException("FILE_STORAGE_UNAVAILABLE");
             if (expired(execution)) throw new IllegalStateException("MEDIA_CANCELLED_BEFORE_SEND");
-            JSONObject input = new JSONObject().put("unit", execution.getString("unit")).put("content", execution.getString("content"))
-                    .put("files", new JSONArray().put(code)).put("option", execution.getJSONObject("option"));
+            JSONObject input = mediaInput(execution, code);
             boolean specialized = execution.getString("adapter").equals("specialized-detection");
             JSONObject data;
-            if (specialized) data = new SpecializedDetectionInput(input).toUnitJSON(label);
+            if (specialized) {
+                data = new SpecializedDetectionInput(input).toUnitJSON(label);
+            }
             else {
                 MultimodalInput multimodal = new MultimodalInput(input);
                 multimodal.fileLabels = Collections.singletonList(label); data = multimodal.toUnitJson();
@@ -83,6 +91,7 @@ public final class HarnessMediaBridge implements MediaProvider {
             service.getStorage().getUsageWriter().begin(usage, execution.getString("requestId"), unit.getCapability().getName(), unit.getQueryKey(), System.currentTimeMillis());
             p.usageStarted = true;
             if (expired(execution)) throw new IllegalStateException("MEDIA_CANCELLED_BEFORE_SEND");
+            checkDetection(unit, execution);
             unit.setRunning(true);
             p.runningMarked = true;
             Packet packet = new Packet(sn, specialized ? AIGCAction.SpecializedDetection.name : AIGCAction.Multimodal.name, data);
@@ -99,6 +108,24 @@ public final class HarnessMediaBridge implements MediaProvider {
         } finally {
             if (temporary != null) try { Files.deleteIfExists(temporary); } catch (Exception ignored) { }
         }
+    }
+
+    private static JSONObject mediaInput(JSONObject execution, String code) {
+        JSONObject input = new JSONObject().put("unit", execution.getString("unit"))
+                .put("files", new JSONArray().put(code)).put("option", execution.getJSONObject("option"));
+        if (!"specialized-detection".equals(execution.getString("adapter")))
+            input.put("content", execution.getString("content"));
+        return input;
+    }
+
+    private void checkDetection(AIGCUnit unit, JSONObject execution) {
+        if (!SpecializedDetectionInput.UNIT.equals(unit.getCapability().getName())) return;
+        JSONObject descriptor = service.getSpecializedDetections().descriptor(unit);
+        JSONObject option = execution.getJSONObject("option");
+        if (!SpecializedDetectionCapabilities.ready(descriptor)
+                || descriptor.optInt("availableImages") <= 0
+                || !SpecializedDetectionCapabilities.supports(descriptor, option.getString("profile"), option.optBoolean("sliced")))
+            throw new IllegalStateException("CAPABILITY_NOT_READY");
     }
     public void onResponse(TalkContext context, ActionDialect dialect) {
         Packet packet;

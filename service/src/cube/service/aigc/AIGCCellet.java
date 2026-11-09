@@ -403,6 +403,10 @@ public class AIGCCellet extends AbstractCellet {
         ActionDialect dialect = new ActionDialect(primitive);
         String action = dialect.getName();
 
+        if ("specializedDetectionStatus".equals(action) && !dialect.containsParam(Responder.NotifierKey)) {
+            this.execute(new SpecializedDetectionStatusTask(this, talkContext, primitive, this.markResponseTime(action)));
+            return;
+        }
         if ("pluginStatus".equals(action) && !dialect.containsParam(Responder.NotifierKey)) {
             this.execute(new PluginStatusTask(this, talkContext, primitive, this.markResponseTime(action)));
             return;

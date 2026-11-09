@@ -217,7 +217,13 @@ public final class MediaToolsTest {
                 JSONArray out = new JSONArray();
                 for (String unit : Arrays.asList("OmniMultimodal", "OmniPerception", "SpecializedDetection")) {
                     for (String node : Arrays.asList("unit-a", "unit-b")) {
-                        out.put(new JSONObject().put("unit", unit).put("instanceId", node).put("capacity", 1).put("ready", true));
+                        JSONObject descriptor = new JSONObject().put("unit", unit).put("instanceId", node).put("capacity", 1).put("ready", true);
+                        if ("SpecializedDetection".equals(unit)) descriptor
+                                .put("profiles",new JSONArray().put("uav-fire-smoke").put("fire-smoke").put("thing"))
+                                .put("slicedProfiles",new JSONArray().put("uav-fire-smoke"))
+                                .put("availableImages",1)
+                                .put("statusExpiresAt",System.currentTimeMillis()+30000);
+                        out.put(descriptor);
                     }
                 }
                 return out;
@@ -322,6 +328,7 @@ public final class MediaToolsTest {
             check(JdbcRunStore.canonical(catalog.bindRemote(T, S, bindKey, "request-hash", target, bound.getLong("version"))).equals(JdbcRunStore.canonical(once)), "CAS acknowledgement survives repeat after commit");
             fail("IDEMPOTENCY_CONFLICT", () -> catalog.bindRemote(T, S, bindKey, "changed-request", target, bound.getLong("version")));
             fail("VERSION_CONFLICT", () -> catalog.bindRemote(T, S, key(), "other-request", target, bound.getLong("version")));
+            detectionReservations(lease);
             System.out.println("PASS M1: signed package, bound image -> Broker -> Unit fixture -> source artifact; forged refs, timeout, restart, late receipts, two Units, revoked grant, CAS replay. No live inference executed.");
         } finally {
             broker.close();
@@ -399,5 +406,45 @@ public final class MediaToolsTest {
         store.putSource(T, "source-test", "1", new JSONObject().put("fixture", true));
         store.grant(T, S, "source-test@1", true);
         return "source-test@1";
+    }
+
+    static void detectionReservations(JdbcRunStore.Lease lease) throws Exception {
+        JSONObject fire=detectionNode("fire-only","fire-smoke"),thing=detectionNode("thing-only","thing");
+        JSONArray units=new JSONArray().put(fire).put(thing);
+        JSONObject request=new JSONObject().put("option",new JSONObject().put("operation","detect").put("profile","thing"));
+        JSONObject job=detectionJob(lease);
+        JSONObject execution=metadata.reserve(job,units,"SpecializedDetection",request);
+        check("thing-only".equals(execution.getString("instanceId")),"durable reservation matches profile");
+        JSONObject next=detectionJob(lease);
+        fail("CAPABILITY_NOT_READY",()->metadata.reserve(next,units,"SpecializedDetection",request));
+        thing.getJSONArray("profiles").put("fire-smoke");
+        JSONObject other=new JSONObject(request.toString());other.getJSONObject("option").put("profile","fire-smoke");
+        JSONObject second=metadata.reserve(next,units,"SpecializedDetection",other);
+        check("fire-only".equals(second.getString("instanceId")),"profiles share the same persistent physical slot");
+        metadata.receipt(job,new JSONObject().put("actualFinished",true).put("instanceId","thing-only").put("requestId",job.getString("job_id")));
+        thing.put("statusExpiresAt",0);
+        JSONObject third=detectionJob(lease);
+        fail("CAPABILITY_NOT_READY",()->metadata.reserve(third,units,"SpecializedDetection",request));
+        thing.put("statusExpiresAt",System.currentTimeMillis()+30000);
+        request.getJSONObject("option").put("sliced",true);
+        fail("CAPABILITY_NOT_READY",()->metadata.reserve(third,units,"SpecializedDetection",request));
+        thing.put("slicedProfiles",new JSONArray().put("thing"));
+        check(metadata.reserve(third,units,"SpecializedDetection",request).getString("instanceId").equals("thing-only"),"reported slicing enables reservation");
+        metadata.receipt(next,new JSONObject().put("actualFinished",true).put("instanceId","fire-only").put("requestId",next.getString("job_id")));
+        metadata.receipt(third,new JSONObject().put("actualFinished",true).put("instanceId","thing-only").put("requestId",third.getString("job_id")));
+        for(JSONObject done:Arrays.asList(job,next,third)) broker.jobs.cancel(lease,done.getString("job_id"));
+    }
+
+    static JSONObject detectionJob(JdbcRunStore.Lease lease) throws Exception {
+        String id=key();
+        JSONObject arguments=new JSONObject().put("skill","fhe/patrol").put("profileId","describe").put("mediaRef","fixture").put("content","Fixture");
+        intent(lease,"call",id,new JSONObject().put("proposalId",id).put("tool","common.capability.invoke").put("argumentsJson",arguments.toString()));
+        return broker.enqueue(lease,row(lease.runId,"call",id),resources.executable(identity,lease.runId,"common.capability.invoke"));
+    }
+
+    static JSONObject detectionNode(String id,String profile) {
+        return new JSONObject().put("unit","SpecializedDetection").put("instanceId",id).put("capacity",1).put("ready",true)
+                .put("availableImages",1).put("profiles",new JSONArray().put(profile)).put("slicedProfiles",new JSONArray())
+                .put("statusExpiresAt",System.currentTimeMillis()+30000);
     }
 }

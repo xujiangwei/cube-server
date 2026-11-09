@@ -1,5 +1,6 @@
 .DS_Store
 *.class
+.tmp
 build
 dispatcher/logs
 service/bin

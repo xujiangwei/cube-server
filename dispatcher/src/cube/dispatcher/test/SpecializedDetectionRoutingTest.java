@@ -64,7 +64,52 @@ public final class SpecializedDetectionRoutingTest {
             f.performer.getCapabilityRouter().connected(owner.director,replacement.speaker);
             expect(3,()->invoke(f,TOKEN,control("status",id)));
         }
-        http(); System.out.println("SpecializedDetectionRoutingTest: "+assertions+" assertions passed");
+        heterogeneous(); http(); System.out.println("SpecializedDetectionRoutingTest: "+assertions+" assertions passed");
+    }
+
+    static void heterogeneous() throws Exception {
+        try (Fixture f = new Fixture()) {
+            Node fire=f.add("fire-only",true), thing=f.add("thing-only",true), mixed=f.add("mixed",true);
+            CapabilityRoutingTest.until(()->f.performer.getCapabilityRouter().candidates().size()==3);
+            JSONObject fireCaps=provider(f,fire), thingCaps=provider(f,thing), mixedCaps=provider(f,mixed);
+            Object state=((Map<?,?>)field(f.performer.getCapabilityRouter(),"states")).get(fire.director);
+            check((Long)field(state,"nextQuery")-(Long)field(state,"received")<=10000,"detection discovery refreshes within its lease");
+            fireCaps.put("profiles",new JSONArray().put("fire-smoke"));
+            thingCaps.put("profiles",new JSONArray().put("thing"));
+            mixedCaps.put("ready",false);
+            JSONObject image=image();image.getJSONObject("option").put("profile","thing");
+            check("thing-only".equals(invoke(f,TOKEN,image).getString("service")),"thing routes to thing-only provider");
+            check("fire-only".equals(invoke(f,TOKEN,image()).getString("service")),"fire routes to fire-only provider");
+            JSONObject unknown=image();unknown.getJSONObject("option").put("profile","unknown");
+            expect(1,()->invoke(f,TOKEN,unknown));
+            JSONObject sliced=image();sliced.getJSONObject("option").put("sliced",true);
+            expect(1,()->invoke(f,TOKEN,sliced));
+            mixedCaps.put("slicedProfiles",new JSONArray().put("fire-smoke"));
+            expect(30,()->invoke(f,TOKEN,sliced));
+            thingCaps.put("availableImages",0);expect(7,()->invoke(f,TOKEN,image));
+            thingCaps.put("availableImages",1).put("statusExpiresAt",0);
+            expect(30,()->invoke(f,TOKEN,image));
+            thingCaps.put("statusExpiresAt",System.currentTimeMillis()+30000);
+            mixedCaps.put("ready",true);
+            for(int i=0;i<6;i++) {
+                String name=invoke(f,TOKEN,image).getString("service");
+                check(!"fire-only".equals(name),"mixed routing respects profile");
+            }
+            Packet p=new Packet("specializedDetection",new JSONObject().put("input",image));
+            mixedCaps.put("ready",false);
+            cube.dispatcher.aigc.CapabilityRouter router=f.performer.getCapabilityRouter();
+            Director selected=router.select(p.toDialect());
+            thingCaps.put("availableImages",0);
+            expect(7,()->router.sent(selected,thing.speaker,p.toDialect()));
+            thingCaps.put("availableImages",1).put("profiles",new JSONArray().put("fire-smoke"));
+            expect(1,()->router.sent(selected,thing.speaker,p.toDialect()));
+        }
+    }
+
+    static JSONObject provider(Fixture f,Node node) throws Exception {
+        Object state=((Map<?,?>)field(f.performer.getCapabilityRouter(),"states")).get(node.director);
+        return ((JSONObject)field(field(state,"snapshot"),"json")).getJSONObject("specializedDetection")
+                .getJSONArray("providers").getJSONObject(0);
     }
 
     /**
@@ -91,7 +136,7 @@ public final class SpecializedDetectionRoutingTest {
                 check(status.getString("service").equals(started.getString("service")),"HTTP start immediately pinned");
                 post(root,true,OTHER,control("stop",id),403);
                 for(int[] pair:new int[][]{{1,400},{3,404},{7,429},{30,503},{31,502},{32,422}}){f.error=pair[0];JSONObject error=post(root,false,TOKEN,image(),pair[1]).getJSONObject("error");check(error.getInt("code")==pair[0],"Python code preserved");}
-                for(String profile:Arrays.asList("uav-fire-smoke","future-profile")) {
+                for(String profile:Arrays.asList("uav-fire-smoke","thing")) {
                     f.error=1;JSONObject unsupported=image();unsupported.getJSONObject("option").put("profile",profile);
                     JSONObject error=post(root,false,TOKEN,unsupported,400).getJSONObject("error");
                     check(error.getInt("code")==1&&profile.equals(f.lastProfile),"Python rejects unsupported profile through HTTP");
@@ -299,7 +344,10 @@ public final class SpecializedDetectionRoutingTest {
                         if(AIGCAction.GetCapabilitySnapshot.name.equals(p.name)){
                             data=CapabilityRoutingTest.snapshot(name,new JSONArray().put(CapabilityRoutingTest.unit("SpecializedDetection","Detection",false,false)));
                             if(enabled){
-                                data.put("specializedDetection",new JSONObject().put("version",1).put("providers",new JSONArray().put(new JSONObject().put("availableSessions",2).put("availableImages",1))));
+                                data.put("specializedDetection",new JSONObject().put("version",1).put("providers",new JSONArray().put(new JSONObject()
+                                        .put("profiles",new JSONArray().put("fire-smoke").put("uav-fire-smoke").put("thing"))
+                                        .put("slicedProfiles",new JSONArray().put("uav-fire-smoke")).put("ready",true)
+                                        .put("statusExpiresAt",System.currentTimeMillis()+30000).put("availableSessions",2).put("availableImages",1))));
                             }
                         } else {
                             calls.incrementAndGet();

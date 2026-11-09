@@ -796,6 +796,7 @@ public class AIGCService extends AbstractModule implements Generatable, cube.aig
     public List<AIGCUnit> setupUnit(Contact contact, List<AICapability> capabilities, TalkContext context) {
         synchronized (this.pluginUnits) {
             List<AIGCUnit> units = this.unitScheduler.setup(contact, capabilities, context);
+            this.specializedDetections.onSetup(units);
             this.pluginUnits.onSetup(units);
             return units;
         }

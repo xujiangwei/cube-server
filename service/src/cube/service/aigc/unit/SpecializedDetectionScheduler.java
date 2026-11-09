@@ -10,6 +10,7 @@ import cell.core.talk.TalkContext;
 import cell.core.talk.dialect.ActionDialect;
 import cube.aigc.SpecializedDetectionDefaults;
 import cube.aigc.SpecializedDetectionException;
+import cube.aigc.SpecializedDetectionCapabilities;
 import cube.auth.AuthToken;
 import cube.common.Packet;
 import cube.common.entity.AIGCUnit;
@@ -87,6 +88,12 @@ public final class SpecializedDetectionScheduler {
          * 正在处理的图像请求数。
          */
         int images;
+        long sequence;
+        long reportedAt;
+        String state = "registered";
+        int maxSessions = SpecializedDetectionDefaults.MAX_SESSIONS;
+        Set<String> slicedProfiles = new HashSet<>();
+        List<String> profiles;
 
         /**
          * 构造方法。
@@ -96,6 +103,7 @@ public final class SpecializedDetectionScheduler {
         Provider(AIGCUnit unit) {
             this.unit = unit;
             this.context = unit.getContext();
+            this.profiles = SpecializedDetectionCapabilities.profiles(unit.getCapability());
         }
     }
 
@@ -260,32 +268,23 @@ public final class SpecializedDetectionScheduler {
     }
 
     /**
-     * 读取提供方维度的配置项，未配置时回退到全局配置，再回退到缺省值。
-     *
-     * @param provider 提供方
-     * @param key      配置键
-     * @param fallback 缺省值
-     * @return 配置值
-     */
-    private String setting(Provider provider, String key, String fallback) {
-        String prefix = "specialized.detection.node." + provider.unit.getContact().getDomain().getName()
-                + "." + provider.unit.getContact().getId() + ".";
-        return config.getProperty(prefix + key, config.getProperty("specialized.detection." + key, fallback));
-    }
-
-    /**
      * 获取提供方的最大会话数，取值限定在 [1, 64]。
      *
      * @param provider 提供方
      * @return 最大会话数
      */
     private int max(Provider provider) {
-        try {
-            int n = Integer.parseInt(setting(provider, "max.sessions", Integer.toString(SpecializedDetectionDefaults.MAX_SESSIONS)));
-            return Math.max(1, Math.min(64, n));
-        } catch (NumberFormatException error) {
-            return SpecializedDetectionDefaults.MAX_SESSIONS;
+        int maximum = provider.maxSessions;
+        String prefix = "specialized.detection.node." + provider.unit.getContact().getDomain().getName()
+                + "." + provider.unit.getContact().getId() + ".max.sessions";
+        for (String key : Arrays.asList("specialized.detection.max.sessions", prefix)) {
+            String configured = config.getProperty(key);
+            if (configured == null) continue;
+            try {
+                maximum = Math.min(maximum, Math.max(1, Math.min(64, Integer.parseInt(configured))));
+            } catch (NumberFormatException ignored) { }
         }
+        return maximum;
     }
 
     /**
@@ -320,6 +319,12 @@ public final class SpecializedDetectionScheduler {
         Iterator<Provider> iterator = providers.values().iterator();
         while (iterator.hasNext()) {
             Provider p = iterator.next();
+            List<String> profiles = SpecializedDetectionCapabilities.profiles(p.unit.getCapability());
+            if (!profiles.equals(p.profiles)) {
+                p.profiles = profiles;
+                p.reportedAt = 0;
+                p.slicedProfiles.clear();
+            }
             if (!live(p, units)) {
                 removed.add(p);
                 iterator.remove();
@@ -334,6 +339,74 @@ public final class SpecializedDetectionScheduler {
                 providers.computeIfAbsent(unit.getQueryKey(), key -> new Provider(unit));
             }
         }
+    }
+
+    /** Registration updates retain reservations but require fresh readiness evidence. */
+    public synchronized void onSetup(List<AIGCUnit> units) {
+        clean();
+        for (Provider p : providers.values()) if (units.contains(p.unit)) p.reportedAt = 0;
+    }
+
+    private boolean ready(Provider p) {
+        return !p.profiles.isEmpty() && "ready".equals(p.state) && p.reportedAt > 0
+                && System.currentTimeMillis() - p.reportedAt < 30000;
+    }
+
+    /** Accept a complete, monotonic report only from the registered provider connection. */
+    public synchronized boolean report(TalkContext context, JSONObject report) {
+        if (closed || context == null || !context.isValid()) return false;
+        try {
+            clean();
+            Provider target = null;
+            for (Provider p : providers.values()) if (same(context, p.context)) {
+                if (target != null) return false;
+                target = p;
+            }
+            if (target == null || target.profiles.isEmpty() || integer(report, "version", 1, 1) != 1) return false;
+            long sequence = integer(report, "sequence", 1, Long.MAX_VALUE);
+            if (sequence <= target.sequence) return false;
+            String state = report.getString("state");
+            if (!Arrays.asList("registered", "initializing", "ready", "failed", "stopping", "stopped").contains(state)) return false;
+            int maximum = (int) integer(report, "maxSessions", 1, 64);
+            JSONArray values = report.getJSONArray("slicedProfiles");
+            Set<String> sliced = new HashSet<>();
+            for (int i = 0; i < values.length(); i++) {
+                String name = values.getString(i);
+                if (!target.profiles.contains(name) || !sliced.add(name)) return false;
+            }
+            target.sequence = sequence;
+            target.reportedAt = System.currentTimeMillis();
+            target.state = state;
+            target.maxSessions = maximum;
+            target.slicedProfiles = sliced;
+            return true;
+        } catch (RuntimeException invalid) { return false; }
+    }
+
+    private static long integer(JSONObject data, String key, long low, long high) {
+        Object value = data.get(key);
+        if (!(value instanceof Number)) throw new IllegalArgumentException(key);
+        long n = new java.math.BigDecimal(value.toString()).longValueExact();
+        if (n < low || n > high) throw new IllegalArgumentException(key);
+        return n;
+    }
+
+    /** Live descriptor shared with gateway discovery and Harness media admission. */
+    public synchronized JSONObject descriptor(AIGCUnit unit) {
+        clean();
+        Provider p = providers.get(unit.getQueryKey());
+        if (p == null || p.unit != unit) return new JSONObject();
+        return descriptor(p);
+    }
+
+    private JSONObject descriptor(Provider p) {
+        boolean ready = ready(p);
+        return new JSONObject().put("profiles", new JSONArray(p.profiles))
+                .put("slicedProfiles", new JSONArray(p.slicedProfiles)).put("state", p.state)
+                .put("ready", ready).put("statusExpiresAt", p.reportedAt == 0 ? 0 : p.reportedAt + 30000)
+                .put("maxSessions", max(p)).put("availableSessions", ready ? Math.max(0, max(p) - active(p) - p.starting) : 0)
+                .put("activeSessions", active(p)).put("pendingStarts", p.starting)
+                .put("availableImages", ready && p.images == 0 ? 1 : 0);
     }
 
     /**
@@ -416,13 +489,24 @@ public final class SpecializedDetectionScheduler {
             return new Reservation(s.provider, s, input.operation);
         }
         List<Provider> candidates = new ArrayList<>();
+        boolean registered = false, profile = false, supported = false, ready = false, profileReady = false;
         for (Provider p : providers.values()) {
+            registered |= !p.profiles.isEmpty();
+            if (!p.profiles.contains(input.profile)) continue;
+            profile = true;
+            boolean available = ready(p);
+            profileReady |= available;
+            if (input.isSliced() && !p.slicedProfiles.contains(input.profile)) continue;
+            supported = true;
+            if (!available) continue;
+            ready = true;
             if ("start".equals(input.operation) ? active(p) + p.starting < max(p) : p.images == 0) {
                 candidates.add(p);
             }
         }
         if (candidates.isEmpty()) {
-            throw SpecializedDetectionException.unit(providers.isEmpty() ? 30 : 7);
+            throw SpecializedDetectionException.unit(!registered || (profile && !profileReady) || (supported && !ready)
+                    ? 30 : !profile || !supported ? 1 : 7);
         }
         // 排序前先轮转，使等负载的候选者获得确定性的轮询次序。
         Collections.rotate(candidates, -(int) Math.floorMod(cursor++, (long) candidates.size()));
@@ -456,6 +540,15 @@ public final class SpecializedDetectionScheduler {
     public synchronized void sent(SpecializedDetectionUnitMeta meta) {
         if (!valid(meta.reservation)) {
             throw SpecializedDetectionException.unit(30);
+        }
+        if (!meta.input.isControl()) {
+            Provider p = meta.reservation.provider;
+            if (!ready(p)) throw SpecializedDetectionException.unit(30);
+            if (!p.profiles.contains(meta.input.profile)
+                    || (meta.input.isSliced() && !p.slicedProfiles.contains(meta.input.profile)))
+                throw SpecializedDetectionException.unit(1);
+            if ("start".equals(meta.input.operation) && active(p) + p.starting > max(p))
+                throw SpecializedDetectionException.unit(7);
         }
         pending.put(meta.sn, meta);
     }
@@ -661,10 +754,9 @@ public final class SpecializedDetectionScheduler {
         clean();
         JSONArray nodes = new JSONArray();
         for (Provider p : providers.values()) {
-            nodes.put(new JSONObject().put("maxSessions", max(p)).put("availableSessions", Math.max(0, max(p) - active(p) - p.starting))
-                    .put("activeSessions", active(p)).put("pendingStarts", p.starting).put("availableImages", p.images == 0 ? 1 : 0));
+            nodes.put(descriptor(p));
         }
-        return new JSONObject().put("version", 1).put("readiness", "unknown").put("budgetSource", "java-config")
+        return new JSONObject().put("version", 1).put("budgetSource", "python-status+java-policy")
                 .put("providers", nodes);
     }
 

@@ -12,6 +12,7 @@ import cell.util.log.Logger;
 import cube.aigc.Consts;
 import cube.aigc.ModelConfig;
 import cube.aigc.SpecializedDetectionException;
+import cube.aigc.SpecializedDetectionCapabilities;
 import cube.aigc.completion.CompletionError;
 import cube.aigc.completion.CompletionRequest;
 import cube.common.Packet;
@@ -279,7 +280,11 @@ public final class CapabilityRouter {
                 state.snapshot = snapshot;
                 state.received = now;
                 state.failed = false;
-                state.nextQuery = now + (snapshot.ready ? REFRESH : RETRY);
+                // Detection leases last 30 s and may already be 10 s old at snapshot time.
+                // Refresh them before expiry even when the enclosing service remains ready.
+                JSONObject detection = snapshot.json.optJSONObject("specializedDetection");
+                JSONArray providers = detection == null ? null : detection.optJSONArray("providers");
+                state.nextQuery = now + (snapshot.ready && (providers == null || providers.length() == 0) ? REFRESH : RETRY);
             } else if (!state.failed) {
                 state.failed = true;
                 Logger.w(getClass(), "Capability query failed: " + director.endpoint);
@@ -425,7 +430,7 @@ public final class CapabilityRouter {
             return owner.director;
         }
         List<Director> eligible = new ArrayList<>();
-        boolean registered = false;
+        boolean registered = false, profile = false, ready = false, supported = false, profileReady = false;
         for (Director director : candidates()) {
             JSONObject caps = states.get(director).snapshot.json.optJSONObject("specializedDetection");
             if (caps == null || caps.optInt("version") != 1) {
@@ -438,7 +443,16 @@ public final class CapabilityRouter {
             boolean available = false;
             for (int i = 0; i < providers.length(); i++) {
                 JSONObject provider = providers.getJSONObject(i);
-                registered = true;
+                JSONArray profiles = provider.optJSONArray("profiles");
+                registered |= profiles != null && profiles.length() > 0;
+                if (!SpecializedDetectionCapabilities.contains(provider, "profiles", input.profile)) continue;
+                profile = true;
+                boolean providerReady = SpecializedDetectionCapabilities.ready(provider);
+                profileReady |= providerReady;
+                if (!SpecializedDetectionCapabilities.supports(provider, input.profile, input.isSliced())) continue;
+                supported = true;
+                if (!providerReady) continue;
+                ready = true;
                 available |= provider.optInt("start".equals(input.operation) ? "availableSessions" : "availableImages") > 0;
             }
             if (available) {
@@ -446,7 +460,8 @@ public final class CapabilityRouter {
             }
         }
         if (eligible.isEmpty()) {
-            throw SpecializedDetectionException.unit(registered ? 7 : 30);
+            throw SpecializedDetectionException.unit(!registered || (profile && !profileReady) || (supported && !ready)
+                    ? 30 : !profile || !supported ? 1 : 7);
         }
         // Profile 字符串会原样转发给 Python，不按调用方传入的取值保留游标。
         String key = "specializedDetection:" + input.operation;
@@ -638,6 +653,25 @@ public final class CapabilityRouter {
                 if (caps == null || caps.optInt("version") != 1) {
                     throw SpecializedDetectionException.unit(30);
                 }
+                boolean registered = false, profile = false, ready = false, supported = false, matched = false, profileReady = false;
+                JSONArray providers = caps.optJSONArray("providers");
+                if (providers != null) for (int i = 0; i < providers.length(); i++) {
+                    JSONObject provider = providers.getJSONObject(i);
+                    JSONArray profiles = provider.optJSONArray("profiles");
+                    registered |= profiles != null && profiles.length() > 0;
+                    if (!SpecializedDetectionCapabilities.contains(provider, "profiles", input.profile)) continue;
+                    profile = true;
+                    boolean providerReady = SpecializedDetectionCapabilities.ready(provider);
+                    profileReady |= providerReady;
+                    if (!SpecializedDetectionCapabilities.supports(provider, input.profile, input.isSliced())) continue;
+                    supported = true;
+                    if (!providerReady) continue;
+                    ready = true;
+                    matched |= provider.optInt("start".equals(input.operation) ? "availableSessions" : "availableImages") > 0;
+                }
+                if (!matched) throw SpecializedDetectionException.unit(
+                        !registered || (profile && !profileReady) || (supported && !ready)
+                                ? 30 : !profile || !supported ? 1 : 7);
             }
             if (!"detect".equals(input.operation)) {
                 if (detectionPending.size() >= 10000 || (!input.isControl() && detectionStreams.size() >= 10000)) {

@@ -17,6 +17,9 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 
 ## 常见接入流程
 
+专项检测的 subtasks 注册、独立状态上报、节点就绪租约及共享容量约定见
+[注册与调度协议](../specialized-detection.md)；外部调用仍使用下方现有 REST 接口。
+
 接口中的令牌、频道码、文件码和任务序号均为示例值，调用时使用实际返回值。请求体为 JSON 时设置 `Content-Type: application/json`；URL 查询值中的中文、空格等字符应编码。若令牌关联了设备，后续请求携带相同的 `x-baize-api-device` 与 `x-baize-api-platform`。
 
 | 场景 | 建议调用顺序 | 读取结果 |
@@ -39,10 +42,10 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 
 | 接口 | 用途 | 生成页面 |
 | --- | --- | --- |
-| `POST /specialized-detection/base/{token}` | 图片火焰、烟雾检测 | [专项图片检测](output/index.html#api-SpecializedDetection-SpecializedDetectionImage) |
+| `POST /specialized-detection/base/{token}` | 火烟或通用物体图片检测 | [专项图片检测](output/index.html#api-SpecializedDetection-SpecializedDetectionImage) |
 | `POST /specialized-detection/stream/{token}` | 视频文件或 RTSP(S) 后台检测，支持 `start/status/stop` | [专项视频后台会话](output/index.html#api-SpecializedDetection-SpecializedDetectionStream) |
 
-`fire-smoke` 用于火焰、烟雾检测，`uav-fire-smoke` 用于无人机巡检画面，可设置 `sliced=true` 增强小目标检测；实际可用方案以服务提供方开通的能力为准。图片结果按 `refs[].content` 区分类别，按 `boxes` 绘制检测框，空 `refs` 表示未检出目标。
+`fire-smoke` 用于火烟，`uav-fire-smoke` 用于无人机巡检并支持切片，`thing` 提供 COCO 80 类通用检测。可选 `classes` 用规范类别名过滤，例如 `["person","car"]`；视频先过滤再判断命中。模型与类别信息通过 `labelSpace`、`modelId` 等结果字段追溯。按节点实际注册能力、切片支持、就绪状态和共享容量选路；启用多个 profile 不增加节点吞吐或会话上限。空 `refs` 表示未检出所选目标。
 
 视频接入顺序为：准备可接收 PNG 二进制的回调地址 → `start` 创建会话 → 保存 `streamId` → `status` 查询状态与进度 → 不再需要时 `stop`。回调使用 `X-VLM-Event-Id` 去重，元数据从 PNG 的 `vlm_meta` 文本信息读取；未收到回调时应查询会话状态。
 

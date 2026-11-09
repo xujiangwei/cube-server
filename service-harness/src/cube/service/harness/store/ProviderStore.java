@@ -116,6 +116,13 @@ public final class ProviderStore {
             for (int i = 0; i < units.length(); i++) {
                 JSONObject candidate = units.getJSONObject(i);
                 if (!candidate.getString("unit").equals(unit) || !candidate.getBoolean("ready")) continue;
+                if ("SpecializedDetection".equals(unit)) {
+                    JSONObject option = request.getJSONObject("option");
+                    if (!cube.aigc.SpecializedDetectionCapabilities.ready(candidate)
+                            || candidate.optInt("availableImages") <= 0
+                            || !cube.aigc.SpecializedDetectionCapabilities.supports(candidate,
+                            option.getString("profile"), option.optBoolean("sliced"))) continue;
+                }
                 JSONArray active = rows(c, "SELECT a.value_json FROM harness_provider_fact a LEFT JOIN harness_provider_fact b ON a.run_id=b.run_id AND a.fact_id=b.fact_id AND b.fact_kind='receipt' WHERE a.fact_kind='execution' AND b.fact_id IS NULL");
                 int count = 0;
                 for (int j = 0; j < active.length(); j++) if (new JSONObject(active.getJSONObject(j).getString("value_json")).getString("instanceId").equals(candidate.getString("instanceId"))) count++;

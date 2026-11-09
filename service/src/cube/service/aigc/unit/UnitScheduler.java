@@ -120,6 +120,7 @@ public class UnitScheduler {
             AIGCUnit unit = this.unitMap.get(key);
             if (null != unit) {
                 unit.setContext(context);
+                unit.getCapability().setSubtasks(capability.getSubtasks());
                 unit.getCapability().setChatCompletion(capability.getChatCompletion());
                 unit.getCapability().setUsageProtocol(capability.getUsageProtocol());
             } else {

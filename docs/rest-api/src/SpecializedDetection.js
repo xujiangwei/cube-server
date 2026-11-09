@@ -7,10 +7,10 @@
  * @apiName SpecializedDetectionImage
  * @apiGroup SpecializedDetection
  * @apiVersion 1.0.0
- * @apiDescription 检测图片中的火焰和烟雾，返回目标类别、置信度及矩形位置，可用于巡检图片分析、告警展示和检测框标注。
+ * @apiDescription 按所选 profile 检测图片中的目标，支持火烟和通用物体，返回类别、置信度及矩形位置。
  *                 <p>调用前先<a href="#api-Data_Management-申请对话频道">创建频道</a>，再通过<a href="#api-File_Processing-上传文件数据">上传文件数据</a>接口上传图片，并确认文件可查询。将频道码填入 <code>channel</code>，将文件码填入 <code>input.files</code>；频道和文件须属于当前用户和域。</p>
- *                 <p><code>fire-smoke</code> 用于火焰、烟雾检测；<code>uav-fire-smoke</code> 用于无人机巡检画面。无人机场景可设置 <code>sliced=true</code>，增强对画面中较小目标的检测。提高 <code>confidence</code> 可减少低置信度结果，降低阈值可保留更多候选目标。可用检测方案以服务提供方开通的能力为准。</p>
- *                 <p>本接口在一次请求中返回结果。遍历 <code>resultPayload.refs[].boxes[]</code> 绘制检测框，按 <code>content</code> 区分火焰和烟雾；坐标以方向校正后的原图像素为准，缩放展示时按 <code>width</code>、<code>height</code> 同比换算。<code>refs=[]</code> 表示未检出目标，仍是成功结果，应以检测区域判断是否命中。</p>
+ *                 <p><code>fire-smoke</code> 用于火焰、烟雾检测；<code>uav-fire-smoke</code> 用于无人机巡检画面；<code>thing</code> 用于 COCO 80 类通用物体。可用方案和切片支持以节点注册及生效模型绑定为准。提高 <code>confidence</code> 可减少低置信度结果，降低阈值可保留更多候选目标。</p>
+ *                 <p>本接口在一次请求中返回结果。遍历 <code>resultPayload.refs[].boxes[]</code> 绘制检测框，按 <code>content</code> 区分类别；坐标以方向校正后的原图像素为准，缩放展示时按 <code>width</code>、<code>height</code> 同比换算。<code>refs=[]</code> 表示未检出目标，仍是成功结果，应以检测区域判断是否命中。</p>
  *                 <p>请求体最大 <code>64 KiB</code>，每次提交一张图片。检测可能需要较长时间，客户端请求超时建议大于 <code>190 秒</code>；出现 <code>429</code> 或 <code>503</code> 时延迟重试，其他错误按下方状态说明处理。</p>
  * @apiParam {String} token 授权令牌。
  * @apiHeader {String} Content-Type application/json
@@ -22,9 +22,10 @@
  * @apiBody {String[]} input.files 一个上传完成的 64 位文件码；不接受本地路径、HTTP 媒体地址或文件元数据对象。
  * @apiBody {Object} input.option 检测参数。
  * @apiBody {String} [input.option.operation=detect] 图片操作。
- * @apiBody {String} input.option.profile 检测方案：<code>fire-smoke</code> 或 <code>uav-fire-smoke</code>。未开通的方案返回 HTTP 400。
+ * @apiBody {String} input.option.profile 检测方案：<code>fire-smoke</code>、<code>uav-fire-smoke</code> 或通用物体 <code>thing</code>。按节点实际启用能力选路；未开通返回 HTTP 400，无就绪节点返回 503。
+ * @apiBody {String[]} [input.option.classes] 非空规范类别名称数组，如 thing 使用 ["person","car"]。省略时输出该服务全部类别；重复名称去重，null、空数组及未知类别报错。
  * @apiBody {Number} [input.option.confidence] 阈值 [0,1]，省略时使用服务默认值。
- * @apiBody {Boolean} [input.option.sliced=false] 是否启用小目标增强检测，仅 <code>uav-fire-smoke</code> 支持。
+ * @apiBody {Boolean} [input.option.sliced=false] 是否启用切片检测，按节点生效绑定的能力校验；当前仅 uav-fire-smoke 支持。
  * @apiParamExample {json} 图片检测请求:
  * {
  *   "channel": "inspection-001",
@@ -33,6 +34,8 @@
  *     "option": {"profile": "fire-smoke", "confidence": 0.4}
  *   }
  * }
+ * @apiParamExample {json} 通用物体：只检测人和车
+ * {"channel":"inspection-001","input":{"files":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],"option":{"profile":"thing","classes":["person","car"],"confidence":0.4}}}
  * @apiSuccess {Number} sn 本次检测的请求编号，可用于关联请求与结果。
  * @apiSuccess {String} unit SpecializedDetection。
  * @apiSuccess {Number} timestamp 检测结果的 Unix 毫秒时间戳。
@@ -40,11 +43,17 @@
  * @apiSuccess {String} thought 补充说明，可能为空。
  * @apiSuccess {Object} resultPayload 检测结果，坐标基于方向校正后的原图像素。
  * @apiSuccess {String} resultPayload.profile 本次请求的 profile。
+ * @apiSuccess {String} resultPayload.labelSpace 类别契约：火烟为 fire-smoke-v1，thing 为 coco80-v1。
+ * @apiSuccess {String} resultPayload.modelId 服务端生效模型配置 ID。
+ * @apiSuccess {String} resultPayload.modelVariant 模型规格。
+ * @apiSuccess {String} resultPayload.backend 推理后端。
+ * @apiSuccess {Number} resultPayload.inputResolution 模型输入尺寸。
+ * @apiSuccess {String} [resultPayload.artifactSha256] 真实模型工件摘要。
  * @apiSuccess {Number} resultPayload.width 图片宽度，单位：像素。
  * @apiSuccess {Number} resultPayload.height 图片高度，单位：像素。
- * @apiSuccess {Object[]} resultPayload.refs 检测区域，未命中时为 []；命中时包含 content（fire / smoke）、classId、boxes 和 points。
- * @apiSuccess {String} resultPayload.refs.content 检测类别：fire 或 smoke。
- * @apiSuccess {Number} resultPayload.refs.classId 类别编号：0 为 fire，1 为 smoke。
+ * @apiSuccess {Object[]} resultPayload.refs 检测区域，未命中时为 []；命中时包含 content、classId、boxes 和 points。
+ * @apiSuccess {String} resultPayload.refs.content 当前类别契约中的规范类别名。
+ * @apiSuccess {Number} resultPayload.refs.classId fire-smoke-v1 中 fire=0、smoke=1；coco80-v1 固定为 0…79，例如 person=0、car=2。
  * @apiSuccess {Array} resultPayload.refs.points 预留的检测点列表；当前火焰、烟雾模型固定返回 []，无需读取子字段。
  * @apiSuccess {Object[]} resultPayload.refs.boxes 检测框，字段为 x1、y1、x2、y2、confidence；左上角为 (x1,y1)，右下角为 (x2,y2)。
  * @apiSuccess {Number} resultPayload.refs.boxes.x1 左上角横坐标，单位：原图像素。
@@ -179,7 +188,7 @@
  * @apiName SpecializedDetectionStream
  * @apiGroup SpecializedDetection
  * @apiVersion 1.0.0
- * @apiDescription 持续检测视频文件或 RTSP(S) 实时画面中的火焰和烟雾，在命中目标时向指定地址推送带检测框的 PNG 图片。适合视频巡检、摄像头监控和告警图片留存。
+ * @apiDescription 按所选 profile 持续检测视频文件或 RTSP(S) 实时画面中的火烟或通用物体，在命中目标时向指定地址推送带检测框的 PNG 图片。适合视频巡检、摄像头监控和告警图片留存。
  *                 <p>先创建频道。检测视频文件时先上传并取得文件码；检测实时视频时提供服务端可访问的 RTSP(S) 地址。使用 <code>operation=start</code> 创建会话，保存返回的 <code>resultPayload.streamId</code>，之后通过同一接口的 <code>status</code> 查询进度、<code>stop</code> 停止会话。</p>
  *                 <p>启动成功表示会话已创建，媒体仍可能处于 <code>starting</code> 状态。查询返回 <code>running</code> 后开始检测；<code>reconnecting</code> 表示正在重新连接视频源；<code>stopping</code> 表示正在停止；<code>stopped</code>、<code>failed</code> 表示会话已结束。视频文件可读取 <code>progress</code> 展示进度，实时视频的进度为 <code>null</code>。</p>
  *                 <p>接收回调的地址须可被检测服务访问，并支持 <code>POST</code> 二进制请求。请求类型为 <code>image/png</code>，<code>X-VLM-Event-Id</code> 为事件标识，同一事件可能重复投递，请据此去重。检测元数据位于 PNG 的 <code>vlm_meta</code> 文本信息中，包含会话标识、时间、画面位置和检测框；下方示例展示读取方法。</p>
@@ -195,10 +204,11 @@
  * @apiBody {String[]} input.files start 为一个视频文件码或 RTSP(S) 地址，status/stop 为 []。
  * @apiBody {Object} input.option start 参数或控制参数。
  * @apiBody {String="start","status","stop"} input.option.operation 操作。
- * @apiBody {String} [input.option.profile] start 必填，检测方案为 <code>fire-smoke</code> 或 <code>uav-fire-smoke</code>；可用方案以服务提供方开通的能力为准。
+ * @apiBody {String} [input.option.profile] start 必填：fire-smoke、uav-fire-smoke 或 thing，按实际启用且就绪的节点选路。
+ * @apiBody {String[]} [input.option.classes] start 可选，非空规范类别名称数组；先过滤再判断视频命中，绑定到会话，不用于 status/stop。
  * @apiBody {String} [input.option.callbackUrl] start 必填，检测服务可访问的 HTTP(S) PNG 接收地址。
  * @apiBody {Number} [input.option.confidence] start 可选，置信度阈值 [0,1]；提高阈值可减少低置信度检测框。
- * @apiBody {Boolean} [input.option.sliced=false] start 可选，启用小目标增强检测，仅 uav-fire-smoke 支持。
+ * @apiBody {Boolean} [input.option.sliced=false] start 可选，按节点生效绑定校验；当前仅 uav-fire-smoke 支持。
  * @apiBody {Number} [input.option.intervalSeconds] start 回调间隔 [0,86400] 秒，省略时使用服务默认值。
  * @apiBody {Number} [input.option.inferenceFps] start 抽帧率 [0.1,60]，省略时使用服务默认值。
  * @apiBody {String} [input.option.streamId] status/stop 必填；控制只允许 operation 和 streamId。

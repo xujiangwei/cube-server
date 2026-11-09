@@ -1,6 +1,9 @@
 # Optional overrides for service/config/aigc.properties. JDK 8.
-# No specialized detection properties are required; built-in defaults are shown below.
-# Admission budgets only; Python determines profile support, readiness and actual capacity.
+# No specialized detection properties are required.
+# Profiles are registered via subtasks: ObjectDetection first, then configured profile names.
+# Python specializedDetectionStatus reports readiness, slicing and maxSessions.
+# Heartbeats: 10 s; readiness expires after 30 s. Reconnect requires a fresh report.
+# Without an explicit Java limit, use Python maxSessions; overrides can only tighten it.
 # specialized.detection.max.sessions=2
 # specialized.detection.data.threads=8
 # specialized.detection.data.queue=64

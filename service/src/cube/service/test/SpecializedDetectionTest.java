@@ -48,7 +48,6 @@ public final class SpecializedDetectionTest {
                 image(""), image("fire-smoke").put("files", new JSONArray().put("C:/private/image.png")),
                 image("fire-smoke").put("files", new JSONArray().put(new JSONObject().put("fileCode", FILE))),
                 image("fire-smoke").put("files", new JSONArray().put("https://example.org/a.png")),
-                image("fire-smoke").put("option", new JSONObject().put("profile", "fire-smoke").put("sliced", true)),
                 image("fire-smoke").put("option", new JSONObject().put("profile", "fire-smoke").put("confidence", 1.01)),
                 control("update", "x"), control("status", "x").put("files", new JSONArray().put(FILE)),
                 start().put("option", new JSONObject().put("operation", "start").put("profile", "fire-smoke"))
@@ -71,7 +70,7 @@ public final class SpecializedDetectionTest {
                 check(f.service.getSpecializedDetections().timeout(new SpecializedDetectionInput(control("status", "s"))) == 30000, "default control deadline");
                 JSONObject provider = f.service.getSpecializedDetections().snapshot().getJSONArray("providers").getJSONObject(0);
                 check(provider.getInt("maxSessions") == 2 && provider.getInt("availableImages") == 1, "default provider budgets");
-                check(!provider.has("profiles"), "snapshot does not declare profile support");
+                check(provider.getJSONArray("profiles").length() == 3 && provider.getBoolean("ready"), "live registered profiles");
                 check((Integer) field(f.service.executor, "detectionDataThreads") == 8
                         && (Integer) field(f.service.executor, "detectionDataQueue") == 64
                         && (Integer) field(f.service.executor, "detectionControlThreads") == 2
@@ -89,7 +88,7 @@ public final class SpecializedDetectionTest {
      */
     static void images() throws Exception {
         try (Fixture f = new Fixture(2)) {
-            for (String profile : Arrays.asList("fire-smoke", "uav-fire-smoke")) {
+            for (String profile : Arrays.asList("fire-smoke", "uav-fire-smoke", "thing")) {
                 Reply reply = f.invoke(image(profile)); reply.success();
                 JSONObject wire = f.cellet.requests.get(f.cellet.requests.size() - 1).data;
                 check(wire.keySet().equals(new HashSet<>(Arrays.asList("unit", "files", "option"))), "exact unit envelope");
@@ -103,7 +102,7 @@ public final class SpecializedDetectionTest {
             try (java.sql.Connection c = f.service.storage.accounting.ledger.connections.open();
                  java.sql.Statement sql = c.createStatement();
                  java.sql.ResultSet rows = sql.executeQuery("SELECT COUNT(*) AS n FROM aigc_ai_usage_call WHERE quality='actual' AND input_tokens=0 AND output_tokens=0 AND contact_id=1")) {
-                check(rows.next() && rows.getInt("n") == 2, "ledger preserves actual zero tokens and visitor");
+                check(rows.next() && rows.getInt("n") == 3, "ledger preserves actual zero tokens and visitor");
             }
             check(!f.service.getChannel("channel").isProcessing(), "detection does not occupy chat");
             int sent = f.cellet.requests.size();
@@ -227,7 +226,9 @@ public final class SpecializedDetectionTest {
             Packet obsolete = f.cellet.requests.get(f.cellet.requests.size()-1);
             f.service.units.set(0, unit(100L));
             f.service.getSpecializedDetections().onResponse(owner, f.cellet.response(obsolete, "obsolete", "running").toDialect());
-            check(available(f) == 2 && sessionCount(f) == 0, "old connection cannot repopulate new generation");
+            check(available(f) == 0 && sessionCount(f) == 0, "old connection cannot repopulate or ready new generation");
+            ready(f.service, f.service.units.get(0));
+            check(available(f) == 2, "replacement requires its own status report");
         }
     }
 
@@ -267,7 +268,8 @@ public final class SpecializedDetectionTest {
             p.setProperty("specialized.detection.node.domain.100.profiles", "uav-fire-smoke");
             f.service.getSpecializedDetections().configure(p);
             f.invoke(image("fire-smoke")).success();
-            for (String profile : Arrays.asList("uav-fire-smoke", "future-profile")) {
+            expect(1, () -> f.invoke(image("future-profile")));
+            for (String profile : Arrays.asList("uav-fire-smoke", "thing")) {
                 f.cellet.code = 1;
                 JSONObject unsupported = start(); unsupported.getJSONObject("option").put("profile", profile);
                 f.invoke(unsupported).error(1, 400);
@@ -381,7 +383,16 @@ public final class SpecializedDetectionTest {
      * @param id 联系人标识
      * @return 单元实例
      */
-    static AIGCUnit unit(long id){return new AIGCUnit(new Contact(id,"domain"),new AICapability("SpecializedDetection","Detection","1.0",Collections.singletonList("Detection"),"test"),new Context());}
+    static AIGCUnit unit(long id){return new AIGCUnit(new Contact(id,"domain"),new AICapability("SpecializedDetection","ComputerVision","2.0",Arrays.asList("ObjectDetection","fire-smoke","uav-fire-smoke","thing"),"test"),new Context());}
+
+    static JSONObject status(long sequence, String state, int maximum) {
+        return new JSONObject().put("version",1).put("sequence",sequence).put("state",state)
+                .put("maxSessions",maximum).put("slicedProfiles",new JSONArray().put("uav-fire-smoke"));
+    }
+
+    static void ready(FakeService service, AIGCUnit unit) {
+        check(service.getSpecializedDetections().report(unit.getContext(),status(1,"ready",2)),"registered provider ready");
+    }
 
     /**
      * 反射读取字段，支持向父类追溯。
@@ -490,7 +501,7 @@ public final class SpecializedDetectionTest {
          * @param providers 提供方数量
          * @throws Exception 初始化假服务失败时抛出
          */
-        Fixture(int providers)throws Exception{service=new FakeService(cellet);cellet.service=service;for(int i=0;i<providers;i++)service.units.add(unit(100L+i));}
+        Fixture(int providers)throws Exception{service=new FakeService(cellet);cellet.service=service;for(int i=0;i<providers;i++){AIGCUnit u=unit(100L+i);service.units.add(u);ready(service,u);}}
 
         /**
          * 以默认令牌与通道发起一次检测调用。

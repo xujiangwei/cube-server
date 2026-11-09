@@ -7,7 +7,6 @@
 package cube.common.entity;
 
 import cube.aigc.SpecializedDetectionException;
-import cube.aigc.SpecializedDetectionProfile;
 import cube.common.JSONable;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -15,6 +14,7 @@ import org.json.JSONObject;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -78,15 +78,26 @@ public final class SpecializedDetectionInput implements JSONable {
                 profile = source = null;
             } else {
                 if ("start".equals(operation)) {
-                    allowed(option, "operation", "profile", "confidence", "sliced", "callbackUrl", "intervalSeconds", "inferenceFps");
+                    allowed(option, "operation", "profile", "confidence", "sliced", "classes", "callbackUrl", "intervalSeconds", "inferenceFps");
                 } else {
-                    allowed(option, "operation", "profile", "confidence", "sliced");
+                    allowed(option, "operation", "profile", "confidence", "sliced", "classes");
                 }
                 profile = required(option, "profile");
-                // Profile 是否可用由 Python 判定，包括比 Java 侧更新的 Profile。
-                if (option.has("sliced") && (!(option.get("sliced") instanceof Boolean)
-                        || (option.getBoolean("sliced") && !SpecializedDetectionProfile.UavFireSmoke.name.equals(profile)))) {
-                    throw SpecializedDetectionException.invalid("sliced is supported only for uav-fire-smoke");
+                if (option.has("sliced") && !(option.get("sliced") instanceof Boolean)) {
+                    throw SpecializedDetectionException.invalid("sliced must be a boolean");
+                }
+                if (option.has("classes")) {
+                    JSONArray classes = option.optJSONArray("classes");
+                    if (classes == null || classes.length() == 0)
+                        throw SpecializedDetectionException.invalid("classes must be a nonempty string array");
+                    Set<String> names = new LinkedHashSet<>();
+                    for (int i = 0; i < classes.length(); i++) {
+                        Object name = classes.get(i);
+                        if (!(name instanceof String) || ((String) name).trim().isEmpty())
+                            throw SpecializedDetectionException.invalid("Invalid class name");
+                        names.add((String) name);
+                    }
+                    option.put("classes", new JSONArray(names));
                 }
                 number(option, "confidence", 0, 1);
                 number(option, "intervalSeconds", 0, 86400);
@@ -184,6 +195,10 @@ public final class SpecializedDetectionInput implements JSONable {
      */
     public boolean isControl() {
         return "status".equals(operation) || "stop".equals(operation);
+    }
+
+    public boolean isSliced() {
+        return option.optBoolean("sliced", false);
     }
 
     /**

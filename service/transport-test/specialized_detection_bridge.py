@@ -5,7 +5,7 @@ File storage is a test adapter returning a generated 32x24 image for Java FileLa
 """
 import sys
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from types import SimpleNamespace
 
 sys.path.insert(0, sys.argv[1])
@@ -29,11 +29,27 @@ class Peer(TalkListener):
     def __init__(self):
         self.finished = Event()
         self.nucleus = Nucleus()
+        self.pending = {}
+        self.lock = Lock()
         self.unit = SpecializedDetectionUnit(dummy=True)
+        self.unit.config({"unit.specialized_detection.profiles": "uav-fire-smoke,fire-smoke,thing"})
         self.unit.fileStorage = Storage()
         self.unit.initialize()
         self.service = SimpleNamespace(specializedDetectionUnit=self.unit, respond=self.respond)
-        self.unit.aigcService = SimpleNamespace(transmit=self.transmit, tmpPath=None)
+        self.unit.aigcService = SimpleNamespace(transmit=self.transmit, syncTransmit=self.syncTransmit, tmpPath=None)
+
+    def syncTransmit(self, packet, timeout=2):
+        ready = Event()
+        box = [None]
+        with self.lock:
+            self.pending[packet.sn] = (ready, box)
+        try:
+            if self.transmit(packet):
+                ready.wait(timeout)
+            return box[0]
+        finally:
+            with self.lock:
+                self.pending.pop(packet.sn, None)
 
     def transmit(self, packet):
         return self.nucleus.talkService.speak("AIGC", packet.toDialect())
@@ -45,12 +61,20 @@ class Peer(TalkListener):
         self.nucleus.talkService.speak("AIGC", dialect)
 
     def onContacted(self, speaker):
-        self.transmit(Packet("bridgeReady", {}))
+        self.transmit(Packet("bridgeReady", {"capability": self.unit.capability.toJSON()}))
+        self.unit.start_status_delivery()
 
     def onListened(self, speaker, cellet, primitive):
         dialect = ActionDialect(primitive)
         if dialect.getName() == "specializedDetection":
             AIGCService.executeSpecializedDetection(self.service, dialect)
+        elif dialect.getName() == "specializedDetectionStatus":
+            reply = Packet(dialect)
+            with self.lock:
+                pending = self.pending.get(reply.sn)
+            if pending is not None:
+                pending[1][0] = reply
+                pending[0].set()
         elif dialect.getName() == "bridgeDone":
             self.finished.set()
 
