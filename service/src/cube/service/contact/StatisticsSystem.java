@@ -1214,8 +1214,12 @@ public final class StatisticsSystem {
         }
 
         // 先清掉该日的旧数据与旧标记：口径变化时旧行必须整体替换
-        this.storage.execute("DELETE FROM " + table + " WHERE `year`=" + year
-                + " AND `month`=" + month + " AND `date`=" + date);
+        if (!this.storage.executeUpdate("DELETE FROM " + table + " WHERE `year`=" + year
+                + " AND `month`=" + month + " AND `date`=" + date)) {
+            Logger.w(this.getClass(), "#collectUnitDaily - Failed to clear unit daily summary of domain '"
+                    + domain + "' for " + year + "-" + month + "-" + date);
+            return;
+        }
 
         // 只取工作单元区间的事件：按联系人 ID 升序、时间升序，便于按单元归集。
         //
@@ -1232,27 +1236,24 @@ public final class StatisticsSystem {
         // 二是原生 SQL 查询失败时返回的是空列表而不是 null，与「当天没有事件」
         // 无法区分。解决办法是加哨兵行：查询末尾 UNION 一行常量，
         // 成功时必然能读到它，失败时读不到。
-        StringBuilder sql = new StringBuilder("SELECT `contact_id`,`event`,`time` FROM (");
-        sql.append("SELECT `contact_id`,`event`,`time` FROM ");
-        sql.append(eventTable);
+        StringBuilder sql = new StringBuilder("SELECT ");
         if (StorageType.SQLite != this.storage.getType()) {
             // 用优化器提示而不是 FORCE INDEX：提示在索引缺失时被忽略并只记告警，
             // 查询照常成功；FORCE INDEX 指向不存在的索引会直接报 1176 让整条查询失败。
             // 老库的事件表可能没有这个索引，不能让它成为查询的硬前提。
-            sql.append(" t /*+ INDEX(t idx_contact_time) */");
+            sql.append("/*+ INDEX(t idx_contact_time) */ ");
         }
+        sql.append("`contact_id`,`event`,`time`,`sn` FROM ").append(eventTable).append(" t");
         sql.append(" WHERE `contact_id`>=").append(Contact.MIN_UNIT_CONTACT_ID);
         sql.append(" AND `contact_id`<").append(Contact.MIN_USER_CONTACT_ID);
         sql.append(" AND `time`>=").append(beginning);
         sql.append(" AND `time`<").append(ending);
-        // 末位加 sn（自增主键，天然单调）：同一毫秒内的多个事件顺序由此确定，
-        // 不再依赖执行计划，避免与服务端的会话配对口径产生分歧
-        sql.append(" ORDER BY `contact_id`,`time`,`sn`");
-        // 数据查询包在子查询里：MySQL 不允许 ORDER BY 之后直接跟 UNION，
-        // ORDER BY 会作用于整个 UNION 结果，排序就失去意义了
-        sql.append(") `t`");
         // 哨兵行：contact_id 取 -1，与真实单元 ID 区间不重叠
-        sql.append(" UNION ALL SELECT -1,'',").append(beginning);
+        sql.append(" UNION ALL SELECT -1,'',").append(beginning).append(",0");
+        // 必须对整个 UNION 的最终结果排序：派生表内的 ORDER BY 可能被 MySQL 忽略，
+        // 同一单元会被拆成多个片段，生成重复汇总行并丢失会话时长。
+        // sn 确定同一毫秒内的事件顺序，哨兵行随后按 contact_id 排除。
+        sql.append(" ORDER BY `contact_id`,`time`,`sn`");
 
         List<StorageField[]> result = this.storage.executeQuery(sql.toString());
 
@@ -1310,8 +1311,8 @@ public final class StatisticsSystem {
         // 同样不写标记 —— 那种情况下 console 会回落到明细路径，结果一致（都是空），
         // 但多一条标记行会让 console 把「没采到」误当成「采到且为空」，
         // 掩盖采集侧的失败。
-        if (!records.isEmpty()) {
-            if (!this.storage.executeInsert(table, records)) {
+        for (StorageField[] record : records) {
+            if (!this.writeUnitDaily(table, record)) {
                 Logger.w(this.getClass(), "#collectUnitDaily - Failed to write unit daily summary of domain '"
                         + domain + "' for " + year + "-" + month + "-" + date);
                 return;
@@ -1327,7 +1328,7 @@ public final class StatisticsSystem {
         // 标记行单独写入：与数据行分开，失败时不会留下「有标记但数据不全」的中间态。
         // 标记行携带数据行数，读取侧可据此校验完整性 —— 多节点交错采集时，
         // 别的节点的「先删后插」可能清掉部分数据，此时读取侧会发现行数对不上而回落。
-        if (!this.storage.executeInsert(table,
+        if (!this.writeUnitDaily(table,
                 this.buildUnitDailyMarker(year, month, date, beginning, numUnits))) {
             Logger.w(this.getClass(), "#collectUnitDaily - Failed to write unit daily marker of domain '"
                     + domain + "' for " + year + "-" + month + "-" + date);
@@ -1336,6 +1337,37 @@ public final class StatisticsSystem {
 
         Logger.i(this.getClass(), "Collected unit daily summary of domain '" + domain + "' for "
                 + year + "-" + month + "-" + date + " (" + numUnits + " units)");
+    }
+
+    /**
+     * 覆盖写入单元日汇总或完成标记，允许多个节点同时补采同一天。
+     *
+     * <p>只更新本次提供的字段，保留 MySQL 的自增主键。写入失败必须返回 false，
+     * 不能使用 {@code execute} 的结果集标志，否则成功写入也会被误判为失败。</p>
+     */
+    private boolean writeUnitDaily(String table, StorageField[] fields) {
+        String insert = SQLUtils.spellInsert(table, fields);
+        if (null == insert) {
+            return false;
+        }
+        if (StorageType.SQLite == this.storage.getType()) {
+            return this.storage.executeUpdate("INSERT OR REPLACE" + insert.substring("INSERT".length()));
+        }
+
+        StringBuilder sql = new StringBuilder(insert).append(" ON DUPLICATE KEY UPDATE ");
+        boolean first = true;
+        for (StorageField field : fields) {
+            if (null == field || null == field.getValue()) {
+                continue;
+            }
+            if (!first) {
+                sql.append(',');
+            }
+            sql.append('`').append(field.getName()).append("`=VALUES(`")
+                    .append(field.getName()).append("`)");
+            first = false;
+        }
+        return this.storage.executeUpdate(sql.toString());
     }
 
     /**

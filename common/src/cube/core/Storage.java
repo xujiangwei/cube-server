@@ -77,6 +77,19 @@ public interface Storage {
 
     boolean executeUpdate(String table, StorageField[] fields, Conditional[] conditionals);
 
+    /**
+     * 执行原生写入语句（INSERT、UPDATE、DELETE 等）。
+     *
+     * <p>与 {@link #execute(String)} 的 JDBC 结果集标志不同，本方法返回执行是否成功；
+     * 幂等更新即使影响 0 行也返回 {@code true}。不支持的存储器显式抛出异常。</p>
+     *
+     * @param sql 完整写入语句。
+     * @return 执行成功返回 {@code true}，失败返回 {@code false}。
+     */
+    default boolean executeUpdate(String sql) {
+        throw new UnsupportedOperationException("Native updates are not supported by this storage");
+    }
+
     boolean executeDelete(String table, Conditional[] conditionals);
 
     /**

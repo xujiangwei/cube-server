@@ -767,4 +767,23 @@ public class SQLiteStorage extends AbstractStorage {
             return false;
         }
     }
+
+    /**
+     * 执行原生写入；成功但影响 0 行的幂等更新同样返回 true。
+     */
+    @Override
+    public boolean executeUpdate(String sql) {
+        synchronized (this.lock) {
+            if (!this.isReady()) {
+                return false;
+            }
+            try (Statement statement = this.connection.createStatement()) {
+                statement.executeUpdate(sql);
+                return true;
+            } catch (SQLException e) {
+                Logger.e(this.getClass(), "#executeUpdate - SQL: " + sql, e);
+                return false;
+            }
+        }
+    }
 }

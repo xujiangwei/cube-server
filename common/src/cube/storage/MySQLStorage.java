@@ -1120,6 +1120,34 @@ public class MySQLStorage extends AbstractStorage {
         return false;
     }
 
+    /**
+     * 执行原生写入，以语句是否成功判断结果，而非是否产生结果集或影响了多少行。
+     */
+    @Override
+    public boolean executeUpdate(String sql) {
+        ConnectionPool current = this.pool;
+        if (null == current) {
+            Logger.e(this.getClass(), "#executeUpdate - The connection pool is not ready");
+            return false;
+        }
+
+        Connection connection = current.get();
+        if (null == connection) {
+            Logger.e(this.getClass(), "#executeUpdate - Failed to obtain connection");
+            return false;
+        }
+
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate(sql);
+            return true;
+        } catch (SQLException e) {
+            Logger.e(this.getClass(), "#executeUpdate - SQL: " + sql, e);
+            return false;
+        } finally {
+            current.returnConn(connection);
+        }
+    }
+
 
     /**
      * 连接池。

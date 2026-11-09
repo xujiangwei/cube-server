@@ -23,8 +23,11 @@ public final class UnitDayRecord {
      *
      * <p>版本 2 起汇总表增加了 {@code unit_count} 列（标记行携带该日数据行数），
      * 表结构与判定口径同时变化，版本必须一并递增。</p>
+     *
+     * <p>版本 3：按最终查询结果的 contact_id、time、sn 排序后聚合，
+     * 重算旧版本可能错序的汇总。</p>
      */
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
 
     /**
      * 单元 ID 。

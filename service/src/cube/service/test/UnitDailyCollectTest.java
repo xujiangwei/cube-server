@@ -13,11 +13,13 @@ import cube.core.StorageField;
 import cube.service.contact.StatisticsSystem;
 import cube.storage.StorageFactory;
 import cube.storage.StorageType;
+import cube.util.UnitDayRecord;
 import cell.core.talk.LiteralBase;
 import org.json.JSONObject;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.List;
@@ -31,8 +33,8 @@ import java.util.Map;
  * 让 console 误以为该日已完整采集，把「采集失败」变成了「当天全员无活动」的
  * 静默错值。</p>
  *
- * <p>用例覆盖三种情形：查询失败不写标记行、当天无事件不写标记行、
- * 正常采集写标记行且携带数据行数。</p>
+ * <p>覆盖查询/写入失败、空日、表结构升级、事件排序、多采集器交错覆盖写、
+ * 失败重试，以及 MySQL/SQLite 原生写入的返回值语义。汇总表带生产唯一键。</p>
  */
 public class UnitDailyCollectTest {
 
@@ -55,6 +57,11 @@ public class UnitDailyCollectTest {
         createTableHasNoDuplicateColumn();
         legacyTableGetsMissingColumn();
         missingIndexDegradesGracefully();
+        interleavedEventsStayInOneSummary();
+        overlappingCollectorsOverwriteRows();
+        failedWriteCanRetry();
+        failedDeleteStopsCollection();
+        sqliteWritesReportSuccessAndFailure();
 
         System.out.println("UnitDailyCollectTest: " + assertions + " assertions passed");
     }
@@ -213,6 +220,202 @@ public class UnitDailyCollectTest {
         }
     }
 
+    /** 交错落库的事件按单元聚合，同毫秒事件以 sn 决定顺序。 */
+    private static void interleavedEventsStayInOneSummary() throws Exception {
+        Harness h = new Harness("collect_order_domain", "contact_event_log_collect_order_domain");
+        try {
+            h.createEventTable();
+            h.insertEvent(100002L, "SignIn", h.beginning + 2L * HOUR);
+            h.insertEvent(100001L, "SignIn", h.beginning + HOUR);
+            h.insertEvent(100002L, "SignOut", h.beginning + 4L * HOUR);
+            h.insertEvent(100001L, "SignOut", h.beginning + 3L * HOUR);
+            h.insertEvent(100001L, "SignIn", h.beginning + 3L * HOUR);
+            h.insertEvent(100001L, "SignOut", h.beginning + 5L * HOUR);
+            h.collect();
+            check(2 == h.countDataRows(), "interleaved events: exactly two unit rows");
+            check(2 == h.readMarker()[0].getInt(), "interleaved events: marker counts units");
+            StorageField[] first = h.readUnit(100001L);
+            check(4 == first[0].getInt(), "interleaved events: all four events retained");
+            check(4L * HOUR == first[1].getLong(), "interleaved events: both sessions retained");
+            StorageField[] second = h.readUnit(100002L);
+            check(2 == second[0].getInt() && 2L * HOUR == second[1].getLong(),
+                    "interleaved events: second unit totals");
+        }
+        finally { h.cleanup(); }
+    }
+
+    /** 第二个采集器在第一个查询完成后抢先写入，数据行和标记都必须覆盖成功。 */
+    private static void overlappingCollectorsOverwriteRows() throws Exception {
+        final Harness h = new Harness("collect_overlap_domain", "contact_event_log_collect_overlap_domain");
+        try {
+            h.createEventTable();
+            h.insertEvent(100001L, "SignIn", h.beginning + HOUR);
+            h.insertEvent(100001L, "SignOut", h.beginning + 3L * HOUR);
+            final boolean[] injected = {false};
+            h.useStorage((Storage) Proxy.newProxyInstance(Storage.class.getClassLoader(),
+                    new Class<?>[] {Storage.class}, (object, method, args) -> {
+                        Object result = method.invoke(h.storage, args);
+                        if (!injected[0] && "executeQuery".equals(method.getName())
+                                && args.length == 1 && ((String) args[0]).contains("UNION ALL")) {
+                            injected[0] = true;
+                            StatisticsSystem other = new StatisticsSystem(null);
+                            for (String name : new String[] {"storage", "unitDailyTableNameMap", "eventTableNameMap"}) {
+                                Field field = StatisticsSystem.class.getDeclaredField(name);
+                                field.setAccessible(true);
+                                field.set(other, "storage".equals(name) ? h.storage : field.get(h.system));
+                            }
+                            Method collect = StatisticsSystem.class.getDeclaredMethod("collectUnitDaily",
+                                    String.class, int.class, int.class, int.class, long.class, long.class);
+                            collect.setAccessible(true);
+                            collect.invoke(other, DOMAIN, h.year, h.month, h.date, h.beginning, h.ending);
+                            // 改成旧值，证明随后发生的是覆盖写而非忽略重复键。
+                            check(h.storage.executeUpdate("UPDATE " + h.summaryTable
+                                    + " SET `event_count`=99,`duration`=-1,`first_active`=0,`hour_mask`=0,"
+                                    + "`day_begin`=0,`version`=0,`unit_count`=99"), "overlap: seed stale rows");
+                        }
+                        return result;
+                    }));
+            h.collect();
+            check(injected[0], "overlap: second collector ran between query and write");
+            check(1 == h.countDataRows() && 1 == h.countMarkerRows(), "overlap: exactly one data row and marker");
+            StorageField[] row = h.readUnit(100001L);
+            check(2 == row[0].getInt() && 2L * HOUR == row[1].getLong(), "overlap: replace stale totals");
+            check(h.beginning + HOUR == row[2].getLong(), "overlap: replace first activity");
+            check(((1L << 1) | (1L << 3)) == row[3].getLong(), "overlap: replace hour mask");
+            check(h.beginning == row[4].getLong() && UnitDayRecord.VERSION == row[5].getInt(),
+                    "overlap: replace day boundary and version");
+            check(1 == h.readMarker()[0].getInt(), "overlap: replace marker count");
+            check(h.storage.executeUpdate("UPDATE " + h.summaryTable
+                    + " SET `duration`=`duration` WHERE `contact_id`=-999"), "mysql: zero rows is success");
+            h.collect();
+            check(1 == h.countDataRows() && 1 == h.countMarkerRows(), "overlap: repeat collection is idempotent");
+        }
+        finally { h.cleanup(); }
+    }
+
+    /** 真实 SQL 写入失败不得留下完成标记，后续重试和旧版本重算可完成。 */
+    private static void failedWriteCanRetry() throws Exception {
+        final Harness h = new Harness("collect_writefail_domain", "contact_event_log_collect_writefail_domain");
+        try {
+            h.createEventTable();
+            h.insertEvent(100001L, "SignIn", h.beginning + HOUR);
+            h.useStorage((Storage) Proxy.newProxyInstance(Storage.class.getClassLoader(),
+                    new Class<?>[] {Storage.class}, (object, method, args) -> {
+                        if ("executeUpdate".equals(method.getName()) && args.length == 1
+                                && ((String) args[0]).startsWith("INSERT")) {
+                            return h.storage.executeUpdate("INSERT INTO `missing_unit_daily_write_probe` VALUES (1)");
+                        }
+                        return method.invoke(h.storage, args);
+                    }));
+            h.collect();
+            check(0 == h.countMarkerRows(), "failed write: no completion marker");
+            h.useStorage(h.storage);
+            h.collect();
+            check(1 == h.countDataRows() && 1 == h.countMarkerRows(), "failed write: retry completes");
+            check(h.storage.executeUpdate("UPDATE " + h.summaryTable + " SET `version`=0"), "old version: seed old day");
+            h.collect();
+            check(UnitDayRecord.VERSION == h.readUnit(100001L)[5].getInt(), "old version: completed day rebuilt");
+        }
+        finally { h.cleanup(); }
+    }
+
+    /** 删除失败时禁止继续写入，不把旧数据标记成采集成功。 */
+    private static void failedDeleteStopsCollection() throws Exception {
+        final Harness h = new Harness("collect_deletefail_domain", "contact_event_log_collect_deletefail_domain");
+        try {
+            h.createEventTable();
+            h.insertEvent(100001L, "SignIn", h.beginning + HOUR);
+            h.collect();
+            h.storage.executeUpdate("UPDATE " + h.summaryTable + " SET `version`=0,`unit_count`=99");
+            final int[] writes = {0};
+            h.useStorage((Storage) Proxy.newProxyInstance(Storage.class.getClassLoader(),
+                    new Class<?>[] {Storage.class}, (object, method, args) -> {
+                        if ("executeUpdate".equals(method.getName()) && args.length == 1) {
+                            String sql = (String) args[0];
+                            if (sql.startsWith("DELETE")) return false;
+                            if (sql.startsWith("INSERT")) ++writes[0];
+                        }
+                        return method.invoke(h.storage, args);
+                    }));
+            h.collect();
+            check(0 == writes[0], "failed delete: no new writes");
+            check(99 == h.readMarker()[0].getInt(), "failed delete: old marker left unchanged");
+        }
+        finally { h.cleanup(); }
+    }
+
+    /** SQLite 的覆盖写和写入状态与 MySQL 保持一致。 */
+    private static void sqliteWritesReportSuccessAndFailure() throws Exception {
+        JSONObject config = new JSONObject();
+        config.put("file", ":memory:");
+        Storage storage = StorageFactory.getInstance().createStorage(StorageType.SQLite, "UnitDailySQLiteTest", config);
+        try {
+            check(!storage.executeUpdate("DELETE FROM probe"), "sqlite: unopened storage fails");
+            storage.open();
+            check(storage.executeUpdate("CREATE TABLE probe (`contact_id` INTEGER PRIMARY KEY,`duration` INTEGER)"),
+                    "sqlite: create probe");
+            StatisticsSystem system = new StatisticsSystem(null);
+            Field field = StatisticsSystem.class.getDeclaredField("storage");
+            field.setAccessible(true);
+            field.set(system, storage);
+            Method write = StatisticsSystem.class.getDeclaredMethod("writeUnitDaily", String.class, StorageField[].class);
+            write.setAccessible(true);
+            for (long duration : new long[] {1L, 2L, 2L}) {
+                check((Boolean) write.invoke(system, "probe", new StorageField[] {
+                        new StorageField("contact_id", LiteralBase.LONG, 100001L),
+                        new StorageField("duration", LiteralBase.LONG, duration)
+                }), "sqlite: insert, replace and unchanged replace succeed");
+            }
+            List<StorageField[]> rows = storage.executeQuery("SELECT `duration` FROM probe");
+            check(1 == rows.size() && 2L == rows.get(0)[0].getLong(), "sqlite: exactly one updated row");
+            check(storage.executeUpdate("DELETE FROM probe WHERE `contact_id`=-1"), "sqlite: zero rows is success");
+            check(!storage.executeUpdate("INSERT INTO missing_probe VALUES (1)"), "sqlite: invalid write fails");
+
+            // 还要通过完整采集路径验证 UNION 最终排序在 SQLite 上可执行。
+            Field fields = StatisticsSystem.class.getDeclaredField("unitDailyTableFields");
+            fields.setAccessible(true);
+            check(storage.executeCreate("summary", (StorageField[]) fields.get(system)), "sqlite: create summary");
+            check(storage.executeUpdate("CREATE UNIQUE INDEX uk_summary ON summary (`year`,`month`,`date`,`contact_id`)"),
+                    "sqlite: create unique key");
+            check(storage.executeUpdate("CREATE TABLE events (`sn` INTEGER PRIMARY KEY AUTOINCREMENT,"
+                    + "`contact_id` INTEGER,`event` TEXT,`time` INTEGER)"), "sqlite: create event table");
+            Field unitMap = StatisticsSystem.class.getDeclaredField("unitDailyTableNameMap");
+            unitMap.setAccessible(true);
+            Map<String, String> summaryMap = new HashMap<>();
+            summaryMap.put(DOMAIN, "summary");
+            unitMap.set(system, summaryMap);
+            Field eventMap = StatisticsSystem.class.getDeclaredField("eventTableNameMap");
+            eventMap.setAccessible(true);
+            Map<String, String> events = new HashMap<>();
+            events.put(DOMAIN, "events");
+            eventMap.set(system, events);
+            Calendar day = Calendar.getInstance();
+            day.set(Calendar.HOUR_OF_DAY, 0);
+            day.set(Calendar.MINUTE, 0);
+            day.set(Calendar.SECOND, 0);
+            day.set(Calendar.MILLISECOND, 0);
+            long begin = day.getTimeInMillis();
+            check(storage.executeUpdate("INSERT INTO events (`contact_id`,`event`,`time`) VALUES "
+                    + "(100002,'SignIn'," + (begin + HOUR) + "),"
+                    + "(100001,'SignIn'," + (begin + HOUR) + "),"
+                    + "(100002,'SignOut'," + (begin + 3L * HOUR) + "),"
+                    + "(100001,'SignOut'," + (begin + 3L * HOUR) + ")"), "sqlite: insert interleaved events");
+            Method collect = StatisticsSystem.class.getDeclaredMethod("collectUnitDaily",
+                    String.class, int.class, int.class, int.class, long.class, long.class);
+            collect.setAccessible(true);
+            collect.invoke(system, DOMAIN, day.get(Calendar.YEAR), day.get(Calendar.MONTH) + 1,
+                    day.get(Calendar.DATE), begin, begin + 24L * HOUR);
+            rows = storage.executeQuery("SELECT `contact_id`,`event_count`,`duration`,`unit_count`"
+                    + " FROM summary ORDER BY `contact_id`");
+            check(3 == rows.size() && 2 == rows.get(0)[3].getInt(), "sqlite: two summaries and completion marker");
+            check(2 == rows.get(1)[1].getInt() && 2L * HOUR == rows.get(1)[2].getLong()
+                    && 2 == rows.get(2)[1].getInt() && 2L * HOUR == rows.get(2)[2].getLong(),
+                    "sqlite: both units retain complete sessions");
+        }
+        finally { storage.close(); }
+        check(!storage.executeUpdate("DELETE FROM probe"), "sqlite: closed storage fails");
+    }
+
     /**
      * 采集夹具：真实存储 + 反射调用被测方法。
      */
@@ -335,6 +538,24 @@ public class UnitDailyCollectTest {
             if (!this.storage.executeCreate(this.summaryTable, this.productionFields())) {
                 throw new IllegalStateException("Failed to create summary table: " + this.summaryTable);
             }
+            Method method = StatisticsSystem.class.getDeclaredMethod("ensureUnitDailyUniqueKey", String.class);
+            method.setAccessible(true);
+            method.invoke(this.system, this.summaryTable);
+        }
+
+        /** 注入故障或并发调度代理，断言仍使用真实存储。 */
+        void useStorage(Storage storage) throws Exception {
+            Field field = StatisticsSystem.class.getDeclaredField("storage");
+            field.setAccessible(true);
+            field.set(this.system, storage);
+        }
+
+        StorageField[] readUnit(long contactId) {
+            List<StorageField[]> rows = this.storage.executeQuery("SELECT `event_count`,`duration`,"
+                    + "`first_active`,`hour_mask`,`day_begin`,`version` FROM " + this.summaryTable
+                    + " WHERE `contact_id`=" + contactId);
+            check(null != rows && rows.size() == 1, "unit summary: exactly one row for " + contactId);
+            return rows.get(0);
         }
 
         /**
