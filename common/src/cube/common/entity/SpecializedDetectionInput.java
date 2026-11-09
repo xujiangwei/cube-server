@@ -25,22 +25,27 @@ public final class SpecializedDetectionInput implements JSONable {
      * 单元名称。
      */
     public static final String UNIT = "SpecializedDetection";
+
     /**
      * 检测操作：detect、start、status 或 stop。
      */
     public final String operation;
+
     /**
      * 检测配置名称，控制类操作时为 null。
      */
     public final String profile;
+
     /**
      * 视频流标识，仅控制类操作有值。
      */
     public final String streamId;
+
     /**
      * 文件码或 RTSP 源地址，控制类操作时为 null。
      */
     public final String source;
+
     /**
      * 原始选项的副本。
      */

@@ -8,9 +8,9 @@ package cube.service.aigc.unit;
 
 import cell.core.talk.TalkContext;
 import cell.core.talk.dialect.ActionDialect;
+import cube.aigc.SpecializedDetectionCapabilities;
 import cube.aigc.SpecializedDetectionDefaults;
 import cube.aigc.SpecializedDetectionException;
-import cube.aigc.SpecializedDetectionCapabilities;
 import cube.auth.AuthToken;
 import cube.common.Packet;
 import cube.common.entity.AIGCUnit;
@@ -31,38 +31,47 @@ import java.util.concurrent.TimeUnit;
  * 专用检测的准入调度器。预算按已注册的提供方连接划分，最终裁决权仍在 Python 侧。
  */
 public final class SpecializedDetectionScheduler {
+
     /**
      * 宿主 AIGC 服务。
      */
     private final AIGCService service;
+
     /**
      * 已注册的检测提供方，按注册顺序保存。
      */
     private final Map<String, Provider> providers = new LinkedHashMap<>();
+
     /**
      * 活跃的检测会话，按创建顺序保存。
      */
     private final LinkedHashMap<String, Session> sessions = new LinkedHashMap<>();
+
     /**
      * 已发出但尚未收到响应的请求，键为请求序号。
      */
     private final Map<Long, SpecializedDetectionUnitMeta> pending = new HashMap<>();
+
     /**
      * 先于响应到达的停止事件，用于判定会话立即终止。
      */
     private final LinkedHashMap<String, Provider> earlyStops = new LinkedHashMap<>();
+
     /**
      * 当前生效的配置。
      */
     private volatile Properties config = new Properties();
+
     /**
      * 协调定时器。
      */
     private ScheduledExecutorService timer;
+
     /**
      * 是否已关闭。
      */
     private boolean closed;
+
     /**
      * 轮转游标，用于等负载候选者的确定性轮转。
      */
@@ -282,7 +291,8 @@ public final class SpecializedDetectionScheduler {
             if (configured == null) continue;
             try {
                 maximum = Math.min(maximum, Math.max(1, Math.min(64, Integer.parseInt(configured))));
-            } catch (NumberFormatException ignored) { }
+            } catch (NumberFormatException ignored) {
+            }
         }
         return maximum;
     }
@@ -341,7 +351,9 @@ public final class SpecializedDetectionScheduler {
         }
     }
 
-    /** Registration updates retain reservations but require fresh readiness evidence. */
+    /**
+     * Registration updates retain reservations but require fresh readiness evidence.
+     */
     public synchronized void onSetup(List<AIGCUnit> units) {
         clean();
         for (Provider p : providers.values()) if (units.contains(p.unit)) p.reportedAt = 0;
@@ -352,21 +364,25 @@ public final class SpecializedDetectionScheduler {
                 && System.currentTimeMillis() - p.reportedAt < 30000;
     }
 
-    /** Accept a complete, monotonic report only from the registered provider connection. */
+    /**
+     * Accept a complete, monotonic report only from the registered provider connection.
+     */
     public synchronized boolean report(TalkContext context, JSONObject report) {
         if (closed || context == null || !context.isValid()) return false;
         try {
             clean();
             Provider target = null;
-            for (Provider p : providers.values()) if (same(context, p.context)) {
-                if (target != null) return false;
-                target = p;
-            }
+            for (Provider p : providers.values())
+                if (same(context, p.context)) {
+                    if (target != null) return false;
+                    target = p;
+                }
             if (target == null || target.profiles.isEmpty() || integer(report, "version", 1, 1) != 1) return false;
             long sequence = integer(report, "sequence", 1, Long.MAX_VALUE);
             if (sequence <= target.sequence) return false;
             String state = report.getString("state");
-            if (!Arrays.asList("registered", "initializing", "ready", "failed", "stopping", "stopped").contains(state)) return false;
+            if (!Arrays.asList("registered", "initializing", "ready", "failed", "stopping", "stopped").contains(state))
+                return false;
             int maximum = (int) integer(report, "maxSessions", 1, 64);
             JSONArray values = report.getJSONArray("slicedProfiles");
             Set<String> sliced = new HashSet<>();
@@ -380,7 +396,9 @@ public final class SpecializedDetectionScheduler {
             target.maxSessions = maximum;
             target.slicedProfiles = sliced;
             return true;
-        } catch (RuntimeException invalid) { return false; }
+        } catch (RuntimeException invalid) {
+            return false;
+        }
     }
 
     private static long integer(JSONObject data, String key, long low, long high) {
@@ -391,7 +409,9 @@ public final class SpecializedDetectionScheduler {
         return n;
     }
 
-    /** Live descriptor shared with gateway discovery and Harness media admission. */
+    /**
+     * Live descriptor shared with gateway discovery and Harness media admission.
+     */
     public synchronized JSONObject descriptor(AIGCUnit unit) {
         clean();
         Provider p = providers.get(unit.getQueryKey());

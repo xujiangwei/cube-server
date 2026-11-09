@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 结构化生成没有渠道、隐藏历史、技能或工具执行器。
  */
 public class ChatCompletionService {
+
     private final cube.monitor.ServiceMetrics generationMetrics = new cube.monitor.ServiceMetrics();
 
     public JSONObject monitoringSnapshot() {

@@ -13,11 +13,17 @@ import org.json.JSONObject;
  * 检测失败异常，同时保留 Unit 状态码及其对应的 HTTP 语义。
  */
 public final class SpecializedDetectionException extends RuntimeException {
-    /** Unit 状态码。 */
+    /**
+     * Unit 状态码。
+     */
     public final int code;
-    /** 与 Unit 状态码对应的 HTTP 状态码。 */
+    /**
+     * 与 Unit 状态码对应的 HTTP 状态码。
+     */
     public final int httpStatus;
-    /** 失败原因标识，用于响应体的 reason 字段。 */
+    /**
+     * 失败原因标识，用于响应体的 reason 字段。
+     */
     public final String reason;
 
     /**
