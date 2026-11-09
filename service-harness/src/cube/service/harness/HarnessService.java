@@ -6,20 +6,30 @@
 
 package cube.service.harness;
 
+import cell.core.talk.PrimitiveInputStream;
+import cell.core.talk.TalkContext;
+import cell.core.talk.dialect.ActionDialect;
 import cell.util.log.Logger;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import cube.aigc.completion.CompletionProvider;
+import cube.auth.AuthTokenProvider;
 import cube.core.AbstractModule;
 import cube.core.Kernel;
+import cube.core.Module;
+import cube.monitor.ServiceSnapshot;
 import cube.plugin.PluginSystem;
 import cube.service.harness.execution.ExecutionRuntime;
 import cube.service.harness.execution.JettyExchange;
 import cube.service.harness.execution.ModelProtocol;
+import cube.service.harness.execution.ToolProtocol;
 import cube.service.harness.protocol.Contract;
 import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.store.JdbcRunStore;
+import cube.service.harness.store.StoreBootstrap;
 import cube.service.harness.store.StoreConfig;
 import cube.service.harness.store.StoreException;
+import org.eclipse.jetty.server.Server;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -31,51 +41,83 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 /**
- * Harness 内核模块：run 准入等待 profile 与协调器就绪后开放。
- * <p>职责分三条报文入口：worker 原始 JSON（v1 基础协议、协议 2/3 模型、tool/sandbox runner）、
- * dispatcher 业务报文（ActionDialect，经有界业务执行池）、文件 SHM 流。
- * 健康/运维 HTTP 监听只暴露 /healthz、/readyz 与 /harness-admin/v1/admission，
- * 业务路径在此监听器一律 404。执行未启用时只提供 scripted 通信探针能力。
+ * Harness 内核模块，是 worker 报文、dispatcher 业务报文与文件流的总入口。
+ *
+ * <p>三类报文入口：
+ * <ul>
+ * <li>worker 原始 JSON：按报文形态分派到 v1 基础协议注册表、协议 2/3 模型 worker
+ * 或 tool/sandbox runner；</li>
+ * <li>dispatcher 业务报文（ActionDialect）：经有界业务执行池处理；</li>
+ * <li>文件 SHM 流：按流名（transferId）转业务侧接收。</li>
+ * </ul>
+ *
+ * <p>健康/运维 HTTP 监听独立于上述报文入口，只暴露 /healthz、/readyz
+ * 与 /harness-admin/v1/admission，其余路径一律 404，业务报文没有 HTTP 回退。
+ * 执行未启用时监听由 JDK HttpServer 承载，只提供 scripted 通信探针能力；
+ * 执行启用时改由 Jetty 承载同一组健康/运维入口。
+ *
+ * <p>start 与 stop 由 Kernel 调用且彼此互斥；启动任一环节失败只记录原因码并回滚，
+ * 不向 Kernel 抛出异常。
  */
 public final class HarnessService extends AbstractModule {
-    private final java.util.Map<Long, String> monitoringEndpoints = new java.util.concurrent.ConcurrentHashMap<>();
-    public void observeTransport(cell.core.talk.TalkContext context) {
-        if (monitoringEndpoints.size() >= 512 && !monitoringEndpoints.containsKey(context.getSessionId())) {
-            java.util.Iterator<Long> keys = monitoringEndpoints.keySet().iterator();
-            if (keys.hasNext()) monitoringEndpoints.remove(keys.next());
-        }
-        monitoringEndpoints.put(context.getSessionId(), context.getSessionHost() + ":" + context.getSessionPort());
-    }
 
     /**
-     * Cellet 路由目标与模块名，与 Python 侧 HarnessService.NAME 保持一致。
+     * transport 会话 ID 到客户端地址的映射，仅供监控快照补充 worker 地址。
+     * <p>容量上限 512 条；达到上限且该会话尚未记录时，先淘汰一个任意条目再写入。
+     * 会话断开时由 disconnect 移除对应条目。
+     */
+    private final Map<Long, String> monitoringEndpoints = new ConcurrentHashMap<>();
+
+    /**
+     * Cellet 路由目标与 Kernel 模块名，取值 "Harness"；Cellet 构造、模块安装
+     * 与 Python worker 侧 speak 的报文目标名统一使用该值。
      */
     public static final String NAME = "Harness";
 
     /**
-     * 私有配置；start 时按默认路径惰性加载，除非构造时已注入。
+     * 私有配置；构造时未注入时由 start 按默认路径 config/harness.properties 加载，
+     * 该路径可用 -Dharness.config 覆盖。
      */
     private HarnessConfig config;
 
     /**
-     * v1 基础协议注册表（最多 64 个 worker），与执行侧注册表相互独立。
+     * v1 基础协议注册表（最多 64 个 worker），与执行侧模型/runner 注册表相互独立。
      */
     private WorkerRegistry registry;
 
     /**
-     * 三个定长有界线程池：worker 请求池、健康/运维 HTTP 池、业务执行池；队列满即拒绝。
+     * worker 请求池（harness-cell：2 线程 / 队列 64），定长守护线程 + 有界队列。
      */
-    private ThreadPoolExecutor executor, httpExecutor, businessExecutor;
+    private ThreadPoolExecutor executor;
 
     /**
-     * 业务分发器，持有文件传输协调器；stop 时随之关闭。
+     * 健康/运维 HTTP 池（harness-http：2 线程 / 队列 32）。
+     * <p>仅在执行未启用、监听由 JDK HttpServer 承载时创建；执行启用走 Jetty，此字段为 null，
+     * 监控快照中按未启动的池上报。
+     */
+    private ThreadPoolExecutor httpExecutor;
+
+    /**
+     * 业务执行池（harness-business：4 线程 / 队列 32），定长守护线程 + 有界队列。
+     */
+    private ThreadPoolExecutor businessExecutor;
+
+    /**
+     * 业务分发器，持有文件传输协调器；stop 时先于线程池 drain 关闭。
      */
     private HarnessBusiness business;
 
@@ -87,20 +129,21 @@ public final class HarnessService extends AbstractModule {
     /**
      * 启用执行时的 Jetty 服务器（仅健康/运维入口）；与 http 互斥。
      */
-    private org.eclipse.jetty.server.Server executionHttp;
+    private Server executionHttp;
 
     /**
-     * 启动失败原因码；启动成功为 null；失败时固定为 HARNESS_CONFIGURATION_ERROR。
+     * 启动失败原因码；启动成功为 null，失败时固定为 HARNESS_CONFIGURATION_ERROR。
+     * <p>目前仅在内部记录，未通过健康/运维接口对外暴露。
      */
     private volatile String startupError;
 
     /**
-     * RunStore；仅 store.enabled=true 时创建，执行启用前必须就绪。
+     * RunStore；仅 store.enabled=true 时创建，启用执行前必须就绪。
      */
     private JdbcRunStore store;
 
     /**
-     * 存储配置及其 MySQL 连接池；启动失败和停止时均释放。
+     * 存储配置及其 MySQL 连接池；启动失败回滚和停止时均释放。
      */
     private StoreConfig storeConfig;
 
@@ -125,9 +168,27 @@ public final class HarnessService extends AbstractModule {
     }
 
     /**
+     * 记录 transport 会话对应的客户端地址，供监控快照补充 worker 地址。
+     * <p>映射达到 512 条且该会话尚未记录时，先淘汰一个任意条目再写入。
+     *
+     * @param context 新建的 Cell transport 会话上下文
+     */
+    public void observeTransport(TalkContext context) {
+        long sessionId = context.getSessionId();
+        if (monitoringEndpoints.size() >= 512 && !monitoringEndpoints.containsKey(sessionId)) {
+            Iterator<Long> keys = monitoringEndpoints.keySet().iterator();
+            if (keys.hasNext()) {
+                monitoringEndpoints.remove(keys.next());
+            }
+        }
+        String address = context.getSessionHost() + ":" + context.getSessionPort();
+        monitoringEndpoints.put(sessionId, address);
+    }
+
+    /**
      * 创建定长、守护线程、有界队列的线程池；队列满时按 AbortPolicy 拒绝。
      *
-     * @param name     线程名前（所有线程共用的前缀）
+     * @param name     线程名（池内所有线程共用）
      * @param size     核心与最大线程数（定长）
      * @param capacity 有界任务队列容量
      * @return 配置好的线程池
@@ -138,7 +199,7 @@ public final class HarnessService extends AbstractModule {
                 size,
                 0,
                 TimeUnit.SECONDS,
-                new ArrayBlockingQueue<Runnable>(capacity),
+                new ArrayBlockingQueue<>(capacity),
                 r -> {
                     Thread t = new Thread(r, name);
                     t.setDaemon(true);
@@ -155,38 +216,39 @@ public final class HarnessService extends AbstractModule {
      * @return 单行启动摘要字符串
      */
     private String startupSummary() {
-        java.util.Properties v = config.values;
+        Properties values = config.values;
         StringBuilder out = new StringBuilder();
-        out.append("host=").append(config.host()).append(" port=").append(config.port())
-                .append(" leaseMillis=").append(config.leaseMillis());
+        out.append("host=").append(config.host());
+        out.append(" port=").append(config.port());
+        out.append(" leaseMillis=").append(config.leaseMillis());
         out.append(" store=").append(store != null);
         if (store != null) {
-            out.append(" dialect=").append(config.values.getProperty("store.dialect", ""))
-                    .append(" database=").append(config.values.getProperty("store.database", ""));
+            out.append(" dialect=").append(values.getProperty("store.dialect", ""));
+            out.append(" database=").append(values.getProperty("store.database", ""));
         }
         out.append(" execution=").append(execution != null);
         if (execution != null) {
-            out.append(" accepting=").append(execution.accepting())
-                    .append(" maxActive=").append(v.getProperty("execution.max.active", "128"))
-                    .append(" permissions=").append(v.getProperty("execution.permissions", "").replace(",", "|"));
+            out.append(" accepting=").append(execution.accepting());
+            out.append(" maxActive=").append(values.getProperty("execution.max.active", "128"));
+            out.append(" permissions=").append(values.getProperty("execution.permissions", "").replace(",", "|"));
         }
-        out.append(" workers=").append(workerCount(v));
-        out.append(" files=").append(v.getProperty("files.enabled", "false"));
-        out.append(" trace=").append(v.getProperty("trace.enabled", "false"))
-                .append(" feedback=").append(v.getProperty("feedback.enabled", "false"));
-        out.append(" inferenceNode=").append(v.getProperty("inference.node.id", ""));
+        out.append(" workers=").append(workerCount(values));
+        out.append(" files=").append(values.getProperty("files.enabled", "false"));
+        out.append(" trace=").append(values.getProperty("trace.enabled", "false"));
+        out.append(" feedback=").append(values.getProperty("feedback.enabled", "false"));
+        out.append(" inferenceNode=").append(values.getProperty("inference.node.id", ""));
         return out.toString();
     }
 
     /**
-     * 统计授权的 Python worker 数（worker.<id>.role），只计数不打印 workerId。
+     * 统计授权的 Python worker 数（worker.&lt;id&gt;.role），只计数不打印 workerId。
      *
-     * @param v 配置键值
-     * @return worker.<id>.role 形式的键个数
+     * @param values 配置键值
+     * @return worker.&lt;id&gt;.role 形式的键个数
      */
-    private static int workerCount(java.util.Properties v) {
+    private static int workerCount(Properties values) {
         int count = 0;
-        for (String name : v.stringPropertyNames()) {
+        for (String name : values.stringPropertyNames()) {
             if (name.startsWith("worker.") && name.endsWith(".role")) {
                 count++;
             }
@@ -196,10 +258,11 @@ public final class HarnessService extends AbstractModule {
 
     /**
      * 启动模块（Kernel 调用，synchronized 与 stop 互斥）：
-     * 加载配置 → 可选自检数据库并建 RunStore→ 建注册表 →
-     * execution.enabled 时构建 ExecutionRuntime（store 必须就绪）→
-     * 建三个线程池与业务分发器 → 起健康/运维监听（执行启用走 Jetty，否则 JDK HttpServer）→
-     * 启动 execution。任一失败只记录 startupError 并回滚 stop，不向 Kernel 抛出。
+     * 加载配置 → store.enabled 时自检数据库并建 RunStore → 建 v1 注册表 →
+     * execution.enabled 时构建 ExecutionRuntime（要求 store 已就绪）→
+     * 建 worker 请求池与业务执行池、业务分发器 →
+     * 起健康/运维监听（执行启用走 Jetty；否则 JDK HttpServer 并另建 harness-http 池）→
+     * 启动 execution。任一环节失败只记录 startupError 并回滚 stop，不向 Kernel 抛出异常。
      */
     @Override
     public synchronized void start() {
@@ -213,7 +276,7 @@ public final class HarnessService extends AbstractModule {
             // 接受业务请求前自动补齐任务账本结构；失败仅停止 Harness。
             if (Boolean.parseBoolean(config.values.getProperty("store.enabled", "false"))) {
                 storeConfig = new StoreConfig(config.values);
-                cube.service.harness.store.StoreBootstrap.selfCheck(storeConfig);
+                StoreBootstrap.selfCheck(storeConfig);
                 store = new JdbcRunStore(storeConfig);
             }
 
@@ -222,20 +285,18 @@ public final class HarnessService extends AbstractModule {
                 if (store == null) {
                     throw new IllegalArgumentException("STORE_REQUIRED");
                 }
-                execution =
-                        new ExecutionRuntime(
-                                store,
-                                config.values,
-                                config.leaseMillis(),
-                                () -> {
-                                    Object module =
-                                            getKernel() == null
-                                                    ? null
-                                                    : getKernel().getModule("AIGC");
-                                    return module instanceof cube.aigc.completion.CompletionProvider
-                                            ? (cube.aigc.completion.CompletionProvider) module
-                                            : null;
-                                });
+                execution = new ExecutionRuntime(
+                        store,
+                        config.values,
+                        config.leaseMillis(),
+                        () -> {
+                            Kernel kernel = getKernel();
+                            Object module = kernel == null ? null : kernel.getModule("AIGC");
+                            if (module instanceof CompletionProvider) {
+                                return (CompletionProvider) module;
+                            }
+                            return null;
+                        });
             }
 
             executor = pool("harness-cell", 2, 64);
@@ -268,8 +329,9 @@ public final class HarnessService extends AbstractModule {
 
     /**
      * 停止模块（Kernel 调用，synchronized 与 start 互斥）：
-     * 先关业务/传输与 HTTP 监听，再有界 drain 三个线程池（优雅 3 秒，
-     * 超时 shutdownNow 后再等 3 秒），最后关闭 execution、清空注册表与存储引用。
+     * 先关业务分发器、Jetty/JDK HTTP 监听，再有界 drain 三个线程池候选
+     * （优雅等待 3 秒，超时 shutdownNow 后再等 3 秒；httpExecutor 可能为 null，跳过），
+     * 最后关闭 execution、清空地址映射与注册表、释放存储引用。
      * drain 期间被中断时恢复线程中断标记。
      */
     @Override
@@ -292,6 +354,7 @@ public final class HarnessService extends AbstractModule {
             try {
                 executionHttp.stop();
             } catch (Exception ignored) {
+                // 停止阶段不再因 Jetty 关闭异常中断其余资源的回收。
             }
             executionHttp = null;
         }
@@ -299,16 +362,16 @@ public final class HarnessService extends AbstractModule {
             http.stop(1);
             http = null;
         }
-        for (ThreadPoolExecutor pool : Arrays.asList(executor, httpExecutor, businessExecutor)) {
-            if (pool != null) {
-                pool.shutdown();
+        for (ThreadPoolExecutor poolExecutor : Arrays.asList(executor, httpExecutor, businessExecutor)) {
+            if (poolExecutor != null) {
+                poolExecutor.shutdown();
                 try {
-                    if (!pool.awaitTermination(3, TimeUnit.SECONDS)) {
-                        pool.shutdownNow();
-                        pool.awaitTermination(3, TimeUnit.SECONDS);
+                    if (!poolExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
+                        poolExecutor.shutdownNow();
+                        poolExecutor.awaitTermination(3, TimeUnit.SECONDS);
                     }
                 } catch (InterruptedException e) {
-                    pool.shutdownNow();
+                    poolExecutor.shutdownNow();
                     Thread.currentThread().interrupt();
                 }
             }
@@ -375,13 +438,13 @@ public final class HarnessService extends AbstractModule {
     }
 
     /**
-     * Kernel 定时钩子：刷新注册表快照，顺带清理过期租约条目。
+     * Kernel 定时钩子：刷新 v1 注册表快照，snapshot 内部顺带清理过期租约条目。
      *
-     * @param module 本模块
-     * @param kernel 所属 Kernel
+     * @param module 本模块；本实现未使用
+     * @param kernel 所属 Kernel；本实现未使用
      */
     @Override
-    public void onTick(cube.core.Module module, Kernel kernel) {
+    public void onTick(Module module, Kernel kernel) {
         if (registry != null) {
             registry.snapshot();
         }
@@ -413,26 +476,29 @@ public final class HarnessService extends AbstractModule {
     /**
      * worker 报文主入口，按报文形态分派：
      * <ul>
-     * <li>带 runnerType：tool/sandbox runner 协议，凭据校验后交 execution.runners</li>
-     * <li>protocolVersion 2/3：模型协议，凭据校验后交 execution.workers</li>
-     * <li>其余：v1 基础协议，契约校验 + 凭据 + workerId/role 白名单后交注册表</li>
+     * <li>带 runnerType：tool/sandbox runner 协议，校验协议版本与凭据后交 execution.runners；</li>
+     * <li>protocolVersion 2/3：模型协议，校验契约与凭据后交 execution.workers；</li>
+     * <li>其余：v1 基础协议，契约校验 + 凭据 + workerId/role 白名单后交注册表。</li>
      * </ul>
-     * 响应统一附带协议版本与 requestId；无论成败最后都写一条结果日志。
+     * <p>只有 v1 响应会统一附带 protocolVersion=1、requestId 与 ok=true；
+     * 协议 2/3 与 runner 分支直接返回各自执行侧给出的响应。
+     * 无论成败，finally 中都写一条信封级结果日志。
      *
      * @param raw       worker 请求原始字节（单 STRING Stuff 载荷）
      * @param transport Cell transport 会话标识，与 worker 注册/传输绑定
      * @param valid     会话有效性探针，执行期间持续校验
      * @return 响应 JSON；所有异常在本方法内转换为错误响应
      * @throws IllegalArgumentException 协议不匹配（PROTOCOL_MISMATCH）、凭据无效（UNAUTHORIZED）、
-     *                                  worker 未授权（FORBIDDEN）、runner 未启用（RUNNER_DISABLED）、服务未就绪（HARNESS_NOT_READY）、
-     *                                  载荷超限（PAYLOAD_TOO_LARGE）等；上述异常被本方法捕获并转为错误响应，不会传播给调用方
+     *                                  worker 未授权（FORBIDDEN）、runner 未启用（RUNNER_DISABLED）、
+     *                                  服务未就绪（HARNESS_NOT_READY）、载荷超限（PAYLOAD_TOO_LARGE）等；
+     *                                  这些异常都在本方法内被捕获并转为错误响应，不会传播给调用方
      */
-    public JSONObject process(
-            byte[] raw, long transport, java.util.function.BooleanSupplier valid) {
+    public JSONObject process(byte[] raw, long transport, BooleanSupplier valid) {
         String id = "";
         int protocol = 1;
         String runnerType = null;
-        JSONObject request = null, response = null;
+        JSONObject request = null;
+        JSONObject response = null;
         Exception unexpected = null;
         try {
             request = StrictJson.object(raw);
@@ -442,8 +508,8 @@ public final class HarnessService extends AbstractModule {
             if (!started.get()) {
                 throw new IllegalArgumentException("HARNESS_NOT_READY");
             }
-            if (request.optInt("protocolVersion", 0) == 2
-                    || request.optInt("protocolVersion", 0) == 3) {
+            int declaredVersion = request.optInt("protocolVersion", 0);
+            if (declaredVersion == 2 || declaredVersion == 3) {
                 protocol = request.getInt("protocolVersion");
             }
             if (request.opt("requestId") instanceof String
@@ -453,10 +519,10 @@ public final class HarnessService extends AbstractModule {
             if (runnerType != null) {
                 Object version = request.opt("protocolVersion");
                 if (!(version instanceof Number)
-                        || ((Number) version).doubleValue() != cube.service.harness.execution.ToolProtocol.VERSION) {
+                        || ((Number) version).doubleValue() != ToolProtocol.VERSION) {
                     throw new IllegalArgumentException("PROTOCOL_MISMATCH");
                 }
-                cube.service.harness.execution.ToolProtocol.parse("runner-request", raw);
+                ToolProtocol.parse("runner-request", raw);
                 if (!equal(
                         config.values.getProperty("worker.credential"),
                         request.getString("credential"))) {
@@ -465,7 +531,8 @@ public final class HarnessService extends AbstractModule {
                 if (execution == null || execution.runners == null) {
                     throw new IllegalArgumentException("RUNNER_DISABLED");
                 }
-                return response = execution.runners.apply(request, transport, valid);
+                response = execution.runners.apply(request, transport, valid);
+                return response;
             }
             if (protocol == 2 || protocol == 3) {
                 if (execution == null) {
@@ -479,19 +546,17 @@ public final class HarnessService extends AbstractModule {
                         request.getString("credential"))) {
                     throw new IllegalArgumentException("UNAUTHORIZED");
                 }
-                return response = execution.workers.apply(request, transport, valid);
+                response = execution.workers.apply(request, transport, valid);
+                return response;
             }
             if (request.has("protocolVersion")
                     && (!(request.get("protocolVersion") instanceof Number)
                     || ((Number) request.get("protocolVersion")).doubleValue() != 1)) {
                 throw new IllegalArgumentException("PROTOCOL_MISMATCH");
             }
-            Contract.validate(
-                    request,
-                    new JSONObject(
-                            new String(
-                                    Contract.resource("schemas/worker-request.json"),
-                                    StandardCharsets.UTF_8)));
+            byte[] schemaBytes = Contract.resource("schemas/worker-request.json");
+            JSONObject schema = new JSONObject(new String(schemaBytes, StandardCharsets.UTF_8));
+            Contract.validate(request, schema);
             if (!equal(
                     config.values.getProperty("worker.credential"),
                     request.getString("credential"))) {
@@ -500,17 +565,21 @@ public final class HarnessService extends AbstractModule {
             if (!config.authorizedWorker(request.getString("workerId"), request.getString("role"))) {
                 throw new IllegalArgumentException("FORBIDDEN");
             }
-            return response = registry.apply(request, transport, valid)
+            response = registry.apply(request, transport, valid)
                     .put("protocolVersion", 1)
                     .put("requestId", id)
                     .put("ok", true);
+            return response;
         } catch (StoreException e) {
-            return response = workerError(id, e.code, protocol, runnerType);
+            response = workerError(id, e.code, protocol, runnerType);
+            return response;
         } catch (IllegalArgumentException e) {
-            return response = workerError(id, e.getMessage(), protocol, runnerType);
+            response = workerError(id, e.getMessage(), protocol, runnerType);
+            return response;
         } catch (Exception e) {
             unexpected = e;
-            return response = workerError(id, "INTERNAL_ERROR", protocol, runnerType);
+            response = workerError(id, "INTERNAL_ERROR", protocol, runnerType);
+            return response;
         } finally {
             WorkerRegistrationLog.outcome(request, response, config, transport, unexpected);
         }
@@ -532,13 +601,14 @@ public final class HarnessService extends AbstractModule {
             return response.put("protocolVersion", protocol);
         }
         return response.put("runnerType", runnerType)
-                .put("protocolVersion", cube.service.harness.execution.ToolProtocol.VERSION);
+                .put("protocolVersion", ToolProtocol.VERSION);
     }
 
     /**
-     * 记录信封级拒绝：请求 JSON 尚不可得（如非法信封、业务池已满）时的结果日志。
+     * 记录信封级拒绝：请求 JSON 尚不可得（如非法信封、会话过期、业务池已满）时的结果日志。
      *
-     * @param code      服务端错误码，如 INVALID_ENVELOPE、HARNESS_BUSY
+     * @param code      服务端错误码，如 INVALID_ENVELOPE、HARNESS_NOT_READY、
+     *                  STALE_SESSION、HARNESS_BUSY
      * @param transport 发起请求的 Cell transport 会话标识
      */
     public static void logWorkerRejection(String code, long transport) {
@@ -561,44 +631,84 @@ public final class HarnessService extends AbstractModule {
     }
 
     /**
-     * @return capabilities 响应 JSON：执行未启用时报告 scripted 基础设施就绪度
-     * （registeredWorkers/infrastructureReady/runsReady=false/execution=scripted）；
-     * 执行启用时追加 runnerTypes、accepting、runsReady、capacity 与 files 指标
+     * 生成面向控制台的监控快照：从 capabilities 中筛出安全的 worker 字段，
+     * 补充客户端地址与描述符中的 model/backendId，并按容量账单统计各 worker 占用数。
+     *
+     * <p>worker 字段按白名单逐项复制，描述符、凭据与任意 worker 载荷一律不外传；
+     * 地址来自 observeTransport 记录的 transport 映射。
+     * 快照含 workers、infrastructureReady、runsReady、accepting、capacity 与 pools，
+     * 执行启用时再追加 jobs。
+     *
+     * @return 监控快照 JSON
      */
-    @Override public JSONObject monitoringSnapshot() {
+    @Override
+    public JSONObject monitoringSnapshot() {
         JSONObject caps = capabilities();
-        JSONArray workers = new JSONArray(), all = caps.getJSONArray("registeredWorkers");
+        JSONArray all = caps.getJSONArray("registeredWorkers");
+        JSONArray workers = new JSONArray();
         // Never forward descriptors, credentials or arbitrary worker payloads into reports.
-        String[] safe = {"workerId", "instanceId", "role", "runnerType", "registered", "ready", "healthy", "draining", "leaseRemainingMs", "capacity", "occupied", "available"};
+        String[] safe = {
+                "workerId", "instanceId", "role", "runnerType", "registered", "ready",
+                "healthy", "draining", "leaseRemainingMs", "capacity", "occupied", "available"
+        };
         for (int i = 0; i < all.length(); ++i) {
-            JSONObject source = all.getJSONObject(i), worker = new JSONObject();
-            for (String key : safe) if (source.has(key)) worker.put(key, source.get(key));
-            worker.put("address", monitoringEndpoints.get(source.optLong("transportId", -1L)));
+            JSONObject source = all.getJSONObject(i);
+            JSONObject worker = new JSONObject();
+            for (String key : safe) {
+                if (source.has(key)) {
+                    worker.put(key, source.get(key));
+                }
+            }
+            long transportId = source.optLong("transportId", -1L);
+            worker.put("address", monitoringEndpoints.get(transportId));
             JSONObject descriptor = source.optJSONObject("descriptor");
             if (descriptor != null) {
-                worker.put("model", descriptor.optString("model", "")).put("backendId", descriptor.optString("backendId", ""));
+                worker.put("model", descriptor.optString("model", ""));
+                worker.put("backendId", descriptor.optString("backendId", ""));
                 JSONObject capacity = caps.optJSONObject("capacity");
                 JSONArray occupations = capacity == null ? null : capacity.optJSONArray("workers");
                 long occupied = 0;
-                if (occupations != null) for (int j = 0; j < occupations.length(); ++j) {
-                    JSONObject entry = occupations.getJSONObject(j);
-                    if (source.getString("workerId").equals(entry.getString("worker_id"))) occupied = entry.getLong("occupied");
+                if (occupations != null) {
+                    for (int j = 0; j < occupations.length(); ++j) {
+                        JSONObject entry = occupations.getJSONObject(j);
+                        if (source.getString("workerId").equals(entry.getString("worker_id"))) {
+                            occupied = entry.getLong("occupied");
+                        }
+                    }
                 }
                 worker.put("occupied", occupied);
             }
             workers.put(worker);
         }
-        JSONObject result = new JSONObject().put("workers", workers)
-                .put("infrastructureReady", caps.getBoolean("infrastructureReady")).put("runsReady", caps.getBoolean("runsReady"))
-                .put("accepting", caps.opt("accepting") == null ? JSONObject.NULL : caps.get("accepting"))
-                .put("capacity", caps.optJSONObject("capacity") == null ? JSONObject.NULL : caps.getJSONObject("capacity"))
-                .put("pools", new JSONArray().put(cube.monitor.ServiceSnapshot.pool("Harness worker", executor))
-                        .put(cube.monitor.ServiceSnapshot.pool("Harness business", businessExecutor))
-                        .put(cube.monitor.ServiceSnapshot.pool("Harness admin", httpExecutor)));
-        if (execution != null) result.put("jobs", execution.monitoringSnapshot());
+        JSONObject result = new JSONObject();
+        result.put("workers", workers);
+        result.put("infrastructureReady", caps.getBoolean("infrastructureReady"));
+        result.put("runsReady", caps.getBoolean("runsReady"));
+        result.put("accepting", caps.opt("accepting") == null
+                ? JSONObject.NULL : caps.get("accepting"));
+        result.put("capacity", caps.optJSONObject("capacity") == null
+                ? JSONObject.NULL : caps.getJSONObject("capacity"));
+        JSONArray pools = new JSONArray();
+        pools.put(ServiceSnapshot.pool("Harness worker", executor));
+        pools.put(ServiceSnapshot.pool("Harness business", businessExecutor));
+        pools.put(ServiceSnapshot.pool("Harness admin", httpExecutor));
+        result.put("pools", pools);
+        if (execution != null) {
+            result.put("jobs", execution.monitoringSnapshot());
+        }
         return result;
     }
 
+    /**
+     * 组装能力快照，供监控快照与就绪判定使用。
+     *
+     * <p>执行启用时汇总模型 worker 与 runner 的注册快照，报告 protocolVersion=3、
+     * runnerTypes、infrastructureReady、runsReady、accepting、execution、capacity 与 files；
+     * 执行未启用时报告 protocolVersion=1、v1 注册表快照、
+     * runsReady=false 与 execution=scripted。
+     *
+     * @return 能力快照 JSON
+     */
     JSONObject capabilities() {
         if (execution != null) {
             JSONArray all = execution.workers.snapshot();
@@ -608,30 +718,30 @@ public final class HarnessService extends AbstractModule {
                     all.put(runners.get(i));
                 }
             }
-            return new JSONObject()
-                    .put("service", NAME)
-                    .put("protocolVersion", 3)
-                    .put("runnerTypes", execution.runners == null ? new JSONArray()
-                            : new JSONArray().put("tool").put("sandbox"))
-                    .put("registeredWorkers", all)
-                    .put("infrastructureReady", true)
-                    .put("runsReady", execution.accepting() && execution.modelReady())
-                    .put("accepting", execution.accepting())
-                    .put(
-                            "execution",
-                            execution.runners == null ? "resource-loop" : "trusted-tool-loop")
-                    .put("capacity", execution.workers.capacity())
-                    .put(
-                            "files",
-                            execution.files == null ? JSONObject.NULL : execution.files.metrics());
+            JSONObject result = new JSONObject();
+            result.put("service", NAME);
+            result.put("protocolVersion", 3);
+            result.put("runnerTypes", execution.runners == null
+                    ? new JSONArray() : new JSONArray().put("tool").put("sandbox"));
+            result.put("registeredWorkers", all);
+            result.put("infrastructureReady", true);
+            result.put("runsReady", execution.accepting() && execution.modelReady());
+            result.put("accepting", execution.accepting());
+            result.put("execution", execution.runners == null
+                    ? "resource-loop" : "trusted-tool-loop");
+            result.put("capacity", execution.workers.capacity());
+            result.put("files", execution.files == null
+                    ? JSONObject.NULL : execution.files.metrics());
+            return result;
         }
-        return new JSONObject()
-                .put("service", NAME)
-                .put("protocolVersion", 1)
-                .put("registeredWorkers", registry.snapshot())
-                .put("infrastructureReady", registry.ready())
-                .put("runsReady", false)
-                .put("execution", "scripted");
+        JSONObject result = new JSONObject();
+        result.put("service", NAME);
+        result.put("protocolVersion", 1);
+        result.put("registeredWorkers", registry.snapshot());
+        result.put("infrastructureReady", registry.ready());
+        result.put("runsReady", false);
+        result.put("execution", "scripted");
+        return result;
     }
 
     /**
@@ -640,17 +750,18 @@ public final class HarnessService extends AbstractModule {
      * @param in 请求体输入流
      * @return 请求体全部字节
      * @throws IOException              读取失败
-     * @throws IllegalArgumentException 413/PAYLOAD_TOO_LARGE：体量超过严格 JSON 上限
+     * @throws IllegalArgumentException PAYLOAD_TOO_LARGE：请求体超过严格 JSON 上限
      */
     private static byte[] body(InputStream in) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] b = new byte[4096];
-        int n;
-        while ((n = in.read(b)) != -1) {
+        int n = in.read(b);
+        while (n != -1) {
             if (out.size() + n > StrictJson.MAX_BYTES) {
                 throw new IllegalArgumentException("PAYLOAD_TOO_LARGE");
             }
             out.write(b, 0, n);
+            n = in.read(b);
         }
         return out.toByteArray();
     }
@@ -660,12 +771,18 @@ public final class HarnessService extends AbstractModule {
      *
      * @param code 请求携带的 Bearer 令牌原文
      * @return 认证后的身份
-     * @throws HarnessBusiness.Failure 401/UNAUTHORIZED 或 503/AUTH_UNAVAILABLE（见 HarnessIdentity.authenticate）
+     * @throws HarnessBusiness.Failure 401/UNAUTHORIZED 或 503/AUTH_UNAVAILABLE
+     *                                 （见 HarnessIdentity.authenticate）
      */
     HarnessIdentity authenticate(String code) {
-        cube.core.Module auth = getKernel() == null ? null : getKernel().getModule("Auth");
-        return HarnessIdentity.authenticate(auth instanceof cube.auth.AuthTokenProvider && auth.isStarted()
-                ? (cube.auth.AuthTokenProvider) auth : null, code, HarnessIdentity.permissions(config.values));
+        Kernel kernel = getKernel();
+        Module auth = kernel == null ? null : kernel.getModule("Auth");
+        AuthTokenProvider provider = null;
+        if (auth instanceof AuthTokenProvider && auth.isStarted()) {
+            provider = (AuthTokenProvider) auth;
+        }
+        Set<String> permissions = HarnessIdentity.permissions(config.values);
+        return HarnessIdentity.authenticate(provider, code, permissions);
     }
 
     /**
@@ -683,8 +800,9 @@ public final class HarnessService extends AbstractModule {
      * @param opener  SHM 流打开器，供下载传输写回字节流
      * @return 统一响应结构 {@code {status,headers,body}}
      */
-    public JSONObject processBusiness(cell.core.talk.dialect.ActionDialect request,
-                                      cell.core.talk.TalkContext context, java.util.function.Function<String, OutputStream> opener) {
+    public JSONObject processBusiness(ActionDialect request,
+                                      TalkContext context,
+                                      Function<String, OutputStream> opener) {
         HarnessBusiness current = business;
         if (!started.get() || current == null) {
             return HarnessBusiness.error(503, "HARNESS_NOT_READY");
@@ -698,7 +816,7 @@ public final class HarnessService extends AbstractModule {
      * @param context TalkContext
      * @param stream  客户端经 SHM 送达的字节流
      */
-    public void receiveFile(cell.core.talk.TalkContext context, cell.core.talk.PrimitiveInputStream stream) {
+    public void receiveFile(TalkContext context, PrimitiveInputStream stream) {
         HarnessBusiness current = business;
         if (current != null && current.transfers != null) {
             current.transfers.receive(context.getSessionId(), stream);
@@ -706,6 +824,7 @@ public final class HarnessService extends AbstractModule {
             try {
                 stream.close();
             } catch (IOException ignored) {
+                // 业务不可用，关闭流失败也无需向上回报。
             }
         }
     }
@@ -717,24 +836,39 @@ public final class HarnessService extends AbstractModule {
      * 其余路径一律 404，业务路径无 HTTP 回退。
      *
      * @param x HTTP 交换，提供请求 URI、方法与头
-     * @throws IOException 读取请求体失败（由容器记录）
+     * @throws IOException 读写 HTTP 交换失败（由容器记录）
      */
     private void handleHttp(HttpExchange x) throws IOException {
         JSONObject response;
         try {
-            String path = x.getRequestURI().getPath(), method = x.getRequestMethod();
+            String path = x.getRequestURI().getPath();
+            String method = x.getRequestMethod();
             if (path.equals("/healthz") || path.equals("/readyz")) {
                 if (!method.equals("GET")) {
                     throw new HarnessBusiness.Failure(405, "METHOD_NOT_ALLOWED");
                 }
-                boolean ready = started.get() && (path.equals("/healthz") || (execution != null
-                        ? execution.accepting() && execution.modelReady() : registry.ready()));
-                response = HarnessBusiness.reply(ready ? 200 : 503, new JSONObject().put("service", NAME)
-                        .put("ready", ready).put("runsReady", execution != null && execution.accepting() && execution.modelReady()));
+                boolean ready;
+                if (!started.get()) {
+                    ready = false;
+                } else if (path.equals("/healthz")) {
+                    ready = true;
+                } else if (execution != null) {
+                    ready = execution.accepting() && execution.modelReady();
+                } else {
+                    ready = registry.ready();
+                }
+                JSONObject payload = new JSONObject();
+                payload.put("service", NAME);
+                payload.put("ready", ready);
+                payload.put("runsReady", execution != null
+                        && execution.accepting() && execution.modelReady());
+                response = HarnessBusiness.reply(ready ? 200 : 503, payload);
             } else if (path.startsWith("/harness-admin/v1/")) {
                 String credential = config.values.getProperty("admission.admin.credential", "");
-                if (credential.length() < 24 || !equal("Bearer " + credential,
-                        Objects.toString(x.getRequestHeaders().getFirst("Authorization"), ""))) {
+                String authorization = Objects.toString(
+                        x.getRequestHeaders().getFirst("Authorization"), "");
+                if (credential.length() < 24
+                        || !equal("Bearer " + credential, authorization)) {
                     throw new HarnessBusiness.Failure(403, "FORBIDDEN");
                 }
                 if (!path.equals("/harness-admin/v1/admission")) {
@@ -743,6 +877,7 @@ public final class HarnessService extends AbstractModule {
                 if (execution == null) {
                     throw new HarnessBusiness.Failure(503, "HARNESS_NOT_READY");
                 }
+                // null 表示 GET 查询当前接单状态；非 null 表示 POST 切换该状态。
                 Boolean accepting = null;
                 if (method.equals("POST")) {
                     JSONObject value = StrictJson.object(body(x.getRequestBody()));
