@@ -7,6 +7,8 @@
 package cube.service.harness.execution;
 
 import com.sun.net.httpserver.HttpExchange;
+import cube.aigc.completion.CompletionProvider;
+import cube.service.harness.protocol.Contract;
 import cube.service.harness.runtime.*;
 import cube.service.harness.store.*;
 import org.json.JSONArray;
@@ -17,6 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Semaphore;
+import java.util.function.Supplier;
 
 /**
  * 执行编排门面：按可信请求身份隔离数据，后台执行从持久账本恢复任务归属。
@@ -99,7 +102,6 @@ public final class ExecutionRuntime implements AutoCloseable {
      * run 权威账本（私有）：findCreate/read/events/subject/admissionLimit。
      */
     private final JdbcRunStore store;
-    public JSONObject monitoringSnapshot() { return store.monitoringSnapshot(); }
 
     /**
      * 单租户活跃 run 准入上限（execution.max.active，取值 1..256）。
@@ -148,7 +150,7 @@ public final class ExecutionRuntime implements AutoCloseable {
             JdbcRunStore store,
             Properties p,
             long lease,
-            java.util.function.Supplier<cube.aigc.completion.CompletionProvider> provider)
+            Supplier<CompletionProvider> provider)
             throws Exception {
         ModelProtocol.verify();
         this.store = store;
@@ -165,8 +167,7 @@ public final class ExecutionRuntime implements AutoCloseable {
             }
         }
         permissions = Collections.unmodifiableSet(configured);
-        files =
-                Boolean.parseBoolean(p.getProperty("files.enabled", "false"))
+        files = Boolean.parseBoolean(p.getProperty("files.enabled", "false"))
                         ? new cube.service.harness.files.FileService(store, p, null)
                         : null;
         profiles = new ProfileRegistry(catalog, files == null ? null : files.ledger, deployment);
@@ -177,20 +178,15 @@ public final class ExecutionRuntime implements AutoCloseable {
         }
         store.admissionLimit(maxActive);
         accepting = Boolean.parseBoolean(p.getProperty("execution.accepting", "true"));
-        Path path =
-                Paths.get(
+        Path path = Paths.get(
                         Objects.requireNonNull(
                                 p.getProperty("execution.repository"), "execution.repository"));
         PackageRepository repo =
-                new PackageRepository(
-                        catalog,
-                        new AssetFiles(
-                                path,
+                new PackageRepository(catalog,
+                        new AssetFiles(path,
                                 Long.parseLong(
-                                        p.getProperty(
-                                                "execution.repository.max.bytes", "67108864")),
-                                p.getProperty(
-                                        "execution.repository.namespace", "harness-resources")),
+                                        p.getProperty("execution.repository.max.bytes", "67108864")),
+                                p.getProperty("execution.repository.namespace", "harness-resources")),
                         RemoteAdmin.signers(p),
                         true,
                         Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false")));
@@ -200,8 +196,7 @@ public final class ExecutionRuntime implements AutoCloseable {
         jobs = new ModelJobStore(store, sc.mysql());
         inference = new InferenceGateway(new InferenceStore(store, sc.mysql()), p, provider);
         workers = new ModelDispatcher(jobs, p, lease, inference);
-        broker =
-                Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false"))
+        broker = Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false"))
                         ? new ToolBroker(new ToolJobStore(store, sc.mysql()), permissions, p)
                         .files(files)
                         .context(resourceTools, providerMetadata, () -> {
@@ -211,8 +206,7 @@ public final class ExecutionRuntime implements AutoCloseable {
                         : null;
         admin = new RemoteAdmin(catalog, repo, providerMetadata, profiles, broker, p, permissions);
         runners = broker == null ? null : new RunnerDispatcher(broker, p, lease);
-        coordinator =
-                new RunCoordinator(
+        coordinator = new RunCoordinator(
                         store,
                         jobs,
                         catalog,
@@ -233,7 +227,13 @@ public final class ExecutionRuntime implements AutoCloseable {
         coordinator.start();
     }
 
-    /** Called only after the business request has passed trusted authentication and validation. */
+    public JSONObject monitoringSnapshot() {
+        return store.monitoringSnapshot();
+    }
+
+    /**
+     * Called only after the business request has passed trusted authentication and validation.
+     */
     public void ensureTenant(ProfileRegistry.Identity identity) {
         catalog.ensureTenant(identity.tenant, tenantTemplates);
     }
@@ -251,13 +251,12 @@ public final class ExecutionRuntime implements AutoCloseable {
      * @throws StoreException HARNESS_DRAINING（关闭接单且非重放）或 HARNESS_BUSY（满额且非重放）
      */
     public synchronized JSONObject create(ProfileRegistry.Identity identity, String key, JSONObject request) {
-        cube.service.harness.protocol.Contract.parse("create-run", RuntimeSupport.bytes(request));
+        Contract.parse("create-run", RuntimeSupport.bytes(request));
         ensureTenant(identity);
         JSONObject priorCreation = store.findCreate(identity.tenant, identity.subject, key, "server-default", request);
         if (priorCreation != null) return priorCreation;
         if (!accepting) {
-            JSONObject prior =
-                    store.findCreate(
+            JSONObject prior = store.findCreate(
                             identity.tenant,
                             identity.subject,
                             key,
@@ -270,8 +269,7 @@ public final class ExecutionRuntime implements AutoCloseable {
         }
         // 持久化创建重放先于准入判断（含已满额时）：同键请求在 catalog/store 内仍可重放。
         if (jobs.active(identity.tenant) >= maxActive) {
-            JSONObject prior =
-                    store.findCreate(
+            JSONObject prior = store.findCreate(
                             identity.tenant,
                             identity.subject,
                             key,
@@ -285,7 +283,11 @@ public final class ExecutionRuntime implements AutoCloseable {
         // Readiness is a point-in-time admission observation, not a reservation. Read its
         // database-backed worker state before the creation write transaction (SQLite).
         Set<String> readyModels = new HashSet<>();
-        for (JSONObject model : deployment.list("model")) if (workers.ready(model)) readyModels.add(model.getString("id") + "@" + model.getString("version"));
+        for (JSONObject model : deployment.list("model")) {
+            if (workers.ready(model)) {
+                readyModels.add(model.getString("id") + "@" + model.getString("version"));
+            }
+        }
         JSONArray readyRunners = runners == null ? new JSONArray() : runners.snapshot();
         JSONObject businessReady = businessReadiness(identity);
         return profiles.createRun(identity, key, request, pin -> {
@@ -293,7 +295,9 @@ public final class ExecutionRuntime implements AutoCloseable {
             JSONArray releases = pin.getJSONArray("releases");
             for (int i = 0; i < releases.length(); i++) {
                 String reason = businessReady.optString(releases.getJSONObject(i).getString("digest"), "");
-                if (!reason.isEmpty()) throw new StoreException(reason);
+                if (!reason.isEmpty()) {
+                    throw new StoreException(reason);
+                }
             }
         });
     }
@@ -302,7 +306,8 @@ public final class ExecutionRuntime implements AutoCloseable {
         JSONArray all = new JSONArray(), rows = catalog.releases(identity.tenant);
         for (int i = 0; i < rows.length(); i++) {
             JSONObject row = catalog.release(identity.tenant, rows.getJSONObject(i).getString("digest"));
-            all.put(new JSONObject().put("digest", row.getString("digest")).put("manifest", new JSONObject(row.getString("manifest_json"))));
+            all.put(new JSONObject().put("digest", row.getString("digest"))
+                    .put("manifest", new JSONObject(row.getString("manifest_json"))));
         }
         return broker == null ? new JSONObject() : broker.businessReadiness(identity, all, repository);
     }
@@ -313,15 +318,21 @@ public final class ExecutionRuntime implements AutoCloseable {
      * @return 接受新 run 为 true
      */
     public boolean modelReady() {
-        for (JSONObject model : deployment.list("model")) if (workers.ready(model)) {
-            for (JSONObject runtime : deployment.list("runtime")) {
-                try {
-                    deployment.select(new JSONObject().put("model", model.getString("id") + "@" + model.getString("version"))
-                            .put("runtime", runtime.getString("id") + "@" + runtime.getString("version")));
-                    if (runtimeAvailability(runtime, Collections.emptySet()).getBoolean("ready")) return true;
-                } catch (cube.service.harness.store.StoreException incompatible) { }
+        for (JSONObject model : deployment.list("model"))
+            if (workers.ready(model)) {
+                for (JSONObject runtime : deployment.list("runtime")) {
+                    try {
+                        deployment.select(new JSONObject()
+                                .put("model", model.getString("id") + "@" + model.getString("version"))
+                                .put("runtime", runtime.getString("id") + "@" + runtime.getString("version")));
+                        if (runtimeAvailability(runtime, Collections.emptySet()).getBoolean("ready")) {
+                            return true;
+                        }
+                    } catch (StoreException incompatible) {
+                        // Nothing
+                    }
+                }
             }
-        }
         return false;
     }
 
@@ -330,26 +341,44 @@ public final class ExecutionRuntime implements AutoCloseable {
     }
 
     private JSONObject runtimeAvailability(JSONObject runtime, Set<String> requiredTypes, JSONArray nodes) {
-        if (runtime.getString("mode").equals("resources-only")) return new JSONObject().put("ready", requiredTypes.isEmpty())
-                .put("capacity", maxActive).put("available", maxActive).put("reason", requiredTypes.isEmpty() ? "" : "RUNTIME_NOT_READY");
-        if (runners == null) return new JSONObject().put("ready", false).put("capacity", 0).put("available", 0).put("reason", "TOOLS_DISABLED");
+        if (runtime.getString("mode").equals("resources-only"))
+            return new JSONObject().put("ready", requiredTypes.isEmpty())
+                    .put("capacity", maxActive)
+                    .put("available", maxActive)
+                    .put("reason", requiredTypes.isEmpty() ? "" : "RUNTIME_NOT_READY");
+        if (runners == null) {
+            return new JSONObject().put("ready", false).put("capacity", 0).put("available", 0).put("reason", "TOOLS_DISABLED");
+        }
         Set<String> readyTypes = new TreeSet<>();
         int capacity = 0, available = 0;
         for (int i = 0; i < nodes.length(); i++) {
             JSONObject node = nodes.getJSONObject(i);
-            if (!node.getBoolean("ready") || (!requiredTypes.isEmpty() && !requiredTypes.contains(node.getString("runnerType")))) continue;
+            if (!node.getBoolean("ready") ||
+                    (!requiredTypes.isEmpty() && !requiredTypes.contains(node.getString("runnerType")))) {
+                continue;
+            }
             readyTypes.add(node.getString("runnerType"));
-            capacity += node.getInt("capacity"); available += node.getInt("available");
+            capacity += node.getInt("capacity");
+            available += node.getInt("available");
         }
         boolean ready = !readyTypes.isEmpty() && readyTypes.containsAll(requiredTypes);
-        return new JSONObject().put("ready", ready).put("capacity", capacity).put("available", available).put("reason", ready ? "" : "RUNTIME_NOT_READY");
+        return new JSONObject().put("ready", ready)
+                .put("capacity", capacity)
+                .put("available", available)
+                .put("reason", ready ? "" : "RUNTIME_NOT_READY");
     }
 
     private void requireReady(JSONObject pin, Set<String> readyModels, JSONArray readyRunners) {
         JSONObject model = pin.getJSONObject("model");
-        if (!readyModels.contains(model.getString("id") + "@" + model.getString("version"))) throw new StoreException("MODEL_NOT_READY");
+        if (!readyModels.contains(model.getString("id") + "@" + model.getString("version"))) {
+            throw new StoreException("MODEL_NOT_READY");
+        }
+
         Set<String> requiredTypes = RuntimeSupport.strings(pin.getJSONArray("requiredRunnerTypes"));
-        if (!runtimeAvailability(pin.getJSONObject("runtime"), requiredTypes, readyRunners).getBoolean("ready")) throw new StoreException("RUNTIME_NOT_READY");
+        if (!runtimeAvailability(pin.getJSONObject("runtime"), requiredTypes, readyRunners).getBoolean("ready")) {
+            throw new StoreException("RUNTIME_NOT_READY");
+        }
+
         Set<String> tools = RuntimeSupport.strings(pin.getJSONObject("selection").getJSONArray("tools"));
         JSONArray releases = pin.getJSONArray("releases");
         for (int i = 0; i < releases.length(); i++) {
@@ -357,12 +386,16 @@ public final class ExecutionRuntime implements AutoCloseable {
             for (int j = 0; j < declared.length(); j++) {
                 JSONObject tool = declared.getJSONObject(j);
                 if (tools.contains(tool.getString("name")) && tool.getString("kind").equals("executable")
-                        && (broker == null || !broker.supports(tool))) throw new StoreException("RUNTIME_NOT_READY");
+                        && (broker == null || !broker.supports(tool))) {
+                    throw new StoreException("RUNTIME_NOT_READY");
+                }
             }
         }
     }
 
-    /** Authenticated public capability catalog with live readiness and bounded capacity. */
+    /**
+     * 经过认证的公共能力目录，具备实时可用性和有限容量。
+     */
     public JSONObject taskProfiles(ProfileRegistry.Identity identity) {
         ensureTenant(identity);
         JSONObject out = profiles.describe(identity);
@@ -373,37 +406,62 @@ public final class ExecutionRuntime implements AutoCloseable {
             String reason = businessReady.optString(skill.getString("digest"), "");
             skill.put("ready", reason.isEmpty()).put("reason", reason);
         }
-        JSONArray models = out.getJSONArray("models"), runtimes = out.getJSONArray("runtimes"), tools = out.getJSONArray("tools");
+        JSONArray models = out.getJSONArray("models");
+        JSONArray runtimes = out.getJSONArray("runtimes");
+        JSONArray tools = out.getJSONArray("tools");
+
         for (int i = 0; i < models.length(); i++) {
             JSONObject model = models.getJSONObject(i);
-            JSONObject status = workers.availability(deployment.resolve("model", model.getString("id") + "@" + model.getString("version")));
-            for (String key : status.keySet()) model.put(key, status.get(key));
+            JSONObject status = workers.availability(deployment.resolve("model",
+                    model.getString("id") + "@" + model.getString("version")));
+            for (String key : status.keySet()) {
+                model.put(key, status.get(key));
+            }
         }
         for (int i = 0; i < runtimes.length(); i++) {
             JSONObject runtime = runtimes.getJSONObject(i);
             JSONObject status = runtimeAvailability(runtime, Collections.emptySet());
-            for (String key : status.keySet()) runtime.put(key, status.get(key));
+            for (String key : status.keySet()) {
+                runtime.put(key, status.get(key));
+            }
         }
         for (int i = 0; i < tools.length(); i++) {
             JSONObject tool = tools.getJSONObject(i);
-            int capacity = 0, available = 0; boolean ready = false;
+            int capacity = 0, available = 0;
+            boolean ready = false;
             for (int j = 0; j < runtimes.length(); j++) {
                 JSONObject runtime = runtimes.getJSONObject(j);
                 boolean compatible = false;
                 JSONArray refs = tool.getJSONArray("compatibleRuntimes");
-                for (int k = 0; k < refs.length(); k++) if (refs.getJSONObject(k).getString("id").equals(runtime.getString("id"))
-                        && refs.getJSONObject(k).getString("version").equals(runtime.getString("version"))) compatible = true;
-                if (!compatible) continue;
-                JSONObject status = runtimeAvailability(runtime, tool.has("runnerType") ? Collections.singleton(tool.getString("runnerType")) : Collections.emptySet());
-                ready |= status.getBoolean("ready"); capacity = Math.max(capacity, status.getInt("capacity")); available = Math.max(available, status.getInt("available"));
+                for (int k = 0; k < refs.length(); k++) {
+                    if (refs.getJSONObject(k).getString("id").equals(runtime.getString("id"))
+                            && refs.getJSONObject(k).getString("version").equals(runtime.getString("version"))) {
+                        compatible = true;
+                    }
+                }
+                if (!compatible) {
+                    continue;
+                }
+                JSONObject status = runtimeAvailability(runtime,
+                        tool.has("runnerType") ?
+                                Collections.singleton(tool.getString("runnerType")) : Collections.emptySet());
+                ready |= status.getBoolean("ready");
+                capacity = Math.max(capacity, status.getInt("capacity"));
+                available = Math.max(available, status.getInt("available"));
             }
             if (tool.getString("kind").equals("executable")) {
                 JSONObject release = catalog.release(identity.tenant, tool.getString("release"));
                 JSONArray declared = new JSONObject(release.getString("manifest_json")).getJSONArray("tools");
-                for (int j = 0; j < declared.length(); j++) if (declared.getJSONObject(j).getString("name").equals(tool.getString("name"))
-                        && (broker == null || !broker.supports(declared.getJSONObject(j)))) ready = false;
+                for (int j = 0; j < declared.length(); j++) {
+                    if (declared.getJSONObject(j).getString("name").equals(tool.getString("name"))
+                            && (broker == null || !broker.supports(declared.getJSONObject(j)))) {
+                        ready = false;
+                    }
+                }
             }
-            tool.put("ready", ready).put("capacity", ready ? capacity : 0).put("available", ready ? available : 0).put("reason", ready ? "" : "RUNTIME_NOT_READY");
+            tool.put("ready", ready).put("capacity", ready ? capacity : 0)
+                    .put("available", ready ? available : 0)
+                    .put("reason", ready ? "" : "RUNTIME_NOT_READY");
         }
         return out;
     }

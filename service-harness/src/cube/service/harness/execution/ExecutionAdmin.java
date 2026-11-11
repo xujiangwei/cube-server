@@ -39,16 +39,23 @@ public final class ExecutionAdmin {
         Path tenant = Files.createDirectory(root.resolve("harness-tenant"));
         JSONObject runtime = DefaultProfiles.runtime();
         Files.write(execution.resolve("resources.json"), RuntimeSupport.bytes(runtime), StandardOpenOption.CREATE_NEW);
-        JSONObject trusted = DefaultProfiles.runtime().put("id", "trusted-python").put("mode", "trusted-python-v1")
-                .put("capabilities", new JSONArray().put("resources").put("tool.execute"))
-                .put("certification", "offline-trusted-runner").put("toolSetVersion", "broker-tools");
+        JSONObject trusted = DefaultProfiles.runtime()
+                .put("id", "trusted-python")
+                .put("mode", "trusted-python-v1")
+                .put("capabilities", new JSONArray()
+                        .put("resources").put("tool.execute"))
+                .put("certification", "offline-trusted-runner")
+                .put("toolSetVersion", "broker-tools");
         Files.write(execution.resolve("trusted-python.json"), RuntimeSupport.bytes(trusted), StandardOpenOption.CREATE_NEW);
         for (String model : new String[]{"Baize", "Baize2"}) {
-            JSONObject definition = ModelProfiles.model(model).put("version", DefaultProfiles.execution(model).getJSONObject("model").getString("version"));
+            JSONObject definition = ModelProfiles.model(model)
+                    .put("version", DefaultProfiles.execution(model).getJSONObject("model").getString("version"));
             Files.write(execution.resolve(model + ".json"), RuntimeSupport.bytes(definition), StandardOpenOption.CREATE_NEW);
         }
-        Files.write(execution.resolve("execution.json"), RuntimeSupport.bytes(DefaultProfiles.execution("Baize")), StandardOpenOption.CREATE_NEW);
-        Files.write(tenant.resolve("default.json"), RuntimeSupport.bytes(DefaultProfiles.tenantPolicy()), StandardOpenOption.CREATE_NEW);
+        Files.write(execution.resolve("execution.json"),
+                RuntimeSupport.bytes(DefaultProfiles.execution("Baize")), StandardOpenOption.CREATE_NEW);
+        Files.write(tenant.resolve("default.json"),
+                RuntimeSupport.bytes(DefaultProfiles.tenantPolicy()), StandardOpenOption.CREATE_NEW);
         System.out.println("Exported server execution configuration and independent tenant business policy defaults");
     }
 }

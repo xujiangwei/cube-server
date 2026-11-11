@@ -69,8 +69,11 @@ final class CapacityBudget {
         String group = capacity.getString("capacityGroup");
         for (int i = 0; i < registered; i++) {
             entries.put(new JSONObject().put("capacityGroup", group)
-                    .put("route", "slot:" + i).put("registered", 1).put("available", i < available ? 1 : 0)
-                    .put("groupCapacity", registered).put("groupAvailable", available));
+                    .put("route", "slot:" + i)
+                    .put("registered", 1)
+                    .put("available", i < available ? 1 : 0)
+                    .put("groupCapacity", registered)
+                    .put("groupAvailable", available));
         }
         return entries;
     }
