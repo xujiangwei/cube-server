@@ -78,16 +78,17 @@ public class DispatcherListener implements CellListener {
         this.cellets.clear();
         this.cellets = null;
 
-        this.timer = new Timer();
+        this.timer = new Timer("Cube-Dispatcher-Daemon", true);
         this.timer.schedule(this.daemon, 30 * 1000, 10 * 1000);
 
         // Downstream latency probes in the general daemon can block on disconnected services.
         // Keep performance snapshots independent so HTTP monitoring remains fresh during outages.
+        final Daemon reportDaemon = this.daemon;
         this.performanceTimer = new Timer("Cube-Dispatcher-Performance", true);
         this.performanceTimer.schedule(new TimerTask() {
             @Override public void run() {
                 try {
-                    daemon.submitPerformanceReport(System.currentTimeMillis());
+                    reportDaemon.submitPerformanceReport(System.currentTimeMillis());
                 } catch (RuntimeException e) {
                     Logger.w(DispatcherListener.class, "Performance report failed", e);
                 }
@@ -101,13 +102,14 @@ public class DispatcherListener implements CellListener {
     /**
      * 容器销毁前回调。
      *
-     * <p>当前无事可做：资源统一在 {@link #cellDestroyed(Nucleus)} 中释放。</p>
+     * <p>在网络服务与单元销毁前取消定时任务、拒绝新下游请求并释放等待线程，
+     * 避免单元卸载时仍等待已经断开的下游服务。</p>
      *
      * @param nucleus 容器内核。
      */
     @Override
     public void cellPredestroy(Nucleus nucleus) {
-        // Nothing
+        this.cellDestroyed(nucleus);
     }
 
     /**
@@ -129,8 +131,16 @@ public class DispatcherListener implements CellListener {
             this.timer = null;
         }
 
+        if (null != this.daemon) {
+            this.daemon.cancel();
+            LogManager.getInstance().removeHandle(this.daemon);
+            this.daemon = null;
+        }
+
         Performer performer = (Performer) nucleus.getParameter("performer");
-        performer.stop();
+        if (null != performer) {
+            performer.stop();
+        }
     }
 
     private void config(Performer performer) {

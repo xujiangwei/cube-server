@@ -117,11 +117,12 @@ public class SubmitThread extends Thread {
         boolean ownsRunning = true;
         Set<Report> attempted = Collections.newSetFromMap(new IdentityHashMap<Report, Boolean>());
         try {
+            if (this.isInterrupted() || this.service.isClosed()) return;
             client = new HttpClient();
             client.setConnectTimeout(CONNECT_TIMEOUT);
             client.start();
 
-            while (true) {
+            while (!this.isInterrupted() && !this.service.isClosed()) {
                 this.drain(client, attempted);
 
                 // 先释放标志位再判断队列：若释放瞬间有新报告入队，由本线程继续处理。
@@ -143,13 +144,17 @@ public class SubmitThread extends Thread {
             }
 
             if (null != client) {
+                boolean interrupted = Thread.interrupted();
                 try {
                     client.stop();
                 } catch (Exception e) {
                     // 停止失败不影响线程复位，仅记录
                     Logger.d(SubmitThread.class, "#run - Failed to stop the client: " + e.getMessage());
+                } finally {
+                    if (interrupted) Thread.currentThread().interrupt();
                 }
             }
+            this.service.submitThreadStopped(this);
         }
     }
 
@@ -176,6 +181,7 @@ public class SubmitThread extends Thread {
 
         Report report = null;
         while ((report = this.queue.poll()) != null) {
+            if (this.isInterrupted() || this.service.isClosed()) return;
             if (this.service.isSuspended()) {
                 // 已进入暂停期：不再发起任何请求，丢弃残留报告后退出
                 retryLater.clear();
@@ -221,6 +227,7 @@ public class SubmitThread extends Thread {
 
         // 排空后再放回队尾，让重试与下一次上报（约 10 秒后）自然错开
         for (Report item : retryLater) {
+            if (this.isInterrupted() || this.service.isClosed()) return;
             if (this.queue.size() < this.maxQueueLength) {
                 this.queue.offer(item);
             } else {
@@ -269,6 +276,7 @@ public class SubmitThread extends Thread {
         boolean unreachable = true;
 
         for (String url : this.hostUrls) {
+            if (this.isInterrupted() || this.service.isClosed()) return UNREACHABLE;
             StringContentProvider provider = new StringContentProvider(json);
 
             try {

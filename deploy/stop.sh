@@ -27,8 +27,10 @@ done
 
 PRGDIR=`dirname "$PRG"`
 
-sh "$PRGDIR"/stop-ferryboat.sh
+STOP_STATUS=0
+sh "$PRGDIR"/stop-ferryboat.sh "$@" || STOP_STATUS=1
 
-sh "$PRGDIR"/stop-dispatcher.sh
+sh "$PRGDIR"/stop-dispatcher.sh "$@" || STOP_STATUS=1
 
-sh "$PRGDIR"/stop-service.sh
+sh "$PRGDIR"/stop-service.sh "$@" || STOP_STATUS=1
+exit "$STOP_STATUS"

@@ -678,7 +678,8 @@ public final class RunCoordinator implements AutoCloseable {
                 return;
             }
             JSONArray rounds = intents(run, "round"), calls = intents(run, "call");
-            int repairs = 0;
+            JSONArray workflowRepairs = catalog.workflowRepairs(identity.tenant, identity.subject, run);
+            int repairs = workflowRepairs.length();
             // 任何新 intent 之前先对账全部历史 round；回调只写证据，从不写状态。
             for (int i = 0; i < rounds.length(); i++) {
                 JSONObject r = rounds.getJSONObject(i), j = jobs.enqueue(l, r, model);
@@ -776,8 +777,52 @@ public final class RunCoordinator implements AutoCloseable {
                         fail(l, "CONTEXT_AUTHORIZATION_CHANGED");
                         return;
                     }
-                    finish(l, "succeeded", "confirmed", last);
-                    return;
+                    JSONObject assessment;
+                    try {
+                        if (broker == null) {
+                            JSONArray releases = pin.getJSONArray("releases");
+                            for (int i = 0; i < releases.length(); i++) {
+                                if (ToolBroker.hasCompletionRequirements(releases.getJSONObject(i).getJSONObject("manifest")))
+                                    throw new StoreException("WORKFLOW_GUARD_UNAVAILABLE");
+                            }
+                            assessment = new JSONObject().put("required", false).put("satisfied", true);
+                        } else {
+                            assessment = broker.completion(identity, run, pin, catalog.activeSkills(identity.tenant, identity.subject, run), last);
+                        }
+                    } catch (StoreException error) {
+                        if (error.code.startsWith("STORE_")) throw error;
+                        fail(l, error.code);
+                        return;
+                    } catch (Exception error) {
+                        fail(l, "WORKFLOW_CHECK_INVALID");
+                        return;
+                    }
+                    if (assessment.getBoolean("satisfied")) {
+                        if (assessment.has("report")) {
+                            JSONObject report = assessment.getJSONObject("report");
+                            assessment.remove("report");
+                            last.put("report", report).put("text", JdbcRunStore.canonical(report));
+                        }
+                        if (assessment.getBoolean("required")) last.put("workflow", assessment);
+                        finish(l, "succeeded", "confirmed", last);
+                        return;
+                    }
+                    String roundId = rounds.getJSONObject(rounds.length() - 1).getString("intent_id");
+                    boolean requested = false;
+                    for (int i = 0; i < workflowRepairs.length(); i++) {
+                        if (new JSONObject(workflowRepairs.getJSONObject(i).getString("data_json")).getString("roundId").equals(roundId))
+                            requested = true;
+                    }
+                    if (!requested) {
+                        if (workflowRepairs.length() >= assessment.getInt("maxRepairs")
+                                || repairs >= limits.getInt("maxRepairs") || rounds.length() >= limits.getInt("maxRounds")) {
+                            finish(l, "failed", "confirmed", new JSONObject().put("errorCode", assessment.optBoolean("reportRequired") ? "REPORT_REQUIREMENTS_UNMET" : "WORKFLOW_REQUIREMENTS_UNMET")
+                                    .put("workflow", assessment));
+                            return;
+                        }
+                        catalog.workflowRepair(l, version(run), roundId, assessment);
+                        repairs++;
+                    }
                 }
             }
             JSONObject snapshot;

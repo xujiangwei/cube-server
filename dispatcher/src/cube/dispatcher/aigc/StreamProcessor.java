@@ -29,6 +29,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 实时流处理器。
@@ -47,6 +48,7 @@ public class StreamProcessor {
     private Timer timer;
 
     private ExecutorService executorService;
+    private final AtomicBoolean stopped = new AtomicBoolean(false);
 
     private String filePath = "cache/";
 
@@ -62,9 +64,9 @@ public class StreamProcessor {
         this.fileStorageCellet = fileStorageCellet;
 
         this.registerMap = new ConcurrentHashMap<>();
-        this.speakerDiarizationCache = new HashMap<>();
+        this.speakerDiarizationCache = new ConcurrentHashMap<>();
 
-        this.timer = new Timer();
+        this.timer = new Timer("Cube-Dispatcher-Stream", true);
         this.timer.scheduleAtFixedRate(new Daemon(), 10 * 1000, 1000);
 
         this.executorService = Executors.newCachedThreadPool();
@@ -75,19 +77,20 @@ public class StreamProcessor {
     /**
      * 停止处理器。
      *
-     * <p>取消定时清理任务并释放缓存，允许重复调用。</p>
+     * <p>取消定时任务、中断后台处理并释放本地缓存，允许重复调用。
+     * 停机时不再逐条同步删除远端临时文件，避免下游离线时每条流阻塞 30 秒。</p>
      */
     public void stop() {
-        this.timer.cancel();
-
-        Logger.i(this.getClass(), "#stop - The number of register to be deleted is " + this.registerMap.size());
-
-        Iterator<Map.Entry<String, Register>> iter = this.registerMap.entrySet().iterator();
-        while (iter.hasNext()) {
-            Register register = iter.next().getValue();
-            this.clear(register);
-            iter.remove();
+        if (!this.stopped.compareAndSet(false, true)) {
+            return;
         }
+        this.timer.cancel();
+        synchronized (this.speakerDiarizationCache) {
+            this.executorService.shutdownNow();
+            this.speakerDiarizationCache.clear();
+        }
+        this.registerMap.clear();
+        this.streamFileCodeMap.clear();
     }
 
     /**
@@ -99,6 +102,7 @@ public class StreamProcessor {
      * @param authToken  访问令牌。
      */
     public void register(String streamName, AuthToken authToken) {
+        if (this.stopped.get()) return;
         Register register = new Register(streamName, authToken);
         this.registerMap.put(streamName, register);
     }
@@ -113,6 +117,7 @@ public class StreamProcessor {
      * @param stream 分片数据。
      */
     public void receive(Track track, Stream stream) {
+        if (this.stopped.get()) return;
         if (stream.getType() == StreamType.SpeakerDiarization) {
             synchronized (this.speakerDiarizationCache) {
                 List<Stream> streams = this.speakerDiarizationCache.computeIfAbsent(stream.name, k -> new ArrayList<>());
@@ -186,6 +191,7 @@ public class StreamProcessor {
         @Override
         public void run() {
             synchronized (speakerDiarizationCache) {
+                if (stopped.get()) return;
                 Iterator<Map.Entry<String, List<Stream>>> iter = speakerDiarizationCache.entrySet().iterator();
                 while (iter.hasNext()) {
                     List<Stream> streams = iter.next().getValue();
@@ -246,6 +252,7 @@ public class StreamProcessor {
 
         @Override
         public void run() {
+            if (stopped.get() || Thread.currentThread().isInterrupted()) return;
             Register register = registerMap.get(this.name);
             if (null == register) {
                 Logger.w(this.getClass(), "#run - No token for stream: " + this.name);
@@ -292,17 +299,19 @@ public class StreamProcessor {
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                return;
             }
-            while (!this.checkFile(register, fileCode) && System.currentTimeMillis() - register.refresh < 30 * 1000) {
+            while (!stopped.get() && !this.checkFile(register, fileCode) && System.currentTimeMillis() - register.refresh < 30 * 1000) {
                 try {
                     Thread.sleep(10);
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    Thread.currentThread().interrupt();
+                    return;
                 }
             }
 
-            this.analysis(register, fileCode, index);
+            if (!stopped.get()) this.analysis(register, fileCode, index);
         }
 
         private boolean checkFile(Register register, String fileCode) {

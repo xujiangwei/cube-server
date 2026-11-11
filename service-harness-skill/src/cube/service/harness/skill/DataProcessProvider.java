@@ -53,7 +53,8 @@ public final class DataProcessProvider extends AbstractProvider {
             }
             JSONObject parameters = ConnectorConfig.arguments(args.optString("argumentsJson", "{}"));
             dataset = DataProcessing.process(profile, parameters, pages);
-            dataset.put("skill", skill).put("profileHash", profileHash);
+            dataset.put("skill", skill).put("profileHash", profileHash)
+                    .put("connectorId", profile.getString("connectorId")).put("pageRefs", refs);
             if (RuntimeSupport.bytes(dataset).length > 1048576) throw new StoreException("RESULT_BUDGET_EXCEEDED");
             // A fact is confirmed by its originating tool call. Different calls must not share that ownership.
             ref = "dataset-" + RuntimeSupport.sha(RuntimeSupport.bytes(new JSONObject()

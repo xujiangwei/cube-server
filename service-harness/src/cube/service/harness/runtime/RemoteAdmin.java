@@ -43,6 +43,7 @@ public final class RemoteAdmin {
             case PublishRelease:
                 if (!data.optString("contentType").equals("application/zip")) throw new StoreException("UNSUPPORTED_MEDIA_TYPE");
                 PackageRepository.Validated checked = repository.validate(new ByteArrayInputStream(raw));
+                if (broker == null && ToolBroker.hasCompletionRequirements(checked.manifest)) throw new StoreException("WORKFLOW_GUARD_UNAVAILABLE");
                 if (broker != null) broker.validatePackage(checked);
                 if (action == HarnessAction.ValidatePackage) return new JSONObject().put("digest", checked.digest).put("manifest", checked.manifest);
                 // Remote industry authors publish resource packages. Executable tools remain deployment assets.

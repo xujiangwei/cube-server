@@ -66,16 +66,18 @@ public class AIGCCellet extends AbstractCellet {
     /**
      * 卸载单元：与装载顺序相反地拆除。
      *
-     * <p>先停流处理器并摘除监听器，再停管理器，确保没有正在处理的分片被打断在中间状态。
-     * 本方法假定 {@link #install()} 已执行过。</p>
+     * <p>先摘除监听器，随后中断流处理器并停止管理器。允许部分初始化后卸载。</p>
      */
     @Override
     public void uninstall() {
-        this.processor.stop();
-
-        this.performer.getStreamServer().removeListener();
-
-        Manager.getInstance().stop();
+        if (this.performer != null) {
+            this.performer.getStreamServer().removeListener();
+        }
+        try {
+            if (this.processor != null) this.processor.stop();
+        } finally {
+            Manager.getInstance().stop();
+        }
     }
 
     /**

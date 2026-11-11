@@ -35,7 +35,11 @@
       <sysproperty key="runtime.test.root" value="${runtime.test.root}"/>
     </java>
   </target>
-  <target name="test-execution" depends="test">
+  <target name="test-workflow" depends="test">
+    <java classname="cube.service.harness.test.WorkflowExecutionTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
+  </target>
+  <target name="test-execution" depends="test-workflow">
+    <java classname="cube.service.harness.test.ReleasePromotionTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.StoreBootstrapTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.DeploymentConfigurationTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.RequestSelectionTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
@@ -71,6 +75,7 @@
     <java classname="cube.service.harness.test.HarnessConfigTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.HarnessIdentityTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.WorkerRegistrationLogTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
+    <java classname="cube.service.harness.store.JdbcStatementTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
   </target>
   <target name="test-transport" depends="test">
     <available file="../build/cube-dispatcher-3.0.jar" property="dispatcher.present"/>

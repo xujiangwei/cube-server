@@ -650,6 +650,35 @@ public final class CatalogStore {
         });
     }
 
+    public JSONArray workflowRepairs(String tenant, String subject, String runId) {
+        return store.tx(c -> {
+            store.run(c, tenant, subject, runId, true);
+            return rows(c, "SELECT data_json FROM harness_event WHERE run_id=? AND event_type='workflow.repair' ORDER BY event_seq", runId);
+        });
+    }
+
+    /** Authorize one bounded repair per final round, atomically and replayably under the run lease. */
+    public void workflowRepair(JdbcRunStore.Lease lease, long expected, String round, JSONObject assessment) {
+        store.tx(c -> {
+            JSONObject r = store.run(c, lease.tenant, lease.subject, lease.runId, true);
+            store.owner(c, r, lease);
+            if (!r.getString("state").equals("running")) throw new StoreException("WORKFLOW_NOT_RUNNING");
+            JSONArray prior = rows(c, "SELECT data_json FROM harness_event WHERE run_id=? AND event_type='workflow.repair'", lease.runId);
+            for (int i = 0; i < prior.length(); i++) {
+                if (new JSONObject(prior.getJSONObject(i).getString("data_json")).getString("roundId").equals(round)) return null;
+            }
+            store.version(r, expected);
+            JSONObject latest = first(rows(c, "SELECT intent_id,status,result_json FROM harness_round WHERE run_id=? ORDER BY intent_id DESC,attempt DESC", lease.runId));
+            if (latest == null || !latest.getString("intent_id").equals(round) || !latest.getString("status").equals("confirmed")
+                    || !new JSONObject(latest.getString("result_json")).getString("kind").equals("final")) {
+                throw new StoreException("WORKFLOW_REPAIR_STALE");
+            }
+            if (prior.length() >= assessment.getInt("maxRepairs")) throw new StoreException("WORKFLOW_REPAIR_LIMIT");
+            store.emit(c, r, "workflow.repair", new JSONObject().put("roundId", round).put("assessment", assessment), "coordinator");
+            return null;
+        });
+    }
+
     /**
      * 按摘要读取 context 快照并做完整性校验。
      *

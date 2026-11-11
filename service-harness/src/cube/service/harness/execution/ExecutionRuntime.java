@@ -309,7 +309,14 @@ public final class ExecutionRuntime implements AutoCloseable {
             all.put(new JSONObject().put("digest", row.getString("digest"))
                     .put("manifest", new JSONObject(row.getString("manifest_json"))));
         }
-        return broker == null ? new JSONObject() : broker.businessReadiness(identity, all, repository);
+        if (broker != null) return broker.businessReadiness(identity, all, repository);
+        JSONObject result = new JSONObject();
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject release = all.getJSONObject(i);
+            if (ToolBroker.hasCompletionRequirements(release.getJSONObject("manifest")))
+                result.put(release.getString("digest"), "WORKFLOW_GUARD_UNAVAILABLE");
+        }
+        return result;
     }
 
     /**

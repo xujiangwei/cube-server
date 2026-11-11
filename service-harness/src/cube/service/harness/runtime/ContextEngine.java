@@ -362,6 +362,15 @@ public final class ContextEngine {
         for (int i = 0; i < events.length(); i++) {
             JSONObject event = events.getJSONObject(i);
             String type = event.getString("event_type");
+            if (type.equals("workflow.repair")) {
+                messages.put(message("system", "platform:workflow-guard",
+                        new JSONObject().put("instruction",
+                                "The previous final is not deliverable: required business steps or report fields/citations failed validation. "
+                                + "Continue using the existing confirmed references and authorized tools to address the listed gaps. "
+                                + "Do not repeat unknown execution or invent evidence; normal run/tool/repair budgets still apply.")
+                                .put("feedback", new JSONObject(event.getString("data_json")))));
+                continue;
+            }
             if (type.equals("control.resume")) {
                 // resume 输入作为普通 user 数据进入消息序列。
                 messages.put(

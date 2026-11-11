@@ -1,5 +1,9 @@
 # Harness 通用技能工具包
 
+M5 已补齐原始签名 ZIP 的跨环境晋级、CAS 和回退工具，见 [M5.md](../service-harness/M5.md)与[教程第11章](../../tutorials/src/content/docs/guide/11-promotion-and-rollback.md)。已有 M4 环境只更新管理工具，沿用原 JAR 和业务包；先人工部署跑通，再讨论现场验证。
+
+M4 已实现报告结构、记录覆盖与真实来源引用校验，见 [M4.md](../service-harness/M4.md)；成功结果读取 result.result.report，text 是规范报告 JSON 镜像。业务包与页面须同步升级，沿用原 WorkflowGuard 配置。M3 已实现业务包 workflow-requirements.json 驱动的服务端完成门禁和有限补齐，见 [M3.md](../service-harness/M3.md)。它是可信 WorkflowGuard 扩展，须同时部署匹配的核心与技能 JAR，并登记 guard 类及绝对私有配置。支持多个独立 model/Runner。本次工具公开 schema 与 manifest digest 未变，匹配 M2 的获准工具 release 可复用；业务资源包须发布新版本。
+
 本工程使用 Ant 构建 `cube-service-harness-skill-3.0.jar`，构建支持 **JDK 8 及以上**，产物保持 Java 8 兼容，由 Java `service-harness` 在同一 JVM 内加载，运行仍要求 **JDK 8**。九个 provider 可独立注册；Python tool Runner 执行技能的薄入口，通过 SDK/Broker 调用 Java，由 provider 查询数据并返回结构化证据。
 
 M1 的受限数据连接器、已有 Unit 调用、远程业务包发布与部署前提见 [M1.md](../service-harness/M1.md)。M2 的过滤、聚合、精确去重和首次人工部署见 [M2.md](../service-harness/M2.md)。F 的接口与上传资源见 [forest/](../../forest/README.md)，不包含在平台工具包中。

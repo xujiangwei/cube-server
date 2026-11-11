@@ -77,6 +77,7 @@ public final class ToolBroker implements AutoCloseable {
      * 部署侧提供方注册表，按 operation 路由作业。
      */
     private final QueryProviders providers;
+    private final WorkflowGate workflow;
 
     /**
      * 文件服务，可后置注入；为 null 表示未启用受控文件访问。
@@ -95,7 +96,9 @@ public final class ToolBroker implements AutoCloseable {
     private ProviderInvocation invocation(JSONObject job) {
         return new ProviderInvocation(job, jobs, files).services(resources, metadata, permissions, media);
     }
-    public void validatePackage(cube.service.harness.runtime.PackageRepository.Validated checked) {
+    public static boolean hasCompletionRequirements(JSONObject manifest) { return WorkflowGate.required(manifest); }
+    public void validatePackage(cube.service.harness.runtime.PackageRepository.Validated checked) throws Exception {
+        workflow.validate(checked);
         for (QueryProvider provider : providers.all()) for (String path : provider.configurationFiles()) {
             for (int i = 0; i < checked.manifest.getJSONArray("files").length(); i++) {
                 if (checked.manifest.getJSONArray("files").getJSONObject(i).getString("path").equals(path))
@@ -115,6 +118,7 @@ public final class ToolBroker implements AutoCloseable {
             JSONObject release = releases.getJSONObject(i), manifest = release.getJSONObject("manifest");
             String error = "";
             try {
+                workflow.preflight(manifest, repo);
                 for (QueryProvider provider : providers.all()) for (String path : provider.configurationFiles()) {
                     for (int j = 0; j < manifest.getJSONArray("files").length(); j++) {
                         if (manifest.getJSONArray("files").getJSONObject(j).getString("path").equals(path))
@@ -125,6 +129,14 @@ public final class ToolBroker implements AutoCloseable {
             result.put(release.getString("digest"), error);
         }
         return result;
+    }
+
+    public JSONObject completion(ProfileRegistry.Identity identity, String run, JSONObject pin, org.json.JSONArray active) throws Exception {
+        return completion(identity, run, pin, active, null);
+    }
+
+    public JSONObject completion(ProfileRegistry.Identity identity, String run, JSONObject pin, org.json.JSONArray active, JSONObject decision) throws Exception {
+        return workflow.check(identity, run, pin, active, resources, metadata, decision);
     }
 
     /**
@@ -238,7 +250,9 @@ public final class ToolBroker implements AutoCloseable {
         if (key.length() < 32) {
             throw new IllegalArgumentException("RUNNER_GRANT_KEY_REQUIRED");
         }
-        providers = new QueryProviders(p);
+        workflow = new WorkflowGate(p);
+        try { providers = new QueryProviders(p); }
+        catch (Exception error) { workflow.close(); throw error; }
         queries =
                 new ThreadPoolExecutor(
                         2,
@@ -853,6 +867,7 @@ public final class ToolBroker implements AutoCloseable {
      */
     @Override
     public void close() {
+        workflow.close();
         providers.close();
         queries.shutdownNow();
         recoveryQueries.shutdownNow();

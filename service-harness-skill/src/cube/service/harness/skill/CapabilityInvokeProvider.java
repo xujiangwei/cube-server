@@ -279,7 +279,12 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         if (media.has("inputId")) {
             provenance.put("inputId", media.getString("inputId"));
         }
-        context.textArtifact("media-source.json", provenance.toString());
+        JSONObject artifact = context.textArtifact("media-source.json", provenance.toString());
+        context.remember("analysis", context.jobId, new JSONObject().put("skill", args.getString("skill"))
+                .put("profileId", args.getString("profileId")).put("mediaRef", args.getString("mediaRef"))
+                .put("profileHash", RuntimeSupport.sha(RuntimeSupport.bytes(profile)))
+                .put("analysisResultSha256", provenance.getString("analysisResultSha256"))
+                .put("source", provenance).put("artifact", artifact));
         return out;
     }
 

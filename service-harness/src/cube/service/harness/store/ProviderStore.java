@@ -26,6 +26,32 @@ import static cube.service.harness.store.JdbcRunStore.*;
  */
 public final class ProviderStore {
 
+    /** Confirmed successful facts for one authenticated run, never model-authored output. */
+    public JSONArray completionEvidence(String tenant, String subject, String run) {
+        return store.tx(c -> {
+            store.run(c, tenant, subject, run, true);
+            JSONArray found = rows(c, "SELECT f.fact_kind,f.fact_id,f.value_json,j.definition_json,t.result_json FROM harness_provider_fact f "
+                    + "JOIN harness_tool_job j ON f.run_id=j.run_id AND f.job_id=j.job_id "
+                    + "JOIN harness_tool_call t ON t.run_id=j.run_id AND t.intent_id=j.call_id AND t.attempt=j.attempt "
+                    + "WHERE f.run_id=? AND j.tenant=? AND j.subject_id=? AND j.actual_finished=1 "
+                    + "AND j.effect_status='completed' AND t.status='confirmed' "
+                    + "AND f.fact_kind IN ('data-page','data-set','analysis') ORDER BY f.fact_kind,f.fact_id",
+                    run, tenant, subject);
+            JSONArray out = new JSONArray();
+            for (int i = 0; i < found.length(); i++) {
+                JSONObject row = found.getJSONObject(i);
+                // Also inspect normalized call status: confirmed errors cannot establish a fact.
+                if (!new JSONObject(row.getString("result_json")).optString("status").equals("success")) continue;
+                JSONObject fact = new JSONObject().put("kind", row.getString("fact_kind")).put("id", row.getString("fact_id"))
+                        .put("operation", new JSONObject(row.getString("definition_json")).getJSONObject("tool").getString("brokerOperation"))
+                        .put("value", new JSONObject(row.getString("value_json")));
+                if (row.getString("fact_kind").equals("analysis")) fact.put("result", new JSONObject(new JSONObject(row.getString("result_json")).getString("dataJson")));
+                out.put(fact);
+            }
+            return out;
+        });
+    }
+
     /**
      * 底层运行存储，提供事务边界、run 行读取与租约校验能力。
      */

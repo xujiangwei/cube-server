@@ -377,10 +377,17 @@ public final class JdbcRunStore {
     private static PreparedStatement statement(Connection c, String sql, Object... args)
             throws SQLException {
         PreparedStatement s = c.prepareStatement(sql);
-        for (int i = 0; i < args.length; i++) {
-            s.setObject(i + 1, args[i]);
+        try {
+            for (int i = 0; i < args.length; i++) {
+                s.setObject(i + 1, args[i]);
+            }
+            return s;
+        } catch (SQLException | RuntimeException | Error failure) {
+            // Ownership transfers only after all parameters bind successfully.
+            try { s.close(); }
+            catch (SQLException | RuntimeException | Error closing) { failure.addSuppressed(closing); }
+            throw failure;
         }
-        return s;
     }
 
     /**

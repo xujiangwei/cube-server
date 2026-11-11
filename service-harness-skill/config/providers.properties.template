@@ -20,3 +20,6 @@ broker.provider.calculator.config=C:/private/harness/calculator.properties
 # Optional M2 provider; append processing to broker.providers and grant data.process.
 # broker.provider.processing.class=cube.service.harness.skill.DataProcessProvider
 # broker.provider.processing.config=C:/private/harness/processing.properties
+# Optional M3 guard: add to the host configuration after installing matching core/skill JARs.
+# broker.completion.guard.class=cube.service.harness.skill.WorkflowGuard
+# broker.completion.guard.config=C:/private/harness/workflow.properties

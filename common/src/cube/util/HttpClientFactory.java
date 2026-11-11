@@ -10,7 +10,8 @@ import cell.util.log.Logger;
 import org.eclipse.jetty.client.HttpClient;
 
 import java.util.Collections;
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -27,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *     <li>并发借出上限 {@link #MAX_CLIENTS}，借出超时抛 {@link IllegalStateException}（明确失败优于静默耗尽）；</li>
  *     <li>统一设置连接超时与空闲超时，避免对端不响应时永久占用线程；</li>
  *     <li>拒绝归还 {@code null}，并识别重复归还（避免许可计数被放大）；</li>
- *     <li>{@link #close()} 负责停止池内实例，在停机时调用。</li>
+ *     <li>{@link #close()} 停止空闲及已借出的实例，并拒绝后续借用，在停机时调用。</li>
  * </ul>
  */
 public final class HttpClientFactory {
@@ -64,6 +65,8 @@ public final class HttpClientFactory {
     private Set<HttpClient> borrowed;
 
     private AtomicInteger created;
+    private final Object lifecycleLock = new Object();
+    private boolean closed;
 
     private HttpClientFactory() {
         this.queue = new ConcurrentLinkedQueue<>();
@@ -90,6 +93,9 @@ public final class HttpClientFactory {
      * @throws IllegalStateException 池已满且等待超时，或客户端启动失败时抛出。
      */
     public HttpClient borrowHttpClient() {
+        synchronized (this.lifecycleLock) {
+            if (this.closed) throw new IllegalStateException("HttpClient factory is closed");
+        }
         try {
             if (!this.permits.tryAcquire(BORROW_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 Logger.e(HttpClientFactory.class, "#borrowHttpClient - The pool is exhausted, max: " + MAX_CLIENTS
@@ -101,21 +107,26 @@ public final class HttpClientFactory {
             throw new IllegalStateException("Interrupted while borrowing HttpClient", e);
         }
 
-        HttpClient client = this.queue.poll();
-        if (null != client) {
-            if (client.isStarted()) {
-                this.borrowed.add(client);
-                return client;
+        synchronized (this.lifecycleLock) {
+            if (this.closed) {
+                this.permits.release();
+                throw new IllegalStateException("HttpClient factory is closed");
+            }
+            HttpClient client = this.queue.poll();
+            if (null != client) {
+                if (client.isStarted()) {
+                    this.borrowed.add(client);
+                    return client;
+                }
+
+                // 池内实例已被停止或启动失败，丢弃后重建
+                this.closeQuietly(client);
             }
 
-            // 池内实例已被停止或启动失败，丢弃后重建
-            this.closeQuietly(client);
-            client = null;
+            client = this.newClient();
+            this.borrowed.add(client);
+            return client;
         }
-
-        client = this.newClient();
-        this.borrowed.add(client);
-        return client;
     }
 
     /**
@@ -131,19 +142,16 @@ public final class HttpClientFactory {
             return;
         }
 
-        if (!this.borrowed.remove(client)) {
-            Logger.w(HttpClientFactory.class, "#returnHttpClient - The client is not borrowed or already returned");
-            return;
-        }
-
-        if (client.isStopped() || client.isFailed()) {
-            this.closeQuietly(client);
+        boolean discard;
+        synchronized (this.lifecycleLock) {
+            if (!this.borrowed.remove(client)) {
+                return;
+            }
+            discard = this.closed || client.isStopped() || client.isFailed();
+            if (!discard) this.queue.offer(client);
             this.permits.release();
-            return;
         }
-
-        this.queue.offer(client);
-        this.permits.release();
+        if (discard) this.closeQuietly(client);
     }
 
     /**
@@ -166,12 +174,18 @@ public final class HttpClientFactory {
 
     /** 关闭工厂并释放连接池。 */
     public void close() {
-        Iterator<HttpClient> iter = this.queue.iterator();
-        while (iter.hasNext()) {
-            HttpClient client = iter.next();
-            this.closeQuietly(client);
+        List<HttpClient> clients;
+        synchronized (this.lifecycleLock) {
+            this.closed = true;
+            clients = new ArrayList<>(this.queue);
+            clients.addAll(this.borrowed);
+            this.queue.clear();
+            this.permits.release(this.borrowed.size());
+            this.borrowed.clear();
         }
-        this.queue.clear();
+        // Stopping a client can invoke callbacks which return it to this factory.
+        // Do not hold lifecycleLock while waiting for its Jetty threads to exit.
+        for (HttpClient client : clients) this.closeQuietly(client);
     }
 
     private HttpClient newClient() {

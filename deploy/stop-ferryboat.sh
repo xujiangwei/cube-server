@@ -44,4 +44,4 @@ else
 fi 
 
 echo -e "\nStop Ferryboat: $PRGDIR/$EXECUTABLE ferryboat\n"
-exec "$PRGDIR"/"$EXECUTABLE" ferryboat
+exec "$PRGDIR"/"$EXECUTABLE" ferryboat "$@"

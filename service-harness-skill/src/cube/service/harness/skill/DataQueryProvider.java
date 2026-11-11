@@ -243,9 +243,11 @@ public final class DataQueryProvider extends AbstractProvider {
         // 5) 计算下一页游标：上游游标不得重复签发，快照必须保持不变。
         String next = "";
         String snapshotId = snapshot ? "input:" + input.getString(connector.getString("inputArgument")) : "";
+        String nextPosition = "";
         if (!snapshot) {
             JSONObject page = connector.getJSONObject("pagination");
             String upstream = (String) ConnectorConfig.pointer(response, page.getString("nextCursor"));
+            nextPosition = upstream;
             String snap = (String) ConnectorConfig.pointer(response, page.getString("snapshotPointer"));
             snapshotId = snap;
             if (snap.isEmpty() || snap.length() > MAX_CURSOR_LENGTH || upstream.length() > MAX_CURSOR_LENGTH) {
@@ -281,6 +283,8 @@ public final class DataQueryProvider extends AbstractProvider {
         // 6) 组装结果：没有下一页游标即表示本次查询已完整。
         JSONObject pageFact = new JSONObject().put("skill", skill).put("connectorId", args.getString("connectorId"))
                 .put("queryHash", queryHash).put("snapshotId", snapshotId).put("cursor", cursor)
+                .put("cursorPosition", previous == null ? "" : previous.getString("upstream"))
+                .put("nextPosition", nextPosition)
                 .put("nextCursor", next).put("records", records).put("mediaRefs", refs).put("warnings", warnings);
         if (!snapshot) pageFact.put("sourceRef", connector.getString("sourceRef"));
         String pageRef = "data-page-" + RuntimeSupport.sha(RuntimeSupport.bytes(new JSONObject()

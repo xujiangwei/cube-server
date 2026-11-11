@@ -64,6 +64,7 @@ public class FileChunkStorage {
      * 线程池。
      */
     private ExecutorService executor;
+    private volatile boolean closed;
 
     /**
      * 是否将文件写到磁盘。
@@ -111,7 +112,8 @@ public class FileChunkStorage {
      * <p>停止后台执行器，未处理完的块随之丢弃；关闭后不能再接收新块。</p>
      */
     public void close() {
-        this.executor.shutdown();
+        this.closed = true;
+        if (this.executor != null) this.executor.shutdownNow();
     }
 
     /**
@@ -146,6 +148,7 @@ public class FileChunkStorage {
      * @return 实际使用的文件码。
      */
     public String append(FileChunk chunk, String fileCode) {
+        if (this.closed) throw new IllegalStateException("File chunk storage is closed");
         // 匹配文件码
         if (null == fileCode) {
             fileCode = this.matchFileCode(chunk);
@@ -236,6 +239,7 @@ public class FileChunkStorage {
      * @param fileChunkStore 待转发的块存储。
      */
     public synchronized void expressToService(final FileChunkStore fileChunkStore) {
+        if (this.closed) return;
         if (this.passingChunkInputStreams.containsKey(fileChunkStore.fileCode)) {
             return;
         }
@@ -248,6 +252,8 @@ public class FileChunkStorage {
             public void run() {
                 // 将文件流发给服务单元
                 performer.transmit(fileChunkStore.tokenCode, FileStorageCellet.NAME, fileChunkStore.fileCode, inputStream);
+
+                if (closed || Thread.currentThread().isInterrupted()) return;
 
                 // 将文件流进行标记
                 FileLabel fileLabel = markStream(fileChunkStore);
@@ -538,6 +544,7 @@ public class FileChunkStorage {
         private FileChunk current = null;
 
         private byte[] currentData = null;
+        private volatile boolean streamClosed;
 
         public ChunkInputStream(FileChunkStore store) {
             this.store = store;
@@ -547,6 +554,8 @@ public class FileChunkStorage {
 
         @Override
         public int read() throws IOException {
+            if (closed || this.streamClosed) return -1;
+            if (Thread.currentThread().isInterrupted()) throw new InterruptedIOException("Chunk read interrupted");
             // 文件游标后移
             ++this.cursor;
             // 块游标后移
@@ -571,11 +580,13 @@ public class FileChunkStorage {
                     // 没有完成，但是无新数据，进行等待
                     int waitCount = 3000;
                     while (null == chunk) {
+                        if (closed || this.streamClosed) return -1;
                         // 等待
                         try {
                             Thread.sleep(100L);
                         } catch (InterruptedException e) {
-                            e.printStackTrace();
+                            Thread.currentThread().interrupt();
+                            throw new InterruptedIOException("Chunk read interrupted");
                         }
                         --waitCount;
                         if (waitCount < 0) {
@@ -606,8 +617,7 @@ public class FileChunkStorage {
 
         @Override
         public void close() throws IOException {
-            this.current = null;
-            this.currentData = null;
+            this.streamClosed = true;
             passingChunkInputStreams.remove(this.store.fileCode);
         }
     }

@@ -50,15 +50,23 @@ done
 PRGDIR=`dirname "$PRG"`
 
 # Parse tag
-ARGVIDX=1
 TAG=""
+PREV=""
+FORCE=0
 for argv in "$@"
 do
-  if [ "$argv" = "-tag" ]; then
-    TAG="${@:$ARGVIDX+1:1}"
+  if [ "$PREV" = "-tag" ]; then
+    TAG="$argv"
+  elif [ "$1" = "stop" ] && [ "$argv" != "stop" ]; then
+    case "$argv" in
+      -force) FORCE=1 ;;
+      -*) echo "Unknown stop option: $argv" >&2; exit 1 ;;
+      *) if [ -n "$TAG" ]; then echo "Only one stop tag is allowed" >&2; exit 1; fi; TAG="$argv" ;;
+    esac
   fi
-  let ARGVIDX+=1
+  PREV="$argv"
 done
+case "$TAG" in *[!A-Za-z0-9._-]*) echo "Invalid Cell tag: $TAG" >&2; exit 1 ;; esac
 
 # Only set CC_HOME if not already set
 [ -z "$CC_HOME" ] && CC_HOME=`cd "$PRGDIR/.." ; pwd`
@@ -68,6 +76,12 @@ if [ -r "$CC_BASE"/bin/setenv.sh ]; then
 elif [ -r "$CC_HOME"/bin/setenv.sh ]; then
   . "$CC_HOME"/bin/setenv.sh
 fi
+
+[ -z "$CC_BASE" ] && CC_BASE="$CC_HOME"
+CC_HOME=$(cd "$CC_HOME" && pwd -P) || exit 1
+CC_BASE=$(cd "$CC_BASE" && pwd -P) || exit 1
+# Config, tag control files, logs and application data use relative paths.
+cd "$CC_BASE" || exit 1
 
 # For Cygwin, ensure paths are in UNIX format before anything is touched
 if $cygwin; then
@@ -112,21 +126,36 @@ fi
 # Add on extra jar files to CLASSPATH
 CLASSPATH="$CLASSPATH":"$CC_HOME"/bin/cell.jar
 # Scan libs path
-for file in ` ls "$CC_HOME"/libs `
+for file in "$CC_HOME"/libs/*.jar
 do
-  CLASSPATH="$CLASSPATH":"$CC_HOME"/libs/$file
+  [ -f "$file" ] && CLASSPATH="$CLASSPATH:$file"
 done
 
 # Option for server
-# JAVA_OPTS="-server -Dfile.encoding=UTF-8 -Duser.timezone=GMT+08 -Xmx2048m -Xms2048m -Xmn768m -Xss256k -XX:SurvivorRatio=8 -XX:LargePageSizeInBytes=128m -XX:MaxTenuringThreshold=7 -XX:GCTimeRatio=19 -XX:+DisableExplicitGC -XX:+CMSClassUnloadingEnabled -XX:-CMSParallelRemarkEnabled -XX:+UseCMSInitiatingOccupancyOnly -XX:CMSInitiatingOccupancyFraction=70 -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+PrintClassHistogram -Xlog:gc:logs/gc_$TAG.log"
-JAVA_OPTS="-server -Dfile.encoding=UTF-8 -Duser.timezone=GMT+08 -Xmx1024m -Xms1024m -Xmn384m -Xss256k -XX:SurvivorRatio=8 -XX:LargePageSizeInBytes=128m -XX:MaxTenuringThreshold=7 -XX:GCTimeRatio=19 -XX:+DisableExplicitGC -XX:+CMSClassUnloadingEnabled -XX:-CMSParallelRemarkEnabled -XX:+UseCMSInitiatingOccupancyOnly -XX:CMSInitiatingOccupancyFraction=70 -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+PrintClassHistogram -Xlog:gc:logs/gc_$TAG.log"
+# JAVA_OPTS="-server -Dfile.encoding=UTF-8 -Duser.timezone=GMT+08 -Xmx2048m -Xms2048m -Xmn768m -Xss256k -XX:SurvivorRatio=8 -XX:LargePageSizeInBytes=128m -XX:MaxTenuringThreshold=7 -XX:GCTimeRatio=19 -XX:+DisableExplicitGC -XX:+CMSClassUnloadingEnabled -XX:-CMSParallelRemarkEnabled -XX:+UseCMSInitiatingOccupancyOnly -XX:CMSInitiatingOccupancyFraction=70 -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+PrintClassHistogram -Xloggc:logs/gc_$TAG.log"
+if [ -z "$JAVA_OPTS" ]; then
+  JAVA_OPTS="-server -Dfile.encoding=UTF-8 -Duser.timezone=GMT+08 -Xmx1024m -Xms1024m -Xmn384m -Xss256k -XX:SurvivorRatio=8 -XX:LargePageSizeInBytes=128m -XX:MaxTenuringThreshold=7 -XX:GCTimeRatio=19 -XX:+DisableExplicitGC -XX:+CMSClassUnloadingEnabled -XX:-CMSParallelRemarkEnabled -XX:+UseCMSInitiatingOccupancyOnly -XX:CMSInitiatingOccupancyFraction=70 -XX:SoftRefLRUPolicyMSPerMB=0 -XX:+PrintClassHistogram -Xloggc:logs/gc_$TAG.log"
+fi
 
 if [ -z "$CC_BASE" ] ; then
   CC_BASE="$CC_HOME"
 fi
 
 # Define PID file
-CC_PID="$CC_HOME"/bin/pid
+[ -z "$CC_PID" ] && CC_PID="$CC_BASE/bin/cell-${TAG:-default}.pid"
+case "$CC_PID" in /*) ;; *) CC_PID="$CC_BASE/$CC_PID" ;; esac
+. "$CC_HOME/bin/cell-process.sh" || exit 1
+# Refuse unsupported ps implementations instead of silently declaring a live JVM absent.
+ps -p $$ -o pid= -o args= >/dev/null 2>&1 || {
+  echo "cell.sh requires ps with -p/-e/-ww/-o process inspection support" >&2
+  exit 1
+}
+case "$1" in start|stop)
+  [ -r /proc/$$/cmdline ] || {
+    echo "Safe start/stop requires Linux /proc process argument inspection" >&2
+    exit 1
+  } ;;
+esac
 
 # Bugzilla 37848: When no TTY is available, don't output to console
 have_tty=0
@@ -178,45 +207,44 @@ elif [ "$1" = "run" ]; then
 
   shift
   exec "$_RUNJAVA" $JAVA_OPTS \
+    "-Dcube.base=$CC_BASE" -classpath "$CLASSPATH" \
     cell.carpet.Cell start "$@"
 
 elif [ "$1" = "start" ] ; then
 
   shift
-  touch "$CC_BASE"/logs/cell_"$TAG".out
+  [ -n "$TAG" ] || { echo "start requires -tag NAME" >&2; exit 1; }
+  cell_lock || exit 1
+  cell_find || exit 1
+  if [ -n "$CELL_TARGET" ]; then
+    echo "$TAG is already running (PID $CELL_TARGET)" >&2
+    exit 1
+  fi
+  mkdir -p "$CC_BASE/logs" || exit 1
 
-  "$_RUNJAVA" $JAVA_OPTS \
+  nohup "$_RUNJAVA" $JAVA_OPTS "-Dcube.base=$CC_BASE" \
     -classpath "$CLASSPATH" \
     cell.carpet.Cell start "$@" -console false \
-    > "$CC_BASE"/logs/cell_"$TAG".out 2>&1 &
+    > "$CC_BASE"/logs/cell_"$TAG".out 2>&1 < /dev/null &
 
-    if [ ! -z "$CC_PID" ]; then
-      echo $! > $CC_PID
-    fi
+  CELL_CHILD=$!
+  if ! (umask 077; echo "$CELL_CHILD" > "$CC_PID"); then
+    kill "$CELL_CHILD" 2>/dev/null
+    exit 1
+  fi
+  sleep 1
+  if ! cell_matches "$CELL_CHILD"; then
+    rm -f "$CC_PID"
+    echo "$TAG failed to start; check $CC_BASE/logs/cell_$TAG.out" >&2
+    exit 1
+  fi
+  echo "$TAG started (PID $CELL_CHILD), PID file: $CC_PID"
 
 elif [ "$1" = "stop" ] ; then
 
-  shift
-  FORCE=0
-  if [ "$1" = "-force" ]; then
-    shift
-    FORCE=1
-  fi
-
-#  "$_RUNJAVA" $JAVA_OPTS \
-#    -classpath "$CLASSPATH" \
-  "$_RUNJAVA" \
-      -classpath "$CC_HOME/bin/cell.jar" \
-    cell.carpet.Cell stop "$@"
-
-  if [ $FORCE -eq 1 ]; then
-    if [ ! -z "$CC_PID" ]; then
-       echo "Killing: `cat $CC_PID`"
-       kill -9 `cat $CC_PID`
-    else
-       echo "Kill failed: \$CC_PID not set"
-    fi
-  fi
+  [ -n "$TAG" ] || { echo "stop requires a tag" >&2; exit 1; }
+  cell_stop
+  exit $?
 
 elif [ "$1" = "version" ] ; then
 
@@ -234,10 +262,10 @@ else
     echo "  debug             Start cell in a debugger"
   fi
   echo "  run               Start cell in the current window"
-  echo "  start             Start cell in a separate window"
-  echo "  stop              Stop cell"
-  echo "  stop -force       Stop cell (followed by kill -KILL)"
-  echo "  version           What version of tomcat are you running?"
+  echo "  start -tag TAG    Start cell in a separate window"
+  echo "  stop TAG          Stop cell, wait, then send TERM if needed"
+  echo "  stop TAG -force   Also allow KILL after the stop timeouts"
+  echo "  version           Show the Cell version"
   exit 1
 
 fi

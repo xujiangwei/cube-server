@@ -34,7 +34,7 @@ public class StreamServer {
 
     private NonblockingAcceptor acceptor;
 
-    private StreamListener listener;
+    private volatile StreamListener listener;
 
     public StreamServer() {
         this.port = 7171;
@@ -48,23 +48,32 @@ public class StreamServer {
      *
      * @param port 监听端口。
      */
-    public void start(int port) {
+    public synchronized void start(int port) {
+        if (this.acceptor != null) return;
         this.port = port;
         this.acceptor = new NonblockingAcceptor();
         this.acceptor.setHandler(new StreamDataHandler());
         this.acceptor.setMaxConnectNum(1000);
         this.acceptor.setWorkerNum(16);
-        (new Thread() {
+        final NonblockingAcceptor starting = this.acceptor;
+        Thread starter = new Thread() {
             @Override
             public void run() {
-                if (acceptor.bind(port)) {
-                    Logger.i(StreamServer.class, "Stream server bind @ " + port);
-                }
-                else {
-                    Logger.i(StreamServer.class, "Stream server bind ERROR @ " + port);
+                synchronized (StreamServer.this) {
+                    // stop() can run before this thread is scheduled. Never bind after it.
+                    if (acceptor != starting) return;
+                    if (starting.bind(port)) {
+                        Logger.i(StreamServer.class, "Stream server bind @ " + port);
+                    }
+                    else {
+                        Logger.i(StreamServer.class, "Stream server bind ERROR @ " + port);
+                    }
                 }
             }
-        }).start();
+        };
+        starter.setName("Cube-Dispatcher-Stream-Bind");
+        starter.setDaemon(true);
+        starter.start();
     }
 
     /**
@@ -72,7 +81,7 @@ public class StreamServer {
      *
      * <p>允许重复调用，未启动时直接返回。</p>
      */
-    public void stop() {
+    public synchronized void stop() {
         if (null != this.acceptor) {
             this.acceptor.unbind();
             this.acceptor = null;

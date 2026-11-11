@@ -205,6 +205,10 @@ public final class MediaToolsTest {
             CommonToolsTest.releases.put(name, digest);
         }
         settings.setProperty("broker.providers", settings.getProperty("broker.providers") + ",data,capability,processing");
+        Path guardConfig = root.resolve("workflow.properties");
+        Files.write(guardConfig, bytes("workflow.max.repairs=2\n"));
+        settings.setProperty("broker.completion.guard.class", "cube.service.harness.skill.WorkflowGuard");
+        settings.setProperty("broker.completion.guard.config", guardConfig.toString());
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
         gen.initialize(2048);
         KeyPair keys = gen.generateKeyPair();
@@ -247,7 +251,12 @@ public final class MediaToolsTest {
         };
         broker = new ToolBroker(new ToolJobStore(store, false), identity, settings).files(CommonToolsTest.files).context(resources, metadata, () -> bridge);
         RemoteAdmin admin = new RemoteAdmin(catalog, repo, metadata, new ProfileRegistry(catalog), broker, settings, TEST_PERMISSIONS);
-        byte[] zip = Files.readAllBytes(forest.resolve("build/fhe-patrol-v1.zip"));
+        byte[] zip = Files.readAllBytes(packages.getParent().resolve("fhe-patrol-m4-test.zip"));
+        Properties unguardedSettings = new Properties(); unguardedSettings.putAll(settings);
+        unguardedSettings.remove("broker.completion.guard.class");
+        try (ToolBroker unguarded = new ToolBroker(new ToolJobStore(store, false), identity, unguardedSettings)) {
+            fail("WORKFLOW_GUARD_UNAVAILABLE", () -> unguarded.validatePackage(repo.validate(new ByteArrayInputStream(zip))));
+        }
         JSONObject headers = new JSONObject().put("contentType", "application/zip").put("key", key());
         JSONObject validation = admin.handle(identity, HarnessAction.ValidatePackage, headers, zip);
         Signature signer = Signature.getInstance("SHA256withRSA");
@@ -288,10 +297,12 @@ public final class MediaToolsTest {
             for (String digest : CommonToolsTest.releases.values()) {
                 resources.activate(identity, run, digest);
             }
+            check(!workflow(run).getBoolean("satisfied"), "M3 rejects final before any query");
             JSONObject query = new JSONObject().put("skill", "fhe/patrol").put("connectorId", "uploaded-records").put("argumentsJson", new JSONObject().put("inputId", data).toString());
             JSONObject queried = call(lease, "common.data.query", query);
             check(!queried.has("errorCode"), "query error: " + queried);
             check(queried.getBoolean("complete"), "snapshot coverage");
+            check(gaps(run) == 1, "M3 requires processing after complete query");
             String ref = queried.getJSONArray("mediaRefs").getJSONObject(0).getString("mediaRef");
             JSONObject processed = call(lease, "common.processing.process", new JSONObject().put("action", "process")
                     .put("skill", "fhe/patrol").put("profileId", "uploaded-summary")
@@ -299,11 +310,13 @@ public final class MediaToolsTest {
             check(!processed.has("errorCode"), "snapshot processing: " + processed);
             check(processed.getJSONObject("coverage").getBoolean("queryComplete"), "snapshot processing coverage");
             check(processed.getInt("totalItems") == 2 && processed.getInt("nextOffset") == 1, "record paging keeps full dataset");
+            check(gaps(run) == 2, "M3 requires both records analyzed");
             check(new JSONArray(processed.getString("itemsJson")).getJSONObject(0).getJSONArray("sources")
                     .getJSONObject(0).getString("mediaRef").equals(ref), "processing retains original media capability reference");
             broker.close();
             broker = new ToolBroker(new ToolJobStore(store, false), identity, settings).files(CommonToolsTest.files)
                     .context(resources, new ProviderStore(store, false), () -> bridge);
+            check(gaps(run) == 2, "M3 evidence survives Broker restart");
             JSONObject read = new JSONObject().put("action", "read").put("skill", "fhe/patrol").put("profileId", "uploaded-summary")
                     .put("datasetRef", processed.getString("datasetRef")).put("view", "groups");
             JSONObject group = call(lease, "common.processing.process", read);
@@ -331,25 +344,43 @@ public final class MediaToolsTest {
             check(result.getString("answer").contains("Fixture") && inferences.get() == 1, "actual fixture dispatched once, no invented count");
             check(CommonToolsTest.files.artifacts(run).length() == 1, "one trusted source artifact despite replay");
             check(CommonToolsTest.files.artifacts(run).getJSONObject(0).getJSONObject("origin").getBoolean("confirmed"), "source metadata authenticates provider and confirmed call");
+            check(gaps(run) == 1, "M3 cannot reuse analysis across distinct records sharing bytes");
+            String secondRef = new JSONArray(secondPage.getString("itemsJson")).getJSONObject(0).getJSONArray("sources").getJSONObject(0).getString("mediaRef");
+            check(!call(lease, "common.capability.invoke", new JSONObject(invoke.toString()).put("mediaRef", secondRef)).has("errorCode"), "second record analyzed");
+            check(workflow(run).getBoolean("satisfied"), "M3 complete confirmed snapshot chain passes");
+            JSONObject submission = reportSubmission(processed.getString("datasetRef"), ref, secondRef, result.getString("answer"));
+            JSONObject report = report(run, submission);
+            check(report.getBoolean("satisfied"), "M4 real provider/JDBC provenance passes: " + report);
+            JSONObject citation = report.getJSONObject("report").getJSONArray("reports").getJSONObject(0)
+                    .getJSONArray("datasets").getJSONObject(0).getJSONArray("findings").getJSONObject(0).getJSONObject("citation");
+            check(CommonToolsTest.files.metadata(citation.getString("artifactId"), "artifact").getString("sha256").equals(citation.getString("artifactSha256")), "M4 citation binds real artifact bytes");
+            JSONObject forged = new JSONObject(submission.toString());
+            forged.getJSONArray("reports").getJSONObject(0).getJSONArray("datasets").getJSONObject(0).getJSONArray("findings").getJSONObject(0).put("mediaRef", "forged");
+            check(!report(run, forged).getBoolean("satisfied"), "M4 forged media reference rejected");
+            check(!report(otherRun, submission).getBoolean("satisfied"), "M4 cross-run evidence rejected");
+            broker.close();
+            broker = new ToolBroker(new ToolJobStore(store, false), identity, settings).files(CommonToolsTest.files).context(resources, new ProviderStore(store, false), () -> bridge);
+            check(report(run, submission).getJSONObject("report").similar(report.getJSONObject("report")), "M4 normalized report survives Broker restart");
+            evidenceFilters(run);
             cube.service.harness.protocol.Contract.parse("artifact-view", bytes(CommonToolsTest.files.artifacts(run).getJSONObject(0).toString()));
             check(call(lease, "common.capability.invoke", new JSONObject(invoke.toString()).put("mediaRef", "forged")).has("errorCode"), "forged media denied");
             delay = true;
             check(call(lease, "common.capability.invoke", invoke).has("errorCode"), "timeout remains unknown");
             check(call(lease, "common.capability.invoke", invoke).has("errorCode"), "other live node selected");
-            check(!executions.get(1).getString("instanceId").equals(executions.get(2).getString("instanceId")), "two Unit nodes share load and retain unknown reservations");
-            check(call(lease, "common.capability.invoke", invoke).has("errorCode") && inferences.get() == 3, "unknown capacity cannot be reused");
+            check(!executions.get(2).getString("instanceId").equals(executions.get(3).getString("instanceId")), "two Unit nodes share load and retain unknown reservations");
+            check(call(lease, "common.capability.invoke", invoke).has("errorCode") && inferences.get() == 4, "unknown capacity cannot be reused");
             check(cancellations.get() == 2, "timeouts request cancellation without assuming physical completion");
             try (StoreConfig reopenedConfig = new StoreConfig(settings)) {
                 ProviderStore reopened = new ProviderStore(new JdbcRunStore(reopenedConfig), false);
-                JSONObject unknownJob = broker.jobs.job(executions.get(1).getString("requestId"));
+                JSONObject unknownJob = broker.jobs.job(executions.get(2).getString("requestId"));
                 check(!reopened.finished(unknownJob), "strict store re-open retains lack of physical completion");
                 fail("CAPABILITY_EXECUTION_ALREADY_STARTED", () -> reopened.reserve(unknownJob, bridge.mediaUnits(), "OmniMultimodal", new JSONObject()));
             }
-            delayed.get(0).accept(physical(executions.get(1)));
+            delayed.get(0).accept(physical(executions.get(2)));
             delay = false;
             JSONObject afterReceipt = call(lease, "common.capability.invoke", invoke);
             check(!afterReceipt.has("errorCode") && afterReceipt.getString("answer").contains("Fixture"), "physical late receipt releases only its slot: " + afterReceipt);
-            check(CommonToolsTest.files.artifacts(run).length() == 2, "late unknown result did not generate another artifact");
+            check(CommonToolsTest.files.artifacts(run).length() == 3, "late unknown result did not generate another artifact");
             http(lease, forest);
             JSONObject modelFile = CommonToolsTest.files.writeText(lease, "model-file", new JSONObject().put("fileName", "media-source.json").put("text", "{\"kind\":\"media-source\"}"));
             check(!CommonToolsTest.files.metadata(modelFile.getString("artifactId"), "artifact").has("origin"), "model-written same-name file cannot impersonate provider");
@@ -367,11 +398,49 @@ public final class MediaToolsTest {
             fail("IDEMPOTENCY_CONFLICT", () -> catalog.bindRemote(T, S, bindKey, "changed-request", target, bound.getLong("version")));
             fail("VERSION_CONFLICT", () -> catalog.bindRemote(T, S, key(), "other-request", target, bound.getLong("version")));
             detectionReservations(lease);
-            System.out.println("PASS M1/M2: signed package, bound image -> Broker -> Unit fixture -> source artifact; confirmed pages -> processing -> persisted dataset; cross-page dedup, partial coverage, Broker restart, revoked grants, forged refs, timeout, late receipts, two Units, CAS replay. No live inference executed.");
+            System.out.println("PASS M1/M2/M3/M4: signed package, confirmed provider/JDBC provenance, normalized report, forged/cross-run citations, restart, source revocation, evidence filtering, unknown execution, two Units. No live inference executed.");
         } finally {
             broker.close();
             CommonToolsTest.files.close();
         }
+    }
+
+    static JSONObject workflow(String run) throws Exception {
+        return broker.completion(identity, run, profiles.pinned(identity, run), catalog.activeSkills(T, S, run));
+    }
+    static JSONObject report(String run, JSONObject submission) throws Exception {
+        return broker.completion(identity, run, profiles.pinned(identity, run), catalog.activeSkills(T, S, run),
+                new JSONObject().put("kind", "final").put("text", submission.toString()));
+    }
+    static JSONObject reportSubmission(String dataset, String first, String second, String answer) {
+        JSONArray findings = new JSONArray(); int index = 0;
+        for (String ref : Arrays.asList(first, second)) findings.put(new JSONObject().put("recordIndex", index++)
+                .put("profileId", "describe").put("mediaRef", ref).put("observation", answer)
+                .put("assessment", new JSONObject().put("status", "not-assessed").put("reason", "Protocol fixture").put("ruleIds", new JSONArray())));
+        return new JSONObject().put("schemaVersion", 1).put("reports", new JSONArray().put(new JSONObject().put("skill", "fhe/patrol")
+                .put("summary", "Two fixture records").put("limitations", new JSONArray().put("No real inference"))
+                .put("datasets", new JSONArray().put(new JSONObject().put("datasetRef", dataset).put("findings", findings)))));
+    }
+    static int gaps(String run) throws Exception { return workflow(run).getJSONArray("checks").getJSONObject(0).getInt("missingCount"); }
+
+    /** Change only test DB observation flags, then restore them: each conjunct must be enforced. */
+    static void evidenceFilters(String run) throws Exception {
+        JSONArray facts = metadata.completionEvidence(T, S, run);
+        check(facts.length() == 4, "query + dataset + two analysis facts");
+        fail("RUN_NOT_FOUND", () -> metadata.completionEvidence(T, "another-user", run));
+        try (java.sql.Connection c = config.connect()) {
+            for (String condition : Arrays.asList("actual_finished=0", "effect_status='unknown'")) {
+                try (java.sql.PreparedStatement p = c.prepareStatement("UPDATE harness_tool_job SET " + condition + " WHERE job_id IN (SELECT job_id FROM harness_provider_fact WHERE run_id=?)")) { p.setString(1, run); p.executeUpdate(); }
+                check(metadata.completionEvidence(T, S, run).length() == 0, "unfinished/unknown facts excluded");
+                try (java.sql.PreparedStatement p = c.prepareStatement("UPDATE harness_tool_job SET actual_finished=1,effect_status='completed' WHERE job_id IN (SELECT job_id FROM harness_provider_fact WHERE run_id=?)")) { p.setString(1, run); p.executeUpdate(); }
+            }
+            try (java.sql.PreparedStatement p = c.prepareStatement("UPDATE harness_tool_call SET status='intent' WHERE run_id=? AND result_json IS NOT NULL")) { p.setString(1, run); p.executeUpdate(); }
+            check(metadata.completionEvidence(T, S, run).length() == 0, "unconfirmed facts excluded");
+            try (java.sql.PreparedStatement p = c.prepareStatement("UPDATE harness_tool_call SET status='confirmed',result_json=replace(result_json,'success','failure') WHERE run_id=?")) { p.setString(1, run); p.executeUpdate(); }
+            check(metadata.completionEvidence(T, S, run).length() == 0, "confirmed errors excluded");
+            try (java.sql.PreparedStatement p = c.prepareStatement("UPDATE harness_tool_call SET result_json=replace(result_json,'failure','success') WHERE run_id=?")) { p.setString(1, run); p.executeUpdate(); }
+        }
+        check(metadata.completionEvidence(T, S, run).similar(facts) && workflow(run).getBoolean("satisfied"), "restored confirmed evidence passes");
     }
 
     /**
@@ -443,6 +512,7 @@ public final class MediaToolsTest {
             metadata.grant(T, S, "source-f@1", false);
             check(call(lease, "common.processing.process", read).getString("errorCode").equals("DATA_SOURCE_FORBIDDEN")
                     && requests.get() == before, "revocation also blocks immutable dataset reads without upstream requests");
+            fail("DATA_SOURCE_FORBIDDEN", () -> workflow(lease.runId));
             check(call(lease, "common.capability.invoke", invoke).getString("errorCode").equals("DATA_SOURCE_FORBIDDEN") && requests.get() == before, "revoked source never reaches F");
         } finally {
             server.stop(0);

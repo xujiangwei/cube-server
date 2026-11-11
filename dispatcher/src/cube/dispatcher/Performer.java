@@ -45,6 +45,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Performer 接入层连接器。
@@ -71,6 +73,7 @@ public class Performer implements TalkListener, Tickable {
      * 线程池执行器。
      */
     private ExecutorService executor;
+    private final AtomicBoolean stopping = new AtomicBoolean(false);
 
     /**
      * 节点名称。
@@ -424,7 +427,7 @@ public class Performer implements TalkListener, Tickable {
     }
 
     private boolean isReady(Director director, String celletName) {
-        return director != null && director.supports(celletName) && director.speaker != null && director.speaker.isReady();
+        return !this.stopping.get() && director != null && director.supports(celletName) && director.speaker != null && director.speaker.isReady();
     }
 
     /**
@@ -721,7 +724,12 @@ public class Performer implements TalkListener, Tickable {
      * 并关闭线程池。</p>
      */
     public void stop() {
-        this.capabilityRouter.stop();
+        if (!this.stopping.compareAndSet(false, true)) {
+            return;
+        }
+        Logger.i(this.getClass(), "Stopping dispatcher resources");
+        this.stopResource("report service", () -> cube.report.ReportService.getInstance().close());
+        this.stopResource("capability router", () -> this.capabilityRouter.stop());
         synchronized (this) {
             this.controlDirectors.clear();
             this.routingCursors.clear();
@@ -730,27 +738,54 @@ public class Performer implements TalkListener, Tickable {
         }
         for (Block block : this.blockMap.values()) {
             synchronized (block) {
-                block.notify();
+                block.notifyAll();
             }
         }
         this.blockMap.clear();
 
-        // 停止流服务器
-        if (null != this.streamServer) {
-            this.streamServer.stop();
+        // shutdown() alone leaves running/queued tasks alive, including long network waits.
+        if (this.executor != null) {
+            this.executor.shutdownNow();
         }
 
+        // 停止流服务器
+        if (null != this.streamServer) {
+            this.stopResource("stream server", () -> this.streamServer.stop());
+        }
+
+        // Cancel asynchronous responses and outgoing requests before waiting for Jetty.
+        this.stopResource("AIGC manager", () -> cube.dispatcher.aigc.Manager.getInstance().stop());
+        this.stopResource("HTTP clients", () -> HttpClientFactory.getInstance().close());
+
         // 停止 HTTP 服务器
-        this.httpServer.stop();
+        if (this.httpServer != null) {
+            this.stopResource("HTTP server", () -> this.httpServer.stop(5000L));
+        }
 
         for (Director director : this.directorList) {
             Endpoint ep = director.endpoint;
-            this.talkService.hangup(ep.getHost(), ep.getPort(), false);
+            this.stopResource("director " + ep.getHost(),
+                    () -> this.talkService.hangup(ep.getHost(), ep.getPort(), false));
         }
 
-        HttpClientFactory.getInstance().close();
+        if (this.executor != null) {
+            try {
+                if (!this.executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    Logger.w(this.getClass(), "Dispatcher executor did not terminate within 5 seconds");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        Logger.i(this.getClass(), "Dispatcher resources stopped");
+    }
 
-        this.executor.shutdown();
+    private void stopResource(String name, Runnable stop) {
+        try {
+            stop.run();
+        } catch (RuntimeException e) {
+            Logger.w(this.getClass(), "Failed to stop " + name, e);
+        }
     }
 
     /**
@@ -759,6 +794,7 @@ public class Performer implements TalkListener, Tickable {
      * <p>唤醒全部阻塞等待，断开与所有导演机的连接后重新建立连接。</p>
      */
     public void restart() {
+        if (this.stopping.get()) return;
         this.capabilityRouter.stop();
         this.capabilityRouter.start();
         for (Block block : this.blockMap.values()) {
@@ -1199,7 +1235,7 @@ public class Performer implements TalkListener, Tickable {
         try {
             if (AIGCCellet.NAME.equals(celletName)) this.capabilityRouter.sent(director, source, actionDialect);
             tracked = AIGCCellet.NAME.equals(celletName);
-            if (Thread.currentThread().isInterrupted()) return null;
+            if (this.stopping.get() || Thread.currentThread().isInterrupted()) return null;
             try {
                 sent = source.speak(celletName, actionDialect);
             } finally {
@@ -1211,7 +1247,7 @@ public class Performer implements TalkListener, Tickable {
                 return null;
             }
             long beginning = System.nanoTime();
-            while (null == block.dialect &&
+            while (!this.stopping.get() && null == block.dialect &&
                     System.nanoTime() - beginning < java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(timeout)) {
                 if (!this.blockMap.containsKey(sn)) {
                     // stop/restart 已释放等待记录。
@@ -1306,6 +1342,7 @@ public class Performer implements TalkListener, Tickable {
      */
     @Override
     public void onTick(long now) {
+        if (this.stopping.get()) return;
         this.retryFailedConnection(AIGCCellet.NAME);
         this.capabilityRouter.onTick(now);
         for (Tickable tickable : this.tickableList) {

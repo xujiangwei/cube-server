@@ -76,6 +76,10 @@ public final class ResourceTools {
 
     /** Narrow provider read: name resolved exclusively inside the pinned, active releases. */
     public JSONObject providerResource(ProfileRegistry.Identity identity, String run, String skill, String path) throws Exception {
+        return cube.service.harness.protocol.StrictJson.object(providerResourceBytes(identity, run, skill, path));
+    }
+
+    public byte[] providerResourceBytes(ProfileRegistry.Identity identity, String run, String skill, String path) throws Exception {
         JSONObject pinned = pin(identity, run);
         JSONArray releases = pinned.getJSONArray("releases");
         for (int i = 0; i < releases.length(); i++) {
@@ -84,7 +88,7 @@ public final class ResourceTools {
             JSONObject m = manifest(identity, run, release.getString("digest"), "resource.read", true);
             JSONObject f = PackageRepository.file(m, path);
             if (!f.getString("role").equals("resource")) throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
-            return cube.service.harness.protocol.StrictJson.object(repository.readVerified(m, path));
+            return repository.readVerified(m, path);
         }
         throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
     }

@@ -10,6 +10,7 @@ import cell.util.log.Logger;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -64,6 +65,9 @@ public class ReportService {
      * 提交报告线程是否正在执行。
      */
     private AtomicBoolean running;
+    private volatile boolean closed;
+    private final Set<SubmitThread> submitThreads =
+            Collections.newSetFromMap(new ConcurrentHashMap<SubmitThread, Boolean>());
 
     /**
      * 报告的重试计数。跨提交线程持久保存，避免每轮新建线程导致重试预算被清零。
@@ -186,6 +190,7 @@ public class ReportService {
      */
     private boolean canSubmit() {
         synchronized (this.stateLock) {
+            if (this.closed) return false;
             if (0 == this.suspendedUntil) {
                 return true;
             }
@@ -251,20 +256,49 @@ public class ReportService {
     }
 
     private void processQueue() {
-        // 用 CAS 保证同一时刻只有一个提交线程，避免并发重复启动
-        if (!this.running.compareAndSet(false, true)) {
-            return;
-        }
+        synchronized (this.stateLock) {
+            if (this.closed) {
+                this.reports.clear();
+                return;
+            }
+            // 用 CAS 保证同一时刻只有一个提交线程，避免并发重复启动
+            if (!this.running.compareAndSet(false, true)) {
+                return;
+            }
 
-        try {
-            SubmitThread thread = new SubmitThread(this, this.hostUrls, this.reports,
-                    this.maxQueueLength, this.retries, this.running);
-            thread.setDaemon(true);
-            thread.start();
-        } catch (Throwable t) {
-            // 线程启动失败必须复位标志位，否则后续报告永远不会被提交
-            this.running.set(false);
-            throw t;
+            SubmitThread thread = null;
+            try {
+                thread = new SubmitThread(this, this.hostUrls, this.reports,
+                        this.maxQueueLength, this.retries, this.running);
+                thread.setDaemon(true);
+                this.submitThreads.add(thread);
+                thread.start();
+            } catch (Throwable t) {
+                if (thread != null) this.submitThreads.remove(thread);
+                // 线程启动失败必须复位标志位，否则后续报告永远不会被提交
+                this.running.set(false);
+                throw t;
+            }
         }
+    }
+
+    /** 停止上报并中断进行中的 HTTP 提交，不等待控制台请求超时。 */
+    public void close() {
+        List<SubmitThread> threads;
+        synchronized (this.stateLock) {
+            this.closed = true;
+            this.reports.clear();
+            this.retries.clear();
+            threads = new ArrayList<>(this.submitThreads);
+        }
+        for (SubmitThread thread : threads) thread.interrupt();
+    }
+
+    boolean isClosed() {
+        return this.closed;
+    }
+
+    void submitThreadStopped(SubmitThread thread) {
+        this.submitThreads.remove(thread);
     }
 }

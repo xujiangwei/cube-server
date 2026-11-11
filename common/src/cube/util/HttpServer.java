@@ -304,6 +304,12 @@ public class HttpServer {
     /**
      * 停止服务器，并退出线程。
      */
+    public void stop(long timeoutMillis) {
+        if (this.server != null) this.server.setStopTimeout(timeoutMillis);
+        this.stop();
+    }
+
+    /** 停止服务器，使用当前 Jetty 停止超时。 */
     public void stop() {
         if (null == this.server) {
             return;
