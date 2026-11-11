@@ -15,6 +15,7 @@
 | [RUNTIME.md](RUNTIME.md) | 技能包发布、固定配置、权限、工作区和上下文 |
 | [TOOLS.md](TOOLS.md) | 可信工具、业务 provider 与 sandbox Runner |
 | [M1.md](M1.md) | 通用数据连接器、已有单图 Unit 调用和远程资源包发布；部署及验证边界 |
+| [M2.md](M2.md) | 通用数据加工、分页覆盖和来源保留，以及首次人工部署顺序 |
 | [CONTROL-FILES.md](CONTROL-FILES.md) | 输入、审批、取消、附件、产物和自动清理 |
 | [STORE.md](STORE.md) | SQLite/MySQL 配置、自动建表、任务账本及恢复 |
 | [RESILIENCE.md](RESILIENCE.md) | 接单开关、drain、停机、升级及故障处理 |

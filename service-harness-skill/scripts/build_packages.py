@@ -7,7 +7,7 @@ from pathlib import Path
 import tempfile
 import zipfile
 
-NAMES = ("search", "web", "knowledge", "attachment", "time", "calculator", "data", "capability")
+NAMES = ("search", "web", "knowledge", "attachment", "time", "calculator", "data", "capability", "processing")
 ROOT = Path(__file__).resolve().parents[1]
 
 

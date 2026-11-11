@@ -189,22 +189,22 @@ public final class MediaToolsTest {
     public static void main(String[] args) throws Exception {
         Path packages = Paths.get(args[0]);
         Path forest = Paths.get(args[1]);
-        TEST_PERMISSIONS.addAll(Arrays.asList("data.query", "capability.invoke"));
+        TEST_PERMISSIONS.addAll(Arrays.asList("data.query", "data.process", "capability.invoke"));
         CommonToolsTest.prepare(Files.createTempDirectory(packages.getParent(), "media-test-"), packages, "http://127.0.0.1:1/search");
         Properties settings = CommonToolsTest.settings;
-        for (String name : Arrays.asList("data", "capability")) {
+        for (String name : Arrays.asList("data", "capability", "processing")) {
             Properties pc = new Properties();
             pc.setProperty("capability.allowed.units", "OmniMultimodal,OmniPerception,SpecializedDetection");
-            pc.setProperty("capability.timeout.millis", "150");
+            pc.setProperty("capability.timeout.millis", "1000");
             pc.setProperty("secret.f-fixture", SECRET);
             Path file = root.resolve(name + ".properties");
             Files.write(file, bytes(ExecutionTest.properties(pc)));
-            settings.setProperty("broker.provider." + name + ".class", "cube.service.harness.skill." + (name.equals("data") ? "DataQueryProvider" : "CapabilityInvokeProvider"));
+            settings.setProperty("broker.provider." + name + ".class", "cube.service.harness.skill." + (name.equals("data") ? "DataQueryProvider" : name.equals("processing") ? "DataProcessProvider" : "CapabilityInvokeProvider"));
             settings.setProperty("broker.provider." + name + ".config", file.toString());
             String digest = upload(Files.readAllBytes(packages.resolve(name + "-v1.zip"))).getString("digest");
             CommonToolsTest.releases.put(name, digest);
         }
-        settings.setProperty("broker.providers", settings.getProperty("broker.providers") + ",data,capability");
+        settings.setProperty("broker.providers", settings.getProperty("broker.providers") + ",data,capability,processing");
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
         gen.initialize(2048);
         KeyPair keys = gen.generateKeyPair();
@@ -276,6 +276,10 @@ public final class MediaToolsTest {
             String image = input(forest.resolve("media/warmup.jpg"), "application/octet-stream");
             JSONObject snapshot = new JSONObject(new String(Files.readAllBytes(forest.resolve("fixtures/uploaded-snapshot.json")), StandardCharsets.UTF_8));
             snapshot.getJSONObject("data").getJSONArray("items").getJSONObject(0).getJSONObject("media").put("inputId", image);
+            JSONObject secondRecord = new JSONObject(snapshot.getJSONObject("data").getJSONArray("items").getJSONObject(0).toString());
+            secondRecord.put("id", "fixture-record-2");
+            secondRecord.getJSONObject("media").put("id", "fixture-photo-2");
+            snapshot.getJSONObject("data").getJSONArray("items").put(secondRecord);
             Path snapshotFile = root.resolve("snapshot.json");
             Files.write(snapshotFile, bytes(snapshot.toString()));
             String data = input(snapshotFile, "application/json");
@@ -289,8 +293,41 @@ public final class MediaToolsTest {
             check(!queried.has("errorCode"), "query error: " + queried);
             check(queried.getBoolean("complete"), "snapshot coverage");
             String ref = queried.getJSONArray("mediaRefs").getJSONObject(0).getString("mediaRef");
+            JSONObject processed = call(lease, "common.processing.process", new JSONObject().put("action", "process")
+                    .put("skill", "fhe/patrol").put("profileId", "uploaded-summary")
+                    .put("pageRefs", new JSONArray().put(queried.getString("pageRef"))).put("limit", 1));
+            check(!processed.has("errorCode"), "snapshot processing: " + processed);
+            check(processed.getJSONObject("coverage").getBoolean("queryComplete"), "snapshot processing coverage");
+            check(processed.getInt("totalItems") == 2 && processed.getInt("nextOffset") == 1, "record paging keeps full dataset");
+            check(new JSONArray(processed.getString("itemsJson")).getJSONObject(0).getJSONArray("sources")
+                    .getJSONObject(0).getString("mediaRef").equals(ref), "processing retains original media capability reference");
+            broker.close();
+            broker = new ToolBroker(new ToolJobStore(store, false), identity, settings).files(CommonToolsTest.files)
+                    .context(resources, new ProviderStore(store, false), () -> bridge);
+            JSONObject read = new JSONObject().put("action", "read").put("skill", "fhe/patrol").put("profileId", "uploaded-summary")
+                    .put("datasetRef", processed.getString("datasetRef")).put("view", "groups");
+            JSONObject group = call(lease, "common.processing.process", read);
+            check(!group.has("errorCode") && group.getInt("totalItems") == 1, "persisted dataset readable through restarted Broker");
+            JSONObject secondPage = call(lease, "common.processing.process", new JSONObject(read.toString()).put("view", "records").put("offset", 1));
+            check(secondPage.getInt("nextOffset") == -1 && new JSONArray(secondPage.getString("itemsJson")).getJSONObject(0)
+                    .getJSONObject("record").getString("recordId").equals("fixture-record-2"), "dataset continuation returns actual remaining record");
+            check(call(lease, "common.processing.process", new JSONObject(read.toString()).put("offset", 3))
+                    .getString("errorCode").equals("DATA_PROCESS_ARGUMENT_INVALID"), "offset beyond dataset rejected");
+            String otherRun = profiles.createRun(identity, key(), "media", request("another run")).getString("runId");
+            JdbcRunStore.Lease otherLease = running(otherRun, 60000);
+            for (String digest : CommonToolsTest.releases.values()) resources.activate(identity, otherRun, digest);
+            check(call(otherLease, "common.processing.process", read).getString("errorCode").equals("MEDIA_REF_FORBIDDEN"), "dataset cannot cross runs");
+            check(call(otherLease, "common.processing.process", new JSONObject().put("action", "process").put("skill", "fhe/patrol")
+                    .put("profileId", "uploaded-summary").put("pageRefs", new JSONArray().put(queried.getString("pageRef"))))
+                    .getString("errorCode").equals("MEDIA_REF_FORBIDDEN"), "page cannot cross runs");
+            check(call(lease, "common.processing.process", new JSONObject(read.toString()).put("datasetRef", "forged"))
+                    .getString("errorCode").equals("MEDIA_REF_FORBIDDEN"), "forged dataset rejected");
+            check(call(lease, "common.processing.process", new JSONObject().put("action", "process").put("skill", "fhe/patrol")
+                    .put("profileId", "uploaded-summary").put("pageRefs", new JSONArray().put("forged")))
+                    .getString("errorCode").equals("MEDIA_REF_FORBIDDEN"), "forged page rejected");
             JSONObject invoke = new JSONObject().put("skill", "fhe/patrol").put("profileId", "describe").put("mediaRef", ref).put("content", "Describe only the actual image");
             JSONObject result = call(lease, "common.capability.invoke", invoke);
+            check(!result.has("errorCode"), "initial capability result: " + result);
             check(result.getString("answer").contains("Fixture") && inferences.get() == 1, "actual fixture dispatched once, no invented count");
             check(CommonToolsTest.files.artifacts(run).length() == 1, "one trusted source artifact despite replay");
             check(CommonToolsTest.files.artifacts(run).getJSONObject(0).getJSONObject("origin").getBoolean("confirmed"), "source metadata authenticates provider and confirmed call");
@@ -310,7 +347,8 @@ public final class MediaToolsTest {
             }
             delayed.get(0).accept(physical(executions.get(1)));
             delay = false;
-            check(call(lease, "common.capability.invoke", invoke).getString("answer").contains("Fixture"), "physical late receipt releases only its slot");
+            JSONObject afterReceipt = call(lease, "common.capability.invoke", invoke);
+            check(!afterReceipt.has("errorCode") && afterReceipt.getString("answer").contains("Fixture"), "physical late receipt releases only its slot: " + afterReceipt);
             check(CommonToolsTest.files.artifacts(run).length() == 2, "late unknown result did not generate another artifact");
             http(lease, forest);
             JSONObject modelFile = CommonToolsTest.files.writeText(lease, "model-file", new JSONObject().put("fileName", "media-source.json").put("text", "{\"kind\":\"media-source\"}"));
@@ -329,7 +367,7 @@ public final class MediaToolsTest {
             fail("IDEMPOTENCY_CONFLICT", () -> catalog.bindRemote(T, S, bindKey, "changed-request", target, bound.getLong("version")));
             fail("VERSION_CONFLICT", () -> catalog.bindRemote(T, S, key(), "other-request", target, bound.getLong("version")));
             detectionReservations(lease);
-            System.out.println("PASS M1: signed package, bound image -> Broker -> Unit fixture -> source artifact; forged refs, timeout, restart, late receipts, two Units, revoked grant, CAS replay. No live inference executed.");
+            System.out.println("PASS M1/M2: signed package, bound image -> Broker -> Unit fixture -> source artifact; confirmed pages -> processing -> persisted dataset; cross-page dedup, partial coverage, Broker restart, revoked grants, forged refs, timeout, late receipts, two Units, CAS replay. No live inference executed.");
         } finally {
             broker.close();
             CommonToolsTest.files.close();
@@ -382,7 +420,20 @@ public final class MediaToolsTest {
             check(!found.has("errorCode"), "HTTP query: " + found);
             check(!found.getBoolean("complete"), "first page cannot claim complete coverage");
             JSONObject continuation = new JSONObject(query.toString()).put("cursor", found.getString("nextCursor"));
-            check(call(lease, "common.data.query", continuation).getBoolean("complete"), "opaque cursor keeps query and upstream snapshot");
+            JSONObject last = call(lease, "common.data.query", continuation);
+            check(last.getBoolean("complete"), "opaque cursor keeps query and upstream snapshot");
+            JSONObject process = new JSONObject().put("action", "process").put("skill", "fhe/patrol").put("profileId", "patrol-summary")
+                    .put("pageRefs", new JSONArray().put(found.getString("pageRef")));
+            JSONObject partial = call(lease, "common.processing.process", process);
+            check(!partial.getJSONObject("coverage").getBoolean("queryComplete"), "processing a first page discloses incomplete scope");
+            process.getJSONArray("pageRefs").put(last.getString("pageRef"));
+            JSONObject processed = call(lease, "common.processing.process", process);
+            check(processed.getJSONObject("coverage").getBoolean("queryComplete"), "full confirmed page chain is complete");
+            check(processed.getJSONObject("stats").getInt("duplicateRecords") == 1
+                    && new JSONArray(processed.getString("itemsJson")).getJSONObject(0).getJSONArray("sources").length() == 2,
+                    "cross-page exact dedup retains both original sources");
+            JSONObject read = new JSONObject().put("action", "read").put("skill", "fhe/patrol").put("profileId", "patrol-summary")
+                    .put("datasetRef", processed.getString("datasetRef"));
             loop.set(true);
             check(call(lease, "common.data.query", continuation).getString("errorCode").equals("DATA_QUERY_INCOMPLETE"), "repeated upstream cursor cannot claim completion");
             String ref = found.getJSONArray("mediaRefs").getJSONObject(0).getString("mediaRef");
@@ -390,6 +441,8 @@ public final class MediaToolsTest {
             check(!call(lease, "common.capability.invoke", invoke).has("errorCode"), "signed HTTP image fetch -> Unit fixture");
             int before = requests.get();
             metadata.grant(T, S, "source-f@1", false);
+            check(call(lease, "common.processing.process", read).getString("errorCode").equals("DATA_SOURCE_FORBIDDEN")
+                    && requests.get() == before, "revocation also blocks immutable dataset reads without upstream requests");
             check(call(lease, "common.capability.invoke", invoke).getString("errorCode").equals("DATA_SOURCE_FORBIDDEN") && requests.get() == before, "revoked source never reaches F");
         } finally {
             server.stop(0);

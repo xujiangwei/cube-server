@@ -17,3 +17,6 @@ broker.provider.calculator.config=C:/private/harness/calculator.properties
 # broker.provider.data.config=C:/private/harness/data.properties
 # broker.provider.capability.class=cube.service.harness.skill.CapabilityInvokeProvider
 # broker.provider.capability.config=C:/private/harness/capability.properties
+# Optional M2 provider; append processing to broker.providers and grant data.process.
+# broker.provider.processing.class=cube.service.harness.skill.DataProcessProvider
+# broker.provider.processing.config=C:/private/harness/processing.properties

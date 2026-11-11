@@ -1,8 +1,8 @@
 # Harness 通用技能工具包
 
-本工程使用 Ant 构建 `cube-service-harness-skill-3.0.jar`，构建支持 **JDK 8 及以上**，产物保持 Java 8 兼容，由 Java `service-harness` 在同一 JVM 内加载，运行仍要求 **JDK 8**。八个 provider 可独立注册；Python tool Runner 执行技能的薄入口，通过 SDK/Broker 调用 Java，由 provider 查询数据并返回结构化证据。
+本工程使用 Ant 构建 `cube-service-harness-skill-3.0.jar`，构建支持 **JDK 8 及以上**，产物保持 Java 8 兼容，由 Java `service-harness` 在同一 JVM 内加载，运行仍要求 **JDK 8**。九个 provider 可独立注册；Python tool Runner 执行技能的薄入口，通过 SDK/Broker 调用 Java，由 provider 查询数据并返回结构化证据。
 
-M1 的受限数据连接器、已有 Unit 调用、远程业务包发布与部署前提见 [M1.md](../service-harness/M1.md)。F 的接口与上传资源见 [forest/](../../forest/README.md)，不包含在平台工具包中。
+M1 的受限数据连接器、已有 Unit 调用、远程业务包发布与部署前提见 [M1.md](../service-harness/M1.md)。M2 的过滤、聚合、精确去重和首次人工部署见 [M2.md](../service-harness/M2.md)。F 的接口与上传资源见 [forest/](../../forest/README.md)，不包含在平台工具包中。
 
 ## 工具与配套技能
 
@@ -16,8 +16,9 @@ M1 的受限数据连接器、已有 Unit 调用、远程业务包发布与部�
 | `common/calculator` | `common.calculator.evaluate` / `common.calculator.evaluate.v1` | `calculator.evaluate` | expression；返回 DECIMAL128 精度的十进制字符串 |
 | `common/data` | `common.data.query` / `common.data.query.v1` | `data.query` | skill、connectorId、argumentsJson、可选 cursor；受限 HTTP/绑定快照查询，返回 recordsJson、mediaRefs 和分页范围 |
 | `common/capability` | `common.capability.invoke` / `common.capability.invoke.v1` | `capability.invoke` | skill、profileId、mediaRef、content；调用已配置的真实 Unit，保留原始字段并写来源文本产物 |
+| `common/processing` | `common.processing.process` / `common.processing.process.v1` | `data.process` | 对已确认 pageRefs 按 data-processing.json 加工；返回可分页的 datasetRef、覆盖情况、统计及完整来源 |
 
-八套作者包唯一源码在本工程 `harness-tools/`，每项都有 `SKILL.md`、`manifest.template.json`、输入输出 schema、`main.py`、空依赖锁和执行/租户策略模板。schema 构建时复制到 JAR；provider 与发布包使用同一份定义。包格式为 schemaVersion=6，runnerType=tool，effect=read-only。
+九套作者包唯一源码在本工程 `harness-tools/`，每项都有 `SKILL.md`、`manifest.template.json`、输入输出 schema、`main.py`、空依赖锁和执行/租户策略模板。schema 构建时复制到 JAR；provider 与发布包使用同一份定义。包格式为 schemaVersion=6，runnerType=tool，effect=read-only。
 
 原正文 SKILL 加载器不会执行这些入口。需要新 Harness 的技能发布、授权、激活及显式工具调用链路。上传技能 ZIP 不会安装 Java JAR；安装 JAR 也不会自动发布技能或授予权限。
 
@@ -40,7 +41,7 @@ build/cube-service-harness-skill-3.0.jar
 build/packages/{search,web,knowledge,attachment,time,calculator,data,capability}-v1.zip
 ```
 
-`packages` 可重复执行，原子更新自己生成的 ZIP，同一来源得到相同 manifest 摘要。生产 Java ZIP 校验器在 `ant test` 中校验八个实际 ZIP。
+`packages` 可重复执行，原子更新自己生成的 ZIP，同一来源得到相同 manifest 摘要。生产 Java ZIP 校验器在 `ant test` 中校验九个实际 ZIP。
 
 本模块的 `build` 只生成 `build/cube-service-harness-skill-3.0.jar`；`build-debug` / `build-release` 还会将该 JAR 复制到服务器统一的 `../build/`。服务器顶层的 `build` / `build-debug` 均包含本模块，也可单独构建这条依赖链（自动依次构建 common、service-harness、service-harness-skill）：
 
@@ -58,7 +59,7 @@ Project SDK 选择实际 JDK 8；本模块继承 Project SDK，语言级别固�
 
 模块依赖现有 `common`、`service-harness`、`deploy/bin/cell.jar` 与 `deploy/libs/*.jar`。集成测试还引用 `service-harness/build/test-classes`；首次开发或修改核心测试夹具后，用 JDK 8 执行 `ant -f ../service-harness/build.xml test` 生成它。IDE 运行 `ProviderTest`、`CommonToolsTest` 的 main 时，将工作目录设为本模块目录，程序参数填 `build/packages`，并先执行 `ant packages`。
 
-发布 JAR、复制 schema 和生成八个 ZIP 仍以本模块 Ant 目标为准；IDE 的普通编译用于开发和调试。
+发布 JAR、复制 schema 和生成九个 ZIP 仍以本模块 Ant 目标为准；IDE 的普通编译用于开发和调试。
 
 ## 安装和授权
 
@@ -146,7 +147,7 @@ result.max.bytes=12288
 
 ## 验证
 
-`ant test` 覆盖八个实际作者 ZIP、输入输出 schema 一致性、算术精度、时区和夏令时、知识 ACL、附件绑定、中文与转义输出预算。网络测试使用真实本地 HTTP/TLS 服务，覆盖 SearXNG 空结果/部分失败/403/429/超时/无效响应，以及公网 DNS 拒绝、TLS 主机名、chunked/gzip 和响应大小。Broker 测试使用真实 SQLite、grant、结果持久化、重复调用和 ACK 重送；`ant test-media` 额外验证签名业务包、分页快照、媒体绑定、来源防伪和物理完成回执，部署与实机验证边界见 [单图调用接入](../service-harness/M1.md)。
+`ant test` 覆盖九个实际作者 ZIP、输入输出 schema 一致性、算术精度、时区和夏令时、知识 ACL、附件绑定、中文与转义输出预算。网络测试使用真实本地 HTTP/TLS 服务，覆盖 SearXNG 空结果/部分失败/403/429/超时/无效响应，以及公网 DNS 拒绝、TLS 主机名、chunked/gzip 和响应大小。Broker 测试使用真实 SQLite、grant、结果持久化、重复调用和 ACK 重送；`ant test-media` 额外验证签名业务包、分页快照、媒体绑定、来源防伪和物理完成回执，部署与实机验证边界见 [单图调用接入](../service-harness/M1.md)。
 
 专项检测 options 支持 `classes` 和字符串 profile（含 `thing`），保留未知字段拒绝；
 预检、持久预留及发送按节点注册的 profile、状态租约、切片支持与图像余量匹配。

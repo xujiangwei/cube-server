@@ -1,0 +1,2 @@
+# Pure local processing; no upstream address or credentials.
+result.max.bytes=12288

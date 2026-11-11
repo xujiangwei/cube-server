@@ -64,6 +64,7 @@ service/assets/data/dictionary
 service/assets/psychology/daturaflower
 dispatcher/cube-fs-tmp
 service/assets/psychology/mandalaflower
+service/transport-test
 deploy/assets
 dispatcher/cache
 dispatcher/assets/app

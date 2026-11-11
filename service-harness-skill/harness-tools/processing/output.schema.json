@@ -1,0 +1,134 @@
+{
+  "type": "object",
+  "properties": {
+    "datasetRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "profileId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "view": {
+      "type": "string",
+      "enum": [
+        "records",
+        "groups"
+      ],
+      "maxLength": 32
+    },
+    "itemsJson": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 8192
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1024
+    },
+    "nextOffset": {
+      "type": "integer",
+      "minimum": -1,
+      "maximum": 1024
+    },
+    "totalItems": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1024
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "queryComplete": {
+          "type": "boolean"
+        },
+        "queryHash": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "snapshotId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1152
+        },
+        "includedPages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        }
+      },
+      "required": [
+        "queryComplete",
+        "queryHash",
+        "snapshotId",
+        "includedPages"
+      ],
+      "additionalProperties": false
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "inputRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "filteredRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "duplicateRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "outputRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "groups": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        }
+      },
+      "required": [
+        "inputRecords",
+        "filteredRecords",
+        "duplicateRecords",
+        "outputRecords",
+        "groups"
+      ],
+      "additionalProperties": false
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "minItems": 0,
+      "maxItems": 16
+    }
+  },
+  "required": [
+    "datasetRef",
+    "profileId",
+    "view",
+    "itemsJson",
+    "offset",
+    "nextOffset",
+    "totalItems",
+    "coverage",
+    "stats",
+    "warnings"
+  ],
+  "additionalProperties": false
+}

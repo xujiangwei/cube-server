@@ -296,9 +296,9 @@ public final class ProviderTest {
         }
 
         tls(root);
-        List<QueryProvider> providers = Arrays.asList(new SearchProvider(sp), new WebPageProvider(new Properties()), knowledge, attachment, time, calc, new DataQueryProvider(new Properties()), new CapabilityInvokeProvider(new Properties()));
+        List<QueryProvider> providers = Arrays.asList(new SearchProvider(sp), new WebPageProvider(new Properties()), knowledge, attachment, time, calc, new DataQueryProvider(new Properties()), new CapabilityInvokeProvider(new Properties()), new DataProcessProvider(new Properties()));
         try {
-            String[] names = {"search", "web", "knowledge", "attachment", "time", "calculator", "data", "capability"};
+            String[] names = {"search", "web", "knowledge", "attachment", "time", "calculator", "data", "capability", "processing"};
             PackageRepository repository = new PackageRepository(null, null, Collections.emptyMap(), true, true);
             for (int i = 0; i < names.length; i++) {
                 Path archive = packages.resolve(names[i] + "-v1.zip");
