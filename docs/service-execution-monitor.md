@@ -1,6 +1,6 @@
 # Service 执行监控与运行拓扑
 
-此版本沿用 PerfReport /report 与 /server-report，不增加监控数据库。服务性能快照独立每 10 秒上报，JVMReport、UnitReport 保留原周期。本轮仅生成本地构建产物，不执行线上部署。
+服务执行监控使用 PerfReport /report 与 /server-report，性能快照独立每 10 秒上报，JVMReport、UnitReport 保留原周期。数据保存在内存，不依赖监控数据库。
 
 ## 统计对象与口径
 
@@ -46,4 +46,4 @@
 - Harness `test-execution`、`test-inference`、`test-transport`：多 worker、共享容量去重、重连、队列拒绝与真实 Cell 业务。
 - `console/webapp/mock/check_service_monitor.cjs`：生产前端的 23 项 Chrome 检查。先 `npm run build`，启动 `python webapp/mock/mock_console_server.py web 8897`，设置 PLAYWRIGHT_MODULE 后运行脚本。
 
-不增加 AI Token 统计、跨天查询或监控数据库。生产配置与线上服务保持原状。
+当前监控不提供 AI Token 统计和跨天历史查询。

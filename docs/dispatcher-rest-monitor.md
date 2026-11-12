@@ -48,4 +48,4 @@ Java 统一使用 JDK 8。按各模块 Ant 脚本依次构建 common、dispatche
 - 前端运行 `npm run typecheck`、`npm run build`，输出到 `console/web`。
 - 在 `console/` 运行 `python webapp/mock/mock_console_server.py web 8897`，再运行 `node webapp/mock/check_dispatcher_monitor.cjs`。需 Playwright 和 Chrome；可用 `PLAYWRIGHT_MODULE` 指定模块路径、`CONSOLE_TEST_URL` 指定地址。覆盖自动刷新、模块过滤/排序、节点点击、过期、无流量、旧报告、错误、切换竞态及 390px 布局。mock 仅用于本地联调。
 
-交付包含 common、dispatcher、console 三个 jar 与 console/web 全部资源。本改造不新增数据库、不支持跨天历史查询，也不统计 AI Token 用量。
+部署需配套更新 common、dispatcher、console 三个 JAR 与 console/web 全部资源。监控数据保存在内存，不支持跨天历史查询或 AI Token 用量统计。

@@ -27,4 +27,4 @@
 
 任务创建时同时固定租户策略、获准技能、有效权限和服务器当时的执行配置。配置修改只影响新任务；同一 Idempotency-Key 和相同输入始终重放原受理回执。
 
-升级时需同时部署新的 `harness-execution/`、本目录和 `harness.properties`，移除本目录原有 `Baize2.json`、`resources.json`、`task-Baize2.json`。本次调整不迁移旧测试表；按部署计划清空旧测试数据后由服务器重建。
+部署时配套提供 `harness-execution/`、本目录和 `harness.properties`。从混放执行配置的旧目录升级时，按执行配置目录的当前模板配置模型与 runtime，移除本目录原有的 `Baize2.json`、`resources.json`、`task-Baize2.json`，仅保留 `default.json`。旧测试库与当前格式不兼容时，按其数据保留与重建计划处理。

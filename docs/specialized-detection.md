@@ -3,7 +3,7 @@
 Java 运行和构建使用 JDK 8；Python 工程为相邻的 `apexnova-wisdom`。
 REST 地址、`specializedDetection` action 和既有结果封装不变。
 调用示例及错误码见 [REST 源码](rest-api/src/SpecializedDetection.js)，
-Harness 配置见 [M1 单图接入](../service-harness/M1.md)。
+Harness 能力契约见 [单图分析](../service-harness/BUSINESS-DATA.md)，安装配置见 [部署指南](../service-harness/BUSINESS-DEPLOYMENT.md)。
 
 ## 注册
 
@@ -81,19 +81,4 @@ profile/切片/有效就绪/图像余量匹配条件。同一联系人只有一�
 SHM 测试使用 dummy 推理，证明跨语言协议与路由，不代表真实权重、GPU 或摄像头的验证结果。
 Python 既有真实权重记录保留在该工程 `docs/specialized-detection-validation.md`。
 
-2026-11-09 本轮使用 Temurin OpenJDK **1.8.0_504** 完成 common、dispatcher、service 的 Ant build-debug，
-以及 service-harness、service-harness-skill 构建和测试。结果如下：
-
-| 验证 | 结果 |
-|---|---|
-| 检测能力与服务协议 | 109 + 312 项断言通过 |
-| dispatcher 路由与 HTTP | 106 项断言通过 |
-| 插件单元回归 | 31 项断言通过；另覆盖检测状态更新不清除同连接插件就绪 |
-| 真实 SHM | 63 项断言通过；三个 profile 的图片、视频、classes、无人机切片及模型元信息，dummy 推理 |
-| Harness | 全套 ant test 通过；专项 options 14 项断言，含真实 JDBC 共享物理槽位测试 |
-| 作者侧配套契约 | 8 份 schema、25 个正反例通过 |
-| Python | 检测/视频/状态 32 项、profile 13 项、初始化 3 项、插件注册 36 项，共 84 项通过 |
-| REST 文档 | 已生成 110 个接口；5 项文档构建与同步检查通过 |
-
-Python 视频测试使用本机 FFmpeg/FFprobe 和真实 HTTP PNG 接收端；本轮未重新加载真实模型权重，
-未验证 GPU 推理和实际摄像头场景。wisdom 原有检测改造、权重验证记录及其他未提交内容保留。
+Java 构建和回归使用实际 JDK 8。Python 视频协议测试使用 FFmpeg/FFprobe 与 HTTP PNG 接收端；真实权重、GPU 推理及摄像头场景需在对应部署环境验证。

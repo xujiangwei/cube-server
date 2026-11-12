@@ -14,11 +14,10 @@
 | [EXECUTION.md](EXECUTION.md) | 模型推理、资源循环、多单元容量和结果对账 |
 | [RUNTIME.md](RUNTIME.md) | 技能包发布、固定配置、权限、工作区和上下文 |
 | [TOOLS.md](TOOLS.md) | 可信工具、业务 provider 与 sandbox Runner |
-| [M1.md](M1.md) | 通用数据连接器、已有单图 Unit 调用和远程资源包发布；部署及验证边界 |
-| [M2.md](M2.md) | 通用数据加工、分页覆盖和来源保留，以及首次人工部署顺序 |
-| [M4.md](M4.md) | 报告结构、记录覆盖、真实来源引用与规范报告；两个JAR、新包和页面部署顺序 |
-| [M3.md](M3.md) | 必需步骤真实证据门禁、有限补齐，以及两个 JAR 与业务包的部署顺序 |
-| [M5.md](M5.md) | 原始签名业务包跨环境晋级、可审阅操作目录、固定CAS与可恢复回退；M4环境只更新管理工具 |
+| [业务数据能力](BUSINESS-DATA.md) | 数据连接器、分页覆盖、过滤聚合、精确去重、单图分析与可信来源 |
+| [执行检查与报告](WORKFLOW-REPORTS.md) | 必需步骤证据、有限补齐、报告结构、记录覆盖与来源引用 |
+| [业务能力部署](BUSINESS-DEPLOYMENT.md) | 配套产物、Provider/guard/权限配置、业务包发布与人工运行顺序 |
+| [发布与回退](RELEASE-MANAGEMENT.md) | 原始签名包跨环境晋级、固定 CAS、操作恢复与回退 |
 | [CONTROL-FILES.md](CONTROL-FILES.md) | 输入、审批、取消、附件、产物和自动清理 |
 | [STORE.md](STORE.md) | SQLite/MySQL 配置、自动建表、任务账本及恢复 |
 | [RESILIENCE.md](RESILIENCE.md) | 接单开关、drain、停机、升级及故障处理 |

@@ -37,10 +37,9 @@ def main():
         packages[name] = {"manifestDigest": expected, "zipSha256": sha(filename)}
 
     sources = {
-        "README.md": module / "scripts/m5-readme.md",
+        "README.md": module / "scripts/release-tools-readme.md",
         "examples/release_ops.py": workspace / "tutorials/examples/release_ops.py",
         "examples/agent_client.py": workspace / "tutorials/examples/agent_client.py",
-        "examples/check_release_ops.py": workspace / "tutorials/examples/check_release_ops.py",
         "examples/config/promotion-source.example.json": workspace / "tutorials/examples/config/promotion-source.example.json",
         "examples/config/promotion-target.example.json": workspace / "tutorials/examples/config/promotion-target.example.json",
     }
@@ -51,7 +50,7 @@ def main():
         "toolManifestDigests": baseline["toolManifestDigests"], "reusedBusinessPackages": packages,
         "files": {name: {"size": len(raw), "sha256": hashlib.sha256(raw).hexdigest()} for name, raw in files.items()},
         "stagingCheck": "Verified actual M4 JAR and business manifest digests; no rebuild or remote calls",
-        "validationRecord": "service-harness/M5.md records local regression; staging itself does not run tests",
+        "validationRecord": "service-harness/RELEASE-MANAGEMENT.md describes regression checks; staging itself does not run tests",
         "published": False, "productionDeployment": False}
     files["M5-RELEASES.json"] = (json.dumps(receipt, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     output.mkdir(parents=True)

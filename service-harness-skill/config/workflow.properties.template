@@ -1,3 +1,3 @@
-# M3 business completion guard. Business packages may request fewer repairs.
+# Business workflow/report completion guard. Packages may request fewer repairs.
 # Shared with runtime maxRepairs/maxRounds/maxTools/lifetime; never expands those budgets.
 workflow.max.repairs=2

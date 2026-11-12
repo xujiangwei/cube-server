@@ -12,6 +12,18 @@
 
 ## 目录
 
+配套文档按能力查阅：
+
+| 能力 | 文档入口 |
+| --- | --- |
+| REST 接入与认证 | [API 文档](docs/rest-api/README.md) |
+| 智能体任务、模型与工具执行 | [Harness 服务](service-harness/README.md) |
+| 业务数据查询、加工与单图分析 | [业务数据能力](service-harness/BUSINESS-DATA.md) |
+| 必需步骤检查与结构化报告 | [执行检查与报告](service-harness/WORKFLOW-REPORTS.md) |
+| 业务能力部署、版本晋级与回退 | [部署指南](service-harness/BUSINESS-DEPLOYMENT.md)、[发布管理](service-harness/RELEASE-MANAGEMENT.md) |
+| 专项检测与外部模型转发 | [专项检测](docs/specialized-detection.md)、[Relay](docs/RELAY.md) |
+| 监控与启停运维 | [REST 监控](docs/dispatcher-rest-monitor.md)、[执行监控](docs/service-execution-monitor.md)、[停机排查](docs/dispatcher-shutdown.md) |
+
 - [一、项目概览](#一项目概览)
 - [二、整体架构](#二整体架构)
 - [三、工程结构](#三工程结构)
@@ -173,7 +185,7 @@ dispatcher 在与 service 建立连接后，通过 AIGC Cellet 的 `getCapabilit
 - `/v1/models` 合并各节点经过用户鉴权的模型列表并去重，内部能力快照不直接作为用户模型列表。
 - 旧 `director.N.weight` 和 console 请求中的 weight 被忽略，console 保存配置时移除旧项。先升级 service，再升级 dispatcher 和 console。
 
-本阶段不做实时容量调度、插件动作能力推断、跨 service unit 调用或运行中任务迁移。各 service 需使用一致的认证域，并能访问所需的业务数据和文件。
+该路由按能力快照选择节点，不提供实时容量调度、插件动作能力推断、跨 service unit 调用或运行中任务迁移。各 service 需使用一致的认证域，并能访问所需的业务数据和文件。
 
 ### 4.3 转发模型
 

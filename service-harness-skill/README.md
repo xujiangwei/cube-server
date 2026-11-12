@@ -1,12 +1,10 @@
 # Harness 通用技能工具包
 
-M5 已补齐原始签名 ZIP 的跨环境晋级、CAS 和回退工具，见 [M5.md](../service-harness/M5.md)与[教程第11章](../../tutorials/src/content/docs/guide/11-promotion-and-rollback.md)。已有 M4 环境只更新管理工具，沿用原 JAR 和业务包；先人工部署跑通，再讨论现场验证。
+本工程使用 Ant 和 **JDK 8** 构建 `cube-service-harness-skill-3.0.jar`，由 Java `service-harness` 在同一 JVM 内加载。九个 Provider 可独立注册；Python tool Runner 执行技能的薄入口，通过 SDK/Broker 调用 Java，返回结构化证据。
 
-M4 已实现报告结构、记录覆盖与真实来源引用校验，见 [M4.md](../service-harness/M4.md)；成功结果读取 result.result.report，text 是规范报告 JSON 镜像。业务包与页面须同步升级，沿用原 WorkflowGuard 配置。M3 已实现业务包 workflow-requirements.json 驱动的服务端完成门禁和有限补齐，见 [M3.md](../service-harness/M3.md)。它是可信 WorkflowGuard 扩展，须同时部署匹配的核心与技能 JAR，并登记 guard 类及绝对私有配置。支持多个独立 model/Runner。本次工具公开 schema 与 manifest digest 未变，匹配 M2 的获准工具 release 可复用；业务资源包须发布新版本。
+业务能力统一见 [数据查询、加工与单图分析](../service-harness/BUSINESS-DATA.md)和[必需步骤检查与报告](../service-harness/WORKFLOW-REPORTS.md)。WorkflowGuard 根据固定业务资源检查真实完成证据与报告，成功报告位于 result.result.report，text 为同一 JSON 镜像。配套 JAR、Provider、guard、工具 release 与权限的安装顺序见 [部署指南](../service-harness/BUSINESS-DEPLOYMENT.md)。
 
-本工程使用 Ant 构建 `cube-service-harness-skill-3.0.jar`，构建支持 **JDK 8 及以上**，产物保持 Java 8 兼容，由 Java `service-harness` 在同一 JVM 内加载，运行仍要求 **JDK 8**。九个 provider 可独立注册；Python tool Runner 执行技能的薄入口，通过 SDK/Broker 调用 Java，由 provider 查询数据并返回结构化证据。
-
-M1 的受限数据连接器、已有 Unit 调用、远程业务包发布与部署前提见 [M1.md](../service-harness/M1.md)。M2 的过滤、聚合、精确去重和首次人工部署见 [M2.md](../service-harness/M2.md)。F 的接口与上传资源见 [forest/](../../forest/README.md)，不包含在平台工具包中。
+签名业务包的跨环境晋级、CAS 与回退见 [发布管理](../service-harness/RELEASE-MANAGEMENT.md)。业务系统接口、规则与上传资源维护在 [forest/](../../forest/README.md)，不包含在平台工具包中。
 
 ## 工具与配套技能
 
@@ -28,7 +26,7 @@ M1 的受限数据连接器、已有 Unit 调用、远程业务包发布与部�
 
 ## 构建和打包
 
-在本工程目录，用 JDK 8 或更高版本运行 Ant。JDK 8 使用 `source/target=1.8`；JDK 9 及以上（包括 JDK 11）自动使用 `--release 8`，同时限制字节码版本和可用 Java API，运行环境仍为 JDK 8。此兼容范围适用于本模块及 `service-harness`；其他模块的构建要求以各自配置为准。
+在本工程目录使用实际 JDK 8 运行 Ant，源码与目标版本为 1.8，运行环境同样使用 JDK 8。
 
 ```powershell
 ant -f ../service-harness/build.xml build
@@ -42,7 +40,7 @@ ant test
 
 ```text
 build/cube-service-harness-skill-3.0.jar
-build/packages/{search,web,knowledge,attachment,time,calculator,data,capability}-v1.zip
+build/packages/{search,web,knowledge,attachment,time,calculator,data,processing,capability}-v1.zip
 ```
 
 `packages` 可重复执行，原子更新自己生成的 ZIP，同一来源得到相同 manifest 摘要。生产 Java ZIP 校验器在 `ant test` 中校验九个实际 ZIP。
@@ -151,7 +149,7 @@ result.max.bytes=12288
 
 ## 验证
 
-`ant test` 覆盖九个实际作者 ZIP、输入输出 schema 一致性、算术精度、时区和夏令时、知识 ACL、附件绑定、中文与转义输出预算。网络测试使用真实本地 HTTP/TLS 服务，覆盖 SearXNG 空结果/部分失败/403/429/超时/无效响应，以及公网 DNS 拒绝、TLS 主机名、chunked/gzip 和响应大小。Broker 测试使用真实 SQLite、grant、结果持久化、重复调用和 ACK 重送；`ant test-media` 额外验证签名业务包、分页快照、媒体绑定、来源防伪和物理完成回执，部署与实机验证边界见 [单图调用接入](../service-harness/M1.md)。
+`ant test` 覆盖九个实际作者 ZIP、输入输出 schema 一致性、算术精度、时区和夏令时、知识 ACL、附件绑定、中文与转义输出预算。网络测试使用真实本地 HTTP/TLS 服务，覆盖 SearXNG 空结果/部分失败/403/429/超时/无效响应，以及公网 DNS 拒绝、TLS 主机名、chunked/gzip 和响应大小。Broker 测试使用真实 SQLite、grant、结果持久化、重复调用和 ACK 重送；`ant test-media` 验证签名业务包、分页快照、媒体绑定、来源防伪和物理完成回执，部署与实机验证边界见 [部署指南](../service-harness/BUSINESS-DEPLOYMENT.md)。
 
 专项检测 options 支持 `classes` 和字符串 profile（含 `thing`），保留未知字段拒绝；
 预检、持久预留及发送按节点注册的 profile、状态租约、切片支持与图像余量匹配。

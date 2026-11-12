@@ -1,15 +1,14 @@
-# M5 晋级与回退管理工具
+# 业务包晋级与回退管理工具
 
-本包可独立解压运行，Python 3.11 标准库，无新增依赖。它不含 JVM JAR、业务包、私钥和真实凭证；M4 环境沿用既有两个 JAR、guard、Provider、工具和业务包。部署本包无需重启 JVM。
+本包可独立解压运行，使用 Python 3.11 标准库。目标环境须具备配套的核心与技能 JAR、guard、Provider、工具和业务包。管理工具可独立更新，无需重启 JVM；包内不含 JAR、业务包、私钥或真实凭证。
 
-完整循序教程在工作区 `tutorials/src/content/docs/guide/11-promotion-and-rollback.md`，实现与部署说明在 `cube-server/service-harness/M5.md`。已有 M4 环境可先行部署管理工具、人工跑通，再讨论真实环境验证。一个 Harness JVM 接多个独立 model/Runner 的部署约束不变。
+完整教程在工作区 `tutorials/src/content/docs/guide/11-promotion-and-rollback.md`，能力与恢复约定在 `cube-server/service-harness/RELEASE-MANAGEMENT.md`，首次安装见 `cube-server/service-harness/BUSINESS-DEPLOYMENT.md`。一个 Harness JVM 支持多个独立 model/Runner 单元。
 
 ## 本地检查
 
 从本包解压目录运行，不连接真实租户：
 
 ```powershell
-python -B examples/check_release_ops.py
 python -B examples/release_ops.py --help
 ```
 
@@ -22,7 +21,7 @@ python -B examples/release_ops.py --help
 从解压目录执行以下示例，先把私有路径和占位值改为实际值：
 
 ```powershell
-$Ops = Join-Path $env:LOCALAPPDATA "AgentIntegrationTutorial/m5"
+$Ops = Join-Path $env:LOCALAPPDATA "AgentIntegrationTutorial/release-ops"
 $env:CUBE_PROMOTION_SOURCE_TOKEN = "<测试读取身份token>"
 $env:CUBE_PROMOTION_TARGET_TOKEN = "<正式管理身份token>"
 python -B examples/release_ops.py promote-plan --source-config "$Ops/source.json" --target-config "$Ops/target.json" --zip "$Ops/candidate.zip" --signature-file "$Ops/signature.base64.txt" --key-id <获准keyId> --base-policy "$Ops/policy-current.json" --policy-version prod-next-1 --replace-release <旧业务manifest-digest> --operation-id prod-promotion-1 --directory "$Ops/promotion-1"
@@ -42,4 +41,4 @@ python -B examples/release_ops.py rollback-plan --target-config "$Ops/target.jso
 python -B examples/release_ops.py apply --target-config "$Ops/target.json" --directory "$Ops/rollback-1"
 ```
 
-回退只改后续新 run 的策略，已有 run 保持创建时的 pin。当前 ACL、撤权和退役规则继续执行。保存两个操作目录、人工任务和实际现象，随后再安排现场验证。M5 本地回归完成；现场部署尚未执行，M6 尚未执行。
+回退只改后续新 run 的策略，已有 run 保持创建时的 pin。当前 ACL、撤权和退役规则继续执行。保存两个操作目录、runId、报告和实际现象，用于恢复与后续环境验证。
