@@ -50,7 +50,9 @@ public class HttpServer {
 
     private HttpChannel.Listener requestListener;
 
-    /** Install an optional connector listener before startup (including asynchronous requests). */
+    /**
+     * Install an optional connector listener before startup (including asynchronous requests).
+     */
     public void setRequestListener(HttpChannel.Listener listener) {
         this.requestListener = listener;
     }
@@ -151,6 +153,7 @@ public class HttpServer {
 
     /**
      * 启动服务。
+     *
      * @param joinThread joinThread。
      */
     public void start(boolean joinThread) {
@@ -159,6 +162,7 @@ public class HttpServer {
 
     /**
      * 启动服务器。
+     *
      * @param plainPort plainPort。
      */
     public void start(int plainPort) {
@@ -168,7 +172,8 @@ public class HttpServer {
 
     /**
      * 启动服务器。
-     * @param plainPort plainPort。
+     *
+     * @param plainPort  plainPort。
      * @param securePort securePort。
      */
     public void start(int plainPort, int securePort) {
@@ -177,7 +182,8 @@ public class HttpServer {
 
     /**
      * 启动服务器。
-     * @param plainPort plainPort。
+     *
+     * @param plainPort  plainPort。
      * @param securePort securePort。
      * @param joinThread joinThread。
      */
@@ -218,8 +224,7 @@ public class HttpServer {
                     new HttpConnectionFactory(httpsConfig));
             https.setPort(securePort);
             https.setIdleTimeout(500000);
-        }
-        else {
+        } else {
             httpConfig.setOutputBufferSize(32768);
         }
 
@@ -233,10 +238,9 @@ public class HttpServer {
         }
 
         if (null != https) {
-            this.server.setConnectors(new Connector[]{ http, https });
-        }
-        else {
-            this.server.setConnectors(new Connector[]{ http });
+            this.server.setConnectors(new Connector[]{http, https});
+        } else {
+            this.server.setConnectors(new Connector[]{http});
         }
 
         ContextHandlerCollection contexts = new ContextHandlerCollection();
@@ -268,8 +272,7 @@ public class HttpServer {
                 Thread.currentThread().interrupt();
                 Logger.w(HttpServer.class, "#start - Interrupted while joining the server thread");
             }
-        }
-        else {
+        } else {
             // 同步启动：start() 在连接器就绪后返回，端口占用会立即抛异常。
             // 原实现把它丢进裸线程，调用方无法知道启动是否成功，stop() 还会作用在未启动的 server 上。
             this.startServer();
@@ -309,7 +312,9 @@ public class HttpServer {
         this.stop();
     }
 
-    /** 停止服务器，使用当前 Jetty 停止超时。 */
+    /**
+     * 停止服务器，使用当前 Jetty 停止超时。
+     */
     public void stop() {
         if (null == this.server) {
             return;

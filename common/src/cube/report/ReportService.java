@@ -9,8 +9,8 @@ package cube.report;
 import cell.util.log.Logger;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -102,7 +102,7 @@ public class ReportService {
      *
      * @return 全局唯一实例。
      */
-    public final static ReportService getInstance() {
+    public static ReportService getInstance() {
         return ReportService.instance;
     }
 
@@ -282,7 +282,9 @@ public class ReportService {
         }
     }
 
-    /** 停止上报并中断进行中的 HTTP 提交，不等待控制台请求超时。 */
+    /**
+     * 停止上报并中断进行中的 HTTP 提交，不等待控制台请求超时。
+     */
     public void close() {
         List<SubmitThread> threads;
         synchronized (this.stateLock) {
@@ -291,7 +293,10 @@ public class ReportService {
             this.retries.clear();
             threads = new ArrayList<>(this.submitThreads);
         }
-        for (SubmitThread thread : threads) thread.interrupt();
+
+        for (SubmitThread thread : threads) {
+            thread.interrupt();
+        }
     }
 
     boolean isClosed() {

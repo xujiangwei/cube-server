@@ -28,7 +28,7 @@ public class StreamServer {
      *
      * <p>字节 {@code 0x10 0x17} ，用于在连续字节流中界定单个分片边界。</p>
      */
-    public final static byte[] sSeparator = new byte[] { 0x10, 0x17 };
+    public final static byte[] sSeparator = new byte[]{0x10, 0x17};
 
     private int port;
 
@@ -64,8 +64,7 @@ public class StreamServer {
                     if (acceptor != starting) return;
                     if (starting.bind(port)) {
                         Logger.i(StreamServer.class, "Stream server bind @ " + port);
-                    }
-                    else {
+                    } else {
                         Logger.i(StreamServer.class, "Stream server bind ERROR @ " + port);
                     }
                 }
@@ -159,20 +158,17 @@ public class StreamServer {
                         type = new byte[buf.limit()];
                         System.arraycopy(buf.array(), 0, type, 0, type.length);
                         buf.clear();
-                    }
-                    else if (null == name) {
+                    } else if (null == name) {
                         buf.flip();
                         name = new byte[buf.limit()];
                         System.arraycopy(buf.array(), 0, name, 0, name.length);
                         buf.clear();
-                    }
-                    else if (null == index) {
+                    } else if (null == index) {
                         buf.flip();
                         index = new byte[buf.limit()];
                         System.arraycopy(buf.array(), 0, index, 0, index.length);
                         buf.clear();
-                    }
-                    else if (null == timestamp) {
+                    } else if (null == timestamp) {
                         buf.flip();
                         timestamp = new byte[buf.limit()];
                         System.arraycopy(buf.array(), 0, timestamp, 0, timestamp.length);
@@ -203,8 +199,7 @@ public class StreamServer {
                 if (null != listener) {
                     listener.onStream(new Track(acceptor, session), stream);
                 }
-            }
-            else {
+            } else {
                 Logger.w(this.getClass(), "#messageReceived - Stream data format error");
             }
         }

@@ -198,7 +198,7 @@ public class FileChunkStorage {
     public void writeToDisk(FileChunkStore fileChunkStore) {
         if (!this.writeDisk) {
             // 不写入磁盘
-           return;
+            return;
         }
 
         if (!fileChunkStore.completed) {
@@ -263,8 +263,7 @@ public class FileChunkStorage {
                     if (null != listener) {
                         listener.onFailed(fileChunkStore.fileCode);
                     }
-                }
-                else {
+                } else {
                     FileChunkEventListener listener = listenerMap.remove(fileChunkStore.fileCode);
                     if (null != listener) {
                         listener.onCompleted(fileLabel);
@@ -327,7 +326,7 @@ public class FileChunkStorage {
 
         for (FileChunkTag tag : this.chunkTags) {
             if (tag.contactId == chunk.contactId && tag.domain.equals(chunk.domain) &&
-                tag.fileName.equals(chunk.fileName)) {
+                    tag.fileName.equals(chunk.fileName)) {
                 current = tag;
                 break;
             }
@@ -503,8 +502,7 @@ public class FileChunkStorage {
                             continuous = false;
                             break;
                         }
-                    }
-                    else {
+                    } else {
                         // next 为空，chunk 是最后一块，判断是否结束
                         if (chunk.position == chunk.fileSize) {
                             if (this.chunks.get(0).cursor == 0) {
@@ -604,8 +602,7 @@ public class FileChunkStorage {
 
                     this.current = chunk;
                     this.currentData = chunk.getData();
-                }
-                else {
+                } else {
                     this.current = chunk;
                     this.currentData = chunk.getData();
                 }

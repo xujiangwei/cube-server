@@ -22,7 +22,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class AIGCCellet extends AbstractCellet {
 
-    /** 单元名称，同时作为端点注册名。 */
+    /**
+     * 单元名称，同时作为端点注册名。
+     */
     public final static String NAME = "AIGC";
 
     /**
@@ -140,7 +142,7 @@ public class AIGCCellet extends AbstractCellet {
     /**
      * 流监听器。
      */
-    protected class DefaultStreamListener implements StreamListener {
+    protected static class DefaultStreamListener implements StreamListener {
 
         private final StreamProcessor processor;
 

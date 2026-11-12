@@ -9,8 +9,8 @@ package cube.util;
 import cell.util.log.Logger;
 import org.eclipse.jetty.client.HttpClient;
 
-import java.util.Collections;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -172,7 +172,9 @@ public final class HttpClientFactory {
         return this.created.get();
     }
 
-    /** 关闭工厂并释放连接池。 */
+    /**
+     * 关闭工厂并释放连接池。
+     */
     public void close() {
         List<HttpClient> clients;
         synchronized (this.lifecycleLock) {
@@ -185,7 +187,9 @@ public final class HttpClientFactory {
         }
         // Stopping a client can invoke callbacks which return it to this factory.
         // Do not hold lifecycleLock while waiting for its Jetty threads to exit.
-        for (HttpClient client : clients) this.closeQuietly(client);
+        for (HttpClient client : clients) {
+            this.closeQuietly(client);
+        }
     }
 
     private HttpClient newClient() {

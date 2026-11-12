@@ -19,11 +19,7 @@ import cube.util.NodeName;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 
 /**
  * 网关容器的监听器。
@@ -86,7 +82,8 @@ public class DispatcherListener implements CellListener {
         final Daemon reportDaemon = this.daemon;
         this.performanceTimer = new Timer("Cube-Dispatcher-Performance", true);
         this.performanceTimer.schedule(new TimerTask() {
-            @Override public void run() {
+            @Override
+            public void run() {
                 try {
                     reportDaemon.submitPerformanceReport(System.currentTimeMillis());
                 } catch (RuntimeException e) {
@@ -165,6 +162,7 @@ public class DispatcherListener implements CellListener {
                 try {
                     fis.close();
                 } catch (IOException e) {
+                    // Nothing
                 }
             }
         }

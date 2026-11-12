@@ -43,7 +43,7 @@ public class StreamProcessor {
 
     private final FileStorageCellet fileStorageCellet;
 
-    private Map<String, List<Stream>> speakerDiarizationCache;
+    private final Map<String, List<Stream>> speakerDiarizationCache;
 
     private Timer timer;
 
@@ -136,8 +136,7 @@ public class StreamProcessor {
             if (null != register && null == register.track) {
                 register.track = track;
             }
-        }
-        else if (stream.getType() == StreamType.Stop) {
+        } else if (stream.getType() == StreamType.Stop) {
             synchronized (this.speakerDiarizationCache) {
                 List<Stream> streams = this.speakerDiarizationCache.get(stream.name);
                 if (null != streams) {
@@ -146,8 +145,7 @@ public class StreamProcessor {
                     }
                 }
             }
-        }
-        else {
+        } else {
             Logger.w(this.getClass(), "#receive - stream type is unknown: " + stream.type);
         }
     }
@@ -197,8 +195,7 @@ public class StreamProcessor {
                     List<Stream> streams = iter.next().getValue();
                     if (streams.size() >= 64) {
                         executorService.execute(new StreamTask(streams.get(0).name, streams));
-                    }
-                    else {
+                    } else {
                         // 判断是否有 Stop 信号流
                         boolean stopped = false;
                         synchronized (streams) {

@@ -23,6 +23,7 @@ import cube.common.entity.Device;
 import cube.common.state.AuthStateCode;
 import cube.dispatcher.aigc.AIGCCellet;
 import cube.dispatcher.aigc.CapabilityRouter;
+import cube.dispatcher.harness.HarnessGateway;
 import cube.dispatcher.monitor.RestMetrics;
 import cube.dispatcher.monitor.RestMetricsListener;
 import cube.dispatcher.stream.StreamServer;
@@ -41,11 +42,7 @@ import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -85,7 +82,7 @@ public class Performer implements TalkListener, Tickable {
      */
     private HttpServer httpServer;
     private final RestMetrics restMetrics = new RestMetrics();
-    private cube.dispatcher.harness.HarnessGateway harnessGateway;
+    private HarnessGateway harnessGateway;
 
     /**
      * 服务主机列表。

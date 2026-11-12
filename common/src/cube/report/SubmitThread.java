@@ -24,9 +24,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * 提交线程。
  *
- * <p>
- * 设计要点（2026-09-20 重写）：
- * </p>
  * <ul>
  *     <li>使用 {@code poll()} 取报告而不是 {@code peek()}。原实现用 {@code peek()}，
  *     一旦队首报告无法投递就 {@code break}，队首没有被移除，后续所有报告都被它挡住，
@@ -151,7 +148,9 @@ public class SubmitThread extends Thread {
                     // 停止失败不影响线程复位，仅记录
                     Logger.d(SubmitThread.class, "#run - Failed to stop the client: " + e.getMessage());
                 } finally {
-                    if (interrupted) Thread.currentThread().interrupt();
+                    if (interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
             }
             this.service.submitThreadStopped(this);
