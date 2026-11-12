@@ -351,7 +351,7 @@ public final class CapabilityRouter {
         String channel = data.optString("channel", data.optString("code", ""));
         boolean chat = AIGCAction.Chat.name.equals(action);
         boolean requestChannel = AIGCAction.RequestChannel.name.equals(action);
-        boolean asr = AIGCAction.AutomaticSpeechRecognition.name.equals(action);
+        String audioSubtask = audioSubtask(action);
         boolean completion = AIGCAction.ChatCompletion.name.equals(action);
         boolean channelControl = AIGCAction.GetChannelInfo.name.equals(action)
                 || AIGCAction.KeepAliveChannel.name.equals(action) || AIGCAction.StopChannel.name.equals(action);
@@ -362,7 +362,7 @@ public final class CapabilityRouter {
             }
             return owner.director;
         }
-        if (!requestChannel && !asr && !completion && !chat && !channelControl) {
+        if (!requestChannel && audioSubtask == null && !completion && !chat && !channelControl) {
             return null;
         }
         String unit = data.optString("unit", ModelConfig.BAIZE_UNIT);
@@ -378,14 +378,14 @@ public final class CapabilityRouter {
             }
         }
         boolean plainChat = chat && Consts.PATTERN_CHAT.equalsIgnoreCase(data.optString("pattern", Consts.PATTERN_CHAT));
-        String key = asr ? "subtask:AutomaticSpeechRecognition" : completion ? completionKey(request)
+        String key = audioSubtask != null ? "subtask:" + audioSubtask : completion ? completionKey(request)
                 : "unit:" + unit.toLowerCase(Locale.ROOT);
         Owner owner = channels.get(channel);
         if (chat || channelControl) {
             if (owner == null || !owner.live()) {
                 throw unavailable("Channel owner unavailable; request a new channel");
             }
-            if (plainChat && !matches(owner.director, unit, null, false)) {
+            if (plainChat && !matches(owner.director, unit, null, null)) {
                 throw unavailable("Channel unit unavailable: " + unit);
             }
             owner.touched = System.currentTimeMillis();
@@ -393,7 +393,7 @@ public final class CapabilityRouter {
         }
         List<Director> eligible = new ArrayList<>();
         for (Director director : candidates()) {
-            if (matches(director, unit, request, asr)) {
+            if (matches(director, unit, request, audioSubtask)) {
                 eligible.add(director);
             }
         }
@@ -579,10 +579,10 @@ public final class CapabilityRouter {
      * @param director 端点
      * @param unitName 单元名称，仅在普通对话时参与匹配
      * @param request  结构化完成请求；为 {@code null} 表示按单元名匹配
-     * @param asr      是否为语音识别请求
+     * @param audioSubtask 音频子任务；非音频请求为 null
      * @return 端点可承载该请求时返回 true
      */
-    private boolean matches(Director director, String unitName, JSONObject request, boolean asr) {
+    private boolean matches(Director director, String unitName, JSONObject request, String audioSubtask) {
         if (!valid(director, System.currentTimeMillis())) {
             return false;
         }
@@ -598,10 +598,10 @@ public final class CapabilityRouter {
         }
         for (int i = 0; i < snapshot.units.length(); i++) {
             AICapability capability = new AICapability(snapshot.units.getJSONObject(i).getJSONObject("capability"));
-            if (asr && capability.containsSubtask(AICapability.AudioProcessing.AutomaticSpeechRecognition)) {
+            if (audioSubtask != null && capability.containsSubtask(audioSubtask)) {
                 return true;
             }
-            if (!asr && request == null && unitName.equalsIgnoreCase(capability.getName())) {
+            if (audioSubtask == null && request == null && unitName.equalsIgnoreCase(capability.getName())) {
                 return true;
             }
             if (request != null && names.contains(capability.getName())) {
@@ -614,6 +614,16 @@ public final class CapabilityRouter {
             }
         }
         return false;
+    }
+
+    private static String audioSubtask(String action) {
+        if (AIGCAction.AutomaticSpeechRecognition.name.equals(action)) {
+            return AICapability.AudioProcessing.AutomaticSpeechRecognition;
+        }
+        if (AIGCAction.SpeechDiarization.name.equals(action)) {
+            return AICapability.AudioProcessing.SpeakerDiarization;
+        }
+        return null;
     }
 
     /**
@@ -683,11 +693,11 @@ public final class CapabilityRouter {
         }
         boolean channel = AIGCAction.RequestChannel.name.equals(request.getName());
         boolean completion = AIGCAction.ChatCompletion.name.equals(request.getName());
-        boolean asr = AIGCAction.AutomaticSpeechRecognition.name.equals(request.getName());
+        String audioSubtask = audioSubtask(request.getName());
         boolean chat = AIGCAction.Chat.name.equals(request.getName());
         boolean channelControl = AIGCAction.GetChannelInfo.name.equals(request.getName())
                 || AIGCAction.KeepAliveChannel.name.equals(request.getName()) || AIGCAction.StopChannel.name.equals(request.getName());
-        if (!channel && !completion && !asr && !chat && !channelControl) {
+        if (!channel && !completion && audioSubtask == null && !chat && !channelControl) {
             return;
         }
         Packet packet = new Packet(request);
@@ -696,14 +706,14 @@ public final class CapabilityRouter {
             Owner owner = channels.get(packet.data.optString("channel", packet.data.optString("code", "")));
             boolean plainChat = chat && Consts.PATTERN_CHAT.equalsIgnoreCase(packet.data.optString("pattern", Consts.PATTERN_CHAT));
             if (owner == null || !owner.live() || owner.director != director || owner.source != source
-                    || (plainChat && !matches(director, unit, null, false))) {
+                    || (plainChat && !matches(director, unit, null, null))) {
                 throw unavailable("Channel owner or unit changed before sending");
             }
             return;
         }
         State state = states.get(director);
         if (state == null || state.source != source || !matches(director, unit,
-                completion ? packet.data.getJSONObject("request") : null, asr)) {
+                completion ? packet.data.getJSONObject("request") : null, audioSubtask)) {
             throw unavailable("Service capability changed before sending");
         }
         if (!channel && !completion) {

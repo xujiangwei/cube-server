@@ -12,6 +12,7 @@ import cube.dispatcher.aigc.Manager;
 import cube.dispatcher.aigc.handler.AutomaticSpeechRecognition;
 import cube.dispatcher.aigc.handler.Channel;
 import cube.dispatcher.aigc.handler.Chat;
+import cube.dispatcher.aigc.handler.SpeechDiarization;
 import cube.util.HttpServer;
 import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
@@ -52,7 +53,7 @@ public final class CapabilityHttpTest {
         ServerConnector connector = new ServerConnector(server);
         connector.setHost("127.0.0.1"); connector.setPort(0); server.addConnector(connector);
         ContextHandlerCollection handlers = new ContextHandlerCollection();
-        handlers.setHandlers(new Handler[]{new AutomaticSpeechRecognition(), new Channel(), new Chat()});
+        handlers.setHandlers(new Handler[]{new AutomaticSpeechRecognition(), new SpeechDiarization(), new Channel(), new Chat()});
         server.setHandler(handlers);
         try {
             manager.start(performer);
@@ -60,6 +61,7 @@ public final class CapabilityHttpTest {
             String root = "http://127.0.0.1:" + connector.getLocalPort();
             expectUnavailable(root + "/aigc/speech/recognition/" + TOKEN, new JSONObject().put("fileCode", "sync").put("sync", true));
             expectUnavailable(root + "/aigc/speech/recognition/" + TOKEN, new JSONObject().put("fileCode", "async"));
+            expectUnavailable(root + "/aigc/speech/diarization/" + TOKEN, new JSONObject().put("fileCode", "diarization"));
             expectUnavailable(root + "/aigc/channel/" + TOKEN, new JSONObject().put("participant", "user"));
             expectUnavailable(root + "/aigc/chat/" + TOKEN, new JSONObject().put("channel", "unknown").put("content", "hello"));
             System.out.println("CapabilityHttpTest: " + assertions + " assertions passed");

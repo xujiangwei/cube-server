@@ -40,6 +40,27 @@ public final class CapabilityRoutingTest {
     }
     public static void main(String[] args) throws Exception {
         try (Fixture f = new Fixture()) {
+            Node text = f.add("text-only", unit("Baize", "Conversational", true, true));
+            Node audio = f.add("audio", unit("Audio", "SpeakerDiarization", false, false));
+            Node secondAudio = f.add("audio-2", unit("Audio", "SpeakerDiarization", false, false));
+            until(() -> f.performer.getCapabilityRouter().candidates().size() == 3);
+            // Bind the same token to a non-audio control endpoint before submitting audio.
+            check(f.select(action(AIGCAction.CheckToken, new JSONObject())) == text.director, "control token binds to text service");
+            ActionDialect request = action(AIGCAction.SpeechDiarization, new JSONObject().put("fileCode", "voice"));
+            check(f.select(request) == audio.director, "diarization ignores text token binding");
+            check(f.select(request) == secondAudio.director, "diarization balances capable endpoints");
+            check(f.performer.tryTransmit("AIGC", request), "async diarization sent");
+            check(audio.business.get() == 1 && text.business.get() == 0, "async diarization uses audio endpoint");
+            f.performer.syncTransmit("AIGC", action(AIGCAction.SpeechDiarization, new JSONObject()));
+            check(secondAudio.business.get() == 1, "sync diarization uses another audio endpoint");
+            audio.snapshot = snapshot("audio", new JSONArray()); f.refresh(audio);
+            until(() -> audio.queries.get() >= 2 && !((Boolean) value(f.stateUnchecked(audio), "inflight")));
+            unavailable(() -> f.performer.tryTransmit(audio.director, "AIGC",
+                    action(AIGCAction.SpeechDiarization, new JSONObject())));
+            f.performer.getCapabilityRouter().disconnected(secondAudio.speaker);
+            unavailable(() -> f.select(action(AIGCAction.SpeechDiarization, new JSONObject())));
+        }
+        try (Fixture f = new Fixture()) {
             Node a = f.add("asr", unit("Speech", "AutomaticSpeechRecognition", false, false));
             Node b = f.add("baize", unit("Baize", "Conversational", true, true));
             until(() -> f.performer.getCapabilityRouter().candidates().size() == 2);

@@ -62,6 +62,7 @@ public class ManagerRobustnessTest {
             testLifecycle(nucleus);
             testTokens(nucleus);
             testAsyncTasks(nucleus);
+            testDiarizationRetry(nucleus);
             testConcurrentSubmission(nucleus);
             testSnapshotsAndStop(nucleus);
             testExpiry(nucleus);
@@ -479,6 +480,37 @@ public class ManagerRobustnessTest {
         waiter.join(5000);
         check(!waiter.isAlive() && returnedNull.get() && interrupted.get(), "interrupt promptly returns and preserves flag");
         check(map(performer, "blockMap").isEmpty(), "interrupted request releases block");
+    }
+
+    private static void testDiarizationRetry(Nucleus nucleus) throws Exception {
+        Manager manager = new Manager();
+        FakePerformer performer = new FakePerformer(nucleus);
+        manager.start(performer);
+        try {
+            JSONable first = manager.speechDiarization(TOKEN, "retry-audio", null, false);
+            ActionDialect firstRequest = performer.lastRequest();
+            check(manager.speechDiarization(TOKEN, "retry-audio", null, false) == first,
+                    "in-flight audio is reused");
+            reply(manager, firstRequest, AIGCStateCode.FileError, new JSONObject());
+            check(state(first) == AIGCStateCode.FileError.code, "file failure remains queryable");
+            JSONable retry = manager.speechDiarization(TOKEN, "retry-audio", null, false);
+            check(retry != first && state(retry) == AIGCStateCode.Processing.code,
+                    "failed audio retries without reset");
+            ActionDialect retryRequest = performer.lastRequest();
+            reply(manager, firstRequest, AIGCStateCode.Ok, successPayload(3, "retry-audio"));
+            check(state(retry) == AIGCStateCode.Processing.code, "old reply cannot complete retry");
+            reply(manager, retryRequest, AIGCStateCode.Ok,
+                    successPayload(3, "retry-audio").put("duration", 0));
+            check(state(retry) == AIGCStateCode.DataStructureError.code, "zero duration success rejected");
+            JSONable recovered = manager.speechDiarization(TOKEN, "retry-audio", null, false);
+            check(recovered != retry, "invalid legacy audio result is retryable");
+            reply(manager, performer.lastRequest(), AIGCStateCode.Ok, successPayload(3, "retry-audio"));
+            check(state(recovered) == AIGCStateCode.Ok.code, "valid silence remains successful");
+            int sent = performer.requests.size();
+            check(manager.speechDiarization(TOKEN, "retry-audio", null, false) == recovered,
+                    "valid audio result stays cached");
+            check(performer.requests.size() == sent, "valid cache does not send another task");
+        } finally { manager.stop(); }
     }
 
     private static JSONable submit(Manager manager, int kind, String file, boolean reset) {

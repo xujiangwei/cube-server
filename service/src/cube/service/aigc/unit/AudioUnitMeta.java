@@ -120,7 +120,9 @@ public class AudioUnitMeta extends UnitMeta {
             Logger.w(AIGCService.class, "#process - Audio unit failed: " + this.file.getFileCode());
             // 回调错误
             if (null != this.voiceDiarizationListener) {
-                this.voiceDiarizationListener.onFailed(this.file, AIGCStateCode.Failure);
+                AIGCStateCode state = AIGCStateCode.parse(Packet.extractCode(response));
+                this.voiceDiarizationListener.onFailed(this.file,
+                        state == null ? AIGCStateCode.Failure : state);
             }
             return;
         }
@@ -129,6 +131,14 @@ public class AudioUnitMeta extends UnitMeta {
 
         if (this.action == AIGCAction.SpeechDiarization) {
             final VoiceDiarization result = new VoiceDiarization(payload.getJSONObject("result"));
+            // 拒绝旧版单元把预处理异常包装成「零时长成功」，无语音的有效音频仍可为空轨迹。
+            if (!Double.isFinite(result.duration) || result.duration <= 0) {
+                Logger.w(AIGCService.class, "#process - Invalid audio duration: " + this.file.getFileCode());
+                if (null != this.voiceDiarizationListener) {
+                    this.voiceDiarizationListener.onFailed(this.file, AIGCStateCode.FileError);
+                }
+                return;
+            }
             // 补齐参数
             result.contactId = this.authToken.getContactId();
             result.setDomain(this.authToken.getDomain());

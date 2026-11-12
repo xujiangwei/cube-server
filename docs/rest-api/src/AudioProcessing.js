@@ -231,6 +231,7 @@
  *
  * @apiDescription 区分音频中的不同说话者，获取各语音片段的文字、情绪和说话节奏，适合访谈、咨询与会议录音分析。先上传文件取得文件码，或提供服务端可访问的音频 URL。
  *                 <p>提交成功后保存 <code>queryCode</code>，调用“说话者语音多态识别结果查询”，将其填入 <code>qc</code>。任务耗时与音频长度有关，处理期间复用查询接口；需要重新分析同一文件时设置 <code>reset=true</code>。</p>
+ *                 <p>失败任务再次提交时会重新执行，无需设置 reset。只有在途任务和有效的成功结果会被复用；未发现具有说话人分离能力的服务端点时返回 HTTP 503。</p>
  *
  * @apiParam {String} token 授权令牌。
  * 
@@ -266,6 +267,7 @@
  * @apiError 401 令牌无效。
  * @apiError 403 参数格式错误。
  * @apiError 404 未找到指定文件的识别任务。
+ * @apiError 503 说话人分离能力不可用。
  *
  * @apiParamExample {http} 完整请求示例
  *     POST http://211.157.179.37:7010/aigc/speech/diarization/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
@@ -284,6 +286,7 @@
  * @apiVersion 1.0.0
  *
  * @apiDescription 使用提交接口返回的 <code>queryCode</code> 查询说话者分析结果。<code>stateCode=7</code> 时继续等待，<code>0</code> 时读取 <code>result</code>，其他值按任务异常处理。
+ *                 <p>文件下载、转码或时长读取失败返回 stateCode=32；单元未就绪为 30，单元通信失败为 31，其他执行故障为 9。失败不返回 result。有效的短音频或无语音音频允许 tracks 为空，但 duration 必须为正数；零时长不作为成功结果。</p>
  *                 <p>按 <code>tracks[]</code> 的说话人标识和 <code>segment.start/end</code> 展示语音片段；时间单位为秒。片段文字位于 <code>recognition.text</code>，汇总数据位于 <code>indicator.speakers[]</code>。示例保留一个片段与一位说话人的指标，实际返回数量以音频内容为准。</p>
  *
  * @apiParam {String} token 授权令牌。

@@ -7,6 +7,7 @@
 package cube.dispatcher.aigc.handler;
 
 import cube.dispatcher.aigc.Manager;
+import cube.dispatcher.aigc.CapabilityUnavailableException;
 import cube.util.FileLabels;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.handler.ContextHandler;
@@ -99,6 +100,8 @@ public class SpeechDiarization extends ContextHandler {
 
                 this.respondOk(response, future.toJSON());
                 this.complete();
+            } catch (CapabilityUnavailableException e) {
+                this.respondCapabilityUnavailable(response, e);
             } catch (Exception e) {
                 this.respond(response, HttpStatus.FORBIDDEN_403, this.makeError(HttpStatus.FORBIDDEN_403));
                 this.complete();

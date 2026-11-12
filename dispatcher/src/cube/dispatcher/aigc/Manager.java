@@ -254,7 +254,7 @@ public class Manager implements Tickable, PerformerListener {
             F previous = cache.get(key);
             if (null != previous) {
                 boolean expired = System.currentTimeMillis() - futureTimestamp(previous) >= FUTURE_CACHE_TTL;
-                if (!reset && !expired) {
+                if (!reset && !expired && this.reusableFuture(previous)) {
                     return previous;
                 }
                 this.detachFuture(previous, expired ? AIGCStateCode.Expired : AIGCStateCode.Cancelled);
@@ -288,6 +288,19 @@ public class Manager implements Tickable, PerformerListener {
             }
         }
         return future;
+    }
+
+    /** 说话人分离只复用在途任务及有效结果，失败后允许同一文件直接重试。 */
+    private boolean reusableFuture(JSONable future) {
+        if (!(future instanceof SpeechDiarizationFuture)) {
+            return true;
+        }
+        synchronized (future) {
+            SpeechDiarizationFuture audio = (SpeechDiarizationFuture) future;
+            return audio.stateCode == AIGCStateCode.Processing
+                    || (audio.stateCode == AIGCStateCode.Ok && audio.diarization != null
+                    && Double.isFinite(audio.diarization.duration) && audio.diarization.duration > 0);
+        }
     }
 
     private void removePending(PendingRequest pending) {
@@ -4426,6 +4439,9 @@ public class Manager implements Tickable, PerformerListener {
                 VoiceDiarization result = new VoiceDiarization(data);
                 if (null == result.file) {
                     throw new IllegalArgumentException("Missing diarization file");
+                }
+                if (!Double.isFinite(result.duration) || result.duration <= 0) {
+                    throw new IllegalArgumentException("Invalid diarization duration");
                 }
                 SpeechDiarizationFuture f = (SpeechDiarizationFuture) future;
                 f.diarization = result;
