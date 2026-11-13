@@ -290,7 +290,9 @@ public class Manager implements Tickable, PerformerListener {
         return future;
     }
 
-    /** 说话人分离只复用在途任务及有效结果，失败后允许同一文件直接重试。 */
+    /**
+     * 说话人分离只复用在途任务及有效结果，失败后允许同一文件直接重试。
+     */
     private boolean reusableFuture(JSONable future) {
         if (!(future instanceof SpeechDiarizationFuture)) {
             return true;
@@ -567,8 +569,9 @@ public class Manager implements Tickable, PerformerListener {
         request.addParam("moduleName", module);
         request.addParam("moduleUnit", requiredUnit == null ? "" : requiredUnit);
         ActionDialect response = this.syncTransmit(AIGCCellet.NAME, request, timeoutMs);
-        if (response == null)
+        if (response == null) {
             throw new cube.aigc.spi.PluginCallException(AIGCStateCode.UnitError, 504, "Module request timed out");
+        }
         return new Packet(response);
     }
 
@@ -1152,7 +1155,7 @@ public class Manager implements Tickable, PerformerListener {
         JSONObject payload = new JSONObject();
         payload.put("name", baseName);
         payload.put("displayName", displayName);
-        if (null != category && category.length() > 0) {
+        if (null != category && !category.isEmpty()) {
             payload.put("category", category);
         } else {
             payload.put("category", displayName);

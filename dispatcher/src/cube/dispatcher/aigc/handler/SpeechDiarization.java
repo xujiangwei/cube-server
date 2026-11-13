@@ -6,8 +6,8 @@
 
 package cube.dispatcher.aigc.handler;
 
-import cube.dispatcher.aigc.Manager;
 import cube.dispatcher.aigc.CapabilityUnavailableException;
+import cube.dispatcher.aigc.Manager;
 import cube.util.FileLabels;
 import org.eclipse.jetty.http.HttpStatus;
 import org.eclipse.jetty.server.handler.ContextHandler;
@@ -26,7 +26,7 @@ public class SpeechDiarization extends ContextHandler {
         setHandler(new Handler());
     }
 
-    private class Handler extends AIGCHandler {
+    private static class Handler extends AIGCHandler {
 
         public Handler() {
             super();
