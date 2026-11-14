@@ -11,8 +11,8 @@ import cell.core.talk.dialect.ActionDialect;
 import cell.util.log.Logger;
 import cube.aigc.Consts;
 import cube.aigc.ModelConfig;
-import cube.aigc.SpecializedDetectionException;
 import cube.aigc.SpecializedDetectionCapabilities;
+import cube.aigc.SpecializedDetectionException;
 import cube.aigc.completion.CompletionError;
 import cube.aigc.completion.CompletionRequest;
 import cube.common.Packet;
@@ -107,7 +107,8 @@ public final class CapabilityRouter {
         if (queries != null) {
             return;
         }
-        queries = new ThreadPoolExecutor(2, 2, 0, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(16), r -> {
+        queries = new ThreadPoolExecutor(2, 2, 0,
+                TimeUnit.MILLISECONDS, new ArrayBlockingQueue<Runnable>(16), r -> {
             Thread t = new Thread(r, "aigc-capability-query");
             t.setDaemon(true);
             return t;
@@ -576,9 +577,9 @@ public final class CapabilityRouter {
      * <p>语音识别按子任务匹配；普通对话按单元名称匹配；结构化完成请求先按模型找到其所属单元，
      * 再逐单元校验能力约束。</p>
      *
-     * @param director 端点
-     * @param unitName 单元名称，仅在普通对话时参与匹配
-     * @param request  结构化完成请求；为 {@code null} 表示按单元名匹配
+     * @param director     端点
+     * @param unitName     单元名称，仅在普通对话时参与匹配
+     * @param request      结构化完成请求；为 {@code null} 表示按单元名匹配
      * @param audioSubtask 音频子任务；非音频请求为 null
      * @return 端点可承载该请求时返回 true
      */
