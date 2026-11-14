@@ -49,6 +49,7 @@
     <java classname="cube.service.harness.test.MultiUserExecutionTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
   </target>
   <target name="test-tools" depends="test">
+    <java classname="cube.service.harness.execution.QueryProviderFactoryTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.ToolTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="tools.test.config" value="${tools.test.config}"/></java>
     <java classname="cube.service.harness.test.QueryProviderTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
   </target>

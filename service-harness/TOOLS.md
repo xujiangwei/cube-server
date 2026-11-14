@@ -2,6 +2,10 @@
 
 工具链路由 Java Coordinator/Broker、可信业务 provider 和 Python Runner 组成。Java 固定调用身份、权限、参数及执行意图；Runner 执行受控作业并持久保存结果，Java 在确认执行证据后推进任务。
 
+将全部 Unit 接入 Harness 的目标架构、操作清单和实现顺序见 [全量 Unit 工具接入方案](UNIT-TOOLS.md)。方案要求业务开发者使用统一契约，JVM 位置与内部传输由平台处理。该方案中的通用网关、写操作和会话控制为拟议能力，本文其余部分描述现有工具机制。
+
+[Unit 操作目录与公共契约](../common/unit-tools/README.md)提供统一描述、Java/Python 摘要校验和源码覆盖检查。目录定义与当前可执行工具分别管理，安装描述不等于网关已支持派发。
+
 | 类型 | 用途 | 配套契约 / task 工具集 |
 | --- | --- | --- |
 | 内建资源工具 | Java 读取固定技能资源，不运行代码 | `resource-tools-v1` |
@@ -41,6 +45,8 @@ broker.providers=your-skill
 broker.provider.your-skill.class=your.skills.ReadOnlyProvider
 broker.provider.your-skill.config=C:/private/your-skill.properties
 ```
+
+同一注册项也可使用实现 `QueryProviderFactory` 的受信类，以一个私有配置创建多个 `QueryProvider`。工厂与单个 Provider 均使用 `Properties` 构造函数；每个生成的 operation、权限和 schema 按原规则校验。重复 operation 或任一项校验失败会拒绝启动并关闭全部已创建实例及工厂资源。Provider 交由宿主关闭，工厂只关闭自身持有的共享资源；两者的 `close()` 均须可重复调用。
 
 provider 在 JVM 内运行，独立配置地址、密钥、operation 和策略；可并存多个 provider，重启时注册。上传技能包不会安装 Java 类。未安装 provider 的相关调用返回 `TOOL_PROVIDER_UNAVAILABLE`；schema、权限及范围须与技能声明一致。SDK `query(targets,fields)` 转换为受控调用，不提供任意 HTTP 或 shell。
 

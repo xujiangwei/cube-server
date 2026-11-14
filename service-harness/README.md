@@ -14,6 +14,7 @@
 | [EXECUTION.md](EXECUTION.md) | 模型推理、资源循环、多单元容量和结果对账 |
 | [RUNTIME.md](RUNTIME.md) | 技能包发布、固定配置、权限、工作区和上下文 |
 | [TOOLS.md](TOOLS.md) | 可信工具、业务 provider 与 sandbox Runner |
+| [全量 Unit 工具接入方案](UNIT-TOOLS.md) | 开发者统一业务接入契约、全量能力目录、内部 Service 网关、工具与实现顺序（设计方案） |
 | [业务数据能力](BUSINESS-DATA.md) | 数据连接器、分页覆盖、过滤聚合、精确去重、单图分析与可信来源 |
 | [执行检查与报告](WORKFLOW-REPORTS.md) | 必需步骤证据、有限补齐、报告结构、记录覆盖与来源引用 |
 | [业务能力部署](BUSINESS-DEPLOYMENT.md) | 配套产物、Provider/guard/权限配置、业务包发布与人工运行顺序 |

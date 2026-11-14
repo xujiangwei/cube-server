@@ -33,6 +33,7 @@ final class QueryProviders implements AutoCloseable {
      * operation 到提供方实例的映射；仅在构造期写入，之后只读。
      */
     private final Map<String, QueryProvider> providers = new HashMap<>();
+    private final java.util.List<QueryProviderFactory> factories = new java.util.ArrayList<>();
 
     /**
      * 从部署端私有配置构造注册表。
@@ -74,13 +75,45 @@ final class QueryProviders implements AutoCloseable {
                     privateConfig.load(in);
                 }
                 Class<?> type = Class.forName(config.getProperty(prefix + "class", ""));
-                if (!QueryProvider.class.isAssignableFrom(type)) {
+                if (QueryProviderFactory.class.isAssignableFrom(type)) {
+                    QueryProviderFactory factory = (QueryProviderFactory) type.getConstructor(Properties.class).newInstance(privateConfig);
+                    factories.add(factory);
+                    java.util.Collection<QueryProvider> created = factory.create();
+                    if (created == null) throw new IllegalArgumentException("QUERY_PROVIDER_FACTORY_INVALID");
+                    java.util.List<QueryProvider> pending = new java.util.ArrayList<>(created);
+                    int consumed = 0;
+                    RuntimeException registrationFailure = null;
+                    try {
+                        if (pending.isEmpty() || pending.size() > 4096 || pending.contains(null))
+                            throw new IllegalArgumentException("QUERY_PROVIDER_FACTORY_INVALID");
+                        for (QueryProvider provider : pending) {
+                            // add closes a rejected provider, so transfer ownership first.
+                            consumed++;
+                            add(provider);
+                        }
+                    } catch (RuntimeException failure) {
+                        registrationFailure = failure;
+                        throw failure;
+                    } finally {
+                        RuntimeException cleanupFailure = null;
+                        for (int i = consumed; i < pending.size(); i++) if (pending.get(i) != null) {
+                            try { pending.get(i).close(); }
+                            catch (RuntimeException failure) {
+                                if (cleanupFailure == null) cleanupFailure = failure; else cleanupFailure.addSuppressed(failure);
+                            }
+                        }
+                        if (cleanupFailure != null) {
+                            if (registrationFailure != null) registrationFailure.addSuppressed(cleanupFailure); else throw cleanupFailure;
+                        }
+                    }
+                } else if (QueryProvider.class.isAssignableFrom(type)) {
+                    add((QueryProvider) type.getConstructor(Properties.class).newInstance(privateConfig));
+                } else {
                     throw new IllegalArgumentException("QUERY_PROVIDER_TYPE_INVALID");
                 }
-                add((QueryProvider) type.getConstructor(Properties.class).newInstance(privateConfig));
             }
         } catch (Exception e) {
-            close();
+            try { close(); } catch (RuntimeException cleanup) { e.addSuppressed(cleanup); }
             throw e;
         }
     }
@@ -107,7 +140,7 @@ final class QueryProviders implements AutoCloseable {
             }
             providers.put(operation, provider);
         } catch (RuntimeException e) {
-            provider.close();
+            try { provider.close(); } catch (RuntimeException cleanup) { e.addSuppressed(cleanup); }
             throw e;
         }
     }
@@ -133,8 +166,17 @@ final class QueryProviders implements AutoCloseable {
      */
     @Override
     public void close() {
+        RuntimeException failure = null;
         for (QueryProvider provider : providers.values()) {
-            provider.close();
+            try { provider.close(); }
+            catch (RuntimeException error) { if (failure == null) failure = error; else failure.addSuppressed(error); }
         }
+        providers.clear();
+        for (QueryProviderFactory factory : factories) {
+            try { factory.close(); }
+            catch (RuntimeException error) { if (failure == null) failure = error; else failure.addSuppressed(error); }
+        }
+        factories.clear();
+        if (failure != null) throw failure;
     }
 }

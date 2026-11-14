@@ -13,6 +13,7 @@
 
 	<property name="src.dir" value="src" />
 	<property name="lib.dir" value="../../cube-server-dependencies" />
+	<property name="extra.classpath" value="" />
 	<property name="doc.dir" value="doc" />
 
 	<property name="build.dir" value="build" />
@@ -20,6 +21,8 @@
 	<property name="build.jar" value="${build.dir}/jar" />
 
 	<path id="master-classpath">
+		<pathelement location="../deploy/bin/cell.jar" />
+		<pathelement path="${extra.classpath}" />
 		<fileset dir="${lib.dir}">
 			<include name="*.jar" />
 		</fileset>
@@ -30,6 +33,42 @@
 		<mkdir dir="${build.dir}" />
 		<mkdir dir="${build.classes}" />
 		<mkdir dir="${build.jar}" />
+	</target>
+
+	<target name="unit-catalog-check">
+		<property name="python.exe" value="python" />
+		<exec executable="${python.exe}" failonerror="true">
+			<arg value="-B"/><arg value="unit-tools/generate.py"/><arg value="--check"/>
+		</exec>
+	</target>
+
+	<target name="unit-catalog-test" depends="unit-catalog-check">
+		<exec executable="${python.exe}" failonerror="true">
+			<arg value="-B"/><arg value="-m"/><arg value="unittest"/><arg value="discover"/>
+			<arg value="-s"/><arg value="unit-tools"/><arg value="-p"/><arg value="test_*.py"/>
+		</exec>
+	</target>
+
+	<target name="unit-catalog-coverage" depends="unit-catalog-test">
+		<fail unless="python.unit.root" message="Set -Dpython.unit.root to the companion Python source checkout" />
+		<exec executable="${python.exe}" failonerror="true">
+			<arg value="-B"/><arg value="unit-tools/generate.py"/><arg value="--check"/>
+			<arg value="--python-root"/><arg path="${python.unit.root}"/>
+		</exec>
+		<exec executable="${python.exe}" failonerror="true">
+			<arg value="-B"/><arg value="unit-tools/test_catalog.py"/>
+			<arg value="--python-root"/><arg path="${python.unit.root}"/>
+		</exec>
+	</target>
+
+	<target name="unit-contract-test" depends="build-release,unit-catalog-test">
+		<mkdir dir="${build.dir}/test-classes" />
+		<javac srcdir="test" destdir="${build.dir}/test-classes" source="1.8" target="1.8" encoding="UTF-8" includeantruntime="false">
+			<classpath refid="master-classpath" />
+		</javac>
+		<java classname="cube.aigc.unit.UnitCatalogTest" fork="true" failonerror="true">
+			<classpath><path refid="master-classpath"/><pathelement location="${build.dir}/test-classes"/></classpath>
+		</java>
 	</target>
 
 	<!-- =================================================================== -->
@@ -45,10 +84,11 @@
 	<!-- =================================================================== -->
 	<!-- Dispenses project for debug                                         -->
 	<!-- =================================================================== -->
-	<target name="debug" depends="clean, init">
-		<javac target="${version.tgt}" source="${version.src}" fork="yes" srcdir="${src.dir}" destdir="${build.classes}" debug="on" encoding="UTF-8" deprecation="on" optimize="off">
+	<target name="debug" depends="unit-catalog-check, clean, init">
+		<javac target="${version.tgt}" source="${version.src}" fork="yes" srcdir="${src.dir}" destdir="${build.classes}" debug="on" encoding="UTF-8" deprecation="on" optimize="off" includeantruntime="false">
 			<classpath refid="master-classpath" />
 		</javac>
+		<copy todir="${build.classes}"><fileset dir="resources"/></copy>
 		<delete file="${build.jar}/cube-common.jar" failonerror="false" />
 		<jar destfile="${build.jar}/cube-common.jar" basedir="${build.classes}" excludes="cube/test/**" />
 	</target>
@@ -56,10 +96,11 @@
 	<!-- =================================================================== -->
 	<!-- Dispenses project for release                                       -->
 	<!-- =================================================================== -->
-	<target name="release" depends="clean, init">
-		<javac target="${version.tgt}" source="${version.src}" fork="yes" srcdir="${src.dir}" destdir="${build.classes}" debug="off" encoding="UTF-8" deprecation="on" optimize="on">
+	<target name="release" depends="unit-catalog-check, clean, init">
+		<javac target="${version.tgt}" source="${version.src}" fork="yes" srcdir="${src.dir}" destdir="${build.classes}" debug="off" encoding="UTF-8" deprecation="on" optimize="on" includeantruntime="false">
 			<classpath refid="master-classpath" />
 		</javac>
+		<copy todir="${build.classes}"><fileset dir="resources"/></copy>
 		<delete file="${build.jar}/cube-common.jar" failonerror="false" />
 		<jar destfile="${build.jar}/cube-common.jar" basedir="${build.classes}" excludes="cube/test/**" />
 	</target>
