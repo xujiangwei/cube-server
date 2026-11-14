@@ -165,5 +165,40 @@ final class WorkflowGate implements AutoCloseable {
         return result;
     }
 
+    JSONObject advance(ProfileRegistry.Identity identity, String run, JSONObject pin, JSONArray active,
+                       ResourceTools tools, ProviderStore metadata) throws Exception {
+        if (guard == null) return null;
+        Set<String> activated = new HashSet<>();
+        for (int i = 0; i < active.length(); i++) activated.add(active.getJSONObject(i).getString("digest"));
+        JSONArray all = metadata.completionEvidence(identity.tenant, identity.subject, run);
+        JSONObject proposal = null;
+        JSONArray releases = pin.getJSONArray("releases");
+        for (int i = 0; i < releases.length(); i++) {
+            JSONObject release = releases.getJSONObject(i), manifest = release.getJSONObject("manifest");
+            if (!activated.contains(release.getString("digest")) || !required(manifest)) continue;
+            String skill = manifest.getString("name");
+            CompletionGuard.Resources resources = new CompletionGuard.Resources() {
+                public JSONObject json(String path) throws Exception { return tools.providerResource(identity, run, skill, path); }
+                public byte[] bytes(String path) throws Exception { return tools.providerResourceBytes(identity, run, skill, path); }
+            };
+            guard.validate(resources);
+            JSONArray scoped = new JSONArray();
+            for (int f = 0; f < all.length(); f++) {
+                JSONObject fact = all.getJSONObject(f), value = fact.getJSONObject("value");
+                if (!skill.equals(value.optString("skill"))) continue;
+                if (value.has("sourceRef")) metadata.authorize(identity.tenant, identity.subject, value.getString("sourceRef"));
+                JSONArray refs = value.optJSONArray("sourceRefs");
+                if (refs != null) for (int s = 0; s < refs.length(); s++) metadata.authorize(identity.tenant, identity.subject, refs.getString(s));
+                scoped.put(fact);
+            }
+            JSONObject next = guard.advance(resources, scoped, skill);
+            if (next != null) {
+                if (proposal != null) throw new StoreException("WORKFLOW_BINDING_AMBIGUOUS");
+                proposal = next;
+            }
+        }
+        return proposal;
+    }
+
     public void close() { if (guard != null) guard.close(); }
 }

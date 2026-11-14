@@ -135,6 +135,10 @@ public final class ToolBroker implements AutoCloseable {
         return completion(identity, run, pin, active, null);
     }
 
+    public JSONObject advance(ProfileRegistry.Identity identity, String run, JSONObject pin, JSONArray active) throws Exception {
+        return workflow.advance(identity, run, pin, active, resources, metadata);
+    }
+
     public JSONObject completion(ProfileRegistry.Identity identity, String run, JSONObject pin, org.json.JSONArray active, JSONObject decision) throws Exception {
         return workflow.check(identity, run, pin, active, resources, metadata, decision);
     }
@@ -407,7 +411,15 @@ public final class ToolBroker implements AutoCloseable {
      * @return 作业线报对象，末位带 grant（bodyJson + signature）
      */
     public JSONObject wire(JSONObject j, String worker, String runtime, String instance) {
+        return wire(j, worker, runtime, instance, false);
+    }
+
+    public JSONObject wire(JSONObject j, String worker, String runtime, String instance, boolean providerAwait) {
         JSONObject d = new JSONObject(j.getString("definition_json"));
+        int wait = provider(j).runnerWaitMillis();
+        if (wait < 100 || wait > 290000) throw new StoreException("PROVIDER_WAIT_CONFIG_INVALID");
+        if (wait > 30000 && !providerAwait) return null;
+        wait = (int) Math.max(100, Math.min(wait, j.optLong("task_remaining_millis", 300000)));
         JSONObject w =
                 new JSONObject()
                         .put("runnerType", provider(j).runnerType())
@@ -429,9 +441,7 @@ public final class ToolBroker implements AutoCloseable {
                         .put("runtimeId", runtime)
                         .put(
                                 "timeoutMillis",
-                                Math.min(
-                                        30000,
-                                        d.optInt("timeoutMillis", provider(j).independentExecution() ? 30000 : 10000)))
+                                Math.min(wait, d.optInt("timeoutMillis", wait)))
                         .put("maxOutputBytes", 32768)
                         .put(
                                 "maxWorkspaceBytes",
@@ -442,6 +452,7 @@ public final class ToolBroker implements AutoCloseable {
         if (provider(j) instanceof WorkerExecutionProvider) {
             w.put("executionProfile", ((WorkerExecutionProvider) provider(j)).executionProfile());
         }
+        if (w.getInt("timeoutMillis") > 30000) w.put("waitProtocol", "provider-await-v1");
         w.put("jobHash", hash(w));
         JSONObject a = new JSONObject(j.getString("arguments_json"));
         JSONObject claims =
@@ -459,7 +470,7 @@ public final class ToolBroker implements AutoCloseable {
                         .put("originFence", j.getLong("origin_fence"))
                         .put("workerId", worker)
                         .put("runtimeId", runtime)
-                        .put("expiresAt", System.currentTimeMillis() + 60000);
+                        .put("expiresAt", System.currentTimeMillis() + Math.max(60000, wait + 5000));
         String body = canonical(claims);
         w.put("grant", new JSONObject().put("bodyJson", body).put("signature", sign(body)));
         ToolProtocol.parse("runner-job", RuntimeSupport.bytes(w));

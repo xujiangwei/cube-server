@@ -11,9 +11,12 @@ NAMES = ("search", "web", "knowledge", "attachment", "time", "calculator", "data
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def package(source, destination):
+def package(source, destination, version=None):
     source = source.resolve(strict=True)
     manifest = json.loads((source / "manifest.template.json").read_text(encoding="utf-8"))
+    if version is not None:
+        if not str(version).isdigit() or int(version) < 1: raise ValueError('Invalid package version')
+        manifest['version'] = str(version)
     entries, files = {}, []
     for spec in manifest.pop("resources"):
         relative = spec["path"]
@@ -45,9 +48,10 @@ def package(source, destination):
 def main():
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "build/packages")
+    parser.add_argument("--version", help='New immutable publication version; default templates are local test fixtures')
     args = parser.parse_args()
     for name in NAMES:
-        print(name, package(ROOT / "harness-tools" / name, args.output / (name + "-v1.zip")))
+        print(name, package(ROOT / "harness-tools" / name, args.output / (name + "-v" + (args.version or '1') + ".zip"), args.version))
 
 
 if __name__ == "__main__":

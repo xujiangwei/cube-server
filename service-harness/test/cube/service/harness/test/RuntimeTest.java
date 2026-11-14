@@ -594,6 +594,7 @@ public final class RuntimeTest {
      * @throws Exception 上下文操作或断言失败
      */
     static void context() throws Exception {
+        structuredContext();
         String r = run("1", "KEEP task and original executable arguments intact");
         JdbcRunStore.Lease l = running(r, 60000);
         resources.activate(identity, r, release);
@@ -684,6 +685,43 @@ public final class RuntimeTest {
         String overflow = run("tiny", "never truncate task");
         fail("CONTEXT_BUDGET_EXCEEDED:context-v1:full-json-bytes-v1", () -> contexts.assemble(identity, overflow, new JSONArray()));
         pass("orphan/duplicate calls refused; tokenizer mismatch refused; irreducible schema/template/output budget rejects with policy versions");
+    }
+
+    static void structuredContext() throws Exception {
+        String run = run("1", "中文长资料之后查询、加工，引用必须完整");
+        check(resources.directory(identity,run).getJSONObject(0).getJSONArray("paths").length()==0,"inactive resource paths exposed");
+        resources.activate(identity,run,release);
+        JSONObject arguments=new JSONObject().put("release",release).put("path","guide.txt").put("offset",0).put("limit",100);
+        check(resources.referenceProblem(identity,run,"resource.read",arguments)==null,"valid resource pair rejected");
+        JSONObject missing=resources.referenceProblem(identity,run,"resource.read",new JSONObject(arguments.toString()).put("path","absent.txt"));
+        check(missing!=null && missing.getJSONArray("candidates").length()==0,"missing resource preflight");
+        JdbcRunStore.Lease lease=running(run,60000);
+        JSONObject call=call("complete-handles",arguments.toString());
+        intent(lease,"round","refs-round",new JSONObject().put("contextDigest","0"));
+        confirm(lease,"round","refs-round",new JSONObject().put("kind","tool_calls").put("calls",new JSONArray().put(call)));
+        intent(lease,"call","refs-tool",call);
+        String page="data-page-"+new String(new char[64]).replace('\0','a'),cursor="cursor-"+new String(new char[1000]).replace('\0','b');
+        JSONObject original=new JSONObject().put("pageRef",page).put("nextCursor",cursor).put("complete",false)
+                .put("datasetRef","data-set-"+page).put("answer","逐字引用：有人不等于异常😀")
+                .put("recordsJson",new JSONArray().put(new JSONObject().put("mediaRef","media-"+page)
+                        .put("recordId","record-1").put("description",new String(new char[5000]).replace('\0','林'))).toString());
+        confirm(lease,"call","refs-tool",new JSONObject().put("status","success").put("artifacts",new JSONArray()).put("dataJson",original.toString()));
+        JSONObject snapshot=contexts.assemble(identity,run,new JSONArray());
+        JSONArray messages=snapshot.getJSONObject("request").getJSONArray("messages");
+        JSONObject compact=null;
+        for(int i=0;i<messages.length();i++) if(messages.getJSONObject(i).optString("proposalId").equals("complete-handles"))
+            compact=StrictJson.object(bytes(messages.getJSONObject(i).getJSONObject("content").getString("dataJson")));
+        check(compact!=null && compact.getString("pageRef").equals(page) && compact.getString("nextCursor").equals(cursor),"execution references truncated");
+        check(compact.getString("answer").equals(original.getString("answer")) && !compact.getBoolean("complete"),"answer or coverage altered");
+        check(new JSONArray(compact.getString("recordsJson")).getJSONObject(0).getString("mediaRef").equals("media-"+page),"nested JSON reference lost");
+        check(JdbcRunStore.hash(snapshot).equals(JdbcRunStore.hash(contexts.assemble(identity,run,new JSONArray()))),"structured projection not deterministic");
+        JSONObject ledgerResult=null;
+        for(Object entry:snapshot.getJSONArray("facts")) {
+            JSONObject fact=(JSONObject)entry;
+            if(fact.getString("intent").equals("refs-tool/1")) ledgerResult=new JSONObject(fact.getJSONObject("result").getString("dataJson"));
+        }
+        check(ledgerResult!=null && JdbcRunStore.canonical(ledgerResult).equals(JdbcRunStore.canonical(original)),"original ledger changed");
+        pass("structured JSON compaction preserves full handles, nested JSON, exact answers and coverage; resource preflight and inactive-directory authorization");
     }
 
     /**

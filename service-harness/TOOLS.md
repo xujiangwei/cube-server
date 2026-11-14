@@ -51,15 +51,17 @@ provider 在 JVM 内运行，独立配置地址、密钥、operation 和策略�
 ## 工具数据流
 
 1. Coordinator 保存唯一 call intent。Broker 复核固定 profile、有效权限、effect、schema 和范围，放入最多 256 项的持久队列。
-2. Runner 拉取作业，先写本地 SQLite FULL journal，再向 Java 提交 durable accepted。grant 绑定 run/call/attempt/release、参数摘要、范围、tenant/subject、原 fence 和 worker/runtime，有效期 60 秒；accepted 和上游派发前再次授权。
-3. Runner 用固定解释器 `-I -S -B` 启动已校验入口。脚本获得 arguments、packageRoot、workspace，通过严格逐行 JSON IPC 访问 SDK；Broker 根据固定定义选择 provider，访问上游并校验投影结果。
+2. Runner 拉取作业，先写本地 SQLite FULL journal，再向 Java 提交 durable accepted。grant 绑定 run/call/attempt/release、参数摘要、范围、tenant/subject、原 fence 和 worker/runtime，有效期为 max(60 秒, wire 等待+5 秒)；accepted 和上游派发前再次授权。
+3. Runner 用固定解释器 `-X utf8 -I -S -B` 启动已校验入口；SDK 派生入口使用相同 UTF-8 配置，中文和嵌套 JSON 不依赖宿主代码页。脚本获得 arguments、packageRoot、workspace，通过严格逐行 JSON IPC 访问 SDK；Broker 根据固定定义选择 provider，访问上游并校验投影结果。
 4. Runner 将结果写 journal，再向 Java 报告。Java 校验 tool-result、输出 schema 和授权范围，持久保存后 ACK 原 report 摘要。坏输出保存为 `TOOL_OUTPUT_INVALID`，不进入模型；传输重送不增加 attempt。
 
-普通工具每次最多 30 秒，stdout/stderr 各 32 KiB，工作区最多 10 MiB/256 项，并受 RuntimeProfile 配额进一步收紧。工作区周期扫描，超额终止执行树。脚本只可通过 SDK 启动同包声明的子入口，拒绝任意网络、子进程及工作区外写入；可信工具进程不是恶意代码的通用安全沙箱。
+普通工具默认每次最多 30 秒。tool Runner 可显式配置 runner.providerAwait=true 协商 provider-await-v1；经宿主 Provider 声明并签名的长等待作业最多 290000 毫秒，超 30000 的 wire 必须带 waitProtocol，旧 Runner 不领取。sandbox 仍限制 30 秒且不接受此协商。配置与升级见 [部署指南](BUSINESS-DEPLOYMENT.md)。stdout/stderr 各 32 KiB，工作区最多 10 MiB/256 项，并受 RuntimeProfile 配额进一步收紧。工作区周期扫描，超额终止执行树。脚本只可通过 SDK 启动同包声明的子入口，拒绝任意网络、子进程及工作区外写入；可信工具进程不是恶意代码的通用安全沙箱。
 
 Windows 使用 kill-on-close Job Object，取消后核验进程树结束；POSIX 使用独立进程组。网络等待与进程监督分离，Cell 超时不阻止本地取消/超时处理。Broker 使用独立有界 provider 线程池；数据库提交失败只重试保存同一结果，不重复上游 HTTP。
 
 ## 执行证据与清理
+
+工具失败在私有作业目录保留 `diagnostic.json`，包含结果 errorCode、受限格式的 Broker errorCode、最多 8192 字节 stderr 尾部与截断标记。诊断不进入公开工具结果或通用日志，沿用作业目录的隔离与确认后清理规则。需要调查时先由授权运维提取并脱敏；其内容属于不可信工具输出。Broker 的明确错误码可保留为失败结果，失败证据不能证明未知业务效果已结算。
 
 断线、租约过期、drain、取消或 ACK 不能单独证明物理执行结束。Runner journal 中 running 在重启后转 unknown，不自动重跑；workerId 绑定原 runtimeId 和容量，换目录不能绕开未决任务。未确认执行保留槽，单元可注册为 ready=false 并重送证据。
 

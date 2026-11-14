@@ -56,6 +56,50 @@ final class ReportValidator {
                 .put("missing", new JSONArray().put(details.put("code", code)));
     }
 
+    /** Copy confirmed facts and conservative assessments; then use the same strict validator. */
+    static JSONObject construct(CompletionGuard.Resources resources, JSONArray evidence, String skill, JSONObject workflow) throws Exception {
+        JSONArray submitted = new JSONArray(), expected = workflow.getJSONArray("datasetRefs");
+        Map<String, JSONObject> datasets = new HashMap<>(), analyses = new TreeMap<>();
+        for (int i = 0; i < evidence.length(); i++) {
+            JSONObject fact = evidence.getJSONObject(i);
+            if ("data-set".equals(fact.getString("kind")) && "common.processing.process.v1".equals(fact.getString("operation"))) datasets.put(fact.getString("id"), fact.getJSONObject("value"));
+            if ("analysis".equals(fact.getString("kind")) && "common.capability.invoke.v1".equals(fact.getString("operation"))) analyses.put(fact.getString("id"), fact);
+        }
+        JSONObject profiles = resources.json("analysis-profiles.json");
+        JSONArray pipelines = resources.json(CompletionGuard.FILE).getJSONArray("pipelines");
+        for (int d = 0; d < expected.length(); d++) {
+            String ref = expected.getString(d); JSONObject dataset = datasets.get(ref), pipeline = null;
+            if (dataset == null) throw new StoreException("REPORT_DATASETS_INCOMPLETE");
+            for (int p = 0; p < pipelines.length(); p++) if (pipelines.getJSONObject(p).getString("connectorId").equals(dataset.getString("connectorId"))) pipeline = pipelines.getJSONObject(p);
+            if (pipeline == null) throw new StoreException("WORKFLOW_BINDING_INVALID");
+            JSONArray findings = new JSONArray(), rows = dataset.getJSONArray("records"), required = pipeline.getJSONArray("analysisProfileIds");
+            for (int r = 0; r < rows.length(); r++) for (int p = 0; p < required.length(); p++) {
+                String profile = required.getString(p), hash = RuntimeSupport.sha(RuntimeSupport.bytes(ConnectorConfig.select(profiles, "profiles", profile)));
+                JSONArray sources = rows.getJSONObject(r).getJSONArray("sources"); JSONObject actual = null;
+                for (JSONObject fact : analyses.values()) {
+                    JSONObject value = fact.getJSONObject("value");
+                    if (!profile.equals(value.getString("profileId")) || !hash.equals(value.getString("profileHash")) || !fact.has("result")) continue;
+                    for (int s = 0; s < sources.length(); s++) if (sources.getJSONObject(s).getString("mediaRef").equals(value.getString("mediaRef"))) { actual = fact; break; }
+                    if (actual != null) break;
+                }
+                if (actual == null) throw new StoreException("REPORT_FINDINGS_INCOMPLETE");
+                findings.put(new JSONObject().put("recordIndex", r).put("profileId", profile)
+                        .put("mediaRef", actual.getJSONObject("value").getString("mediaRef"))
+                        .put("observation", actual.getJSONObject("result").getString("answer"))
+                        .put("assessment", new JSONObject().put("status", "not-assessed")
+                                .put("reason", "仅记录已确认的可见观察；授权、区域性质及业务异常条件尚未核实。")
+                                .put("ruleIds", new JSONArray())));
+            }
+            submitted.put(new JSONObject().put("datasetRef", ref).put("findings", findings));
+        }
+        JSONObject report = new JSONObject().put("skill", skill).put("summary", "已完成查询覆盖、去重和逐记录分析；观察与业务异常分别记录。")
+                .put("limitations", new JSONArray().put("检测框数不等于唯一人数；未确认的时间保持为空；自由文本观察需要语义复核。"))
+                .put("datasets", submitted);
+        JSONObject input = new JSONObject().put("schemaVersion", 1).put("reports", new JSONArray().put(report));
+        Contract.validate(input, SCHEMA);
+        return new JSONObject().put("kind", "final").put("text", cube.service.harness.store.JdbcRunStore.canonical(input));
+    }
+
     static JSONObject check(CompletionGuard.Resources resources, JSONArray evidence, JSONObject decision,
                             String skill, Set<String> skills, JSONObject workflow) throws Exception {
         JSONObject input;
@@ -150,10 +194,13 @@ final class ReportValidator {
                         .put("mediaId", source.getString("mediaId")).put("mediaVersion", source.getString("mediaVersion"))
                         .put("mediaType", source.getString("mediaType")).put("sha256", source.getString("sha256"))
                         .put("captureTimeTrust", source.getString("captureTimeTrust"));
-                normalized.put(new JSONObject().put("recordIndex", index).put("record", originalRecord).put("observation", analysis.getString("answer"))
+                JSONObject findingOutput = new JSONObject().put("recordIndex", index).put("record", originalRecord).put("observation", analysis.getString("answer"))
                         .put("payloadJson", analysis.getString("payloadJson")).put("warnings", analysis.getJSONArray("warnings"))
                         .put("citation", citation).put("assessment", new JSONObject().put("status", assessment.getString("status"))
-                                .put("reason", assessment.getString("reason")).put("ruleRefs", ruleRefs).put("semanticallyVerified", false)));
+                                .put("reason", assessment.getString("reason")).put("ruleRefs", ruleRefs).put("semanticallyVerified", false));
+                if (workflow.has("execution")) findingOutput.put("semanticReview", ObservationReview.review(
+                        ConnectorConfig.select(profiles, "profiles", profileId), analysis, assessment.getString("status")));
+                normalized.put(findingOutput);
             }
             JSONArray pipelines = workflow.getJSONArray("pipelines"); JSONObject pipeline = null;
             for (int p = 0; p < pipelines.length(); p++) if (pipelines.getJSONObject(p).getString("connectorId").equals(dataset.getString("connectorId"))) pipeline = pipelines.getJSONObject(p);

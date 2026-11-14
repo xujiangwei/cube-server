@@ -12,6 +12,8 @@ Java 构建、测试与运行使用 **JDK 8**。common、service、dispatcher、
 | --- | --- |
 | `cube-service-harness-3.0.jar` | 宿主 cellets/，与技能扩展配套更新 |
 | `cube-service-harness-skill-3.0.jar` | 宿主 libs/，提供 Provider 与 WorkflowGuard |
+| Python `harness/runner_process.py`、`harness/runner_sdk.py` | 更新全部普通 Runner 节点并重启，根入口和 SDK 派生入口统一 UTF-8 |
+| Python `harness/model_adapter.py` | 更新 JSON 决策模型节点并重启，assistant 历史使用原决策 schema；来源标签留在权威账本及资料消息 |
 | data、processing、capability、time 工具 ZIP | 管理员发布 executable 工具，授权其实际 ready release |
 | Provider、guard、身份及视觉配置 | 合并到私有绝对路径与宿主配置，重启生效 |
 | 签名业务资源 ZIP、policy、binding | 业务包锁定真实依赖，发布 policy 后 CAS 切换，新 run 生效 |
@@ -73,6 +75,8 @@ HTTP 模式分别登记不可变 source 与对话用户 source-grant，在 data/
 
 真实视觉 Unit 上线并预热、隔离算力后，在 AIGC 私有 aigc.properties 中设置 `harness.media.dedicated=true` 与实际 `harness.media.units`，capability 的允许路由须一致。只声明已就绪的 connector 和分析 profile；任务创建会预检包内全部声明，调用时仍重查授权与容量。
 
+人员、车辆等检测使用 `SpecializedDetection`、`adapter=specialized-detection`、`option.profile=thing`，并声明实际支持的 classes（例如 person、car、truck、bus、motorcycle、bicycle、train）。describe 使用 OmniMultimodal，烟火使用 SpecializedDetection/fire-smoke；同名业务 profile 不代表同一底层能力。部署前确认 thing 的权重、类别、容量和状态已经就绪，不能只修改业务别名。结构化检测读取真实 resultPayload.refs[].boxes；空 answer 不能解释为无目标，检测数量也不直接表示唯一人数或业务异常。
+
 ## 发布业务包与页面
 
 1. 发布匹配 Provider/schema 的 data、processing、capability、time 工具 ZIP，确认实际 ready digest；同名同摘要且已获准的 release 可复用。工具源码与构建见 [技能工具包](../service-harness-skill/README.md)。
@@ -88,11 +92,32 @@ python -B scripts/build_package.py --dependency common/data=<获准digest> --dep
 
 ## 人工运行顺序
 
+长视觉调用需一起更新 `cube-service-harness-3.0.jar`、`cube-service-harness-skill-3.0.jar`、AIGC 宿主的 `cube-service-3.0.jar`，以及 Python `harness/model_adapter.py`、`runner_worker.py`、`runner_process.py`、`runner_sdk.py` 和 `harness/contracts/`。宿主负责落库物理派发标识；只升级 Provider 无法补齐这段证据。JVM 继续使用 JDK 8。
+
+在普通 tool Runner 的 `runner` 配置中显式设置 `"providerAwait": true`，它才会协商 `provider-await-v1`。然后可将 capability 私有配置设为 `capability.timeout.millis=60000`、`capability.queue.timeout.millis=20000`。默认仍为 20000/0；执行范围为 100..240000，槽等待为 0..40000 毫秒。Runner 等待上限为 `max(30000, 执行+排队+5000)`，最多 290000，并受任务剩余期限约束；准备、排队、派发和收尾共享签名 wire 期限，Provider 预留 1 秒交付时间。sandbox 保持 30 秒上限且拒绝此开关。旧 Runner 不领取超 30 秒作业；不能靠延长 Provider 单独升级。
+
+新工具作者包为 `*-v2.zip`，一般巡检资源包为 `general-patrol-v4.zip`。重新验证并以实际作者密钥签名发布，更新依赖 digest、policy.skillReleases 与 CAS binding；本地作者 ZIP 和评估签名不是生产作者签名。回退时关闭新准入，先 drain/对账；保留旧版本固定的在途任务和 unknown 预留，再切回获准 release 与配套配置。不得删除账本或更换 runtimeDir 释放未知槽。
+
+固定流程由业务包的 `workflow-requirements.json` 显式启用，旧包继续使用原模型循环。例如：
+
+```json
+{"execution":{"version":"fixed-patrol-v1","maxPages":64,"bindings":[
+  {"profileId":"objects","attribute":"object-presence","dimension":"presence","content":"检测可见人车，仅返回观察"},
+  {"profileId":"describe","attribute":"scene-description","dimension":"visible-scene","content":"描述可见场景，不推断授权或身份"}
+]}}
+```
+
+此段合并到原工作流配置，保留 pipelines。绑定必须覆盖全部必需分析；属性、Unit、profile 和量纲交叉校验。宿主只向规划模型提供已授权查询及固定连接器 schema，范围与上传 ID 仍由用户输入确定。确认第一页后按完整 cursor 链、加工、逐记录分析、报告校验推进，每步计入原 32 次工具预算；同样执行权限、来源授权、审批、取消和期限校验。固定流程不增加模型轮数或令牌预算，不能把唯一人数、身份、业务授权或跨帧跟踪绑定到普通检测能力。
+
+报告逐字复制确认的 answer/payload，并附 `semanticReview`。存在性、单图框数、唯一计数和业务判断分别表示；未知唯一数为 null。重叠框、小目标、烟雾/云雾、通行区解释及身份/行为推断进入有界复核提示，原始观察不改写。当前复核为确定程序检查，新增模型调用为 0，`semanticallyVerified=false`；需要人工核实的发现不能据此宣称已完成事实认证。
+
 1. 启动业务系统两个只读接口，或上传并 complete JSON 与图片；启动智能体系统、多个已授权 model/Runner 与视觉 Unit。
 2. 检查 service 健康与就绪，再以实际对话用户查询 dispatcher `GET /harness/v1/task-profiles`，确认模型、trusted-cpu、技能与能力可用，随后开启接单。
 3. 用唯一 Idempotency-Key 向 dispatcher `POST /harness/v1/runs` 提交小范围任务，显式 skills 选择业务技能与四个依赖，先使用一两页资料。上传模式在 attachmentIds 中绑定两类 Input，instruction 指明快照 inputId。
 4. 轮询 runs/events 至终态，查看 workflow.repair 与真实缺项。只有 succeeded 且 executionSettlement=confirmed 才作为成功答案；失败、取消、unknown 保留原事件。
 5. 检查 workflow.satisfied、report 的记录统计、逐记录观测、判断、时间信任标记与原图；空资料应有真实空 dataset 报告。保存版本、digest、policy target、runId 与现象，作为后续实际环境质量、性能与故障验证依据。
+
+一般巡检作者包与评估入口见 [patrol](../../patrol/README.md)。核心 JAR 更新后提供授权资源目录与结构化上下文压缩，须与上述 Python Runner 更新一并部署。先跑单页中文记录，确认完整 pageRef/datasetRef/mediaRef，再检查分页、空资料和失败恢复；不通过扩大 8 轮、32 工具、2 次修复或 5 分钟预算掩盖问题。多 worker 仍使用各自身份、目录、journal 与租约，升级按节点逐个 drain、对账、重启。
 
 ## 本地验证入口
 

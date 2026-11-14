@@ -19,6 +19,9 @@ public final class WorkflowGuard implements CompletionGuard {
 
     @Override public boolean supportsReports() { return true; }
     @Override public void validateReport(Resources resources) throws Exception { ReportValidator.validate(resources); }
+    @Override public JSONObject advance(Resources resources, JSONArray evidence, String skill) throws Exception {
+        return FixedPatrol.advance(this, resources, evidence, skill);
+    }
 
     @Override public JSONObject checkFinal(Resources resources, JSONArray evidence, JSONObject decision,
                                             String skill, Set<String> reportSkills) throws Exception {
@@ -36,7 +39,7 @@ public final class WorkflowGuard implements CompletionGuard {
     public void validate(Resources resources) throws Exception {
         try {
             JSONObject requirements = resources.json(FILE);
-            ConnectorConfig.keys(requirements, "version,maxRepairs,pipelines", "");
+            ConnectorConfig.keys(requirements, "version,maxRepairs,pipelines", "execution");
             require("1".equals(requirements.getString("version")));
             int repairs = requirements.getInt("maxRepairs");
             require(repairs >= 0 && repairs <= 2 && requirements.get("maxRepairs") instanceof Number
@@ -70,6 +73,7 @@ public final class WorkflowGuard implements CompletionGuard {
             }
             // Every selectable connector must have requirements: an extra unguarded route cannot bypass M3.
             require(mapped.size() == connectors.getJSONArray("connectors").length());
+            FixedPatrol.validate(requirements, analysis);
         } catch (Exception error) {
             if (error instanceof StoreException && ((StoreException) error).code.startsWith("STORE_")) throw error;
             throw new StoreException("WORKFLOW_CONFIG_INVALID");

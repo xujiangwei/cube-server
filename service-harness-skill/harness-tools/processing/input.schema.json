@@ -64,5 +64,6 @@
     "skill",
     "profileId"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "加工当前任务已确认的完整 pageRefs，按固定 profile 去重、过滤和分组。action=process 需 pageRefs；action=read 需 datasetRef，不能混用。返回覆盖、统计和分页视图；不得手工合计或伪造 datasetRef。"
 }

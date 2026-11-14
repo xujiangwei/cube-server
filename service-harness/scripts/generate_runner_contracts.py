@@ -31,10 +31,17 @@ def generate(python_root):
         maxOutputBytes=dict(type="integer", minimum=1024, maximum=65536),
         maxWorkspaceBytes=dict(type="integer", minimum=1024, maximum=10485760),
         maxWorkspaceFiles=dict(type="integer", minimum=1, maximum=256)))
+    job['properties']['timeoutMillis']['maximum'] = 290000
+    job['properties']['waitProtocol'] = dict(type='string', enum=['provider-await-v1'])
+    job['oneOf'] = [
+        dict(type='object', properties=dict(timeoutMillis=dict(type='integer', maximum=30000))),
+        dict(type='object', properties=dict(timeoutMillis=dict(type='integer', minimum=30001)), required=['waitProtocol']),
+    ]
     report = obj(dict(jobId=digest, jobHash=digest, actualFinished=boolean,
         effectStatus=dict(type="string", enum=["none", "completed", "unknown"]), resultJson=text(65536)))
     descriptor = obj(dict(runtimeId=ident, capacity=dict(type="integer", minimum=1, maximum=8),
         runtime=dict(type="string", enum=["trusted-python-v1"])))
+    descriptor['properties']['waitProtocol'] = dict(type='string', enum=['provider-await-v1'])
     common = dict(protocolVersion=dict(type="integer", enum=[1]), runnerType=dict(type="string", enum=["tool"]), action=ident, requestId=ident,
         credential=text(256), workerId=ident, instanceId=ident, role=dict(type="string", enum=["runner"]),
         capabilities=dict(type="array", items=dict(type="string", enum=["tool.execute"]), minItems=1, maxItems=1),
@@ -96,6 +103,9 @@ def generate_sandbox(python_root):
             if {'bundleJson', 'jobHash'} <= set(node.get('properties', {})):
                 node['properties'].update(executionProfile=profile)
                 node['required'] += ['executionProfile']
+                node['properties']['timeoutMillis']['maximum'] = 30000
+                node['properties'].pop('waitProtocol', None)
+                node.pop('oneOf', None)
             for child in node.values():
                 job(child)
         elif isinstance(node, list):
@@ -105,6 +115,7 @@ def generate_sandbox(python_root):
         job(value)
     request = files['runner-request.json']
     descriptor = request['oneOf'][0]['properties']['descriptor']
+    descriptor['properties'].pop('waitProtocol', None)
     descriptor['properties'].update(executionProfile=profile,
         sandboxProfileDigest=digest, certificateDigest=digest)
     descriptor['required'] += ['executionProfile', 'sandboxProfileDigest', 'certificateDigest']

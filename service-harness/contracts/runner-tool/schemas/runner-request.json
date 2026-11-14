@@ -83,6 +83,12 @@
               "enum": [
                 "trusted-python-v1"
               ]
+            },
+            "waitProtocol": {
+              "type": "string",
+              "enum": [
+                "provider-await-v1"
+              ]
             }
           },
           "required": [

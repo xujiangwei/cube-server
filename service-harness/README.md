@@ -22,6 +22,7 @@
 | [STORE.md](STORE.md) | SQLite/MySQL 配置、自动建表、任务账本及恢复 |
 | [RESILIENCE.md](RESILIENCE.md) | 接单开关、drain、停机、升级及故障处理 |
 | [TRACE.md](TRACE.md) | 诊断导出、反馈和离线回放 |
+| [能力验证总结](../../patrol/evaluation/REPORT.md) | 工程验证、真实推理、视觉校准和验收边界 |
 | [CONTRACT.md](CONTRACT.md) | 协议、注册租约、幂等和兼容规则 |
 
 业务 REST 的完整定义见 [API 文档](../docs/rest-api/src/Harness.md)。客户技能教程与示例位于工作区 [skill/](../../skill/README.md)。

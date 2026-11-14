@@ -30,5 +30,6 @@
   "required": [
     "query"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "按明确查询搜索已配置来源，返回可引用结果；不能把搜索摘要当作业务授权依据。"
 }

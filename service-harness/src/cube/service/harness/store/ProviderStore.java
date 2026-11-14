@@ -30,7 +30,7 @@ public final class ProviderStore {
     public JSONArray completionEvidence(String tenant, String subject, String run) {
         return store.tx(c -> {
             store.run(c, tenant, subject, run, true);
-            JSONArray found = rows(c, "SELECT f.fact_kind,f.fact_id,f.value_json,j.definition_json,t.result_json FROM harness_provider_fact f "
+            JSONArray found = rows(c, "SELECT f.fact_kind,f.fact_id,f.value_json,j.definition_json,j.arguments_json,t.result_json FROM harness_provider_fact f "
                     + "JOIN harness_tool_job j ON f.run_id=j.run_id AND f.job_id=j.job_id "
                     + "JOIN harness_tool_call t ON t.run_id=j.run_id AND t.intent_id=j.call_id AND t.attempt=j.attempt "
                     + "WHERE f.run_id=? AND j.tenant=? AND j.subject_id=? AND j.actual_finished=1 "
@@ -44,7 +44,8 @@ public final class ProviderStore {
                 if (!new JSONObject(row.getString("result_json")).optString("status").equals("success")) continue;
                 JSONObject fact = new JSONObject().put("kind", row.getString("fact_kind")).put("id", row.getString("fact_id"))
                         .put("operation", new JSONObject(row.getString("definition_json")).getJSONObject("tool").getString("brokerOperation"))
-                        .put("value", new JSONObject(row.getString("value_json")));
+                        .put("value", new JSONObject(row.getString("value_json")))
+                        .put("arguments", new JSONObject(row.getString("arguments_json")));
                 if (row.getString("fact_kind").equals("analysis")) fact.put("result", new JSONObject(new JSONObject(row.getString("result_json")).getString("dataJson")));
                 out.put(fact);
             }
@@ -360,6 +361,7 @@ public final class ProviderStore {
                 throw new StoreException("CAPABILITY_EXECUTION_ALREADY_STARTED");
             }
             JSONObject selected = null;
+            boolean compatible = false;
             double load = Double.MAX_VALUE;
             for (int i = 0; i < units.length(); i++) {
                 JSONObject candidate = units.getJSONObject(i);
@@ -368,14 +370,18 @@ public final class ProviderStore {
                 }
                 if ("SpecializedDetection".equals(unit)) {
                     JSONObject option = request.getJSONObject("option");
-                    if (!cube.aigc.SpecializedDetectionCapabilities.ready(candidate) || candidate.optInt("availableImages") <= 0 || !cube.aigc.SpecializedDetectionCapabilities.supports(candidate, option.getString("profile"), option.optBoolean("sliced"))) {
+                    if (!cube.aigc.SpecializedDetectionCapabilities.ready(candidate) || !cube.aigc.SpecializedDetectionCapabilities.supports(candidate, option.getString("profile"), option.optBoolean("sliced"))) {
                         continue;
                     }
                 }
+                compatible = true;
+                if ("SpecializedDetection".equals(unit) && candidate.optInt("availableImages") <= 0) continue;
                 JSONArray active = rows(c, "SELECT a.value_json FROM harness_provider_fact a LEFT JOIN harness_provider_fact b ON a.run_id=b.run_id AND a.fact_id=b.fact_id AND b.fact_kind='receipt' WHERE a.fact_kind='execution' AND b.fact_id IS NULL");
                 int count = 0;
                 for (int j = 0; j < active.length(); j++) {
-                    if (new JSONObject(active.getJSONObject(j).getString("value_json")).getString("instanceId").equals(candidate.getString("instanceId"))) {
+                    JSONObject occupied = new JSONObject(active.getJSONObject(j).getString("value_json"));
+                    if (occupied.getString("instanceId").equals(candidate.getString("instanceId"))
+                            && occupied.optString("unit", unit).equals(unit)) {
                         count++;
                     }
                 }
@@ -386,9 +392,9 @@ public final class ProviderStore {
                 }
             }
             if (selected == null) {
-                throw new StoreException("CAPABILITY_NOT_READY");
+                throw new StoreException(compatible ? "CAPABILITY_CAPACITY_UNAVAILABLE" : "CAPABILITY_NOT_READY");
             }
-            JSONObject execution = new JSONObject(request.toString()).put("instanceId", selected.getString("instanceId")).put("requestId", job.getString("job_id")).put("serviceSn", cell.util.Utils.generateSerialNumber());
+            JSONObject execution = new JSONObject(request.toString()).put("unit", unit).put("instanceId", selected.getString("instanceId")).put("requestId", job.getString("job_id")).put("serviceSn", cell.util.Utils.generateSerialNumber());
             update(c, "INSERT INTO harness_provider_fact VALUES (?,?,'execution',?,?)", job.getString("run_id"), job.getString("job_id"), job.getString("job_id"), canonical(execution));
             return execution;
         });
@@ -425,9 +431,28 @@ public final class ProviderStore {
             JSONObject old = first(rows(c, "SELECT value_json FROM harness_provider_fact WHERE run_id=? AND fact_kind='receipt' AND fact_id=?", job.getString("run_id"), job.getString("job_id")));
             if (old == null) {
                 update(c, "INSERT INTO harness_provider_fact VALUES (?,?,'receipt',?,?)", job.getString("run_id"), job.getString("job_id"), job.getString("job_id"), canonical(receipt));
+                JSONObject timing = new JSONObject().put("recordedAt", store.now(c)).put("receiptSha256", hash(receipt))
+                        .put("success", receipt.optBoolean("success")).put("unsent", receipt.optBoolean("unsent"));
+                update(c, "INSERT INTO harness_provider_fact VALUES (?,?,'receipt-metadata',?,?)", job.getString("run_id"), job.getString("job_id"), job.getString("job_id"), canonical(timing));
             } else if (!old.getString("value_json").equals(canonical(receipt))) {
                 throw new StoreException("CAPABILITY_RECEIPT_CONFLICT");
             }
+            return null;
+        });
+    }
+
+    /** Trusted bridge callback before physical send. A storage failure prevents dispatch. */
+    public void mediaDispatch(JSONObject job, JSONObject progress) {
+        store.tx(c -> {
+            serial(c);
+            JSONObject row = first(rows(c, "SELECT value_json FROM harness_provider_fact WHERE run_id=? AND fact_kind='execution' AND fact_id=?", job.getString("run_id"), job.getString("job_id")));
+            if (row == null) throw new StoreException("CAPABILITY_RECEIPT_FORBIDDEN");
+            JSONObject intent = new JSONObject(row.getString("value_json"));
+            if (!intent.getString("requestId").equals(progress.getString("requestId")) || !intent.getString("instanceId").equals(progress.getString("instanceId"))) throw new StoreException("CAPABILITY_RECEIPT_FORBIDDEN");
+            String id = job.getString("job_id") + ":physical-dispatch";
+            JSONObject previous = first(rows(c, "SELECT value_json FROM harness_provider_fact WHERE run_id=? AND fact_kind='media-phase' AND fact_id=?", job.getString("run_id"), id));
+            if (previous == null) update(c, "INSERT INTO harness_provider_fact VALUES (?,?,'media-phase',?,?)", job.getString("run_id"), job.getString("job_id"), id, canonical(progress));
+            else if (!canonical(progress).equals(previous.getString("value_json"))) throw new StoreException("CAPABILITY_RECEIPT_CONFLICT");
             return null;
         });
     }

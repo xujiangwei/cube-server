@@ -90,6 +90,7 @@ public final class RunnerDispatcher {
          * 健康标记：runner 自报与持久存储侧健康的复合结果。
          */
         boolean healthy;
+        boolean providerAwait;
     }
 
     /**
@@ -220,6 +221,7 @@ public final class RunnerDispatcher {
                 w.runtime = d.getString("runtimeId");
                 w.capacity = capacity;
                 w.runnerType = r.getString("runnerType");
+                w.providerAwait = "provider-await-v1".equals(d.optString("waitProtocol"));
                 w.nonce = UUID.randomUUID().toString();
                 workers.put(id, w);
             }
@@ -267,7 +269,9 @@ public final class RunnerDispatcher {
                     id, w.runtime, r.getString("jobId"), r.getString("jobHash"), r.getString("resultHash"));
         }
         if (action.equals("poll") && !w.draining) {
-            JSONObject job = jobs.poll(id, w.runtime, w.instance, w.healthy, w.runnerType, broker::wire);
+            final boolean await = w.providerAwait;
+            JSONObject job = jobs.poll(id, w.runtime, w.instance, w.healthy, w.runnerType,
+                    (j, worker, runtime, instance) -> broker.wire(j, worker, runtime, instance, await));
             if (job != null) {
                 out.put("job", job);
             }

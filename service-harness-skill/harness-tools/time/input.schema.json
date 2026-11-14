@@ -23,5 +23,6 @@
   "required": [
     "action"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "查询可信时间与时区，返回已确认时间；不用于推断未知照片拍摄时间。"
 }

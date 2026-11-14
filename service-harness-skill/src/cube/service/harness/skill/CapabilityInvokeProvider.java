@@ -59,6 +59,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
      * 单次调用的超时时间，单位毫秒。
      */
     private final int timeout;
+    private final int queueTimeout;
 
     /**
      * 图片允许的最大像素数。
@@ -74,7 +75,8 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         super("capability", "common.capability.invoke", "capability.invoke", p);
         this.network = new DataNetwork(p);
         this.allowed = new HashSet<>(Arrays.asList(p.getProperty("capability.allowed.units", "").split(",")));
-        this.timeout = number(p, "capability.timeout.millis", 20000, 100, 20000);
+        this.timeout = number(p, "capability.timeout.millis", 20000, 100, 240000);
+        this.queueTimeout = number(p, "capability.queue.timeout.millis", 0, 0, 40000);
         this.maxPixels = number(p, "image.max.pixels", 4000000, 1, 16000000);
     }
 
@@ -87,6 +89,8 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
     public boolean independentExecution() {
         return true;
     }
+
+    @Override public int runnerWaitMillis() { return Math.max(30000, timeout + queueTimeout + 5000); }
 
     /**
      * 返回技能需要读取的配置文件清单。
@@ -110,7 +114,8 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
     }
 
     /**
-     * 受理前检查：档案引用的 Unit 必须在允许名单内，且当前有就绪且有余量的实例。
+     * 受理前检查：档案引用的 Unit 必须在允许名单内，且有就绪的兼容实例。
+     * 瞬时可用容量由执行时的持久预留及有界排队决定。
      *
      * @param lookup Unit 运行状态查询入口。
      * @param path   配置文件路径。
@@ -132,7 +137,6 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
                         && instance.getInt("capacity") > 0
                         && (!"SpecializedDetection".equals(name)
                         || (cube.aigc.SpecializedDetectionCapabilities.ready(instance)
-                        && instance.optInt("availableImages") > 0
                         && cube.aigc.SpecializedDetectionCapabilities.supports(instance,
                         option.getString("profile"), option.optBoolean("sliced"))))) {
                     ready = true;
@@ -165,6 +169,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
      */
     @Override
     protected JSONObject execute(ProviderInvocation context, JSONObject args) throws Exception {
+        context.phase("preparing", new JSONObject());
         String skill = args.getString("skill");
         JSONObject config = context.resource(skill, "analysis-profiles.json");
         AnalysisProfiles.validate(config);
@@ -214,12 +219,27 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
                 .put("runId", context.runId)
                 .put("sha256", sha)
                 .put("mediaType", media.getString("mediaType"))
-                .put("deadlineAt", System.currentTimeMillis() + this.timeout);
-        JSONObject execution = context.reserveMedia(profile.getString("unit"), request);
+                .put("deadlineAt", System.currentTimeMillis() + Math.min(context.remainingMillis(), this.timeout));
+        context.phase("queued", new JSONObject().put("unit", profile.getString("unit")));
+        long queueDeadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(Math.min(queueTimeout, context.remainingMillis()));
+        JSONObject execution;
+        while (true) {
+            check(context);
+            if (context.remainingMillis() == 0) throw new StoreException("TOOL_CANCELLED");
+            try {
+                request.put("deadlineAt", System.currentTimeMillis() + Math.min(context.remainingMillis(), this.timeout));
+                execution = context.reserveMedia(profile.getString("unit"), request);
+                break;
+            } catch (StoreException unavailable) {
+                if (!"CAPABILITY_CAPACITY_UNAVAILABLE".equals(unavailable.code)) throw unavailable;
+                if (System.nanoTime() >= queueDeadline) throw new StoreException("CAPABILITY_QUEUE_TIMEOUT");
+                TimeUnit.MILLISECONDS.sleep(POLL_INTERVAL_MILLIS);
+            }
+        }
         CompletableFuture<JSONObject> response = new CompletableFuture<>();
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(Math.min(context.remainingMillis(), this.timeout));
         context.invokeMedia(execution, bytes, response::complete);
         // 超时抛出的是非 StoreException ：Broker 记为物理结果未知，且不自动重发。
-        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(this.timeout);
         JSONObject receipt = null;
         while (receipt == null) {
             if (context.cancelled()) {

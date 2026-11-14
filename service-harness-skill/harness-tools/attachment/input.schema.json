@@ -10,5 +10,6 @@
   "required": [
     "inputId"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "读取本任务绑定的附件。输入必须是已授权 inputId；不接受任意路径或 URL。"
 }

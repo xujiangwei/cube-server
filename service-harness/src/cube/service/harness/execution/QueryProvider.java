@@ -21,6 +21,8 @@ import org.json.JSONObject;
  * </ul>
  */
 public interface QueryProvider extends AutoCloseable {
+    /** Includes queueing, preparation and result delivery; >30s requires provider-await-v1. */
+    default int runnerWaitMillis() { return independentExecution() ? 30000 : 10000; }
     default java.util.Set<String> configurationFiles() { return java.util.Collections.emptySet(); }
     default void validateConfiguration(String path, JSONObject config) { }
     default void preflightConfiguration(ProviderInvocationLookup lookup, String path, JSONObject config) { validateConfiguration(path, config); }

@@ -54,6 +54,10 @@ public final class CommonToolsTest {
      * 各技能对应的 Broker 操作名。
      */
     static final String[] TOOLS = {"common.search.query", "common.web.read", "common.knowledge.search", "common.attachment.read", "common.time.query", "common.calculator.evaluate"};
+    static Path packagePath(Path directory, String name) {
+        Path versioned = directory.resolve(name + "-v2.zip");
+        return Files.exists(versioned) ? versioned : directory.resolve(name + "-v1.zip");
+    }
 
     /**
      * 准备测试环境：加载配置、注册文件服务与技能包、发布任务档案。
@@ -106,7 +110,7 @@ public final class CommonToolsTest {
             Files.write(configFile, bytes(ExecutionTest.properties(privateConfig)));
             settings.setProperty("broker.provider." + name + ".class", "cube.service.harness.skill." + CLASSES[i]);
             settings.setProperty("broker.provider." + name + ".config", configFile.toString());
-            String digest = upload(Files.readAllBytes(packages.resolve(name + "-v1.zip"))).getString("digest");
+            String digest = upload(Files.readAllBytes(packagePath(packages, name))).getString("digest");
             catalog.lifecycle(T, digest, 1, "ready");
             releases.put(name, digest);
         }

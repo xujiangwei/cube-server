@@ -37,6 +37,7 @@ public final class Contract {
             new HashSet<>(
                     Arrays.asList(
                             "$schema",
+                            "description",
                             "oneOf",
                             "type",
                             "properties",

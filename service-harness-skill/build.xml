@@ -47,6 +47,8 @@
   <target name="test" depends="compile-tests,test-media">
     <java classname="cube.service.harness.skill.WorkflowGuardTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../forest/packages/fhe-patrol"/></java>
     <java classname="cube.service.harness.skill.ReportValidatorTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../forest/packages/fhe-patrol"/></java>
+    <java classname="cube.service.harness.skill.FixedPatrolTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../forest/packages/fhe-patrol"/></java>
+    <java classname="cube.service.harness.skill.ObservationReviewTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../patrol/evaluation/results/full/visual/photos/people-positive-01-1.json"/></java>
     <java classname="cube.service.harness.skill.DataProcessingTest" fork="true" failonerror="true"><classpath refid="test.cp"/></java>
     <java classname="cube.service.harness.skill.OmniOptionsTest" fork="true" failonerror="true"><classpath refid="test.cp"/></java>
     <java classname="cube.service.harness.skill.SpecializedOptionsTest" fork="true" failonerror="true"><classpath refid="test.cp"/></java>
@@ -57,6 +59,9 @@
   <target name="test-media" depends="compile-tests">
     <exec executable="${python.exe}" failonerror="true"><arg value="-B"/><arg path="../../forest/scripts/build_package.py"/><arg value="--tool-packages"/><arg path="${build.dir}/packages"/><arg value="--version"/><arg value="4"/><arg value="--output"/><arg path="${build.dir}/fhe-patrol-m4-test.zip"/></exec>
     <java classname="cube.service.harness.test.MediaToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/><arg path="../../forest"/></java>
+  </target>
+  <target name="test-provider-wait" depends="compile-tests">
+    <java classname="cube.service.harness.test.MediaToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/><arg path="../../forest"/><arg value="long-wait"/></java>
   </target>
   <target name="validate-business" depends="compile-tests">
     <java classname="cube.service.harness.skill.BusinessPackageValidationTest" fork="true" failonerror="true"><classpath refid="test.cp"/>

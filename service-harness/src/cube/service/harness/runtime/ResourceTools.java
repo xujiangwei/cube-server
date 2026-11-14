@@ -166,6 +166,57 @@ public final class ResourceTools {
         return out;
     }
 
+    /** Pinned, authorized metadata only; inactive skills expose no file paths. */
+    public JSONArray directory(ProfileRegistry.Identity identity, String run) {
+        JSONObject pin = pin(identity, run);
+        Set<String> permissions = RuntimeSupport.strings(pin.getJSONArray("permissions"));
+        permissions.retainAll(identity.permissions);
+        Set<String> active = new HashSet<>();
+        JSONArray activeRows = catalog.activeSkills(identity.tenant,identity.subject,run);
+        for (int i=0;i<activeRows.length();i++) active.add(activeRows.getJSONObject(i).getString("digest"));
+        JSONArray out = new JSONArray(), releases = pin.getJSONArray("releases");
+        for (int i=0;i<releases.length();i++) {
+            JSONObject release = releases.getJSONObject(i), manifest = release.getJSONObject("manifest");
+            Set<String> allowed = RuntimeSupport.strings(manifest.getJSONArray("permissions"));
+            allowed.retainAll(permissions);
+            if (!allowed.contains("skill.list")) continue;
+            boolean activated = active.contains(release.getString("digest"));
+            JSONArray paths = new JSONArray();
+            if (activated && allowed.contains("resource.read")) {
+                JSONArray files = manifest.getJSONArray("files");
+                for (int j=0;j<files.length();j++) {
+                    JSONObject file=files.getJSONObject(j);
+                    if (Arrays.asList("skill","resource").contains(file.getString("role"))) paths.put(file.getString("path"));
+                }
+            }
+            out.put(new JSONObject().put("skill",manifest.getString("name")).put("release",release.getString("digest"))
+                    .put("active",activated).put("paths",paths));
+        }
+        return out;
+    }
+
+    /** Validates the release/path pair before any content read; never silently redirects a call. */
+    public JSONObject referenceProblem(ProfileRegistry.Identity identity, String run, String tool, JSONObject arguments) throws Exception {
+        if (!tool.equals("resource.read")) return null;
+        RunSelection.requireTool(pin(identity,run),tool);
+        for (Object entry:tools(identity,run)) {
+            JSONObject definition=(JSONObject)entry;
+            if (definition.getString("name").equals(tool)) cube.service.harness.protocol.Contract.validate(arguments,definition.getJSONObject("parameters"));
+        }
+        JSONObject m = manifest(identity,run,arguments.getString("release"),"resource.read",true);
+        String path=arguments.getString("path");
+        JSONArray files=m.getJSONArray("files");
+        for (int i=0;i<files.length();i++) if (files.getJSONObject(i).getString("path").equals(path)) return null;
+        JSONArray candidates=new JSONArray(), dir=directory(identity,run);
+        for (int i=0;i<dir.length();i++) {
+            JSONObject item=dir.getJSONObject(i);
+            for (Object p:item.getJSONArray("paths")) if (path.equals(p))
+                candidates.put(new JSONObject().put("release",item.getString("release")).put("skill",item.getString("skill")).put("path",path));
+        }
+        return new JSONObject().put("instruction","Requested path is absent from that release. Use an exact authorized directory pair; do not ask the user to upload an already listed resource.")
+                .put("requested",arguments).put("candidates",candidates);
+    }
+
     /**
      * 激活一个固定 release 的技能（幂等由存储层保证）。
      *
@@ -353,7 +404,8 @@ public final class ResourceTools {
                 out.put(new JSONObject().put("name", tool.getString("name")).put("permission", tool.getString("permission"))
                         .put("description", tool.getString("kind").equals("resource")
                                 ? "Read immutable resource " + tool.getString("resourcePath")
-                                : "Execute the activated SKILL tool through its authorized provider")
+                                  : cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("inputSchema")))
+                                          .optString("description", "Execute the activated SKILL tool through its authorized provider"))
                         .put("resultSchema", cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("outputSchema"))))
                         .put("parameters", cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("inputSchema")))));
             }

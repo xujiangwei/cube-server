@@ -33,7 +33,7 @@ public final class SpecializedOptionsTest {
             public JSONArray mediaUnits() { return units; }
         };
         provider.preflightConfiguration(lookup,"analysis-profiles.json",config);assertions++;
-        thing.put("availableImages",0);reject(()->provider.preflightConfiguration(lookup,"analysis-profiles.json",config));
+        thing.put("availableImages",0);provider.preflightConfiguration(lookup,"analysis-profiles.json",config);assertions++;
         thing.put("availableImages",1).put("ready",false);reject(()->provider.preflightConfiguration(lookup,"analysis-profiles.json",config));
         thing.put("ready",true).put("statusExpiresAt",0);reject(()->provider.preflightConfiguration(lookup,"analysis-profiles.json",config));
         thing.put("statusExpiresAt",System.currentTimeMillis()+30000);

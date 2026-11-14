@@ -6,7 +6,7 @@
 
 管理工具源码为 [release_ops.py](../../tutorials/examples/release_ops.py)，配套 agent_client.py，使用 Python 3.11 标准库。配置模板为 [源环境](../../tutorials/examples/config/promotion-source.example.json)和[目标环境](../../tutorials/examples/config/promotion-target.example.json)。完整命令见[晋级与回退教程](../../tutorials/src/content/docs/guide/11-promotion-and-rollback.md)。
 
-工具可直接从教程 examples/ 运行；独立工具包的用法见 [随包说明](scripts/release-tools-readme.md)。现有打包脚本 `python -B service-harness/scripts/stage_m5.py --output C:/releases/harness-release-tools` 从 cube-server/ 运行，会核对脚本指定的本机 JAR、业务包基线摘要并输出新目录与 ZIP；目标目录和 ZIP 须不存在。打包不构建服务或调用远端，工具包不包含 JAR、业务 ZIP、私钥、token 与现场配置。
+工具可直接从教程 examples/ 运行；独立工具包的用法见[随包说明](scripts/release-tools-readme.md)。从 cube-server/ 运行 `python -X utf8 -B service-harness/scripts/build_release_tools.py --output C:/releases/harness-release-tools`，将管理脚本、说明和示例配置打包到新目录及 ZIP，并生成文件摘要清单；目标目录和 ZIP 须不存在。打包不依赖本机构建快照，不构建服务或调用远端；包内不含 JAR、业务 ZIP、私钥、token 与现场配置。
 
 已具备查询、加工、报告能力的环境可独立安装管理工具，无需重启 JVM。首次空环境先按 [部署指南](BUSINESS-DEPLOYMENT.md)与教程[业务包发布](../../tutorials/src/content/docs/guide/04-publish.md)准备服务和初始 policy。
 

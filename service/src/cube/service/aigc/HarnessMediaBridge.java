@@ -312,6 +312,9 @@ public final class HarnessMediaBridge implements MediaProvider {
             unit.setRunning(true);
             p.runningMarked = true;
             Packet packet = new Packet(sn, specialized ? AIGCAction.SpecializedDetection.name : AIGCAction.Multimodal.name, data);
+            listener.accept(new JSONObject().put("requestId", execution.getString("requestId"))
+                    .put("instanceId", execution.getString("instanceId")).put("actualFinished", false)
+                    .put("stage", "physical-dispatch").put("dispatchedAt", System.currentTimeMillis()).put("serviceSn", sn));
             sent = true; // 此点之后若缺 ACK 即为 unknown，即使 transmit 返回 null 也不代表物理执行结束。
             ActionDialect response = service.getCellet().transmit(unit.getContext(), packet.toDialect(), 180000, sn);
             if (response != null) {

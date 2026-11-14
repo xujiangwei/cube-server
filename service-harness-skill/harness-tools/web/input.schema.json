@@ -10,5 +10,6 @@
   "required": [
     "url"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "读取获准网络资源，使用真实链接和来源；网络失败不等于空内容。"
 }

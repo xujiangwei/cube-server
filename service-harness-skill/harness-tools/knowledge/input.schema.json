@@ -10,5 +10,6 @@
   "required": [
     "query"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "查询已授权且固定版本的知识索引，返回出处；缺少匹配与调用失败分别处理。"
 }

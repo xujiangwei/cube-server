@@ -102,15 +102,30 @@ public final class ProviderInvocation {
         if (bridge == null) throw new StoreException("CAPABILITY_NOT_READY");
         return metadata().reserve(job, bridge.mediaUnits(), unit, request);
     }
+    public long remainingMillis() { return jobs.providerRemainingMillis(job); }
+    public void phase(String name, JSONObject details) {
+        remember("media-phase", jobId + ":" + name,
+                new JSONObject(details.toString()).put("phase", name).put("recordedAt", System.currentTimeMillis()));
+    }
     public void invokeMedia(JSONObject execution, byte[] image, java.util.function.Consumer<JSONObject> listener) {
         cube.aigc.completion.MediaProvider bridge = media == null ? null : media.get();
-        if (cancelled() || bridge == null) {
+        boolean stopped = cancelled() || remainingMillis() == 0;
+        if (stopped || bridge == null) {
             unsent(execution);
-            throw new StoreException(cancelled() ? "TOOL_CANCELLED" : "CAPABILITY_NOT_READY");
+            throw new StoreException(stopped ? "TOOL_CANCELLED" : "CAPABILITY_NOT_READY");
+        }
+        try {
+            phase("handoff", new JSONObject().put("requestId", execution.getString("requestId"))
+                    .put("instanceId", execution.getString("instanceId")));
+        } catch (RuntimeException failure) {
+            unsent(execution); throw failure;
         }
         try {
             bridge.invokeMedia(execution, image, receipt -> {
-                if (!receipt.optBoolean("actualFinished")) return;
+                if (!receipt.optBoolean("actualFinished")) {
+                    if ("physical-dispatch".equals(receipt.optString("stage"))) metadata().mediaDispatch(job, receipt);
+                    return;
+                }
                 metadata().receipt(job, receipt);
                 listener.accept(receipt);
             });
@@ -162,7 +177,8 @@ public final class ProviderInvocation {
                 || j.getInt("cancel_requested") != 0
                 || jobs.revoked(j)
                 || r.getLong("fence") != job.getLong("origin_fence")
-                || !r.getJSONObject("snapshot").getString("state").equals("running");
+                || !r.getJSONObject("snapshot").getString("state").equals("running")
+                || jobs.remainingMillis(job) == 0;
     }
 
     /**

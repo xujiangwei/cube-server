@@ -1,6 +1,12 @@
 # Enable only real, warmed-up routes with isolated physical capacity.
 capability.allowed.units=OmniMultimodal,OmniPerception,SpecializedDetection
 capability.timeout.millis=20000
+# Optional bounded slot waiting (0..40000); this never retries physical execution.
+capability.queue.timeout.millis=0
+# For long calls, upgrade core/skill/Runner contracts together and opt tool Runners
+# into runner.providerAwait=true, then e.g. timeout=60000 and queue.timeout=20000.
+# timeout range: 100..240000; preparation/queue/execution share the signed Runner
+# deadline and the pinned task lifetime. Unknown calls retain their reservations.
 image.max.pixels=4000000
 result.max.bytes=12288
 # The same approved source credential is needed to retrieve its images.

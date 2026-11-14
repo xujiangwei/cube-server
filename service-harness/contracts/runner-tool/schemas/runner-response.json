@@ -164,7 +164,7 @@
             "timeoutMillis": {
               "type": "integer",
               "minimum": 100,
-              "maximum": 30000
+              "maximum": 290000
             },
             "maxOutputBytes": {
               "type": "integer",
@@ -180,6 +180,12 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 256
+            },
+            "waitProtocol": {
+              "type": "string",
+              "enum": [
+                "provider-await-v1"
+              ]
             }
           },
           "required": [
@@ -207,7 +213,30 @@
             "maxWorkspaceBytes",
             "maxWorkspaceFiles"
           ],
-          "additionalProperties": false
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "timeoutMillis": {
+                  "type": "integer",
+                  "maximum": 30000
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "timeoutMillis": {
+                  "type": "integer",
+                  "minimum": 30001
+                }
+              },
+              "required": [
+                "waitProtocol"
+              ]
+            }
+          ]
         },
         "dataJson": {
           "type": "string",

@@ -18,6 +18,9 @@ public interface CompletionGuard extends AutoCloseable {
     /** Evidence is supplied exclusively by the host's confirmed Provider/job ledger. */
     JSONObject check(Resources resources, JSONArray evidence) throws Exception;
 
+    /** Optional pinned fixed workflow. Returns a host proposal/final, never a model decision. */
+    default JSONObject advance(Resources resources, JSONArray evidence, String skill) throws Exception { return null; }
+
     default boolean supportsReports() { return false; }
     default void validateReport(Resources resources) throws Exception { throw new IllegalStateException("REPORT_GUARD_UNAVAILABLE"); }
     default JSONObject checkFinal(Resources resources, JSONArray evidence, JSONObject decision,

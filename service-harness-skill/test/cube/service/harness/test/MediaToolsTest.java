@@ -10,6 +10,7 @@ import static cube.service.harness.test.RuntimeTest.*;
 import cube.aigc.completion.MediaProvider;
 import cube.common.action.HarnessAction;
 import cube.service.harness.execution.*;
+import cube.service.harness.skill.CapabilityInvokeProvider;
 import cube.service.harness.runtime.*;
 import cube.service.harness.store.*;
 import java.io.*;
@@ -101,6 +102,8 @@ public final class MediaToolsTest {
      * 是否延迟回执。
      */
     static boolean delay;
+    static boolean longWait;
+    static int responseDelayMillis;
 
     /**
      * 上传一个本地文件并完成绑定。
@@ -146,14 +149,23 @@ public final class MediaToolsTest {
         JSONObject job = broker.enqueue(lease, row(lease.runId, "call", id), resources.executable(identity, lease.runId, tool));
         String worker = "media-worker-" + key();
         broker.jobs.identity(worker, "runtime", 1);
-        JSONObject wire = broker.jobs.poll(worker, "runtime", "instance", true, "tool", broker::wire);
+        if (longWait && tool.equals("common.capability.invoke")) {
+            check(broker.jobs.poll(worker, "runtime", "legacy", true, broker::wire) == null,
+                    "legacy Runner never receives an unsupported long wait");
+        }
+        JSONObject wire = broker.jobs.poll(worker, "runtime", "instance", true, "tool",
+                (j,w,r,i) -> broker.wire(j,w,r,i,longWait));
         check(wire != null, "tool dispatched");
+        if (longWait && tool.equals("common.capability.invoke")) {
+            check(wire.getString("waitProtocol").equals("provider-await-v1") && wire.getInt("timeoutMillis") > 30000,
+                    "long wait is negotiated and signed into wire");
+        }
         broker.jobs.accepted(wire.getString("jobId"), wire.getString("jobHash"));
         job = broker.jobs.job(job.getString("job_id"));
         JSONObject exchange = broker.invokeArguments(job, wire.getJSONObject("grant"), args);
         // 重放已受理的调用不得再次触达上游。
         broker.invokeArguments(job, wire.getJSONObject("grant"), args);
-        long until = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(8);
+        long until = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(longWait ? 75 : 8);
         while (exchange.getString("status").equals("pending") && System.nanoTime() < until) {
             Thread.sleep(10);
             try {
@@ -189,13 +201,15 @@ public final class MediaToolsTest {
     public static void main(String[] args) throws Exception {
         Path packages = Paths.get(args[0]);
         Path forest = Paths.get(args[1]);
+        longWait = args.length > 2 && "long-wait".equals(args[2]);
         TEST_PERMISSIONS.addAll(Arrays.asList("data.query", "data.process", "capability.invoke"));
         CommonToolsTest.prepare(Files.createTempDirectory(packages.getParent(), "media-test-"), packages, "http://127.0.0.1:1/search");
         Properties settings = CommonToolsTest.settings;
         for (String name : Arrays.asList("data", "capability", "processing")) {
             Properties pc = new Properties();
             pc.setProperty("capability.allowed.units", "OmniMultimodal,OmniPerception,SpecializedDetection");
-            pc.setProperty("capability.timeout.millis", "1000");
+            pc.setProperty("capability.timeout.millis", longWait ? "60000" : "1000");
+            pc.setProperty("capability.queue.timeout.millis", longWait ? "5000" : "0");
             pc.setProperty("secret.f-fixture", SECRET);
             Path file = root.resolve(name + ".properties");
             Files.write(file, bytes(ExecutionTest.properties(pc)));
@@ -237,8 +251,17 @@ public final class MediaToolsTest {
             public void invokeMedia(JSONObject execution, byte[] image, Consumer<JSONObject> callback) {
                 inferences.incrementAndGet();
                 executions.add(execution);
+                callback.accept(new JSONObject().put("requestId", execution.getString("requestId"))
+                        .put("instanceId", execution.getString("instanceId")).put("actualFinished", false)
+                        .put("stage", "physical-dispatch").put("dispatchedAt", System.currentTimeMillis()));
                 if (delay) {
                     delayed.add(callback);
+                } else if (responseDelayMillis > 0) {
+                    Thread delivery = new Thread(() -> {
+                        try { Thread.sleep(responseDelayMillis); callback.accept(physical(execution)); }
+                        catch (InterruptedException stopped) { Thread.currentThread().interrupt(); }
+                    });
+                    delivery.setDaemon(true); delivery.start();
                 } else {
                     callback.accept(physical(execution));
                 }
@@ -279,6 +302,7 @@ public final class MediaToolsTest {
         JSONObject task = task("media", business, "scripted", 8192).put("id", "media").put("runtime", ref("trusted-cpu"))
                 .put("skillReleases", new JSONArray(CommonToolsTest.releases.values())).put("toolSetVersion", "broker-tools")
                 .put("requiredCapabilities", new JSONArray().put("resources").put("tool.execute"));
+        if (longWait) task.put("executionLimits", new JSONObject().put("maxRounds",8).put("maxTools",32).put("maxRepairs",2).put("maxLifetimeMillis",300000));
         profiles.publish(T, task);
         profiles.bind(T, "task", "media", "media@media", 0);
         try {
@@ -339,6 +363,44 @@ public final class MediaToolsTest {
                     .put("profileId", "uploaded-summary").put("pageRefs", new JSONArray().put("forged")))
                     .getString("errorCode").equals("MEDIA_REF_FORBIDDEN"), "forged page rejected");
             JSONObject invoke = new JSONObject().put("skill", "fhe/patrol").put("profileId", "describe").put("mediaRef", ref).put("content", "Describe only the actual image");
+            if (longWait) {
+                queueCancellation(lease, invoke);
+                for (int millis : new int[]{1000,21000,31000}) {
+                    store.renew(lease, 60000);
+                    responseDelayMillis = millis;
+                    int before = inferences.get();
+                    long start = System.nanoTime();
+                    JSONObject value = call(lease, "common.capability.invoke", invoke);
+                    check(!value.has("errorCode") && inferences.get() == before + 1, "one confirmed physical call across boundary " + millis);
+                    check(java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-start) >= millis, "real elapsed wait " + millis);
+                    check(metadata.finished(broker.jobs.job(executions.get(executions.size()-1).getString("requestId"))), "durable receipt before delivery");
+                }
+                responseDelayMillis = 2000;
+                int previous = inferences.get();
+                java.util.concurrent.atomic.AtomicReference<JSONObject> expiredResult = new java.util.concurrent.atomic.AtomicReference<>();
+                java.util.concurrent.atomic.AtomicReference<Throwable> failure = new java.util.concurrent.atomic.AtomicReference<>();
+                Thread waiting = new Thread(() -> {
+                    try { expiredResult.set(call(lease, "common.capability.invoke", invoke)); }
+                    catch (Throwable error) { failure.set(error); }
+                });
+                waiting.start();
+                long dispatchedBy = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3);
+                while (inferences.get() == previous && System.nanoTime() < dispatchedBy) Thread.sleep(10);
+                check(inferences.get() == previous + 1, "deadline regression dispatches once before task expiry");
+                try (java.sql.Connection c = config.connect(); java.sql.PreparedStatement p = c.prepareStatement("UPDATE harness_run SET created_at=? WHERE run_id=?")) {
+                    p.setLong(1, System.currentTimeMillis() - 300001); p.setString(2, run); p.executeUpdate();
+                }
+                waiting.join(3000);
+                check(!waiting.isAlive() && failure.get() == null && expiredResult.get().has("errorCode"), "task deadline ends waiting without replay");
+                store.finish(lease, version(run), "timed_out", "unknown", new JSONObject().put("errorCode", "RUN_LIFETIME_EXCEEDED"), new JSONArray());
+                JSONObject lateJob = broker.jobs.job(executions.get(executions.size()-1).getString("requestId"));
+                long receiptBy = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3);
+                while (!metadata.finished(lateJob) && System.nanoTime() < receiptBy) Thread.sleep(10);
+                check(metadata.finished(lateJob) && store.read(T,S,run).getJSONObject("snapshot").getString("state").equals("timed_out")
+                        && inferences.get() == previous + 1, "late receipt persists after task expiry without changing terminal state or replaying");
+                System.out.println("PASS provider-await-v1: real 1s/21s/31s completions; legacy refusal; task-expiry cancellation and late durable receipt preserve timed_out; one dispatch each.");
+                return;
+            }
             JSONObject result = call(lease, "common.capability.invoke", invoke);
             check(!result.has("errorCode"), "initial capability result: " + result);
             check(result.getString("answer").contains("Fixture") && inferences.get() == 1, "actual fixture dispatched once, no invented count");
@@ -376,7 +438,13 @@ public final class MediaToolsTest {
                 check(!reopened.finished(unknownJob), "strict store re-open retains lack of physical completion");
                 fail("CAPABILITY_EXECUTION_ALREADY_STARTED", () -> reopened.reserve(unknownJob, bridge.mediaUnits(), "OmniMultimodal", new JSONObject()));
             }
-            delayed.get(0).accept(physical(executions.get(2)));
+            JSONObject savedReceipt = physical(executions.get(2));
+            delayed.get(0).accept(savedReceipt);
+            JSONObject completedJob = broker.jobs.job(executions.get(2).getString("requestId"));
+            // Repeat the exact durable bytes, not a newly timestamped receipt.
+            metadata.receipt(completedJob, savedReceipt);
+            fail("CAPABILITY_RECEIPT_FORBIDDEN", () -> metadata.receipt(completedJob, new JSONObject(savedReceipt.toString()).put("instanceId", "foreign")));
+            fail("CAPABILITY_RECEIPT_CONFLICT", () -> metadata.receipt(completedJob, new JSONObject(savedReceipt.toString()).put("success", false)));
             delay = false;
             JSONObject afterReceipt = call(lease, "common.capability.invoke", invoke);
             check(!afterReceipt.has("errorCode") && afterReceipt.getString("answer").contains("Fixture"), "physical late receipt releases only its slot: " + afterReceipt);
@@ -535,11 +603,28 @@ public final class MediaToolsTest {
         JSONObject fire=detectionNode("fire-only","fire-smoke"),thing=detectionNode("thing-only","thing");
         JSONArray units=new JSONArray().put(fire).put(thing);
         JSONObject request=new JSONObject().put("option",new JSONObject().put("operation","detect").put("profile","thing"));
+        Properties admission = new Properties(); admission.setProperty("capability.allowed.units", "SpecializedDetection");
+        JSONObject profileConfig = new JSONObject().put("version", "1").put("profiles", new JSONArray().put(new JSONObject()
+                .put("id", "objects").put("adapter", "specialized-detection").put("unit", "SpecializedDetection")
+                .put("mediaTypes", new JSONArray().put("image/jpeg"))
+                .put("optionsJson", "{\"operation\":\"detect\",\"profile\":\"thing\",\"classes\":[\"person\"]}")));
+        QueryProvider.ProviderInvocationLookup lookup = new QueryProvider.ProviderInvocationLookup() {
+            public JSONObject source(String ref) { throw new AssertionError("admission does not read source"); }
+            public JSONArray mediaUnits() { return units; }
+        };
+        try (CapabilityInvokeProvider provider = new CapabilityInvokeProvider(admission)) {
+            thing.put("availableImages", 0);
+            provider.preflightConfiguration(lookup, "analysis-profiles.json", profileConfig);
+            JSONObject unavailableJob = detectionJob(lease);
+            fail("CAPABILITY_CAPACITY_UNAVAILABLE", () -> metadata.reserve(unavailableJob, units, "SpecializedDetection", request));
+            broker.jobs.cancel(lease, unavailableJob.getString("job_id"));
+            thing.put("availableImages", 1);
+        }
         JSONObject job=detectionJob(lease);
         JSONObject execution=metadata.reserve(job,units,"SpecializedDetection",request);
         check("thing-only".equals(execution.getString("instanceId")),"durable reservation matches profile");
         JSONObject next=detectionJob(lease);
-        fail("CAPABILITY_NOT_READY",()->metadata.reserve(next,units,"SpecializedDetection",request));
+        fail("CAPABILITY_CAPACITY_UNAVAILABLE",()->metadata.reserve(next,units,"SpecializedDetection",request));
         thing.getJSONArray("profiles").put("fire-smoke");
         JSONObject other=new JSONObject(request.toString());other.getJSONObject("option").put("profile","fire-smoke");
         JSONObject second=metadata.reserve(next,units,"SpecializedDetection",other);
@@ -563,6 +648,62 @@ public final class MediaToolsTest {
         JSONObject arguments=new JSONObject().put("skill","fhe/patrol").put("profileId","describe").put("mediaRef","fixture").put("content","Fixture");
         intent(lease,"call",id,new JSONObject().put("proposalId",id).put("tool","common.capability.invoke").put("argumentsJson",arguments.toString()));
         return broker.enqueue(lease,row(lease.runId,"call",id),resources.executable(identity,lease.runId,"common.capability.invoke"));
+    }
+
+    static void queueCancellation(JdbcRunStore.Lease lease, JSONObject invoke) throws Exception {
+        store.renew(lease, 60000);
+        JSONObject first = detectionJob(lease), second = detectionJob(lease);
+        for (JSONObject occupied : Arrays.asList(first, second)) {
+            String worker = "occupied-" + key();
+            broker.jobs.identity(worker, "runtime", 1);
+            JSONObject wire = broker.jobs.poll(worker, "runtime", "occupied", true, "tool",
+                    (j,w,r,i) -> broker.wire(j,w,r,i,true));
+            check(wire.getString("jobId").equals(occupied.getString("job_id")), "occupied test job accepted before the waiter");
+            broker.jobs.accepted(wire.getString("jobId"), wire.getString("jobHash"));
+        }
+        JSONArray units = new JSONArray();
+        for (String node : Arrays.asList("unit-a", "unit-b")) units.put(new JSONObject().put("unit", "OmniMultimodal")
+                .put("instanceId", node).put("capacity", 1).put("ready", true));
+        JSONObject request = new JSONObject().put("deadlineAt", System.currentTimeMillis() + 60000);
+        JSONObject one = metadata.reserve(first, units, "OmniMultimodal", request);
+        JSONObject two = metadata.reserve(second, units, "OmniMultimodal", request);
+        int before = inferences.get();
+        java.util.concurrent.atomic.AtomicReference<JSONObject> result = new java.util.concurrent.atomic.AtomicReference<>();
+        java.util.concurrent.atomic.AtomicReference<Throwable> error = new java.util.concurrent.atomic.AtomicReference<>();
+        Thread caller = new Thread(() -> {
+            try { result.set(call(lease, "common.capability.invoke", invoke)); }
+            catch (Throwable failure) { error.set(failure); }
+        });
+        caller.start();
+        String queued = null;
+        long until = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(3);
+        while (queued == null && System.nanoTime() < until) {
+            try (java.sql.Connection c = config.connect(); java.sql.PreparedStatement p = c.prepareStatement(
+                    "SELECT f.job_id,f.value_json FROM harness_provider_fact f JOIN harness_tool_job j ON f.job_id=j.job_id WHERE j.run_id=? AND j.status='accepted' AND j.actual_finished=0 AND f.fact_kind='media-phase'")) {
+                p.setString(1, lease.runId);
+                try (java.sql.ResultSet r = p.executeQuery()) {
+                    while (r.next()) if ("queued".equals(new JSONObject(r.getString(2)).optString("phase"))) queued = r.getString(1);
+                }
+            }
+            if (queued == null) Thread.sleep(10);
+        }
+        check(queued != null, "Provider reaches capacity queue with both physical slots reserved");
+        broker.jobs.cancel(lease, queued);
+        caller.join(3000);
+        check(!caller.isAlive() && inferences.get() == before, "queue cancellation never dispatches a physical request");
+        check(error.get() instanceof StoreException || result.get() != null && result.get().has("errorCode"), "queued cancellation returns an explicit failure");
+        try (java.sql.Connection c = config.connect(); java.sql.PreparedStatement p = c.prepareStatement(
+                "SELECT COUNT(*) FROM harness_provider_fact WHERE job_id=? AND fact_kind='execution'")) {
+            p.setString(1, queued);
+            try (java.sql.ResultSet r = p.executeQuery()) { r.next(); check(r.getInt(1) == 0, "cancelled waiter never acquires another reservation"); }
+        }
+        for (JSONObject execution : Arrays.asList(one, two)) {
+            JSONObject job = broker.jobs.job(execution.getString("requestId"));
+            metadata.receipt(job, new JSONObject().put("requestId", execution.getString("requestId"))
+                    .put("instanceId", execution.getString("instanceId")).put("actualFinished", true).put("success", false).put("unsent", true));
+            broker.jobs.cancel(lease, job.getString("job_id"));
+        }
+        System.out.println("PASS capacity queue cancellation: both slots occupied, explicit cancellation, zero physical dispatches or new reservations.");
     }
 
     static JSONObject detectionNode(String id,String profile) {

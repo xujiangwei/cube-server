@@ -256,12 +256,14 @@ public final class RuntimeSupport {
         Set<String> words = new HashSet<>(
                 Arrays.asList("type", "properties", "required", "additionalProperties", "enum",
                         "minLength", "maxLength", "pattern", "minimum", "maximum", "items",
-                        "maxItems", "minItems"));
+                        "maxItems", "minItems", "description"));
         for (String key : schema.keySet()) {
             if (!words.contains(key)) {
                 throw error("UNSUPPORTED_TOOL_SCHEMA");
             }
         }
+        if (schema.has("description") && (!(schema.get("description") instanceof String)
+                || schema.getString("description").length() > 2048)) throw error("UNSUPPORTED_TOOL_SCHEMA");
         String type = schema.optString("type");
         if (!Arrays.asList("object", "array", "string", "integer", "number", "boolean").contains(type)) {
             throw error("UNSUPPORTED_TOOL_SCHEMA");

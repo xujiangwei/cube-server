@@ -54,6 +54,8 @@ run 的权限是租户策略声明、可信身份授权和平台/固定 release 
 
 资源能力为 `skill.list/activate`、`resource.list/read/search`。每次调用复查租户、用户、权限、激活状态和固定 release；自定义资源工具只读 manifest 固定路径，验证输出 schema，不运行代码。read 按 Unicode codepoint 分页，limit 最多 8192，返回 release/path/sha256/handle/nextOffset；search 为有界字面量检索。
 
+模型输入中的 `platform:resource-directory` 列出本 run 固定且获准的 skill/release；只有已激活并具有读取权限的技能才显示资源路径。使用目录中的完整 release/path 配对；`resource.read` 在读取前校验配对。路径不属于所选 release 时，返回 `RESOURCE_NOT_FOUND` 及当前授权目录中同路径的候选，不自动重定向，也不扩张授权。
+
 工作区租约绑定数据库时钟、owner/fence 和 run 租约，每次读写重验，受 RuntimeProfile 的字节/文件数与根总配额限制。只有 executionSettlement=confirmed 才可 release；unknown 保留工作区，旧 owner 不能在接管后继续写入。
 
 ## 上下文数据流与预算
@@ -62,8 +64,14 @@ run 的权限是租户策略声明、可信身份授权和平台/固定 release 
 
 system 消息来自固定平台规则、权限和账本事实；技能资料为 user 数据，工具输出为 tool 数据。实际工具权限由 Java 在调用前再次校验。
 
+JSON 模型适配将已确认的 assistant 历史序列化为原决策 schema，不把资料来源的 data/provenance 包装示范成模型输出格式。权威账本保留来源，资料和工具数据仍按来源包装；新输出继续经过原严格决策与工具参数校验，不能用去壳解析接受无效决策。
+
+原生工具使用稳定别名，description 始终带真实工具名以便与 SKILL 对应。JSON 适配只展示 name/description/parameters；工具结果的内嵌 `*Json` 和 JSON 资源正文在阅读视图中解析为结构，账本仍保存原始字符串。外层 calls[].argumentsJson 序列化整个工具参数对象；如该工具还有 argumentsJson，它只序列化连接器参数。有限修复反馈携带工具名、参数路径、校验类型和必需字段，继续严格拒绝坏参数。
+
+显式启用 fixed-patrol-v1 的工作流可由安装的 guard 提供受约束规划视图；ContextEngine 只缩小已授权工具集合，并把固定连接器 schema、完整双层序列化示例纳入同一快照和预算。宿主提案持久记录为 workflow.binding，来源为 host:fixed-patrol-v1；它们复用普通 call intent、审批和回执。旧包及默认 CompletionGuard 不启用此路径。源授权撤销、配置不匹配、重复页、循环 cursor、无进展或越界均停止，不制造模型轮次或确认事实。
+
 上下文策略使用 `context-v1` / `extractive-v1`；java-inference 的预算版本为 `transport-bytes-v1`，scripted 为 `full-json-bytes-v1`。模型按 tokenizer/template 的 ID、版本及 adapter/nativeTools 匹配，不要求填写配置摘要。渲染为 `harness-json-template-v1` 前缀加完整规范化请求；预算包含 messages、工具完整 schema、响应 schema、模板开销和 outputReserve，并另检查 maxInputBytes。字节计数不等于远端模型真实 token 用量。
 
-先按 maxSourceChars 提取资源与工具文本，超预算时继续确定性缩短这些文本，记录来源、原文摘要、保留长度及摘要。原任务、权限、调用参数、schema、执行事实和 pending 不裁剪；不可压缩部分仍超预算则拒绝执行。
+先按 maxSourceChars 提取资源与工具文本，超预算时继续确定性缩短这些文本，记录来源、原文摘要、保留长度及摘要。合法工具 dataJson 使用 `structured-json-v1`：递归保留 JSON 结构、数组覆盖、完整 Ref/Id/cursor/version/hash、release/path、answer/response，含 recordsJson/payloadJson 等内嵌 JSON；只缩短其他长文本叶子。原始账本不变。普通资源正文仍采用有界文本提取。原任务、权限、调用参数、schema、执行事实和 pending 不裁剪；不可压缩部分仍超预算则拒绝执行，不提高预算。审计分别记录实际 retainedCodePoints 和长文本允许量 textAllowanceCodePoints。
 
 snapshot 保存 configDigest、固定任务/权限、执行事实、pending、压缩记录、模型 request、精确 rendered、模板及预算。checkpoint 在同一事务中校验 owner、CAS、basisVersion 和配置绑定，并提交事件/Outbox。restore 重验授权、摘要及模板，重建相同输入字节；是否允许再次执行仍由 Coordinator 根据当前状态和 fence 判断。

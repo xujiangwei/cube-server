@@ -29,7 +29,7 @@ public final class ReportValidatorTest {
         JSONObject result = run(changed);
         check(!result.getBoolean("satisfied") && result.getJSONArray("missing").toString().contains(code), code + ": " + result);
     }
-    private static JSONObject analysisFact(String ref, JSONObject record) {
+    static JSONObject analysisFact(String ref, JSONObject record) {
         JSONObject fact = analysis(ref), value = fact.getJSONObject("value");
         JSONObject out = new JSONObject().put("profileId", "describe").put("mediaRef", ref).put("unit", "Fixture")
                 .put("answer", "Fixture observation").put("payloadJson", "{\"fixture\":true}").put("warnings", new JSONArray().put("OBSERVATION_ONLY"));

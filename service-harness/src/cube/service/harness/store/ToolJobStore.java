@@ -310,7 +310,9 @@ public final class ToolJobStore {
                         return null;
                     }
                     requireSelected(c, job);
+                    job.put("task_remaining_millis", remainingMillis(c, job));
                     JSONObject wire = factory.create(job, worker, runtime, instance);
+                    if (wire == null) return null; // This worker cannot honor the pinned wait contract.
                     if (update(
                             c,
                             "UPDATE harness_tool_job SET worker_id=?,runtime_id=?,instance_id=?,job_hash=?,wire_json=?,status='assigned' WHERE job_id=? AND status='queued'",
@@ -614,6 +616,30 @@ public final class ToolJobStore {
      */
     public JSONObject currentRun(JSONObject j) {
         return store.read(j.getString("tenant"), j.getString("subject_id"), j.getString("run_id"));
+    }
+
+    /** Remaining task lifetime uses the database clock and pinned limits, never worker/model input. */
+    public long remainingMillis(JSONObject job) {
+        return store.tx(c -> remainingMillis(c, job));
+    }
+    /** Provider preparation, queueing and execution share the signed Runner deadline. */
+    public long providerRemainingMillis(JSONObject job) {
+        return store.tx(c -> {
+            long remaining = remainingMillis(c, job);
+            JSONObject current = first(rows(c, "SELECT dispatched_at,wire_json FROM harness_tool_job WHERE job_id=?", job.getString("job_id")));
+            if (current != null && !current.isNull("wire_json") && !current.isNull("dispatched_at")) {
+                int timeout = new JSONObject(current.getString("wire_json")).getInt("timeoutMillis");
+                remaining = Math.min(remaining, Math.max(0, current.getLong("dispatched_at") + timeout - 1000 - store.now(c)));
+            }
+            return remaining;
+        });
+    }
+    private long remainingMillis(java.sql.Connection c, JSONObject job) throws Exception {
+            JSONObject run = store.run(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"), true);
+            JSONObject pin = new CatalogStore(store, !lock.isEmpty()).pinned(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"));
+            JSONObject task = cube.service.harness.runtime.ExecutionProfiles.execution(pin);
+            long lifetime = task.optJSONObject("executionLimits") == null ? 300000 : task.getJSONObject("executionLimits").getLong("maxLifetimeMillis");
+            return Math.max(0, run.getLong("created_at") + lifetime - store.now(c));
     }
 
     /**

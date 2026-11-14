@@ -10,5 +10,6 @@
   "required": [
     "expression"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "用 DECIMAL128 精确计算已知事实的四则表达式。用户要求计算或查询后需合计时必须调用本工具；先取得真实数值再提交 expression。返回 result 字符串与 precision，禁止猜测结果。"
 }

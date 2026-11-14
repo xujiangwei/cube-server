@@ -657,6 +657,26 @@ public final class CatalogStore {
         });
     }
 
+    /** Persist host proposals separately from model rounds; repeated recovery is idempotent. */
+    public void workflowBinding(JdbcRunStore.Lease lease, long expected, JSONObject call) {
+        store.tx(c -> {
+            JSONObject run = store.run(c, lease.tenant, lease.subject, lease.runId, true);
+            store.owner(c, run, lease);
+            if (!run.getString("state").equals("running")) throw new StoreException("WORKFLOW_NOT_RUNNING");
+            JSONArray previous = rows(c, "SELECT data_json FROM harness_event WHERE run_id=? AND event_type='workflow.binding'", lease.runId);
+            for (int i = 0; i < previous.length(); i++) {
+                JSONObject saved = new JSONObject(previous.getJSONObject(i).getString("data_json"));
+                if (saved.getString("proposalId").equals(call.getString("proposalId"))) {
+                    if (!canonical(saved).equals(canonical(call))) throw new StoreException("WORKFLOW_BINDING_CONFLICT");
+                    return null;
+                }
+            }
+            store.version(run, expected);
+            store.emit(c, run, "workflow.binding", call, "coordinator");
+            return null;
+        });
+    }
+
     /** Authorize one bounded repair per final round, atomically and replayably under the run lease. */
     public void workflowRepair(JdbcRunStore.Lease lease, long expected, String round, JSONObject assessment) {
         store.tx(c -> {

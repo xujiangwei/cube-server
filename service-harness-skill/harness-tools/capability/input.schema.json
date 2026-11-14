@@ -17,7 +17,8 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 128,
-      "pattern": "^[A-Za-z0-9_.:-]+$"
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "description": "完整复制已确认记录 sources 的 mediaRef，不按序号或文件名重建。"
     },
     "content": {
       "type": "string",
@@ -31,5 +32,6 @@
     "mediaRef",
     "content"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "分析已确认 mediaRef，profileId 来自固定业务 analysis-profiles。人车使用 SpecializedDetection/thing 的合法 refs[].boxes；空 answer 不等于无目标，框数不等于唯一人数。烟火使用 fire-smoke，场景与通行解释使用对应描述 profile。仅提供观察；unknown 不重发；不能据目标出现直接判异常。"
 }

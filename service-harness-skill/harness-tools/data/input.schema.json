@@ -16,12 +16,14 @@
     "argumentsJson": {
       "type": "string",
       "minLength": 2,
-      "maxLength": 4096
+      "maxLength": 4096,
+      "description": "JSON 编码字符串，仅包含所选连接器参数；不含 cursor。"
     },
     "cursor": {
       "type": "string",
       "minLength": 0,
-      "maxLength": 1024
+      "maxLength": 1024,
+      "description": "顶层可选字段。首次省略，续页原样复制上次 nextCursor；禁止改写或嵌入 argumentsJson。"
     }
   },
   "required": [
@@ -29,5 +31,6 @@
     "connectorId",
     "argumentsJson"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "description": "查询已授权业务记录或读取上传快照。先读取业务连接器定义；argumentsJson 只放该连接器 inputSchema 参数。续页必须原样复制 nextCursor 到工具顶层 cursor，保持 argumentsJson 不变；禁止把 cursor 放入 argumentsJson。返回 pageRef、mediaRefs、nextCursor，非空 nextCursor 表示覆盖尚未完成。失败/unknown 不能解释为空记录。"
 }
