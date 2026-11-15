@@ -25,7 +25,7 @@ Python `UnitRegistry.operation_contracts(config_key)` 只返回已注册单元�
 
 ## 修改和校验
 
-在 `cube-server` 根目录运行。`--python-root` 指向配套 Python 工程的绝对目录：
+以下命令仅供修改 Unit 操作目录时显式生成和校验使用，需要 Python 3；Java 编译、JAR 打包和 Java 契约回归只依赖 JDK 8、Ant 及现有 Java 依赖，不调用 Python。在 `cube-server` 根目录运行。`--python-root` 指向配套 Python 工程的绝对目录：
 
 ```powershell
 python -B common/unit-tools/generate.py --python-root C:/platform/apexnova-wisdom
@@ -40,11 +40,18 @@ python -B common/unit-tools/test_catalog.py --python-root C:/platform/apexnova-w
 使用 JDK 8 执行构建与回归：
 
 ```powershell
-ant -f common/build.xml -Dlib.dir=C:/platform/java-libs -Dpython.exe=python unit-contract-test
-ant -f common/build.xml -Dpython.exe=python -Dpython.unit.root=C:/platform/apexnova-wisdom unit-catalog-coverage
+ant -f common/build.xml -Dlib.dir=C:/platform/java-libs unit-contract-test
 ant -f service-harness/build.xml test-tools
 ```
 
-`lib.dir` 指向现有 Java 依赖目录；可用 `extra.classpath` 补充独立依赖 JAR。普通 Common 构建检查 Java 目录生成物并把资源加入 JAR；跨工程覆盖目标额外验证 Python 副本及源码。Java 契约回归检查跨语言摘要、业务投影、不可变性、权限与身份绑定；源码覆盖回归通过新增 Unit、Action、插件能力和替换 handler 的变异用例验证漏接会失败。
+`lib.dir` 指向现有 Java 依赖目录；可用 `extra.classpath` 补充独立依赖 JAR。普通 Common debug/release 构建直接把已提交的 `common/resources/` 资源加入 JAR，不执行目录生成器或 Python 校验。Java 契约回归读取该资源并检查摘要、业务投影、不可变性、权限与身份绑定。
+
+需要校验目录生成物及配套 Python 源码时，单独执行维护目标：
+
+```powershell
+ant -f common/build.xml -Dpython.exe=python -Dpython.unit.root=C:/platform/apexnova-wisdom unit-catalog-coverage
+```
+
+`unit-catalog-check`、`unit-catalog-test` 和 `unit-catalog-coverage` 均为显式维护目标，不属于 Java 构建或 Java 契约回归的依赖链。跨工程覆盖目标验证 Python 副本及源码，并通过新增 Unit、Action、插件能力和替换 handler 的变异用例验证漏接会失败。
 
 平台更新顺序为：生成并校验两份目录，构建 Common 与 Harness，在配套 Python 工程运行目录和注册表回归，再更新对应部署产物。仅更新目录和公共契约不会自动发布新工具或启用模型；实际执行链路完成后，按 Harness 的签名、权限和就绪流程发布。
