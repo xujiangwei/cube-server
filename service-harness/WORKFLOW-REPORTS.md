@@ -9,7 +9,7 @@
 | 资源 | 契约 |
 | --- | --- |
 | `workflow-requirements.json` | version 固定字符串 `1`；maxRepairs 为 0～2；pipelines 为 1～8 条路线，id、connectorId 各自唯一，每个声明的 connector 恰好一条路线 |
-| `report-requirements.json` | version 为字符串 `1`，format 为 `evidence-report-v1`；rules 最多 8 条唯一规则，每条仅含 id/path/sha256，绑定包内真实规则文件及原始字节摘要 |
+| `report-requirements.json` | version 为字符串 `2`（兼容旧 `1`），format 为 `evidence-report-v1`；rules 最多 8 条唯一规则，每条仅含 id/path/sha256；v2 必须声明 assessmentPolicy，见下文 |
 | `report-submission.schema.json` | 平台内置 schema 的副本，规范摘要须与 [正式 schema](../service-harness-skill/contracts/report-submission.schema.json) 一致，不能自行放宽 |
 
 工作流配置示例：
@@ -52,7 +52,31 @@ processingProfileId 必须存在于 data-processing.json 且 connectorId 一致�
 
 reports 恰好覆盖本 run 已激活且声明报告要求的技能，datasets 恰好对应检查选定的完整加工结果。每条记录、每个必需 profile 均有 finding；recordIndex 是完整 records 中零起始下标，分页后不重置，相同 recordIndex/profileId 不可重复。引用缺失、重复、额外或属于其他 run 均不通过。
 
-observation 须逐字等于对应已确认分析的 answer。模型不提交统计、时间、来源产物标识、人数或置信度等派生字段。assessment.status 只允许 not-assessed、review-required、normal、abnormal；normal/abnormal 须引用获准 ruleIds。summary 与 assessment.reason 为模型生成内容，规则摘要正确不代表其语义判断已获证明。
+observation 须逐字等于对应已确认分析的 answer。模型不提交统计、时间、来源产物标识、人数或置信度等派生字段。assessment.status 只允许 not-assessed、review-required、normal、abnormal；v2 的 normal/abnormal 须引用获准 ruleIds，且满足对应的证据条件。summary 与 assessment.reason 为模型生成内容，规则摘要正确不代表其语义判断已获证明。
+
+## 业务判断的证据条件
+
+v2 的 report-requirements.json 保留原 rules 文件绑定，并增加闭合、有限的声明规则；不支持执行脚本、表达式或模型代码。例如，只有已确认记录明确标注禁入区，且获准人员检测 profile 的结构化框证据表示存在目标时，才允许引用相应规则提交异常：
+
+```json
+{"version":"2","format":"evidence-report-v1",
+ "rules":[{"id":"restricted-area","path":"rules.md","sha256":"<实际规则文件的64位字节摘要>"}],
+ "assessmentPolicy":{"version":"evidence-rules-v1","rules":[{
+   "ruleId":"restricted-area","profileId":"people","status":"abnormal",
+   "conditions":[
+     {"source":"record","path":"/restrictedArea","operator":"eq","value":true},
+     {"source":"dimensions","path":"/presence","operator":"eq","value":true}
+   ]
+ }]}}
+```
+
+示例须与实际分析 profile、加工输出字段和业务规则一致；`restrictedArea` 不存在时未知，不能由模型补造。业务方负责审核字段的来源与规则含义；策略匹配不证明上游业务标签或视觉识别正确。没有足够业务规则的作者包使用 `"assessmentPolicy":{"version":"evidence-rules-v1","rules":[]}`，只允许 not-assessed/review-required，仍可交付完整观察与引用。
+
+每包最多 32 条条件规则，每条 1～8 个 AND 条件。ruleId 必须引用原 rules，profileId 必须存在，相同 ruleId/profileId/status 只能出现一次。source 可为 record（已确认加工记录）、payload（已确认分析的结构化 payloadJson）或 dimensions（独立程序解析的检测量纲）。path 使用 RFC 6901 JSON Pointer，最长 256 字符、16 层；dimensions 仅允许 /presence、/boxCount、/uniqueTargetCount，不能拿模型提出的业务判断自证。唯一目标数当前未知，检测框数不能替代唯一人数。不要把自由文本、模型自报异常字段或缺少授权依据的身份推断当作业务真值。
+
+operator 允许 eq/gt/gte/lt/lte；value 为布尔、有限数值或非空字符串，大小比较仅支持数值。无字符串到数字或布尔到数字的转换；字段缺失、null、空字符串、结构错误与类型不符都是 unknown。规则内有确定不满足的条件则不匹配，否则有 unknown 则未知。normal/abnormal 至少引用一条同 profile、同 status 的匹配规则；相反判断的规则同时匹配时报 REPORT_ASSESSMENT_CONFLICT，相反规则仍未知或没有引用匹配条件时报 REPORT_ASSESSMENT_UNSUPPORTED。修复应核对已有证据，无法消除不确定性时提交 review-required；不据此重发 unknown 执行。
+
+finding.assessment.evidenceReview 列出 method、scope、status、checks 与 reason；predicates-matched 仅表示配置条件匹配，explanationReviewRequired 和 semanticallyVerified=false 保持真实语义。summaryReview 单独标记模型概述需复核；所有业务 finding 都有 semanticReview 的确定程序提示。旧 v1 保持引用检查兼容，并在 evidenceReview 明确 LEGACY_RULE_CITATION_ONLY；需要上述门禁的业务必须升 v2、新版本签名发布，在途 release pin 不改。
 
 ```mermaid
 flowchart TD
@@ -74,7 +98,8 @@ flowchart TD
 | findings[].recordIndex/record | 完整加工记录与下标，未知 capturedAt 保持 null |
 | findings[].observation/payloadJson/warnings | 已确认能力原始返回，不合成 count/confidence |
 | findings[].citation | analysisRef、profileId/hash、analysisResultSha256、媒体 ID/版本/类型/摘要、captureTimeTrust、artifactId/artifactSha256 |
-| findings[].assessment | status/reason、固定规则 ruleRefs 与 semanticallyVerified=false |
+| findings[].assessment | status/reason、固定规则 ruleRefs、evidenceReview 条件检查与 semanticallyVerified=false |
+| summaryReview / findings[].semanticReview | 概述人工复核标记 / 原始观察的量纲和推断风险提示，不替代原始 answer/payload |
 
 前端按真实 artifactId/hash 关联已确认来源，再按当前用户、run/artifact 权限和固定原图版本展示；可使用 [render-report.js](../../tutorials/examples/render-report.js)。服务器交付前执行 source 授权与 checkDelivery。重启读取已持久化的同一报告，不重新推理或生成报告。
 
@@ -88,4 +113,4 @@ final.text UTF-8 上限 64 KiB；最多 8 个技能、每技能 64 个 dataset�
 
 没有 workflow/report 要求的旧包保留相应原 final 行为；宿主缺 guard 报 `WORKFLOW_GUARD_UNAVAILABLE`，guard 不支持报告报 `REPORT_GUARD_UNAVAILABLE`，报告资源/规则/schema 错误报 `REPORT_CONFIG_INVALID`。先部署匹配的核心、技能 JAR 与 guard，再发布要求这些能力的业务包；已有 run pin 不迁移。
 
-检查保证完成证据、结构和引用符合配置。用户问题范围、视觉识别质量、summary/reason 与业务规则的语义一致性仍需业务判断；不能把 semanticallyVerified=false 显示为“已验证正常”，也不能以当前时间补拍摄时间。
+检查保证完成证据、结构、引用及 v2 声明的有限条件符合配置。用户问题范围、视觉识别质量、summary/reason 与业务规则的语义一致性仍需独立复核；不能把 predicates-matched 或 semanticallyVerified=false 显示为“已验证正常”，也不能以当前时间补拍摄时间。新增检查不产生模型调用，不增加轮次、工具、修复或时间上限。

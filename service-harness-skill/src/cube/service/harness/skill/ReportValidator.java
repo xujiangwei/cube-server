@@ -26,8 +26,8 @@ final class ReportValidator {
     static void validate(CompletionGuard.Resources resources) throws Exception {
         try {
             JSONObject config = resources.json(CompletionGuard.REPORT_FILE);
-            ConnectorConfig.keys(config, "version,format,rules", "");
-            require("1".equals(config.getString("version")) && "evidence-report-v1".equals(config.getString("format")));
+            ConnectorConfig.keys(config, "version,format,rules", "assessmentPolicy");
+            require(Arrays.asList("1", "2").contains(config.getString("version")) && "evidence-report-v1".equals(config.getString("format")));
             require(RuntimeSupport.sha(RuntimeSupport.bytes(resources.json("report-submission.schema.json")))
                     .equals(RuntimeSupport.sha(RuntimeSupport.bytes(SCHEMA))));
             JSONArray rules = config.getJSONArray("rules"); require(rules.length() <= 8);
@@ -39,6 +39,7 @@ final class ReportValidator {
                 require(rule.getString("sha256").matches("[a-f0-9]{64}"));
                 require(RuntimeSupport.sha(resources.bytes(rule.getString("path"))).equals(rule.getString("sha256")));
             }
+            AssessmentPolicy.validate(resources, config);
         } catch (Exception error) {
             if (error instanceof StoreException && ((StoreException)error).code.startsWith("STORE_")) throw error;
             throw new StoreException("REPORT_CONFIG_INVALID");
@@ -128,13 +129,17 @@ final class ReportValidator {
                     .put("report", normalize(resources, evidence, selected, expected));
         } catch (StoreException invalid) {
             if (invalid.code.startsWith("STORE_")) throw invalid;
-            return result(invalid.code, new JSONObject().put("skill", skill).put("datasetRefs", expected));
+            JSONObject details = new JSONObject().put("skill", skill).put("datasetRefs", expected);
+            if (invalid.code.startsWith("REPORT_ASSESSMENT_")) details.put("instruction",
+                    "A rule citation alone cannot prove normal/abnormal. Read report-requirements.json; use only matching configured predicates over confirmed facts. If evidence is missing or conflicting, submit review-required and explain the limitation. Do not invent facts or repeat unknown calls.");
+            return result(invalid.code, details);
         } catch (Exception invalid) { return result("REPORT_CITATION_INVALID", new JSONObject().put("skill", skill).put("datasetRefs", expected)); }
     }
 
     private static JSONObject normalize(CompletionGuard.Resources resources, JSONArray evidence, JSONObject input, JSONArray expected) throws Exception {
         Map<String, JSONObject> datasets = new HashMap<>(), analyses = new TreeMap<>(), rules = new HashMap<>();
-        JSONArray declaredRules = resources.json(CompletionGuard.REPORT_FILE).getJSONArray("rules");
+        JSONObject requirements = resources.json(CompletionGuard.REPORT_FILE);
+        JSONArray declaredRules = requirements.getJSONArray("rules");
         for (int i = 0; i < declaredRules.length(); i++) rules.put(declaredRules.getJSONObject(i).getString("id"), declaredRules.getJSONObject(i));
         for (int i = 0; i < evidence.length(); i++) {
             JSONObject fact = evidence.getJSONObject(i);
@@ -188,6 +193,8 @@ final class ReportValidator {
                 JSONArray ruleRefs = new JSONArray();
                 for (String rule : cited) { if (!rules.containsKey(rule)) throw new StoreException("REPORT_RULE_INVALID"); ruleRefs.put(rules.get(rule)); }
                 if (Arrays.asList("normal", "abnormal").contains(assessment.getString("status")) && cited.isEmpty()) throw new StoreException("REPORT_RULE_REQUIRED");
+                JSONObject assessmentReview = AssessmentPolicy.check(requirements,
+                        ConnectorConfig.select(profiles, "profiles", profileId), analysis, originalRecord, assessment);
                 JSONObject citation = new JSONObject().put("analysisRef", actual.getString("id")).put("mediaRef", mediaRef)
                         .put("profileId", profileId).put("profileHash", hash).put("analysisResultSha256", digest)
                         .put("artifactId", artifact.getString("artifactId")).put("artifactSha256", artifact.getString("sha256"))
@@ -197,8 +204,9 @@ final class ReportValidator {
                 JSONObject findingOutput = new JSONObject().put("recordIndex", index).put("record", originalRecord).put("observation", analysis.getString("answer"))
                         .put("payloadJson", analysis.getString("payloadJson")).put("warnings", analysis.getJSONArray("warnings"))
                         .put("citation", citation).put("assessment", new JSONObject().put("status", assessment.getString("status"))
-                                .put("reason", assessment.getString("reason")).put("ruleRefs", ruleRefs).put("semanticallyVerified", false));
-                if (workflow.has("execution")) findingOutput.put("semanticReview", ObservationReview.review(
+                                .put("reason", assessment.getString("reason")).put("ruleRefs", ruleRefs).put("semanticallyVerified", false)
+                                .put("evidenceReview", assessmentReview));
+                findingOutput.put("semanticReview", ObservationReview.review(
                         ConnectorConfig.select(profiles, "profiles", profileId), analysis, assessment.getString("status")));
                 normalized.put(findingOutput);
             }
@@ -214,6 +222,7 @@ final class ReportValidator {
         }
         if (!seen.equals(wanted)) throw new StoreException("REPORT_DATASETS_INCOMPLETE");
         return new JSONObject().put("summary", input.getString("summary")).put("summarySemanticallyVerified", false)
+                .put("summaryReview", new JSONObject().put("status", "review-required").put("reason", "GENERATED_SUMMARY_REQUIRES_INDEPENDENT_REVIEW"))
                 .put("limitations", input.getJSONArray("limitations")).put("datasets", output);
     }
 }

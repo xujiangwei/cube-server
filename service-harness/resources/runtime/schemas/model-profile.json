@@ -270,6 +270,13 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 1
+            },
+            "toolNameStyle": {
+              "type": "string",
+              "enum": [
+                "hashed-v1",
+                "readable-v1"
+              ]
             }
           },
           "required": [

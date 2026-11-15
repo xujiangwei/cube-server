@@ -358,13 +358,17 @@ public final class ResourceTools {
                 JSONObject properties = new JSONObject();
                 JSONArray required = new JSONArray();
                 if (!name.equals("skill.list")) {
-                    properties.put("release", new JSONObject().put("type", "string").put("pattern", "^[a-f0-9]{64}$").put("maxLength", 64));
+                    properties.put("release", new JSONObject().put("type", "string").put("pattern", "^[a-f0-9]{64}$").put("maxLength", 64)
+                            .put("description", "Copy the complete authorized release digest from the pinned directory; never use a skill name or reconstruct it."));
                     required.put("release");
                 }
                 if (name.equals("resource.read")) {
-                    properties.put("path", new JSONObject().put("type", "string").put("maxLength", 256));
-                    properties.put("offset", new JSONObject().put("type", "integer").put("minimum", 0));
-                    properties.put("limit", new JSONObject().put("type", "integer").put("minimum", 1).put("maximum", 8192));
+                    properties.put("path", new JSONObject().put("type", "string").put("maxLength", 256)
+                            .put("description", "Use an exact path paired with this release in the pinned resource directory."));
+                    properties.put("offset", new JSONObject().put("type", "integer").put("minimum", 0)
+                            .put("description", "Start at 0, then copy the returned nextOffset to continue reading."));
+                    properties.put("limit", new JSONObject().put("type", "integer").put("minimum", 1).put("maximum", 8192)
+                            .put("description", "Maximum text page size; a page is not proof that the entire resource was read."));
                     required.put("path").put("offset").put("limit");
                 }
                 if (name.equals("resource.search")) {
@@ -372,7 +376,16 @@ public final class ResourceTools {
                     properties.put("limit", new JSONObject().put("type", "integer").put("minimum", 1).put("maximum", 100));
                     required.put("query").put("limit");
                 }
-                out.put(new JSONObject().put("name", name).put("permission", name).put("description", "Read pinned skill resources: " + name)
+                String description;
+                switch (name) {
+                    case "skill.list": description = "Discover authorized skills for this task. Returns pinned skill names and release digests. Listing does not activate a skill or execute its tools."; break;
+                    case "skill.activate": description = "Activate an authorized pinned skill before reading its resources or using its tools. Copy its release digest from the directory. Activation grants no new permissions."; break;
+                    case "resource.list": description = "List declared resources of an already activated skill. Returns exact paths; use resource.read for contents. Do not list again when the needed release/path is already known."; break;
+                    case "resource.read": description = "Read one text page from an activated pinned skill. Use the exact release/path pair and follow nextOffset for remaining text. Read configuration or rules when the task needs them; this tool does not execute code or query live business data."; break;
+                    case "resource.search": description = "Search text within an activated pinned skill's immutable resources. Returns matching source locations; read relevant pages for context. This is not web search or live business data retrieval."; break;
+                    default: throw new IllegalStateException("RESOURCE_TOOL_UNSUPPORTED");
+                }
+                out.put(new JSONObject().put("name", name).put("permission", name).put("description", description)
                         .put("parameters", new JSONObject().put("type", "object")
                                 .put("properties", properties).put("required", required).put("additionalProperties", false)));
             }

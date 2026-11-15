@@ -41,6 +41,10 @@ POST `/harness/v1/runs` 示例：
 
 `toolSetVersion` 属于各 runtime 文件：resources 使用 `resource-tools-v1`，可信执行器使用 `broker-tools` 或 `sandbox-tools`。`execution.json` 的 requiredCapabilities 由所选模型与执行器共同满足。在线推理上下文使用 `transport-bytes-v1`，scripted 夹具使用 `full-json-bytes-v1`。
 
+原生工具名称可在模型配置的 generation 内选 `"toolNameStyle":"readable-v1"`，例如将 Baize2 的 generation 保持原字段并补入此项。省略或 `hashed-v1` 保留已有哈希别名。readable-v1 由真实工具名的合法字符前缀和摘要组成，最长 59 字符，历史 assistant/tool 配对使用同一映射；工具授权名与参数契约不变。该项属于服务端固定的 ModelProfile，不能放到 Python 节点配置或用户输入中覆盖。
+
+启用前升级全部可能接到该逻辑模型任务的 Python model worker（model_adapter.py），逐节点 drain、对账并重启。再复制模型配置为新的文件和 version，添加 toolNameStyle，并按 activeVersions/defaults 规则发布；不原地修改旧版本。旧 worker 不识别可读映射且不会自动拒绝此配置，混合版本不能开启。原配置继续可选，旧 run 使用固定快照。先以小任务验证，再用同一冻结任务集比较；可读名称的质量收益以真实评测为准。
+
 模型无健康在线节点时创建返回 HTTP 503 / MODEL_NOT_READY，必需 runner 或 provider 未就绪时返回 HTTP 503 / RUNTIME_NOT_READY；健康节点容量已满仍允许排队，不自动替换模型。相同幂等请求优先返回原受理快照，不受后续配置、授权或节点状态变化影响；不同选择使用同一键返回 HTTP 409。`/capabilities.runsReady` 表示存在可接单的就绪组合，具体选择以目录和创建校验为准。
 
 POST 仍需 Cube Bearer、JSON Content-Type 和 Idempotency-Key。worker/backend 身份、授权、物理容量和密钥继续由服务器私有 properties 管理。一个 JVM 支持多个同角色 Python 节点，每个节点使用独立 workerId、实例、目录和租约。

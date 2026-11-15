@@ -98,7 +98,7 @@
     <sync todir="${stage.dir}/config/harness-tenant"><fileset dir="config/harness-tenant"/></sync>
     <copy file="config/standalone.xml" tofile="${stage.dir}/cell.xml"/>
     <copy todir="${stage.dir}/scripts">
-      <fileset dir="scripts" includes="run.sh,run.ps1,init_dev.py,evaluate_traces.py,replay_trace.py"/>
+      <fileset dir="scripts" includes="run.sh,run.ps1,init_dev.py,evaluate_traces.py,quality_evaluation.py,replay_trace.py"/>
     </copy>
   </target>
   <target name="clean"><delete dir="${build.dir}"/></target>

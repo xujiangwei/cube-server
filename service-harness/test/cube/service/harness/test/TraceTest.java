@@ -51,7 +51,10 @@ public final class TraceTest {
     p.setProperty("feedback.enabled", "true");
     TraceStore traces = new TraceStore(store, p);
     JdbcRunStore.Lease l = running(r, 60000);
-    intent(l, "round", "round-1", new JSONObject().put("secret", "secret-content-token"));
+    intent(l, "round", "round-1", new JSONObject().put("secret", "secret-content-token")
+        .put("request", new JSONObject().put("messages", new JSONArray().put(new JSONObject()
+            .put("role", "user").put("provenance", "run.created")
+            .put("content", new JSONObject().put("private", "secret-content-token"))))));
     confirm(l, "round", "round-1", new JSONObject().put("text", "private-model-output"));
     store.finish(
         l,

@@ -13,7 +13,8 @@ Java 构建、测试与运行使用 **JDK 8**。common、service、dispatcher、
 | `cube-service-harness-3.0.jar` | 宿主 cellets/，与技能扩展配套更新 |
 | `cube-service-harness-skill-3.0.jar` | 宿主 libs/，提供 Provider 与 WorkflowGuard |
 | Python `harness/runner_process.py`、`harness/runner_sdk.py` | 更新全部普通 Runner 节点并重启，根入口和 SDK 派生入口统一 UTF-8 |
-| Python `harness/model_adapter.py` | 更新 JSON 决策模型节点并重启，assistant 历史使用原决策 schema；来源标签留在权威账本及资料消息 |
+| Python `harness/model_adapter.py` | 更新全部 JSON/原生工具模型节点并重启，显示工具用途/返回字段、连续任务提示与固定名称映射 |
+| `scripts/evaluate_traces.py`、`quality_evaluation.py`、`replay_trace.py` | 同目录部署的离线评测工具；v2 证据与基线比较见 [TRACE.md](TRACE.md)，不需新增在线服务 |
 | data、processing、capability、time 工具 ZIP | 管理员发布 executable 工具，授权其实际 ready release |
 | Provider、guard、身份及视觉配置 | 合并到私有绝对路径与宿主配置，重启生效 |
 | 签名业务资源 ZIP、policy、binding | 业务包锁定真实依赖，发布 policy 后 CAS 切换，新 run 生效 |
@@ -96,7 +97,13 @@ python -B scripts/build_package.py --dependency common/data=<获准digest> --dep
 
 在普通 tool Runner 的 `runner` 配置中显式设置 `"providerAwait": true`，它才会协商 `provider-await-v1`。然后可将 capability 私有配置设为 `capability.timeout.millis=60000`、`capability.queue.timeout.millis=20000`。默认仍为 20000/0；执行范围为 100..240000，槽等待为 0..40000 毫秒。Runner 等待上限为 `max(30000, 执行+排队+5000)`，最多 290000，并受任务剩余期限约束；准备、排队、派发和收尾共享签名 wire 期限，Provider 预留 1 秒交付时间。sandbox 保持 30 秒上限且拒绝此开关。旧 Runner 不领取超 30 秒作业；不能靠延长 Provider 单独升级。
 
-新工具作者包为 `*-v2.zip`，一般巡检资源包为 `general-patrol-v4.zip`。重新验证并以实际作者密钥签名发布，更新依赖 digest、policy.skillReleases 与 CAS binding；本地作者 ZIP 和评估签名不是生产作者签名。回退时关闭新准入，先 drain/对账；保留旧版本固定的在途任务和 unknown 预留，再切回获准 release 与配套配置。不得删除账本或更换 runtimeDir 释放未知槽。
+工具作者包仍为 `*-v2.zip`，新版一般巡检资源包为 `general-patrol-v5.zip`，林业作者包默认 `fhe-patrol-v6.zip`（已有历史 v5 保留）。新版报告要求为 version=2，默认空 assessmentPolicy，只交付观察和需复核判断；明确业务条件后按 [证据策略](WORKFLOW-REPORTS.md) 配置、升版本构包。重新验证并以实际作者密钥签名发布，更新依赖 digest、policy.skillReleases 与 CAS binding；本地作者 ZIP 和评估签名不是生产作者签名。保留原业务包和历史评测，不能用当前源码覆盖旧版本 ZIP。
+
+升级顺序：先关闭新准入、drain/对账，安装配套核心/技能 JAR；逐节点升级全部 JSON/原生工具 model worker，保留各自 workerId、实例目录与 journal；使用原默认名称模式跑通已有任务后，再签名发布 v2 报告要求的新业务 release/policy。若要试用可读工具名，最后发布新的 ModelProfile 版本，添加 generation.toolNameStyle=readable-v1；所有可接单 worker 必须已升级，不能在混合版本下开启。现有 profile 省略此项仍使用 hashed-v1，配置见 [模型与执行器](config/harness-execution/README.md)。
+
+这三项能力可分别使用：离线评测独立运行；工具描述和通用提示随核心/模型适配器更新；证据条件由新版技能 JAR 加业务包 v2 显式启用。没有新增外部 judge 服务、凭据、数据库迁移或预算放宽。旧业务要求 v1 兼容运行，但仅规则引用仍会标记需复核。
+
+回退时关闭新准入，先 drain/对账；先切回获准旧业务 release 与旧 ModelProfile，再回退配套二进制及配置。旧技能 JAR 不能读取报告要求 v2，因此必须先收尾所有固定新版 release 的任务。保留原在途任务与 unknown 预留，不删除账本或更换 runtimeDir 释放未知槽。历史评测不回写；部署跑通后再按冻结任务集开展真实基线/候选对比。
 
 固定流程由业务包的 `workflow-requirements.json` 显式启用，旧包继续使用原模型循环。例如：
 
@@ -127,6 +134,7 @@ python -B scripts/build_package.py --dependency common/data=<获准digest> --dep
 ant -f service-harness-skill/build.xml test
 ant -f service-harness/build.xml test-execution test-tools test-control-files
 ant -f service-harness/build.xml test-transport
+python -B -m unittest discover -s service-harness/scripts/tests -v
 ```
 
 回归覆盖真实签名包、SQLite/Broker、分页/来源、加工、执行检查、报告引用及恢复预算；视觉调用使用明确夹具。真实识别质量、耗时和部署容量在人工部署后验证，现场验收不作为先行安装与运行的前置条件。

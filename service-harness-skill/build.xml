@@ -47,6 +47,7 @@
   <target name="test" depends="compile-tests,test-media">
     <java classname="cube.service.harness.skill.WorkflowGuardTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../forest/packages/fhe-patrol"/></java>
     <java classname="cube.service.harness.skill.ReportValidatorTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../forest/packages/fhe-patrol"/></java>
+    <java classname="cube.service.harness.skill.AssessmentPolicyTest" fork="true" failonerror="true"><classpath refid="test.cp"/></java>
     <java classname="cube.service.harness.skill.FixedPatrolTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../forest/packages/fhe-patrol"/></java>
     <java classname="cube.service.harness.skill.ObservationReviewTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../patrol/evaluation/results/full/visual/photos/people-positive-01-1.json"/></java>
     <java classname="cube.service.harness.skill.DataProcessingTest" fork="true" failonerror="true"><classpath refid="test.cp"/></java>

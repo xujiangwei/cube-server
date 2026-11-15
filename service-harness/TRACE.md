@@ -41,10 +41,38 @@ python -I -S scripts/replay_trace.py /private/evidence/trace.json
 质量评测工具读取固定场景定义、追加式观察记录及只读导出目录：
 
 ```text
-python scripts/evaluate_traces.py <fixture.json> <observations.jsonl> --traces-root <trace目录> --output <report.json>
+python -I -S scripts/evaluate_traces.py <fixture.json> <observations.jsonl> --traces-root <trace目录> --reviews-root <复核目录> --evidence-root <原始证据目录> --output <新report.json>
 ```
 
-场景定义固定模型/profile/configDigest、工具范围、预算、故障和预期状态；观察记录关联真实 trace 摘要及独立语言复核结果。评测器重新校验 Trace、终态、工具、预算和物理收尾，保留失败与重试。场景模板见工作区 `skill/harness-extensions/fixtures/`，具体输入格式与校验条件以脚本为准。
+使用 Python 3.11，`evaluate_traces.py`、`quality_evaluation.py`、`replay_trace.py` 须放在同一目录，均只读本地证据，不调用模型或业务服务。输出独占创建，已有报告不会覆盖。成功认证退出码为 0，证据齐备但未认证为 2；证据缺失、摘要不符或格式错误直接报错，不能计作成功。场景与复核模板见工作区 [fixtures](../../skill/harness-extensions/fixtures/)。
+
+### 冻结任务与评分口径
+
+新版 fixture 使用 `schemaVersion=2,status=FROZEN`，固定实际部署的 model、逻辑 profile 和 configDigest，以及每个任务的真实 input、expectedScope、faults、预期终态和预算。输入摘要必须互异；改名或重复调用不能增加独立场景数。模板仍标记 `TEMPLATE_NOT_FROZEN`，不能直接认证。输入中的 attachmentIds 也应固定，复现时保留获准的同一批 Input。
+
+每个场景声明 category、split（development/holdout）及 qualityCriteria；全局 rubric 固定 id/version、criteria 的 id/dimension/description。每场景必须覆盖四个维度：protocol（遵守交互契约）、task（完成用户目标）、grounding（结论有证据）、limitations（正确表达未知和限制）。各标准须写成可以核对的任务预期，而非笼统“语言质量好”。holdout 在调优期间保持封存，不能依据其结果反复修改提示和规则。
+
+默认按 expectedTools 精确核对工具多重集。允许多种正确路线的任务可声明 `toolPolicy:{"mode":"bounded","required":[...],"allowed":[...]}`，required 必须是 allowed 子集；允许工具不代表增加实际权限。预算约束 maxRounds/maxCalls，可选 maxInputTokens/maxOutputTokens；指定 token 上限但实际 usage 缺失时拒绝通过，不把未知计成 0。非空 expectedScope 须有 argumentsHash 承诺；该哈希对应真正包含范围的完整调用参数对象，范围语义仍需复核。
+
+每场景必须有 `allPhysicalFinished` 断言，校验全部模型、工具及推理作业的真实物理完成、`executionSettlement=confirmed` 和无工具 effect_status=unknown。轮次、工具成功、任务成功和业务语义分别统计。认证要求至少 50 个独立任务、每任务 3 次真实独立运行、全部覆盖、零执行硬失败、总体至少 95% 通过，且 holdout 占比至少 20%、其通过率至少 95%，同时保留 development 集。`--diagnostic` 可用于小规模开发集，结果始终为 NOT_CERTIFIED。
+
+### 观察记录与独立复核
+
+observations.jsonl 每行记录 fixtureDigest、model/profile/configDigest、scenarioId、repetition（1～3）、attempt（从 1 连续递增）、mode（real/mock/skip）、producerId、recordedAt；real 还需 hardPassed、traceDigest、reviewDigest，可选 elapsedMillis。hardPassed 只是采集方断言，评测器仍会重验执行条件。每次真实尝试使用独立 run/trace，不能重复使用同一 trace。失败原始尝试不能被成功重试替换；同一任务/重复槽的全部尝试都通过才计通过。mock/skip 不填补真实覆盖。
+
+Trace 放在 `traces/<traceDigest>.json`。复核 sidecar 放在 `reviews/<reviewDigest>.json`，digest 按 `replay_trace.digest` 的规范 JSON 计算。复核须绑定 fixtureDigest、scenarioId、traceDigest、runId、rubricId/version，并记录 reviewer（kind=human，id 与 producerId 不同）、recordedAt、逐 criterion 的 pass/fail、具体 rationale 和 evidenceIds。单个 `languagePassed=true` 不再能证明质量。
+
+每份复核至少引用 request/result/reference 三类证据；path 相对 evidence-root，sha256 为原始文件字节摘要，每文件最多 1 MiB，每份最多 64 文件，不接受路径逃逸或符号链接。request.json 是原 POST 的 input 对象，须等于冻结 input，且与 Trace 中模型轮次的 run.created 用户消息脱敏承诺一致。result.json 是 GET run 响应的 `result` 字段原样对象（含 state、executionSettlement、result、usage），规范 JSON 摘要须匹配 Trace 的 resultCommitment.result_hash。reference 是人工标注、规则及业务事实依据，不是模型自评。每条标准的 evidenceIds 只能引用本份复核中存在的证据。
+
+脱敏 Trace 无法恢复原始文本。授权人员须另行保存实际请求、结果和参考材料，在受控目录中完成复核，不能把这些私有资料复制进公开 Trace。摘要只证明内容关联与未被替换；reviewer.id 是记录声明，不是身份认证。评审人员独立性、标注正确性和留出集保密仍由实际评审流程保证。
+
+旧 schemaVersion=1 仍可读取并输出 legacyResult，正式 result 始终 NOT_CERTIFIED。既有报告与 ZIP 保留，新证据按 v2 另存。
+
+### 基线比较
+
+对候选运行使用相同 rubric、任务、split 和预算，固定另一份实际 configDigest，再增加 `--baseline <原report.json>`。两份报告 suiteDigest 必须一致，并按同一逻辑 model/profile 对齐；可修改配置修订与 configDigest。每份只保留该逻辑组合的一种配置，不能在同报告中混合基线和候选。
+
+比较输出总体/holdout 通过差、各维度失败差、轮次/工具数、p50/p95 和已报告 token 差。覆盖完整、总体和 holdout 未下降、各维度失败未增加且零执行硬失败才标记 nonRegressing。耗时为采集方记录的整次耗时，token 为实际返回部分，缺测另列；不能把缺测估算成完整成本。比较结果不替代认证，也不证明统计显著改善。改变任务或评分标准后须重新建立基线。
 
 导出和反馈契约位于 [contracts/trace/](contracts/trace/openapi.json)；业务访问统一经 dispatcher/SHM，见 [TRANSPORT.md](TRANSPORT.md)。
 

@@ -104,6 +104,24 @@ public final class ReportValidatorTest {
         rejects("REPORT_RULE_INVALID", value -> finding(value).getJSONObject("assessment").getJSONArray("ruleIds").put("invented-rule"));
         JSONObject ruled = copy(valid); finding(ruled).getJSONObject("assessment").put("status", "review-required").getJSONArray("ruleIds").put("patrol-observation-rules");
         check(run(ruled).getBoolean("satisfied"), "fixed rule citation accepted");
+        JSONObject definitive = copy(ruled); finding(definitive).getJSONObject("assessment").put("status", "abnormal");
+        JSONObject requirementsBefore = copy(config.get(CompletionGuard.REPORT_FILE));
+        JSONObject strict = copy(requirementsBefore).put("version", "2")
+                .put("assessmentPolicy", new JSONObject().put("version", "evidence-rules-v1").put("rules", new JSONArray()));
+        config.put(CompletionGuard.REPORT_FILE, strict);
+        check(!run(definitive).getBoolean("satisfied") && run(definitive).toString().contains("REPORT_ASSESSMENT_UNSUPPORTED"), "a valid natural-language rule citation does not prove abnormality");
+        JSONObject predicate = new JSONObject().put("ruleId", "patrol-observation-rules").put("profileId", "describe").put("status", "abnormal")
+                .put("conditions", new JSONArray().put(new JSONObject().put("source", "payload").put("path", "/fixture").put("operator", "eq").put("value", true)));
+        strict.getJSONObject("assessmentPolicy").getJSONArray("rules").put(predicate);
+        guard.validateReport(resources);
+        JSONObject checkedAssessment = run(definitive).getJSONObject("report").getJSONArray("datasets").getJSONObject(0)
+                .getJSONArray("findings").getJSONObject(0).getJSONObject("assessment");
+        check(checkedAssessment.getJSONObject("evidenceReview").getString("status").equals("predicates-matched")
+                && !checkedAssessment.getBoolean("semanticallyVerified"), "confirmed predicate is checked without certifying generated explanation");
+        check(run(valid).getJSONObject("report").getJSONObject("summaryReview").getString("status").equals("review-required"), "generated summary always carries independent review status");
+        strict.getJSONObject("assessmentPolicy").getJSONArray("rules").put(copy(predicate).put("status", "normal"));
+        check(!run(definitive).getBoolean("satisfied") && run(definitive).toString().contains("REPORT_ASSESSMENT_CONFLICT"), "conflicting rules cannot be cherry-picked");
+        config.put(CompletionGuard.REPORT_FILE, requirementsBefore);
         actual.getJSONObject("value").getJSONObject("source").put("analysisResultSha256", "wrong");
         check(!run(valid).getBoolean("satisfied"), "tampered analysis digest rejected");
         actual.getJSONObject("value").remove("source");

@@ -166,6 +166,11 @@ public final class InferenceTest {
         JSONObject model = ModelProfiles.model("Baize");
         check(!model.has("schemaVersion"), "Generated profile still requires schemaVersion");
         ProfileRegistry.validateDefinition(RuntimeSupport.copy(model).put("schemaVersion", 3));
+        model.getJSONObject("generation").put("toolNameStyle", "readable-v1");
+        ProfileRegistry.validateDefinition(model);
+        JSONObject invalidStyle = RuntimeSupport.copy(model);
+        invalidStyle.getJSONObject("generation").put("toolNameStyle", "unknown");
+        invalid(() -> ProfileRegistry.validateDefinition(invalidStyle));
         invalid(() -> ProfileRegistry.validateDefinition(RuntimeSupport.copy(model).put("schemaVersion", 1)));
         invalid(() -> ProfileRegistry.validateDefinition(RuntimeSupport.copy(model).put("schemaVersion", 2)));
         invalid(() -> ProfileRegistry.validateDefinition(RuntimeSupport.copy(model).put("schemaVersion", 4)));
@@ -223,6 +228,8 @@ public final class InferenceTest {
             }
             JSONObject a = dispatcher.apply(envelope("a", "poll", sa), 1, () -> true).getJSONObject("job");
             JSONObject b = dispatcher.apply(envelope("b", "poll", sb), 2, () -> true).getJSONObject("job");
+            check(new JSONObject(a.getString("requestJson")).getJSONObject("generation").getString("toolNameStyle").equals("readable-v1"),
+                    "Run-pinned tool name style was lost before model dispatch");
             // Python 处理槽就绪不得消耗物理推理容量。
             check(sharedOccupancy(jobs) == 0, "Python slots consumed physical capacity");
             JSONObject first = dispatcher.apply(submit(a, sa), 1, () -> true).getJSONObject("inference");
