@@ -114,6 +114,22 @@
           "type": "integer",
           "minimum": 128,
           "maximum": 2097152
+        },
+        "taskState": {
+          "type": "boolean"
+        },
+        "historyWindow": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "skillWindow": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "finalWireGuard": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -148,6 +164,11 @@
           "type": "integer",
           "minimum": 1000,
           "maximum": 86400000
+        },
+        "maxRepeatedCalls": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 16
         }
       },
       "required": [

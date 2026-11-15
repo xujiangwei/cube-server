@@ -182,6 +182,8 @@ public final class RunCoordinator implements AutoCloseable {
         return this;
     }
 
+    public RunCoordinator budgets(ModelBudgets value) { contexts.budgets(value); return this; }
+
     /**
      * 以受信身份构造协调器（不启用工具 Broker）。
      *
@@ -975,6 +977,12 @@ public final class RunCoordinator implements AutoCloseable {
                         return;
                     }
                 }
+            }
+            JSONObject taskState = snapshot.optJSONObject("taskState");
+            if (taskState != null && taskState.has("blocked")) {
+                finish(l, "failed", "confirmed", new JSONObject().put("errorCode", "TASK_NO_PROGRESS")
+                        .put("details", taskState.getJSONObject("blocked")));
+                return;
             }
             if (rounds.length() >= limits.getInt("maxRounds")) {
                 fail(l, "ROUND_LIMIT_EXCEEDED");

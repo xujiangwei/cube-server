@@ -194,7 +194,8 @@ public final class ExecutionRuntime implements AutoCloseable {
         providerMetadata = new ProviderStore(store, sc.mysql());
         ResourceTools resourceTools = new ResourceTools(catalog, repo).files(files);
         jobs = new ModelJobStore(store, sc.mysql());
-        inference = new InferenceGateway(new InferenceStore(store, sc.mysql()), p, provider);
+        ModelBudgets budgets = ModelBudgets.load(p);
+        inference = new InferenceGateway(new InferenceStore(store, sc.mysql(), budgets), p, provider);
         workers = new ModelDispatcher(jobs, p, lease, inference);
         broker = Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false"))
                         ? new ToolBroker(new ToolJobStore(store, sc.mysql()), permissions, p)
@@ -213,7 +214,7 @@ public final class ExecutionRuntime implements AutoCloseable {
                         permissions,
                         resourceTools,
                         broker)
-                        .controls(controls, files, p);
+                        .controls(controls, files, p).budgets(budgets);
     }
 
     /**

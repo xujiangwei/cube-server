@@ -90,7 +90,8 @@ public class ChatCompletionService {
 
     private AIGCUnit select(String name) {
         AIGCUnit selected = service.selectUnitByName(name);
-        if (selected != null && !quarantined(selected) && selected.getCapability().getChatCompletion().optBoolean("text", false))
+        if (selected != null && selected.getContext() != null && selected.getContext().isValid()
+                && !quarantined(selected) && selected.getCapability().getChatCompletion().optBoolean("text", false))
             return selected;
         for (AIGCUnit unit : service.getAllUnits()) {
             if (name.equals(unit.getCapability().getName()) && unit.getContext() != null && unit.getContext().isValid()
@@ -98,6 +99,27 @@ public class ChatCompletionService {
                 return unit;
         }
         return null;
+    }
+
+    private CompletionError unavailableUnit(String name) {
+        int registered = 0, connected = 0, structured = 0, waiting = 0;
+        for (AIGCUnit unit : service.getAllUnits()) {
+            if (!name.equals(unit.getCapability().getName())) continue;
+            registered++;
+            if (unit.getContext() == null || !unit.getContext().isValid()) continue;
+            connected++;
+            if (!unit.getCapability().getChatCompletion().optBoolean("text", false)) continue;
+            structured++;
+            if (quarantined(unit)) waiting++;
+        }
+        String reason = registered == 0 ? "Requested model unit is not registered"
+                : connected == 0 ? "Requested model unit is disconnected"
+                : structured == 0 ? "Registered unit does not advertise chatCompletion.text; update the Python unit"
+                : waiting == structured ? "Model unit is awaiting confirmation that a previous generation finished"
+                : "Requested model has no available compatible unit";
+        Logger.w(ChatCompletionService.class, reason + ": " + name + " registered=" + registered
+                + " connected=" + connected + " structured=" + structured + " awaitingFinish=" + waiting);
+        return new CompletionError(503, "service_unavailable", reason, "model");
     }
 
     private AIGCUnit select(String name, JSONObject request) {
@@ -299,7 +321,7 @@ public class ChatCompletionService {
                 throw new CompletionError(404, "model_not_found", "Unknown or unavailable model", "model");
             AIGCUnit unit = listener == null ? select(model.getUnitName(), request) : selectInternal(model.getUnitName(), request);
             if (unit == null)
-                throw new CompletionError(503, "service_unavailable", "Requested model has no compatible unit", "model");
+                throw unavailableUnit(model.getUnitName());
             if (id.isEmpty() || id.length() > 128) throw CompletionError.invalid("Invalid request ID", null);
             long timeout = data.getLong("timeoutMs");
             if (timeout <= 0) throw CompletionError.invalid("Invalid request timeout", null);
@@ -531,6 +553,8 @@ public class ChatCompletionService {
                 Thread.currentThread().interrupt();
                 fail(new CompletionError(503, "service_unavailable", "Generation interrupted", null));
             } catch (RuntimeException e) {
+                Logger.w(ChatCompletionService.class, "Generation or accounting failed for request=" + id
+                        + " unit=" + unit.getCapability().getName(), e);
                 fail(new CompletionError(e instanceof IllegalStateException ? 503 : 502, "service_unavailable", "Generation or accounting unavailable", null));
             } finally {
                 // Every exit path, including a failed send/callback, preserves the Unit's serial queue.

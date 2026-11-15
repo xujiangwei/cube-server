@@ -60,6 +60,16 @@ run 的权限是租户策略声明、可信身份授权和平台/固定 release 
 
 ## 上下文数据流与预算
 
+启用 `contextPolicy.taskState` 时，每轮从同事务读取的事件、意图、已确认结果和模型修复回执导出 `task-state-v1`。它呈现近期证据、历史错误、待决执行、授权工具、剩余轮次/工具/修复预算及最近报告缺口；不把工具成功当成任务完成。生命周期仍由 Coordinator 按数据库时间执行，不用模型输入中的估计替代期限。
+
+可选 `historyWindow` 仅移除较早且完整确认的 assistant/tool 调用组，保留全部用户输入、待决执行和最后若干完整组。snapshot 的 `historySelection` 记录索引和摘要，完整 facts 与原账本不删改。索引只含 intent、工具名、状态和摘要，不能替代原始观测；`context.read_result(intent,offset,limit)` 按 Unicode codepoint 分页读取本 run 已确认工具结果的规范 JSON，返回原 resultHash、totalCodePoints、nextOffset；参数范围为 offset≥0、limit=1..8192。原结果中的引用、覆盖、cursor 和答案可完整恢复。此工具复用 resource.read 权限，校验租户、属主和固定工具选择，拒绝未确认结果与跨 run 句柄，不重执行工具。未获授权回读时保留原完整历史。
+
+归档历史同时可附带有界的确定性字段摘录（如答案、覆盖、计数及分页句柄），最多八项、合计 4096 字符，明确标记 partialProjection。只保留原值，不生成事实结论，也不保留部分数组。摘录作为 user 数据消息注入，不提升为系统规则；完整观察仍以原 resultHash 对应账本为准。
+
+可选 `skillWindow` 按最近账本访问优先选择 active SKILL 首页，固定资源目录仍提供全部获授权句柄，显式资料读取不受首页数量限制。配置字段、缺省行为与模型预算扩展见[执行配置](config/harness-execution/README.md)。
+
+`context.read_result` 的页已由 limit 限定，dataJson 不再参与文本提取或预算对折；整页 text 与 nextOffset 保持一致。Python 适配器也保留 `encoding=tool-result-json-v1` 的 text 原始字符串，即使单页恰好可解析为 JSON，仍按原 codepoint 流续读拼接。建议 limit=1024；整页无法装入上下文时明确拒绝，不静默跳过原始证据。
+
 `ContextEngine` 从 run 的固定配置、原始任务、已授权资源句柄和账本读取上下文，按执行意图顺序重建消息。proposalId、tool、argumentsJson 与结果必须配对；未决 round/proposal/call 记录到 snapshot，存在未决执行时拒绝发送新的模型输入。
 
 system 消息来自固定平台规则、权限和账本事实；技能资料为 user 数据，工具输出为 tool 数据。实际工具权限由 Java 在调用前再次校验。
@@ -75,3 +85,5 @@ JSON 模型适配将已确认的 assistant 历史序列化为原决策 schema，
 先按 maxSourceChars 提取资源与工具文本，超预算时继续确定性缩短这些文本，记录来源、原文摘要、保留长度及摘要。合法工具 dataJson 使用 `structured-json-v1`：递归保留 JSON 结构、数组覆盖、完整 Ref/Id/cursor/version/hash、release/path、answer/response，含 recordsJson/payloadJson 等内嵌 JSON；只缩短其他长文本叶子。原始账本不变。普通资源正文仍采用有界文本提取。原任务、权限、调用参数、schema、执行事实和 pending 不裁剪；不可压缩部分仍超预算则拒绝执行，不提高预算。审计分别记录实际 retainedCodePoints 和长文本允许量 textAllowanceCodePoints。
 
 snapshot 保存 configDigest、固定任务/权限、执行事实、pending、压缩记录、模型 request、精确 rendered、模板及预算。checkpoint 在同一事务中校验 owner、CAS、basisVersion 和配置绑定，并提交事件/Outbox。restore 重验授权、摘要及模板，重建相同输入字节；是否允许再次执行仍由 Coordinator 根据当前状态和 fence 判断。
+
+snapshot 的 `budgetMeasurement` 区分字节估算和服务器已注册计数器；`inputTokens` 在字节模式下是兼容历史账本字段的预算单位，不代表远端实际 token。实际请求由 `InferenceStore` 在身份、固定 profile 和幂等校验之后、入队之前再次检查，包括格式修复带来的额外提示；超限返回 `INFERENCE_CONTEXT_BUDGET_EXCEEDED`，不会创建物理推理；只持久记录 actual_finished=1 的派发前拒绝证据，幂等回放返回同一失败并可按零新增用量结束任务。已有相同 requestHash 的回放继续返回原回执。

@@ -202,10 +202,10 @@ public final class MediaToolsTest {
         Path packages = Paths.get(args[0]);
         Path forest = Paths.get(args[1]);
         longWait = args.length > 2 && "long-wait".equals(args[2]);
-        TEST_PERMISSIONS.addAll(Arrays.asList("data.query", "data.process", "capability.invoke"));
+        TEST_PERMISSIONS.addAll(Arrays.asList("data.query", "data.process", "capability.invoke", "capability.read"));
         CommonToolsTest.prepare(Files.createTempDirectory(packages.getParent(), "media-test-"), packages, "http://127.0.0.1:1/search");
         Properties settings = CommonToolsTest.settings;
-        for (String name : Arrays.asList("data", "capability", "processing")) {
+        for (String name : Arrays.asList("data", "capability", "processing", "capabilities")) {
             Properties pc = new Properties();
             pc.setProperty("capability.allowed.units", "OmniMultimodal,OmniPerception,SpecializedDetection");
             pc.setProperty("capability.timeout.millis", longWait ? "60000" : "1000");
@@ -213,12 +213,12 @@ public final class MediaToolsTest {
             pc.setProperty("secret.f-fixture", SECRET);
             Path file = root.resolve(name + ".properties");
             Files.write(file, bytes(ExecutionTest.properties(pc)));
-            settings.setProperty("broker.provider." + name + ".class", "cube.service.harness.skill." + (name.equals("data") ? "DataQueryProvider" : name.equals("processing") ? "DataProcessProvider" : "CapabilityInvokeProvider"));
+            settings.setProperty("broker.provider." + name + ".class", "cube.service.harness.skill." + (name.equals("data") ? "DataQueryProvider" : name.equals("processing") ? "DataProcessProvider" : name.equals("capabilities") ? "CapabilityInspectProvider" : "CapabilityInvokeProvider"));
             settings.setProperty("broker.provider." + name + ".config", file.toString());
             String digest = upload(Files.readAllBytes(packages.resolve(name + "-v1.zip"))).getString("digest");
             CommonToolsTest.releases.put(name, digest);
         }
-        settings.setProperty("broker.providers", settings.getProperty("broker.providers") + ",data,capability,processing");
+        settings.setProperty("broker.providers", settings.getProperty("broker.providers") + ",data,capability,processing,capabilities");
         Path guardConfig = root.resolve("workflow.properties");
         Files.write(guardConfig, bytes("workflow.max.repairs=2\n"));
         settings.setProperty("broker.completion.guard.class", "cube.service.harness.skill.WorkflowGuard");
@@ -321,6 +321,10 @@ public final class MediaToolsTest {
             for (String digest : CommonToolsTest.releases.values()) {
                 resources.activate(identity, run, digest);
             }
+            int beforeInspect = inferences.get();
+            JSONObject discovered = call(lease, "common.capabilities.inspect", new JSONObject().put("skill", "fhe/patrol"));
+            check(discovered.has("profiles") && !discovered.toString().contains("unit-a") && inferences.get() == beforeInspect,
+                    "logical discovery failed, leaked routing, or executed inference: " + discovered);
             check(!workflow(run).getBoolean("satisfied"), "M3 rejects final before any query");
             JSONObject query = new JSONObject().put("skill", "fhe/patrol").put("connectorId", "uploaded-records").put("argumentsJson", new JSONObject().put("inputId", data).toString());
             JSONObject queried = call(lease, "common.data.query", query);

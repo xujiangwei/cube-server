@@ -390,6 +390,13 @@ public final class ResourceTools {
                                 .put("properties", properties).put("required", required).put("additionalProperties", false)));
             }
         }
+        if (permissions.contains("resource.read")) out.put(new JSONObject().put("name", "context.read_result").put("permission", "resource.read")
+                .put("description", "Read a page of an earlier confirmed tool result in this run. Copy intent from the task-state or archived ledger index; start offset=0, prefer limit=1024 and follow nextOffset. Pages remain complete in context and consume its budget. This reads existing evidence and never re-executes the tool. Parse the completed text as the original tool-result JSON.")
+                .put("parameters", new JSONObject().put("type", "object").put("additionalProperties", false)
+                        .put("properties", new JSONObject().put("intent", new JSONObject().put("type", "string").put("minLength", 1).put("maxLength", 256))
+                                .put("offset", new JSONObject().put("type", "integer").put("minimum", 0).put("maximum", Integer.MAX_VALUE))
+                                .put("limit", new JSONObject().put("type", "integer").put("minimum", 1).put("maximum", 8192)))
+                        .put("required", new JSONArray().put("intent").put("offset").put("limit"))));
         if (files != null) {
             JSONArray extra = cube.service.harness.files.FileService.tools(permissions);
             for (int i = 0; i < extra.length(); i++) {
@@ -477,6 +484,21 @@ public final class ResourceTools {
             throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
         }
         cube.service.harness.protocol.Contract.validate(arguments, definition.getJSONObject("parameters"));
+        if (name.equals("context.read_result")) {
+            permission(pin(identity, run), identity, "resource.read", null);
+            JSONObject row = catalog.contextResult(identity.tenant, identity.subject, run, arguments.getString("intent"));
+            if (!row.getString("status").equals("confirmed")) throw RuntimeSupport.error("CONTEXT_RESULT_PENDING");
+            JSONObject result = new JSONObject(row.getString("result_json"));
+            if (!cube.service.harness.store.JdbcRunStore.hash(result).equals(row.getString("result_hash"))) throw RuntimeSupport.error("CONTEXT_LEDGER_MISMATCH");
+            String raw = cube.service.harness.store.JdbcRunStore.canonical(result);
+            int total = raw.codePointCount(0, raw.length()), offset = arguments.getInt("offset");
+            if (offset > total) throw RuntimeSupport.error("CONTEXT_RESULT_OFFSET_INVALID");
+            int end = (int)Math.min(total, (long)offset + arguments.getInt("limit"));
+            return new JSONObject().put("intent", arguments.getString("intent")).put("resultHash", row.getString("result_hash"))
+                    .put("encoding", "tool-result-json-v1").put("totalCodePoints", total)
+                    .put("text", raw.substring(raw.offsetByCodePoints(0, offset), raw.offsetByCodePoints(0, end)))
+                    .put("nextOffset", end < total ? end : JSONObject.NULL);
+        }
         if (name.equals("skill.list")) {
             return skills(identity, run);
         }

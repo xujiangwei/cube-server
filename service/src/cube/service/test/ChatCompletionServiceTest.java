@@ -57,6 +57,7 @@ public final class ChatCompletionServiceTest {
             testMonitoringRejections();
             testTwelveUnits();
             testInternalBridge();
+            testInternalFailureRecovery();
             testRejectedSend();
             testUnboundContactAdmission();
             service.getCompletions().stop();
@@ -209,6 +210,55 @@ public final class ChatCompletionServiceTest {
             check(!stopping.get(0).getBoolean("actualFinished"),"shutdown fabricated physical completion");
         } finally {service.getCompletions().stop();service.queue.shutdown();
             service.storage.close();}
+    }
+
+    static void testInternalFailureRecovery() throws Exception {
+        FakeCellet cellet = new FakeCellet();
+        FakeService service = new FakeService(cellet);
+        service.selected.setTimestamp(0);
+        try {
+            for (boolean timeout : new boolean[]{false, true}) {
+                String id = timeout ? "internal-expired" : "internal-error";
+                List<JSONObject> events = new CopyOnWriteArrayList<>();
+                service.submitCompletion("token", id, request("model-a"), timeout ? 100 : 3000, events::add);
+                until(() -> cellet.find(id, AIGCAction.ChatCompletion.name) != null, "internal failure request dispatched");
+                if (timeout) {
+                    until(() -> !events.isEmpty(), "internal logical deadline reached");
+                    generate(service, "blocked-before-ack", 3000);
+                    JSONObject blocked = new Packet(cellet.events("blocked-before-ack").get(0).dialect).data;
+                    check(blocked.getJSONObject("payload").getJSONObject("error").getString("message")
+                            .contains("awaiting confirmation"), "503 identifies a pending physical completion");
+                    check(service.getCompletions().activeRequests() == 1, "logical timeout keeps physical reservation");
+                }
+                ActionDialect finished = new Packet(AIGCAction.ChatCompletionEvent.name, new JSONObject()
+                        .put("requestId", id).put("sequence", 1).put("kind", "error").put("actualFinished", true)
+                        .put("payload", new JSONObject().put("error", new JSONObject()
+                                .put("status", timeout ? 504 : 503).put("code", "service_unavailable")
+                                .put("message", "Unit finished with an error")))).toDialect();
+                service.getCompletions().onUnitEvent(service.other, finished);
+                check(service.getCompletions().activeRequests() == 1, "foreign connection cannot release a reservation");
+                service.getCompletions().onUnitEvent(service.owner, finished);
+                service.getCompletions().onUnitEvent(service.owner, finished);
+                until(() -> service.getCompletions().activeRequests() == 0
+                                && service.getGenerateTextUnitRealtimeCount().get("Baize2").get() == 0,
+                        "Python terminal error releases the Unit and its queue");
+                check(events.get(events.size() - 1).getBoolean("actualFinished"), "physical completion reaches internal caller");
+                check(service.completionCapacity("token", "model-a", true).getInt("available") == 1,
+                        "terminal error restores model capacity");
+                String next = id + "-rest";
+                generate(service, next, 3000);
+                until(() -> cellet.find(next, AIGCAction.ChatCompletion.name) != null,
+                        "REST generation resumes after an internal failure");
+                event(service, service.owner, next, 1, "completed", new JSONObject().put("result", result()));
+                until(() -> service.getCompletions().activeRequests() == 0
+                                && service.getGenerateTextUnitRealtimeCount().get("Baize2").get() == 0,
+                        "subsequent REST request finishes normally");
+            }
+        } finally {
+            service.getCompletions().stop();
+            service.queue.shutdown();
+            service.storage.close();
+        }
     }
 
     static void generate(FakeService service, String id, long timeout) {

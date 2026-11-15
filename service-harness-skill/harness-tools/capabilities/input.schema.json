@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "Inspect authorized logical analysis profiles for an active business skill before choosing common.capability.invoke. This read only tool does not analyze media or reserve capacity. Pass the exact business skill name from the pinned directory. Unavailable status is not an analysis result.",
+  "properties": {
+    "skill": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  },
+  "required": [
+    "skill"
+  ],
+  "additionalProperties": false
+}

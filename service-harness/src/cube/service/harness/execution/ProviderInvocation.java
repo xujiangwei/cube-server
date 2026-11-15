@@ -102,6 +102,12 @@ public final class ProviderInvocation {
         if (bridge == null) throw new StoreException("CAPABILITY_NOT_READY");
         return metadata().reserve(job, bridge.mediaUnits(), unit, request);
     }
+    /** Read-only status snapshot. Providers must project logical business capabilities only. */
+    public org.json.JSONArray mediaUnits() {
+        active();
+        cube.aigc.completion.MediaProvider bridge = media == null ? null : media.get();
+        return bridge == null ? new org.json.JSONArray() : new org.json.JSONArray(bridge.mediaUnits().toString());
+    }
     public long remainingMillis() { return jobs.providerRemainingMillis(job); }
     public void phase(String name, JSONObject details) {
         remember("media-phase", jobId + ":" + name,

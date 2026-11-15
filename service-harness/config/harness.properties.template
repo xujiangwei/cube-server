@@ -146,6 +146,10 @@ files.enabled=false
 # 提供方的服务地址、凭据和策略放入各自的私有配置文件。
 # providers 为提供方标识列表；class 为 Java 实现类，config 为该实现读取的私有配置路径。
 # broker.providers=my-skill
+# Optional trusted ModelBudgets.Counter implementations, installed in Java libs/.
+# Keep empty for explicitly estimated transport-bytes-v1 budgets. Custom model-tokens-v1
+# profiles fail closed unless exactly one counter supports model/adapter/tokenizer/template.
+# model.token.counter.classes=com.example.VerifiedModelCounter
 # broker.provider.my-skill.class=your.skills.ReadOnlyProvider
 # broker.provider.my-skill.config=C:/private/my-skill.properties
 

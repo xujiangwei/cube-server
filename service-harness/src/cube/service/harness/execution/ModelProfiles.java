@@ -55,22 +55,30 @@ public final class ModelProfiles {
     }
 
     /**
-     * 生成指定模型的 ModelProfile；Baize 走严格 JSON，其余（Baize2）走原生工具。
+     * 旧调用方的 Baize/Baize2 兼容入口；其他名称必须使用显式能力重载。
      *
      * <p>adapter 由模型名固定：Baize→openai-json-v2，Baize2→openai-tools-v2；
-     * nativeTools 仅 Baize2 为 true，调用方不能按名称猜测能力。generation 固定
+     * 新模型的 adapter 由显式 nativeTools 决定。generation 固定
      * temperature=0、topP=1、stream=true、maxRepairs=1。
      *
      * @param name 模型名（Baize 或 Baize2）
      * @return 当前格式的 model profile JSON，无需 schemaVersion
      */
     public static JSONObject model(String name) {
-        String adapter = name.equals("Baize") ? "openai-json-v2" : "openai-tools-v2";
+        if (!name.equals("Baize") && !name.equals("Baize2")) throw new IllegalArgumentException("MODEL_CAPABILITIES_REQUIRED");
+        return model(name, name.equals("Baize2"), name.equals("Baize") ? 40960 : 65536);
+    }
+
+    /** Generic models require explicit verified native-tool support and a configured context window. */
+    public static JSONObject model(String name, boolean nativeTools, int contextTokens) {
+        cube.service.harness.runtime.RuntimeSupport.id(name);
+        if (contextTokens < 128 || contextTokens > 1048576) throw new IllegalArgumentException("MODEL_CONTEXT_INVALID");
+        String adapter = nativeTools ? "openai-tools-v2" : "openai-json-v2";
         return new JSONObject().put("kind", "model").put("id", name).put("version", "2")
                 .put("backend", "java-inference").put("adapter", adapter)
                 .put("capabilities", new JSONArray().put("resource_decisions")).put("tokenizer", tokenizer()).put("template", ContextEngine.template())
-                .put("templateOverhead", 4096).put("maxContextTokens", name.equals("Baize") ? 40960 : 65536).put("certification", "offline-adapter")
-                .put("nativeTools", name.equals("Baize2"))
+                .put("templateOverhead", 4096).put("maxContextTokens", contextTokens).put("certification", "offline-adapter")
+                .put("nativeTools", nativeTools)
                 .put("generation", new JSONObject().put("temperature", 0).put("topP", 1)
                         .put("stream", true).put("maxRepairs", 1));
     }

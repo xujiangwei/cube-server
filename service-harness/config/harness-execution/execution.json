@@ -5,13 +5,18 @@
     "maxInputBytes": 48000,
     "maxSourceChars": 4096,
     "outputReserve": 2048,
-    "version": "context-v1"
+    "version": "context-v1",
+    "taskState": true,
+    "historyWindow": 3,
+    "skillWindow": 6,
+    "finalWireGuard": true
   },
   "executionLimits": {
     "maxLifetimeMillis": 300000,
     "maxRepairs": 2,
     "maxRounds": 8,
-    "maxTools": 32
+    "maxTools": 32,
+    "maxRepeatedCalls": 3
   },
   "id": "server-default",
   "kind": "execution",
@@ -28,5 +33,5 @@
     "version": "1"
   },
   "schemaVersion": 1,
-  "version": "1"
+  "version": "2"
 }

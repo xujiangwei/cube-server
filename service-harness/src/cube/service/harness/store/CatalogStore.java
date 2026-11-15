@@ -440,6 +440,23 @@ public final class CatalogStore {
         });
     }
 
+    /** Scoped original-result lookup; does not load or mutate the rest of the run history. */
+    public JSONObject contextResult(String tenant, String subject, String runId, String intent) {
+        int split = intent.lastIndexOf('/');
+        if (split < 1) throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND");
+        final int attempt;
+        try { attempt = Integer.parseInt(intent.substring(split + 1)); }
+        catch (NumberFormatException error) { throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND"); }
+        if (!(intent.substring(0, split) + "/" + attempt).equals(intent)) throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND");
+        return store.tx(c -> {
+            pinned(c, tenant, subject, runId);
+            JSONObject row = first(rows(c, "SELECT status,result_json,result_hash FROM harness_tool_call WHERE run_id=? AND intent_id=? AND attempt=?",
+                    runId, intent.substring(0, split), attempt));
+            if (row == null) throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND");
+            return row;
+        });
+    }
+
     /**
      * 激活 run 的一个 skill（无租约校验的重载）。
      *
@@ -645,6 +662,7 @@ public final class CatalogStore {
             JSONObject r = store.run(c, tenant, subject, runId, true), pin = pinned(c, tenant, subject, runId);
             return new JSONObject().put("version", r.getLong("version")).put("pin", pin)
                     .put("events", rows(c, "SELECT event_seq,event_type,data_json FROM harness_event WHERE run_id=? ORDER BY event_seq", runId))
+                    .put("modelOutcomes", rows(c, "SELECT outcome_json FROM harness_model_job WHERE run_id=? AND outcome_json IS NOT NULL ORDER BY round_id,attempt", runId))
                     .put("rounds", rows(c, "SELECT * FROM harness_round WHERE run_id=? ORDER BY intent_id,attempt", runId))
                     .put("calls", rows(c, "SELECT * FROM harness_tool_call WHERE run_id=? ORDER BY intent_id,attempt", runId));
         });

@@ -36,6 +36,25 @@ public final class ProviderTest {
      */
     private static int assertions;
 
+    static void capabilityDiscovery() throws Exception {
+        Properties p = new Properties();p.setProperty("capability.allowed.units","OmniMultimodal");
+        CapabilityInspectProvider provider = new CapabilityInspectProvider(p);
+        JSONObject profile = new JSONObject().put("id","describe").put("adapter","multimodal").put("unit","OmniMultimodal")
+                .put("mediaTypes",new JSONArray().put("image/jpeg")).put("optionsJson","{}");
+        JSONObject config = new JSONObject().put("version","1").put("profiles",new JSONArray().put(profile));
+        JSONArray units = new JSONArray().put(new JSONObject().put("unit","OmniMultimodal").put("ready",true).put("capacity",1)
+                .put("instanceId","PRIVATE_INSTANCE").put("path","PRIVATE_PATH"));
+        JSONObject result = provider.inspect(config,units);
+        provider.validateResult(new JSONObject().put("skill","business/skill"),result);
+        check(result.getJSONArray("profiles").getJSONObject(0).getString("status").equals("ready"),"ready profile");
+        check(!result.toString().contains("PRIVATE") && !result.toString().contains("OmniMultimodal"),"physical routing leaked");
+        units.getJSONObject(0).put("capacity",0);
+        check(provider.inspect(config,units).getJSONArray("profiles").getJSONObject(0).getString("status").equals("unavailable"),"zero advertised capacity");
+        check(provider.inspect(config,new JSONArray()).toString().contains("unavailable"),"unavailable snapshot");
+        check(new CapabilityInspectProvider(new Properties()).inspect(config,units).toString().contains("disabled"),"private allowlist ignored");
+        fails("TRUSTED_CONTEXT_REQUIRED",()->provider.query(new JSONObject().put("skill","business/skill")));
+    }
+
     /**
      * 可抛异常的测试动作。
      */
@@ -296,9 +315,10 @@ public final class ProviderTest {
         }
 
         tls(root);
-        List<QueryProvider> providers = Arrays.asList(new SearchProvider(sp), new WebPageProvider(new Properties()), knowledge, attachment, time, calc, new DataQueryProvider(new Properties()), new CapabilityInvokeProvider(new Properties()), new DataProcessProvider(new Properties()));
+        capabilityDiscovery();
+        List<QueryProvider> providers = Arrays.asList(new SearchProvider(sp), new WebPageProvider(new Properties()), knowledge, attachment, time, calc, new DataQueryProvider(new Properties()), new CapabilityInvokeProvider(new Properties()), new DataProcessProvider(new Properties()), new CapabilityInspectProvider(new Properties()));
         try {
-            String[] names = {"search", "web", "knowledge", "attachment", "time", "calculator", "data", "capability", "processing"};
+            String[] names = {"search", "web", "knowledge", "attachment", "time", "calculator", "data", "capability", "processing", "capabilities"};
             PackageRepository repository = new PackageRepository(null, null, Collections.emptyMap(), true, true);
             for (int i = 0; i < names.length; i++) {
                 Path archive = packages.resolve(names[i] + "-v1.zip");

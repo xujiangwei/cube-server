@@ -2,6 +2,22 @@
 
 `execution.profiles=./config/harness-execution` 加载本目录全部 JSON。服务器发布模型和执行器，租户只保存技能授权、权限和业务配额。修改目录后重启 Java；在途任务保留完整快照。
 
+默认 `execution.json` 修订号为 `2`，新增以下可选字段；旧固定配置缺省时保持原行为：
+
+| 字段 | 默认模板值 | 行为 |
+| --- | --- | --- |
+| `contextPolicy.taskState` | `true` | 注入从账本导出的近期证据、历史错误、待决依赖、授权动作及剩余轮次/工具/修复预算 |
+| `contextPolicy.historyWindow` | `3` | 保留最近三组完整工具调用；只有已授权 `context.read_result` 时才归档更早的完整配对 |
+| `contextPolicy.skillWindow` | `6` | 优先载入最近访问过的六个 active SKILL 首页；固定资源目录及显式读取句柄仍保留 |
+| `contextPolicy.finalWireGuard` | `true` | 实际推理请求在 Java 入队前重新检查字节和上下文预算，含格式修复请求 |
+| `executionLimits.maxRepeatedCalls` | `3` | 相同参数和相同结果的不可变读取，或相同参数错误连续三次后，以 `TASK_NO_PROGRESS` 停止 |
+
+无进展检测目前覆盖 resource.read/search/list、context.read_result 和计算器；查询刷新、时间/状态轮询不按结果不变判死。新 `control.resume` 输入重置连续计数；新参数或新结果中断连续重复。它不是通用语义完成判定器，原有轮次、工具、修复和生命周期上限继续约束所有运行。
+
+通用模型须在 Java ModelProfile 和 Python `model` 配置中显式指定 `nativeTools`。`false` 对应 `openai-json-v2`，`true` 对应 `openai-tools-v2`；模型名称仅用于身份/路由。Java `ModelProfiles.model(name,nativeTools,contextTokens)` 支持显式能力。旧 Baize/Baize2 节点保留兼容默认；未知模型省略能力时拒绝启动，能力与固定请求冲突时拒绝执行。
+
+默认 Baize/Baize2 继续使用 `transport-bytes-v1`，snapshot 的 `budgetMeasurement.accuracy=estimated`；没有随包交付已验证的远端 tokenizer/聊天模板资产。需要精确计数时，在私有 Java `libs/` 安装实现 `ModelBudgets.Counter` 的可信类，通过 `model.token.counter.classes` 注册；使用独立版本的 tokenizer/template 描述符，将预算版本设为 `model-tokens-v1`。计数器必须精确匹配模型、adapter、tokenizer 资产及聊天模板版本，分别计算完整上下文和实际推理 wire（含工具定义、模板帧和修复提示），不能只对 JSON 序列化文本分词。没有或有多个匹配计数器时拒绝；字节上限独立保留。此 SPI 不构成任何实际模型的 tokenizer 认证，实际 usage 仍由 Java 推理账本结算。
+
 | 文件 | 内容 |
 | --- | --- |
 | `Baize.json` | `Baize@1`，JSON 决策模型 |

@@ -186,6 +186,7 @@ public final class InferenceTest {
                 .put("executionLimits", new JSONObject().put("maxRounds", 8).put("maxTools", 16).put("maxRepairs", 1).put("maxLifetimeMillis", 60000));
         task.getJSONObject("model").put("version", "2");
         task.getJSONObject("contextPolicy").put("budgetVersion", "transport-bytes-v1").put("maxInputBytes", 48000);
+        task.getJSONObject("contextPolicy").put("finalWireGuard", true);
         profiles.publish(T, task);
         profiles.bind(T, "task", "task", "task@2", 1);
         ModelJobStore jobs = new ModelJobStore(store, config.mysql());
@@ -220,6 +221,23 @@ public final class InferenceTest {
                     .getString("sessionId");
             String sb = dispatcher.apply(envelope("b", "describe", null).put("descriptor", descriptor()), 2, () -> true)
                     .getString("sessionId");
+            String rejectedRun = ExecutionTest.create("over-budget wire");
+            for (int n=0;n<3;n++) coordinator.step(rejectedRun);
+            JSONObject rejectedJob=dispatcher.apply(envelope("a","poll",sa),1,()->true).getJSONObject("job");
+            JSONObject oversized=wire().put("messages",new JSONArray().put(new JSONObject().put("role","user")
+                    .put("content",new String(new char[50000]).replace('\0','x'))));
+            JSONObject rejected=ledger.submit(rejectedJob.getString("jobId"),"a","ia","ia",1,JdbcRunStore.hash(oversized),oversized);
+            check(rejected.getInt("actual_finished")==1 && rejected.getString("error_code").equals("INFERENCE_CONTEXT_BUDGET_EXCEEDED")
+                    && ledger.queued().length()==0 && provider.listeners.isEmpty(),"over-budget wire queued/dispatched or became unknown");
+            check(ledger.submit(rejectedJob.getString("jobId"),"a","ia","ia",1,JdbcRunStore.hash(oversized),oversized)
+                    .getString("inference_id").equals(rejected.getString("inference_id")),"budget rejection replay changed");
+            JSONObject rejectedOutcome=new JSONObject().put("status","error").put("errorCode","INFERENCE_CONTEXT_BUDGET_EXCEEDED")
+                    .put("audit",new JSONArray()).put("cancellationObserved",false);
+            JSONObject rejectedReport=ExecutionTest.report(rejectedJob,null,true).put("outcomeJson",rejectedOutcome.toString());
+            dispatcher.apply(envelope("a","actual_finished",sa).put("report",rejectedReport),1,()->true);
+            coordinator.step(rejectedRun);
+            check(store.read(T,S,rejectedRun).toString().contains("INFERENCE_CONTEXT_BUDGET_EXCEEDED")
+                    && store.read(T,S,rejectedRun).getJSONObject("snapshot").getString("state").equals("failed"),"budget rejection failed to settle run");
             String r1 = ExecutionTest.create("first");
             String r2 = ExecutionTest.create("second");
             for (int n = 0; n < 3; n++) {

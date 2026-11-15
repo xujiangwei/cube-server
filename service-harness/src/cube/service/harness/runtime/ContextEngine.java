@@ -52,6 +52,8 @@ public final class ContextEngine {
      * 资源工具面：为上下文注入提供 tools 列表与固定资源页读取。
      */
     private final ResourceTools resources;
+    private cube.service.harness.execution.ModelBudgets budgets = new cube.service.harness.execution.ModelBudgets();
+    public ContextEngine budgets(cube.service.harness.execution.ModelBudgets value) { budgets = value; return this; }
 
     /**
      * 构造上下文引擎。
@@ -113,15 +115,16 @@ public final class ContextEngine {
      * @throws cube.service.harness.store.StoreException tokenizer/template/adapter 不匹配
      *                                                   （TOKENIZER_MISMATCH、TEMPLATE_MISMATCH）
      */
-    private static void certify(JSONObject model) {
+    private void certify(JSONObject model) {
         if (model.getString("backend").equals("java-inference")) {
             String adapter = model.getBoolean("nativeTools") ? "openai-tools-v2" : "openai-json-v2";
             if (!adapter.equals(model.getString("adapter"))
-                    || !matches(model.getJSONObject("tokenizer"),
+                    || !budgets.exact(model) && !matches(model.getJSONObject("tokenizer"),
                     cube.service.harness.execution.ModelProfiles.tokenizer())) {
                 throw RuntimeSupport.error("TOKENIZER_MISMATCH");
             }
-            if (!matches(model.getJSONObject("template"), template())) {
+            if (budgets.exact(model)) budgets.require(model);
+            if (!budgets.exact(model) && !matches(model.getJSONObject("template"), template())) {
                 throw RuntimeSupport.error("TEMPLATE_MISMATCH");
             }
             return;
@@ -275,7 +278,7 @@ public final class ContextEngine {
         if (!policy
                 .getString("budgetVersion")
                 .equals(
-                        model.getString("backend").equals("java-inference") ? "transport-bytes-v1" : "full-json-bytes-v1")
+                        budgets.exact(model) ? "model-tokens-v1" : model.getString("backend").equals("java-inference") ? "transport-bytes-v1" : "full-json-bytes-v1")
                 || !policy.getString("version").equals("context-v1")
                 || !(Arrays.asList("resource-tools-v1", "file-tools-v1")
                 .contains(task.getString("toolSetVersion"))
@@ -330,6 +333,7 @@ public final class ContextEngine {
         }
         JSONArray selected = new JSONArray(JdbcRunStore.canonical(handles));
         JSONArray active = catalog.activeSkills(identity.tenant, identity.subject, run);
+        if (policy.has("skillWindow")) active = selectSkills(active, basis, pin, policy.getInt("skillWindow"));
         // 持有 resource.read 时自动附带各 active 技能的 SKILL.md 首页。
         if (granted.contains("resource.read")) {
             for (int i = 0; i < active.length(); i++) {
@@ -424,6 +428,7 @@ public final class ContextEngine {
                     new JSONObject()
                             .put("kind", round ? "round" : "tool")
                             .put("intent", k)
+                            .put("eventSeq", event.getLong("event_seq"))
                             .put("intentHash", row.getString("intent_hash"))
                             .put("originFence", row.getLong("origin_fence"))
                             .put("status", row.getString("status"))
@@ -477,7 +482,10 @@ public final class ContextEngine {
                 }
                 parse("tool-result", result);
                 JSONObject output = RuntimeSupport.copy(result);
-                if (output.has("dataJson")) {
+                // Readback pages are already bounded by the requested limit. Truncating their
+                // text while retaining nextOffset would make the model skip original evidence.
+                // Keep the full page, and let the context budget reject it if it cannot fit.
+                if (output.has("dataJson") && !payload.getString("tool").equals("context.read_result")) {
                     sources.add(
                             new Source(
                                     output,
@@ -521,6 +529,31 @@ public final class ContextEngine {
                     .put("instruction", "Select the query route and scope from the user's task using these pinned input schemas. Call common.data.query once with skill, connectorId and argumentsJson (the JSON-encoded route arguments). Do not query resources or construct a report. The host executes the bound dependencies after this confirmed query. Ask for missing or unsupported goals; never invent scope or input IDs.")
                     .put("binding", planning)));
         }
+        JSONObject history = new JSONObject().put("method", "full-ledger-v1").put("archived", new JSONArray());
+        boolean canReadBack = false;
+        for (int i = 0; i < offered.length(); i++)
+            if (offered.getJSONObject(i).getString("name").equals("context.read_result")) canReadBack = true;
+        if (policy.has("historyWindow") && canReadBack) {
+            history = ContextHistory.select(messages, facts, policy.getInt("historyWindow"));
+            messages = history.getJSONArray("messages");
+            Set<JSONObject> retained = Collections.newSetFromMap(new IdentityHashMap<JSONObject, Boolean>());
+            for (int i = 0; i < messages.length(); i++) {
+                JSONObject content = messages.getJSONObject(i).optJSONObject("content");
+                if (content != null) retained.add(content);
+            }
+            sources.removeIf(source -> !retained.contains(source.target));
+            if (history.getJSONArray("archived").length() > 0) messages.put(message("system", "platform:history-index",
+                    new JSONObject().put("instruction", "Older complete call/result groups are archived. This index contains metadata only. Use context.read_result with the exact intent to retrieve original evidence, references, coverage or cursors before relying on omitted details. Never invent missing values.")
+                            .put("archived", history.getJSONArray("archived"))));
+            if (history.getJSONArray("observations").length() > 0) messages.put(message("user", "tool-evidence-projection",
+                    new JSONObject().put("partialProjection", true).put("observations", history.getJSONArray("observations"))));
+            history.remove("messages");
+        }
+        JSONObject taskState = policy.optBoolean("taskState", false) || task.getJSONObject("executionLimits").has("maxRepeatedCalls")
+                ? TaskState.derive(basis, facts, pending, offered) : null;
+        if (taskState != null && policy.optBoolean("taskState", false)) messages.put(message("system", "platform:task-state",
+                new JSONObject().put("instruction", "Advance the user's goal from confirmed evidence. Identify the next unresolved dependency, choose only an authorized action, and use existing results. Ask for missing user facts. A tool success is not proof the task is complete. Historical errors may have been corrected. Respect remaining budgets; never replay unknown execution.")
+                        .put("state", taskState)));
         JSONObject modelRequest =
                 new JSONObject()
                         .put("messages", messages)
@@ -544,7 +577,7 @@ public final class ContextEngine {
             }
             rendered = PREFIX + JdbcRunStore.canonical(modelRequest);
             int bytes = rendered.getBytes(StandardCharsets.UTF_8).length;
-            tokens = (long) bytes + model.getInt("templateOverhead");
+            tokens = budgets.context(model, modelRequest, bytes);
             if (tokens + policy.getInt("outputReserve") <= model.getInt("maxContextTokens")
                     && bytes <= policy.getInt("maxInputBytes")) {
                 break;
@@ -598,6 +631,11 @@ public final class ContextEngine {
                 .put("pending", pending)
                 .put("ready", pending.length() == 0)
                 .put("compactions", audit)
+                .put("historySelection", history)
+                .put("taskState", taskState == null ? JSONObject.NULL : taskState)
+                .put("budgetMeasurement", new JSONObject().put("accuracy", budgets.exact(model) ? "verified-counter" : "estimated")
+                        .put("unit", budgets.exact(model) ? "model-tokens" : "utf8-bytes-plus-template-allowance")
+                        .put("remoteTokenizerVerified", budgets.exact(model)))
                 .put("request", modelRequest)
                 .put("rendered", rendered)
                 .put("inputTokens", tokens)
@@ -659,5 +697,37 @@ public final class ContextEngine {
             throw RuntimeSupport.error("CONTEXT_PENDING_EXECUTION");
         }
         return RuntimeSupport.copy(snapshot.getJSONObject("request"));
+    }
+
+    /** Recent ledger access ranks skills; explicit handles are retained independently above. */
+    private static JSONArray selectSkills(JSONArray active, JSONObject basis, JSONObject pin, int window) {
+        Map<String, Long> scores = new HashMap<>();
+        Map<String, String> toolRelease = new HashMap<>(), skillRelease = new HashMap<>();
+        JSONArray releases = pin.getJSONArray("releases"), events = basis.getJSONArray("events");
+        for (int i = 0; i < releases.length(); i++) {
+            JSONObject release = releases.getJSONObject(i), manifest = release.getJSONObject("manifest");
+            skillRelease.put(manifest.getString("name"), release.getString("digest"));
+            JSONArray tools = manifest.getJSONArray("tools");
+            for (int t = 0; t < tools.length(); t++) toolRelease.put(tools.getJSONObject(t).getString("name"), release.getString("digest"));
+        }
+        for (int i = 0; i < events.length(); i++) {
+            JSONObject e = events.getJSONObject(i);
+            if (!e.getString("event_type").equals("call.intent")) continue;
+            JSONObject call = new JSONObject(e.getString("data_json")).getJSONObject("payload");
+            JSONObject args = new JSONObject(call.getString("argumentsJson"));
+            String digest = args.optString("release", toolRelease.get(call.getString("tool")));
+            if (digest != null) scores.put(digest, e.getLong("event_seq"));
+            digest = skillRelease.get(args.optString("skill"));
+            if (digest != null) scores.put(digest, e.getLong("event_seq"));
+        }
+        List<JSONObject> sorted = new ArrayList<>();
+        for (int i = 0; i < active.length(); i++) sorted.add(active.getJSONObject(i));
+        sorted.sort((a,b) -> {
+            int rank = Long.compare(scores.getOrDefault(b.getString("digest"), 0L), scores.getOrDefault(a.getString("digest"), 0L));
+            return rank != 0 ? rank : a.getString("digest").compareTo(b.getString("digest"));
+        });
+        JSONArray result = new JSONArray();
+        for (int i = 0; i < Math.min(window, sorted.size()); i++) result.put(sorted.get(i));
+        return result;
     }
 }

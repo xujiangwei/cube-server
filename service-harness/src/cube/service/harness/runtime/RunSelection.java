@@ -70,6 +70,8 @@ public final class RunSelection {
     /** All authorized candidates, including tools from skills that have not been activated. */
     public JSONArray tools(Set<String> permissions, JSONArray releases) {
         JSONArray out = new JSONArray();
+        if (permissions.contains("resource.read")) out.put(new JSONObject().put("name", "context.read_result")
+                .put("permission", "resource.read").put("kind", "platform"));
         for (String name : ProfileRegistry.PLATFORM_PERMISSIONS) if (permissions.contains(name)
                 && (files || (!name.equals("input.read_text") && !name.equals("artifact.write_text")))) {
             out.put(new JSONObject().put("name", name).put("permission", name).put("kind", "platform"));

@@ -27,6 +27,10 @@ Python model worker 不直接连接模型 HTTP、不加载模型权重；模型�
 
 其他模型按 ModelProfile 的 adapter/nativeTools 和后端实际能力匹配。格式修复同时受模型单轮上限与 服务器累计修复预算限制。`transport-bytes-v1` 是传输字节预算，实际模型 token 用量另行记录；`offline-adapter` 表示离线适配验证。
 
+模型名称不推断通用模型的工具能力。新增模型明确配置 nativeTools、adapter、上下文窗口及对应 Python 节点能力；不匹配时拒绝执行。模型计数扩展和估算标记见[执行配置](config/harness-execution/README.md)，当前发布模板仍为字节估算。
+
+通用推进可启用账本派生任务状态和连续无进展检测。Coordinator 先对账所有物理执行与确认结果，再评估原有 final/报告门禁和待决输入，最后在新模型轮次前检查 `TASK_NO_PROGRESS`。相同不可变读取/参数错误达到固定阈值才停止；新输入、参数或证据打断连续重复。未知执行继续隔离并占用容量，不能通过更换 owner、重建上下文或触发循环检测获得自动重发。
+
 ## 部署配置
 
 1. 按 [STORE.md](STORE.md) 配置专用数据库并启用存储、执行。服务启动自动检查并建立当前结构。

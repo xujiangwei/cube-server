@@ -30,6 +30,7 @@ public final class InferenceStore {
     private final JdbcRunStore store;
 
     private final UsageWriter accounting;
+    private final cube.service.harness.execution.ModelBudgets budgets;
 
     public UsageContext accountingContext(String inference) {
         return store.tx(c -> {
@@ -55,6 +56,11 @@ public final class InferenceStore {
      * @param mysql 是否 MySQL 数据库；决定读关键行是否追加 FOR UPDATE 行锁
      */
     public InferenceStore(JdbcRunStore store, boolean mysql) {
+        this(store, mysql, new cube.service.harness.execution.ModelBudgets());
+    }
+
+    public InferenceStore(JdbcRunStore store, boolean mysql, cube.service.harness.execution.ModelBudgets budgets) {
+        this.budgets = budgets;
         this.store = store;
         this.lock = mysql ? " FOR UPDATE" : "";
         this.accounting = new cube.aigc.usage.UsageWriter(store.accounting(),
@@ -168,7 +174,24 @@ public final class InferenceStore {
                             throw new StoreException("INFERENCE_PREVIOUS_UNRESOLVED");
                         }
                     }
+                    JSONObject config = first(rows(c, "SELECT config_json,digest FROM harness_run_config WHERE run_id=?", j.getString("run_id")));
+                    if (config == null) throw new StoreException("RUN_CONFIG_NOT_PINNED");
+                    JSONObject pin = new JSONObject(config.getString("config_json"));
+                    if (!hash(pin).equals(config.getString("digest"))) throw new StoreException("RUN_CONFIG_CORRUPT");
+                    String rejected = null;
+                    try { budgets.admitWire(pin, request); }
+                    catch (StoreException error) {
+                        if (!java.util.Arrays.asList("INFERENCE_CONTEXT_BUDGET_EXCEEDED", "MODEL_COUNTER_UNAVAILABLE",
+                                "MODEL_COUNTER_AMBIGUOUS", "MODEL_COUNTER_INVALID").contains(error.code)) throw error;
+                        rejected = error.code;
+                    }
                     String inference = hash(new JSONArray().put(job).put(attempt));
+                    if (rejected != null) {
+                        // Durable proof of no dispatch: replay returns the same finished rejection.
+                        update(c, "INSERT INTO harness_inference (inference_id,job_id,wire_attempt,backend_id,request_hash,request_json,status,actual_finished,cancel_requested,response_json,error_code,unit_id,node_id,owner_id,created_at) VALUES (?,?,?,?,?,?,'finished',1,0,NULL,?,NULL,NULL,NULL,?)",
+                                inference, job, attempt, j.getString("backend_id"), requestHash, canonical(request), rejected, store.now(c));
+                        return first(rows(c, "SELECT * FROM harness_inference WHERE inference_id=?", inference));
+                    }
                     update(
                             c,
                             "INSERT INTO harness_inference (inference_id,job_id,wire_attempt,backend_id,request_hash,request_json,status,actual_finished,cancel_requested,response_json,error_code,unit_id,node_id,owner_id,created_at) VALUES (?,?,?,?,?,?,'queued',0,0,NULL,NULL,NULL,NULL,NULL,?)",
@@ -518,6 +541,7 @@ public final class InferenceStore {
                     }
                     long input = 0, output = 0;
                     boolean known = attempts.length() > 0;
+                    String rejectedCode = null;
                     JSONArray audit = new JSONArray();
                     for (int n = 0; n < attempts.length(); n++) {
                         JSONObject i = attempts.getJSONObject(n);
@@ -552,7 +576,15 @@ public final class InferenceStore {
                                                 .put("output", u.getLong("completion_tokens")));
                             }
                         } else {
-                            known = false;
+                            boolean rejectedBeforeDispatch = i.isNull("node_id") && i.isNull("owner_id")
+                                    && java.util.Arrays.asList("INFERENCE_CONTEXT_BUDGET_EXCEEDED", "MODEL_COUNTER_UNAVAILABLE",
+                                    "MODEL_COUNTER_AMBIGUOUS", "MODEL_COUNTER_INVALID").contains(i.optString("error_code"));
+                            if (rejectedBeforeDispatch) {
+                                rejectedCode = i.getString("error_code");
+                                record.put("usage", new JSONObject().put("input", 0).put("output", 0))
+                                        .put("finishReason", "not-dispatched").put("errorCode", rejectedCode);
+                            }
+                            else known = false;
                             if (outcome.getString("status").equals("success")) {
                                 throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
                             }
@@ -560,6 +592,10 @@ public final class InferenceStore {
                         audit.put(record);
                     }
                     JSONObject result = new JSONObject(outcome.toString()).put("audit", audit);
+                    if (rejectedCode != null) {
+                        result.put("status", "error").put("errorCode", rejectedCode);
+                        result.remove("decision");
+                    }
                     result.remove("usage");
                     if (known) {
                         result.put("usage", new JSONObject().put("input", input).put("output", output));
