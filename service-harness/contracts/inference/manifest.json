@@ -1,9 +1,11 @@
 {
-  "schemas/model-worker-v3-request.json": "51bc6df1480e38d49d797d153d7f7c2945981aeb36599c764109400031de1b18",
+  "schemas/model-worker-v3-request.json": "db61cada6296637b3761a17a244d5bbd907cb8c2ae3eeadca997bf7b7d544833",
   "schemas/model-worker-v3-response.json": "ec1178c54baf0528e42207c2cd9dedfebe86130b75e5344bee7bd0fa0706d946",
   "schemas/model-v3-job.json": "9d0efb266db77111eb6671d2e8ff57eda135e401b59e9a03dbd3623745792a81",
   "schemas/model-v3-descriptor.json": "fa0594ff02a1f583b1d2483e4128ecc539a9f180d794e707b11fa27e907bc44e",
   "schemas/model-v3-report.json": "cde24fdab77ff5d01527b2a10c4a0c419422f1e009bbd5d4b569bc456d982169",
   "adapter-profiles.json": "9d0fd1631bf129bf7c630c0e91b699a3e434482c38a059cdc09d6940c8a70c84",
-  "canonical-vectors.json": "9ff2ead34838ff3a7ffafa3f67927061eaab35287903f1cbec363dd586bac081"
+  "canonical-vectors.json": "9ff2ead34838ff3a7ffafa3f67927061eaab35287903f1cbec363dd586bac081",
+  "wire-vectors.json": "16604664775b86590773ea55541bfb3c0018d4e2849d1b0b6e6730d5769be233",
+  "summary-vectors.json": "eae8c7834755aff80d18300350c0508af64bc5fc01a745073cc0574b897ed75f"
 }

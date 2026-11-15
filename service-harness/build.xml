@@ -28,6 +28,7 @@
   </target>
   <target name="build" depends="compile"><jar destfile="${build.dir}/cube-service-harness-3.0.jar" basedir="${build.dir}/classes"/></target>
   <target name="test-runtime" depends="test">
+    <java classname="cube.service.harness.test.ContextCompactionTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.ProgressTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.RuntimeTest" fork="true" failonerror="true">
       <classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath>

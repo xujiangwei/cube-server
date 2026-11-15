@@ -138,7 +138,7 @@
           "attempt": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 2
+            "maximum": 5
           },
           "requestHash": {
             "type": "string",
@@ -177,6 +177,14 @@
               "output"
             ],
             "additionalProperties": false
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "budget-retry",
+              "summary",
+              "decision"
+            ]
           }
         },
         "required": [
@@ -185,10 +193,132 @@
         ],
         "additionalProperties": false
       },
-      "maxItems": 2
+      "maxItems": 5
     },
     "cancellationObserved": {
       "type": "boolean"
+    },
+    "contextSummary": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "enum": [
+            "semantic-summary-v1"
+          ]
+        },
+        "binding": {
+          "type": "object",
+          "properties": {
+            "userInputsDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "sourceDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "coveredEventStart": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "coveredEventEnd": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "modelVersion": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "userInputsDigest",
+            "sourceDigest",
+            "coveredEventStart",
+            "coveredEventEnd",
+            "model",
+            "modelVersion"
+          ],
+          "additionalProperties": false
+        },
+        "content": {
+          "type": "object",
+          "properties": {
+            "progress": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "decisions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "maxItems": 8
+            },
+            "constraints": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "maxItems": 8
+            },
+            "nextSteps": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "maxItems": 8
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "intent": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "resultHash": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "intent",
+                  "resultHash"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "maxItems": 8
+            }
+          },
+          "required": [
+            "progress",
+            "decisions",
+            "constraints",
+            "nextSteps",
+            "evidence"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "version",
+        "binding",
+        "content"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

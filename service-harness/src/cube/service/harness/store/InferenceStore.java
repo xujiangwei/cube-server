@@ -153,11 +153,26 @@ public final class InferenceStore {
                                             input.optJSONObject("generation") == null
                                                     ? 0
                                                     : input.getJSONObject("generation").optInt("maxRepairs", 0)));
+                    int budgetRetries = Math.min(2, Math.max(0, input.optInt("contextBudgetRetries", 0)));
+                    JSONObject summarySpec = input.optJSONObject("contextSummaryRequest");
+                    String summaryHash = summarySpec == null ? null : hash(cube.service.harness.runtime.ContextSummary.wire(summarySpec));
+                    boolean submittingSummary = summaryHash != null && attempt == 1 && summaryHash.equals(requestHash);
+                    JSONArray prior = rows(c, "SELECT * FROM harness_inference WHERE job_id=? ORDER BY wire_attempt", job);
+                    int completedRequests = 0, rejectedRequests = 0;
+                    for (int n = 0; n < prior.length(); n++) {
+                        JSONObject previous = prior.getJSONObject(n);
+                        if (n == 0 && summaryHash != null && summaryHash.equals(previous.getString("request_hash"))) continue;
+                        if (!previous.isNull("response_json")) completedRequests++;
+                        else if (budgetRejected(previous)) rejectedRequests++;
+                    }
                     if (attempt < 1
-                            || attempt > 1 + repairs
+                            || attempt > 1 + repairs + budgetRetries + (summarySpec == null ? 0 : 1)
+                            || prior.length() != attempt - 1 || completedRequests >= 1 + repairs
+                            || rejectedRequests > budgetRetries
+                            || summaryHash != null && (attempt == 1 && !submittingSummary || attempt > 1 && summaryHash.equals(requestHash))
                             || !j.getString("model_id").equals(request.optString("model"))
                             || request.optLong("max_tokens", request.optLong("max_completion_tokens", 0))
-                            != input.getLong("outputReserve")) {
+                            != (submittingSummary ? summarySpec.getLong("outputReserve") : input.getLong("outputReserve"))) {
                         throw new StoreException("INFERENCE_PROFILE_MISMATCH");
                     }
                     if (attempt > 1) {
@@ -170,7 +185,8 @@ public final class InferenceStore {
                                                 attempt - 1));
                         if (previous == null
                                 || previous.getInt("actual_finished") != 1
-                                || previous.isNull("response_json")) {
+                                || previous.isNull("response_json") && !(budgetRetries > 0 && budgetRejected(previous))
+                                && !(attempt == 2 && summaryHash != null && summaryHash.equals(previous.getString("request_hash")))) {
                             throw new StoreException("INFERENCE_PREVIOUS_UNRESOLVED");
                         }
                     }
@@ -536,15 +552,22 @@ public final class InferenceStore {
                 c -> {
                     JSONArray attempts =
                             rows(c, "SELECT * FROM harness_inference WHERE job_id=? ORDER BY wire_attempt", job);
+                    JSONObject jobRow = first(rows(c, "SELECT request_json FROM harness_model_job WHERE job_id=?", job));
+                    JSONObject summarySpec = jobRow == null ? null : new JSONObject(jobRow.getString("request_json")).optJSONObject("contextSummaryRequest");
+                    String summaryHash = summarySpec == null ? null : hash(cube.service.harness.runtime.ContextSummary.wire(summarySpec));
+                    JSONObject summary = null;
                     if (attempts.length() == 0 && outcome.getString("status").equals("success")) {
                         throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
                     }
+                    if (attempts.length() == 1 && summaryHash != null && summaryHash.equals(attempts.getJSONObject(0).getString("request_hash"))
+                            && outcome.getString("status").equals("success")) throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
                     long input = 0, output = 0;
                     boolean known = attempts.length() > 0;
                     String rejectedCode = null;
                     JSONArray audit = new JSONArray();
                     for (int n = 0; n < attempts.length(); n++) {
                         JSONObject i = attempts.getJSONObject(n);
+                        boolean summaryAttempt = n == 0 && summaryHash != null && summaryHash.equals(i.getString("request_hash"));
                         if (i.getInt("actual_finished") == 0) {
                             return new JSONObject()
                                     .put("status", "unknown")
@@ -558,6 +581,10 @@ public final class InferenceStore {
                                         .put("requestHash", i.getString("request_hash"));
                         if (!i.isNull("response_json")) {
                             JSONObject response = new JSONObject(i.getString("response_json"));
+                            if (summaryAttempt) {
+                                summary = cube.service.harness.runtime.ContextSummary.validate(summarySpec, response);
+                                if (summary == null) record.put("errorCode", "CONTEXT_SUMMARY_INVALID");
+                            }
                             record
                                     .put("responseHash", hash(response))
                                     .put(
@@ -580,18 +607,21 @@ public final class InferenceStore {
                                     && java.util.Arrays.asList("INFERENCE_CONTEXT_BUDGET_EXCEEDED", "MODEL_COUNTER_UNAVAILABLE",
                                     "MODEL_COUNTER_AMBIGUOUS", "MODEL_COUNTER_INVALID").contains(i.optString("error_code"));
                             if (rejectedBeforeDispatch) {
-                                rejectedCode = i.getString("error_code");
+                                if (n == attempts.length() - 1) rejectedCode = i.getString("error_code");
                                 record.put("usage", new JSONObject().put("input", 0).put("output", 0))
-                                        .put("finishReason", "not-dispatched").put("errorCode", rejectedCode);
+                                        .put("finishReason", "not-dispatched").put("errorCode", i.getString("error_code")).put("phase", "budget-retry");
                             }
                             else known = false;
-                            if (outcome.getString("status").equals("success")) {
+                            if (outcome.getString("status").equals("success") && !summaryAttempt && (!budgetRejected(i) || n == attempts.length() - 1)) {
                                 throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
                             }
                         }
+                        if (summaryAttempt) record.put("phase", "summary");
                         audit.put(record);
                     }
                     JSONObject result = new JSONObject(outcome.toString()).put("audit", audit);
+                    result.remove("contextSummary"); // Never trust worker-provided provenance or summary claims.
+                    if (summary != null) result.put("contextSummary", summary);
                     if (rejectedCode != null) {
                         result.put("status", "error").put("errorCode", rejectedCode);
                         result.remove("decision");
@@ -602,5 +632,20 @@ public final class InferenceStore {
                     }
                     return result;
                 });
+    }
+
+    private static boolean budgetRejected(JSONObject row) {
+        return row.getInt("actual_finished") == 1 && row.isNull("response_json") && row.isNull("node_id")
+                && row.isNull("owner_id") && row.optString("error_code").equals("INFERENCE_CONTEXT_BUDGET_EXCEEDED");
+    }
+
+    /** Budget rejections and optional summary calls are not format repairs. */
+    public static int repairs(JSONObject outcome) {
+        JSONArray audit = outcome.getJSONArray("audit"); int calls = 0;
+        for (int i = 0; i < audit.length(); i++) {
+            JSONObject item = audit.getJSONObject(i);
+            if (!java.util.Arrays.asList("budget-retry", "summary").contains(item.optString("phase"))) calls++;
+        }
+        return Math.max(0, calls - 1);
     }
 }

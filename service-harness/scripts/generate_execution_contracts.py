@@ -13,6 +13,17 @@ def integer(low, high):
 def enum(*values):
     return dict(type='string', enum=list(values))
 
+def summary_schemas(digest):
+    text = lambda size: dict(type='string', maxLength=size)
+    evidence = obj(dict(intent=dict(type='string', minLength=1, maxLength=256), resultHash=digest))
+    content = obj(dict(progress=text(512), decisions=dict(type='array', items=text(256), maxItems=8),
+        constraints=dict(type='array', items=text(256), maxItems=8), nextSteps=dict(type='array', items=text(256), maxItems=8),
+        evidence=dict(type='array', items=evidence, minItems=1, maxItems=8)))
+    binding = obj(dict(userInputsDigest=digest, sourceDigest=digest, coveredEventStart=dict(type='integer', minimum=1),
+        coveredEventEnd=dict(type='integer', minimum=1), model=dict(type='string', minLength=1, maxLength=128),
+        modelVersion=dict(type='string', minLength=1, maxLength=128)))
+    return content, obj(dict(version=enum('semantic-summary-v1'), binding=binding, content=content))
+
 def generate(target):
     digest = dict(type='string', pattern='^[a-f0-9]{64}$')
     descriptor = obj(dict(model=enum('scripted'), backendId=ID, adapter=enum('scripted-v1'),
@@ -40,10 +51,13 @@ def generate(target):
     response['properties'].pop('errorCode')
     response=dict(oneOf=[response,obj(dict(protocolVersion=dict(type='integer',enum=[2]),requestId=dict(type='string',maxLength=128),ok=dict(type='boolean',enum=[False]),errorCode=ID))])
     usage=obj(dict(input=integer(0,10**12),output=integer(0,10**12)))
-    audit=obj(dict(attempt=integer(1,2),requestHash=digest,responseHash=digest,finishReason=dict(type='string',maxLength=64),errorCode=ID,usage=usage),['attempt','requestHash'])
+    audit=obj(dict(attempt=integer(1,5),requestHash=digest,responseHash=digest,finishReason=dict(type='string',maxLength=64),errorCode=ID,usage=usage,
+                   phase=enum('budget-retry','summary','decision')),['attempt','requestHash'])
+    summary_content, summary = summary_schemas(digest)
     outcome=obj(dict(status=enum('success','error','unknown'),decision=json.loads((ROOT/'contracts/schemas/model-decision.json').read_text()),errorCode=ID,
-                     usage=usage,audit=dict(type='array',items=audit,maxItems=2),cancellationObserved=dict(type='boolean')),['status','audit','cancellationObserved'])
+                     usage=usage,audit=dict(type='array',items=audit,maxItems=5),cancellationObserved=dict(type='boolean'),contextSummary=summary),['status','audit','cancellationObserved'])
     schemas={'model-worker-request':dict(oneOf=branches),'model-worker-response':response,'model-descriptor':descriptor,'model-job':job,'model-report':report,'model-outcome':outcome}
+    schemas['context-summary-content'] = summary_content
     snapshot=json.loads((ROOT/'contracts/schemas/run-snapshot.json').read_text());snapshot.pop('$schema',None)
     event=json.loads((ROOT/'contracts/schemas/event.json').read_text());event.pop('$schema',None)
     amounts=obj({k:integer(0,10**15) for k in ('estimatedInput','estimatedOutput','actualInput','actualOutput')})

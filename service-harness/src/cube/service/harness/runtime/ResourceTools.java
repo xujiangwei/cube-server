@@ -391,10 +391,11 @@ public final class ResourceTools {
             }
         }
         if (permissions.contains("resource.read")) out.put(new JSONObject().put("name", "context.read_result").put("permission", "resource.read")
-                .put("description", "Read a page of an earlier confirmed tool result in this run. Copy intent from the task-state or archived ledger index; start offset=0, prefer limit=1024 and follow nextOffset. Pages remain complete in context and consume its budget. This reads existing evidence and never re-executes the tool. Parse the completed text as the original tool-result JSON.")
+                .put("description", "Read original confirmed evidence without re-executing a tool. Copy intent from task state or history index. Optional selector is an RFC6901 JSON Pointer into decoded dataJson (for example /records/0 or /nextCursor); use offset=0 and limit up to 8192 to retrieve a COMPLETE selected value, otherwise selection fails. Without selector, start offset=0, prefer limit=1024, follow nextOffset and concatenate pages as original tool-result JSON. Active pages remain complete in context and consume its budget.")
                 .put("parameters", new JSONObject().put("type", "object").put("additionalProperties", false)
                         .put("properties", new JSONObject().put("intent", new JSONObject().put("type", "string").put("minLength", 1).put("maxLength", 256))
                                 .put("offset", new JSONObject().put("type", "integer").put("minimum", 0).put("maximum", Integer.MAX_VALUE))
+                                .put("selector", new JSONObject().put("type", "string").put("maxLength", 1024))
                                 .put("limit", new JSONObject().put("type", "integer").put("minimum", 1).put("maximum", 8192)))
                         .put("required", new JSONArray().put("intent").put("offset").put("limit"))));
         if (files != null) {
@@ -490,6 +491,8 @@ public final class ResourceTools {
             if (!row.getString("status").equals("confirmed")) throw RuntimeSupport.error("CONTEXT_RESULT_PENDING");
             JSONObject result = new JSONObject(row.getString("result_json"));
             if (!cube.service.harness.store.JdbcRunStore.hash(result).equals(row.getString("result_hash"))) throw RuntimeSupport.error("CONTEXT_LEDGER_MISMATCH");
+            if (arguments.has("selector")) return ContextReadback.select(result, arguments.getString("selector"), arguments.getInt("offset"),
+                    arguments.getInt("limit"), arguments.getString("intent"), row.getString("result_hash"));
             String raw = cube.service.harness.store.JdbcRunStore.canonical(result);
             int total = raw.codePointCount(0, raw.length()), offset = arguments.getInt("offset");
             if (offset > total) throw RuntimeSupport.error("CONTEXT_RESULT_OFFSET_INVALID");

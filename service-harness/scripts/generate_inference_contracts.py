@@ -33,7 +33,7 @@ def generate(python_root):
         if action == "actual_finished":
             fields["report"] = report
         if action.startswith("inference_"):
-            fields.update(jobId=digest, jobInstanceId=ID, wireAttempt=integer(1, 2))
+            fields.update(jobId=digest, jobInstanceId=ID, wireAttempt=integer(1, 5))
             if action == "inference_submit":
                 fields.update(requestHash=digest, requestJson=dict(type="string", minLength=1, maxLength=131072))
             else:
@@ -61,6 +61,9 @@ def generate(python_root):
     files["adapter-profiles.json"] = raw(profiles)
     files["canonical-vectors.json"] = raw({"value": {"temperature": 1.0, "tiny": 1e-7, "message": "</script>\u2028\u0085"},
         "canonical": '{"message":"<\\/script>\\u2028\\u0085","temperature":1,"tiny":0.0000001}'})
+    # Checked reading/rendering fixtures are shared by Java and Python regression tests.
+    for name in ("wire-vectors.json", "summary-vectors.json"):
+        files[name] = (ROOT / "contracts/inference" / name).read_bytes()
     files["manifest.json"] = raw({key: hashlib.sha256(value).hexdigest() for key, value in files.items()})
     for root in (ROOT / "contracts/inference", python_root / "harness/contracts/inference"):
         for key, value in files.items():

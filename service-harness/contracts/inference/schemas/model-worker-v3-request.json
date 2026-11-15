@@ -697,7 +697,7 @@
         "wireAttempt": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 2
+          "maximum": 5
         },
         "requestHash": {
           "type": "string",
@@ -805,7 +805,7 @@
         "wireAttempt": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 2
+          "maximum": 5
         },
         "after": {
           "type": "integer",
@@ -908,7 +908,7 @@
         "wireAttempt": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 2
+          "maximum": 5
         },
         "after": {
           "type": "integer",

@@ -123,6 +123,29 @@
           "minimum": 1,
           "maximum": 32
         },
+        "adaptiveHistory": {
+          "type": "boolean"
+        },
+        "compressionTriggerPercent": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 95
+        },
+        "compressionTargetPercent": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 90
+        },
+        "repairReserveTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16384
+        },
+        "repairReserveBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16384
+        },
         "skillWindow": {
           "type": "integer",
           "minimum": 1,
@@ -130,6 +153,36 @@
         },
         "finalWireGuard": {
           "type": "boolean"
+        },
+        "semanticSummary": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxCalls": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2
+            },
+            "outputReserve": {
+              "type": "integer",
+              "minimum": 128,
+              "maximum": 2048
+            },
+            "maxSummaryBytes": {
+              "type": "integer",
+              "minimum": 512,
+              "maximum": 4096
+            }
+          },
+          "required": [
+            "enabled",
+            "maxCalls",
+            "outputReserve",
+            "maxSummaryBytes"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [

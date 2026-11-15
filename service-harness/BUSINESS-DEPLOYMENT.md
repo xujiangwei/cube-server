@@ -4,13 +4,14 @@
 
 ## 任务推进与上下文能力升级
 
-配套交付目录 `cube-server/build/harness-agent-delivery/` 及同名 ZIP 包含两个 Java JAR、Python 节点 ZIP、执行/Provider 模板、离线评测脚本及通用工具作者 ZIP；`checksums.json` 记录 SHA-256。它不包含生产凭据、数据库或已验证的远端 tokenizer。安装前按以下顺序操作：
+配套交付目录 `cube-server/build/harness-agent-delivery/` 及同名 ZIP 包含两个 Java JAR、Python 节点 ZIP、执行/Provider 模板、通用工具包和离线评测脚本；`checksums.json` 记录 SHA-256。它不包含生产凭据、数据库或已验证的远端 tokenizer。安装和首次运行按以下顺序操作：
 
 1. 关闭新准入，drain 并对账现有任务；备份两个 JAR、全部私有配置、Python 节点目录和原 journal，保留原 release/policy/binding。两个 JAR 配套替换，Python 节点更新完整运行包，保留各 workerId/runtimeDir/journal。一个 JVM 接多个 Python 单元的部署方式不变。
-2. 合并 `config/harness-execution/execution.json` 修订 2：taskState=true、historyWindow=3、skillWindow=6、finalWireGuard=true、maxRepeatedCalls=3。保留现有模型/执行器引用、窗口及预算；新 run 才使用新配置。若已有自定义配置，逐字段合并，不覆盖私有值。配置缺省时保留旧行为。
-3. 基础任务推进、历史裁剪及 `context.read_result` 需核心 JAR 与配套 Python 模型适配器；回读要求 resource.read，归档要求当前固定工具集合中确实提供回读。整页 text 不再次压缩或解码为 JSON 对象，游标与原文保持一致；建议 limit=1024，放不下时明确拒绝。运行一次“查询后计算并解释来源”的多轮任务，检查最后答案、原始结果引用及内部上下文 snapshot 的 taskState/historySelection（业务 REST 的 run-snapshot 不返回这些字段）。连续重复不可变读取达到阈值时应明确返回 TASK_NO_PROGRESS；同参数数据刷新与新用户输入不按此规则停止。
+2. 更新全部可能接到任务的 Python 模型单元，完整安装 model_adapter.py、context_compaction.py、context_summary.py 和 contracts；不能只替换单文件。再合并 `execution.json` 修订 3：taskState=true、adaptiveHistory=true、compressionTriggerPercent=80、compressionTargetPercent=60、repairReserveTokens=1024、repairReserveBytes=2048、skillWindow=6、finalWireGuard=true、maxRepeatedCalls=3。semanticSummary 默认关闭。保留私有模型/执行器引用和总预算；移除旧 historyWindow 或保留作旧策略配置，新 run 使用新版本。旧 worker 无法保证新 wire 校验和语义摘要，升级完成后再开放新准入。
+3. 启动 Java 和各 Python 单元。基础状态、预算选择、完整链接/游标保护及回读由核心 JAR 与模型 worker 独立提供，不需要新增 Provider、业务包或模型服务。回读要求 resource.read 且固定工具集合提供 context.read_result。先运行“查询后计算并解释来源”的多轮任务，检查答案、完整 URL/Ref、resource.read 的可见 nextOffset，以及内部 snapshot 的 taskState/historySelection/compressionState；业务 REST 的 run-snapshot 不返回这些内部字段。再回读超过三页的历史结果，或使用 selector=/records/0 读完整记录；建议分页 limit=1024，放不下时明确拒绝。连续重复不可变读取达到阈值时返回 TASK_NO_PROGRESS；同参数刷新与新用户输入不按此规则停止。
 4. 按需启用只读能力发现：在已有 broker.providers 后追加 capabilities，登记 `cube.service.harness.skill.CapabilityInspectProvider`，其 config 指向与 capability 调用一致的私有允许名单。发布 `harness-skill/packages/capabilities-v1.zip`，将实际 ready release 加入租户 policy，并在身份、部署上限及 policy 中授予 capability.read。Runner、业务包和此工具均须按正常流程授权/激活；示例参数为 `{"skill":"fhe/patrol"}`。返回逻辑档案和就绪状态，查询不触发视觉推理；ready 不保证即时容量。业务包原有依赖无需重发，只有希望默认选中该工具时才调整业务选择。此工具用于允许它的模型工具循环；fixed-patrol-v1 的规划视图仍只提供 common.data.query，默认业务接入通过 task-profiles 的 ready/reason 检查状态。
 5. 模型单元配置显式 nativeTools，Java adapter 必须一致。先以原字节预算启动，检查 budgetMeasurement.accuracy=estimated。若有已验证 tokenizer/聊天模板及可信计数器，再安装对应计数器类、注册 model.token.counter.classes 并发布独立配置版本；没有匹配计数器会拒绝执行。无需为当前升级安装 tokenizer 依赖。实际模型质量与目标环境计数一致性在部署后验证。
+6. 需要模型语义交接摘要时，另发布新 execution version，将 semanticSummary.enabled=true，保留 maxCalls=1、outputReserve=512、maxSummaryBytes=4096。运行足以触发历史归档的多轮任务，检查 model outcome 的 summary audit、contextSummary 的用户/来源摘要、intent/resultHash 和后续快照恢复。摘要按现有模型计费及排队，失败可回退，unknown 保留容量并停止；不需要新增 Python 角色或一对一实例。确定性压缩可保持摘要关闭独立部署。
 
 回退时再次关闭新准入、drain 并对账，再恢复成套 JAR、Python 运行代码、旧配置与 policy/binding。已固定新回读工具或新计数模式的任务先收尾，不能交给不认识这些配置的旧运行时；unknown 与未决 journal 保留，不通过清空账本恢复容量。本升级无数据库 schema 迁移。
 
@@ -25,7 +26,7 @@ Java 构建、测试与运行使用 **JDK 8**。common、service、dispatcher、
 | `cube-service-harness-3.0.jar` | 宿主 cellets/，与技能扩展配套更新 |
 | `cube-service-harness-skill-3.0.jar` | 宿主 libs/，提供 Provider 与 WorkflowGuard |
 | Python `harness/runner_process.py`、`harness/runner_sdk.py` | 更新全部普通 Runner 节点并重启，根入口和 SDK 派生入口统一 UTF-8 |
-| Python `harness/model_adapter.py`、`harness/model_worker.py` | 更新全部 JSON/原生工具模型节点并重启，显示工具用途/返回字段、连续任务提示与固定名称映射，显式校验模型能力 |
+| Python `harness/model_adapter.py`、`context_compaction.py`、`context_summary.py` 及 `contracts/` | 用完整 Python 节点 ZIP 更新全部模型单元；同步实际 wire 渲染、预算重建、可选摘要和五次 wireAttempt 契约 |
 | `scripts/evaluate_traces.py`、`quality_evaluation.py`、`replay_trace.py` | 同目录部署的离线评测工具；v2 证据与基线比较见 [TRACE.md](TRACE.md)，不需新增在线服务 |
 | data、processing、capability、capabilities、time 工具 ZIP | 管理员发布 executable 工具，授权其实际 ready release |
 | Provider、guard、身份及视觉配置 | 合并到私有绝对路径与宿主配置，重启生效 |
@@ -144,7 +145,7 @@ python -B scripts/build_package.py --dependency common/data=<获准digest> --dep
 
 ```powershell
 ant -f service-harness-skill/build.xml test
-ant -f service-harness/build.xml test-execution test-tools test-control-files
+ant -f service-harness/build.xml test-runtime test-inference test-execution test-tools test-control-files
 ant -f service-harness/build.xml test-transport
 python -B -m unittest discover -s service-harness/scripts/tests -v
 ```

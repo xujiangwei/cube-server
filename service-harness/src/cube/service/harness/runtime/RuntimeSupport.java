@@ -189,6 +189,7 @@ public final class RuntimeSupport {
      */
     public static void validate(String schema, JSONObject value) {
         Contract.validate(value, schema(schema));
+        if (schema.equals("execution-profile")) ContextPolicy.validate(value.getJSONObject("contextPolicy"));
     }
 
     /**

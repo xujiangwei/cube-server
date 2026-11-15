@@ -30,7 +30,7 @@ public final class TaskState {
         JSONArray outcomes = basis.optJSONArray("modelOutcomes");
         if (outcomes != null) for (int i = 0; i < outcomes.length(); i++) {
             JSONObject outcome = new JSONObject(outcomes.getJSONObject(i).getString("outcome_json"));
-            repairs += Math.max(0, outcome.getJSONArray("audit").length() - 1);
+            repairs += cube.service.harness.store.InferenceStore.repairs(outcome);
         }
         for (int i = 0; i < facts.length(); i++) {
             JSONObject fact = facts.getJSONObject(i);
@@ -64,12 +64,13 @@ public final class TaskState {
                 .put("maxLifetimeMillis", limits.getLong("maxLifetimeMillis"))
                 .put("deadlineEnforcedByCoordinator", true);
         int maximum = limits.optInt("maxRepeatedCalls", 0);
-        JSONObject state = new JSONObject().put("version", "task-state-v1").put("goalSource", "run.created and control.resume user messages")
+        JSONObject state = new JSONObject().put("version", "task-state-v2").put("goalSource", "run.created and control.resume user messages")
                 .put("phase", pending.length() > 0 ? "pending-execution" : "continue-from-confirmed-evidence")
                 .put("completion", "not-inferred; assess the user goal against confirmed evidence")
                 .put("confirmedTools", calls - countPending(facts)).put("recentEvidence", tail(evidence, 16))
                 .put("recentErrors", tail(errors, 8)).put("pending", pending).put("authorizedTools", actions)
-                .put("remaining", remaining).put("lastResumeEventSeq", resumed).put("consecutiveUnchangedCalls", consecutive);
+                .put("remaining", remaining).put("lastResumeEventSeq", resumed).put("consecutiveUnchangedCalls", consecutive)
+                .put("workingMemory", TaskProgress.derive(basis, facts));
         if (feedback != null) state.put("deliveryGaps", feedback);
         if (maximum > 0 && consecutive >= maximum && pending.length() == 0) state.put("blocked", new JSONObject()
                 .put("reason", "REPEATED_IMMUTABLE_READ_OR_PARAMETER_ERROR").put("tool", repeatedTool)

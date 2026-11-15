@@ -93,7 +93,7 @@ public final class ModelProtocol {
      * <p>关键不变量：status=unknown 当且仅当 finished=false（物理结束未确认）；success 禁止
      * errorCode 且 decision 必须过 model-decision schema；error/unknown 禁止 decision，
      * errorCode 必须匹配 [A-Z0-9_]{1,128}，unknown 还禁止 usage。usage 仅接受
-     * {input,output} 两个非负整数（≤10^12），缺失即缺失，不估算。audit 最多 2 条。
+     * {input,output} 两个非负整数（≤10^12），缺失即缺失，不估算。audit 最多 5 条。
      * cancellationObserved 必须是真实布尔值。
      *
      * @param raw      outcome JSON 文本
@@ -105,7 +105,7 @@ public final class ModelProtocol {
     public static JSONObject outcome(String raw, boolean finished) {
         JSONObject o = StrictJson.object(raw.getBytes(StandardCharsets.UTF_8));
         parse("model-outcome", raw.getBytes(StandardCharsets.UTF_8));
-        Set<String> allowed = new HashSet<>(Arrays.asList("status", "decision", "errorCode", "usage", "audit", "cancellationObserved"));
+        Set<String> allowed = new HashSet<>(Arrays.asList("status", "decision", "errorCode", "usage", "audit", "cancellationObserved", "contextSummary"));
         if (!allowed.containsAll(o.keySet()) || !o.has("status") || !o.has("audit") || !o.has("cancellationObserved")) {
             throw new IllegalArgumentException("MODEL_OUTCOME_INVALID");
         }
@@ -122,7 +122,7 @@ public final class ModelProtocol {
             throw new IllegalArgumentException("MODEL_OUTCOME_INVALID");
         }
         JSONArray audit = o.getJSONArray("audit");
-        if (audit.length() > 2) {
+        if (audit.length() > 5) {
             throw new IllegalArgumentException("MODEL_OUTCOME_INVALID");
         }
         if (o.has("usage")) {

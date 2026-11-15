@@ -660,7 +660,15 @@ public final class CatalogStore {
     public JSONObject contextBasis(String tenant, String subject, String runId) {
         return store.tx(c -> {
             JSONObject r = store.run(c, tenant, subject, runId, true), pin = pinned(c, tenant, subject, runId);
+            JSONObject latest = first(rows(c, "SELECT snapshot_json,digest FROM harness_context WHERE run_id=? ORDER BY run_version DESC,digest DESC LIMIT 1", runId));
+            JSONObject compression = new JSONObject();
+            if (latest != null) {
+                JSONObject snapshot = new JSONObject(latest.getString("snapshot_json"));
+                if (!hash(snapshot).equals(latest.getString("digest"))) throw new StoreException("CONTEXT_CORRUPT");
+                if (snapshot.has("compressionState")) compression = snapshot.getJSONObject("compressionState");
+            }
             return new JSONObject().put("version", r.getLong("version")).put("pin", pin)
+                    .put("compressionState", compression)
                     .put("events", rows(c, "SELECT event_seq,event_type,data_json FROM harness_event WHERE run_id=? ORDER BY event_seq", runId))
                     .put("modelOutcomes", rows(c, "SELECT outcome_json FROM harness_model_job WHERE run_id=? AND outcome_json IS NOT NULL ORDER BY round_id,attempt", runId))
                     .put("rounds", rows(c, "SELECT * FROM harness_round WHERE run_id=? ORDER BY intent_id,attempt", runId))

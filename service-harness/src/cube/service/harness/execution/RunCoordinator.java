@@ -694,7 +694,7 @@ public final class RunCoordinator implements AutoCloseable {
                 JSONObject r = rounds.getJSONObject(i), j = jobs.enqueue(l, r, model);
                 if (!j.isNull("outcome_json")) {
                     JSONObject o = new JSONObject(j.getString("outcome_json"));
-                    repairs += Math.max(0, o.getJSONArray("audit").length() - 1);
+                    repairs += cube.service.harness.store.InferenceStore.repairs(o);
                 }
                 if (!r.getString("status").equals("confirmed")) {
                     if (j.getInt("actual_finished") == 0) {

@@ -25,11 +25,11 @@ import java.util.*;
  * 调用侧要求 proposalId/tool/完整 argumentsJson 严格配对，重复、孤立或缺失
  * intent 证据一律拒绝。
  *
- * <p>预算模型（context-v1 / full-json-bytes-v1 / extractive-v1）：先按 maxSourceChars
- * 对资源页与工具 dataJson 做可审计提取，再在超限时按 codepoint 确定性对折缩短这两类
- * 文本；原任务、权限、调用参数、schema、执行事实与 pending 不缩短。离线 tokenizer
- * 每 UTF-8 字节计 1 token 并加 templateOverhead；渲染结果为模板前缀加整个规范化
- * JSON request。不可压缩部分超限时带策略/预算版本明确拒绝，不截断执行。
+ * <p>先按 maxSourceChars 提取显式正文；预算压力下按依赖归档完整调用组，再缩短
+ * 保留正文。检查点保存来源额度及归档证据以形成滞回。完整用户指令、权限、参数、
+ * schema、pending、类型句柄及当前原文回读均不裁剪。在线模型计量共享渲染器生成的
+ * 实际 OpenAI wire；字节估算不代表远端 tokenizer，已注册可信计数器可提供精确计量。
+ * 硬预算独立约束 wire、作业与输出预留，不可压缩部分超限时明确拒绝。
  */
 public final class ContextEngine {
 
@@ -227,6 +227,7 @@ public final class ContextEngine {
             this.handle = handle;
             this.structured = field.equals("dataJson") ? ContextData.parse(original) : null;
             keep = Math.min(cap, original.codePointCount(0, original.length()));
+            if (field.equals("text") && !original.isEmpty()) keep = Math.max(1, keep);
         }
 
         /**
@@ -235,6 +236,8 @@ public final class ContextEngine {
         void render() {
             target.put(field, structured == null || keep == original.codePointCount(0, original.length())
                     ? original.substring(0, original.offsetByCodePoints(0, keep)) : ContextData.compact(structured, keep));
+            if (field.equals("text") && keep < original.codePointCount(0, original.length()) && target.has("offset"))
+                target.put("nextOffset", target.getInt("offset") + keep);
             target.put("source", handle);
             target.put("originalDigest", RuntimeSupport.sha(original.getBytes(StandardCharsets.UTF_8)));
             target.put("compacted", keep < original.codePointCount(0, original.length()));
@@ -274,6 +277,7 @@ public final class ContextEngine {
                 task = ExecutionProfiles.execution(pin),
                 model = pin.getJSONObject("model"),
                 policy = task.getJSONObject("contextPolicy");
+        ContextPolicy.validate(policy);
         certify(model);
         if (!policy
                 .getString("budgetVersion")
@@ -516,7 +520,10 @@ public final class ContextEngine {
             f.remove("result");
             factSummary.put(f);
         }
-        messages.put(message("system", "platform:ledger-facts", factSummary));
+        messages.put(message("system", "platform:ledger-facts", policy.optBoolean("adaptiveHistory")
+                ? new JSONObject().put("factCount", facts.length()).put("factsDigest", JdbcRunStore.hash(facts))
+                        .put("roundCount", rounds.size()).put("toolCount", calls.size()).put("pending", pending)
+                : factSummary));
         JSONArray offered = resources.tools(identity, run);
         if (planning != null) {
             Set<String> names = RuntimeSupport.strings(planning.getJSONArray("tools"));
@@ -529,31 +536,38 @@ public final class ContextEngine {
                     .put("instruction", "Select the query route and scope from the user's task using these pinned input schemas. Call common.data.query once with skill, connectorId and argumentsJson (the JSON-encoded route arguments). Do not query resources or construct a report. The host executes the bound dependencies after this confirmed query. Ask for missing or unsupported goals; never invent scope or input IDs.")
                     .put("binding", planning)));
         }
-        JSONObject history = new JSONObject().put("method", "full-ledger-v1").put("archived", new JSONArray());
         boolean canReadBack = false;
         for (int i = 0; i < offered.length(); i++)
             if (offered.getJSONObject(i).getString("name").equals("context.read_result")) canReadBack = true;
-        if (policy.has("historyWindow") && canReadBack) {
-            history = ContextHistory.select(messages, facts, policy.getInt("historyWindow"));
-            messages = history.getJSONArray("messages");
-            Set<JSONObject> retained = Collections.newSetFromMap(new IdentityHashMap<JSONObject, Boolean>());
-            for (int i = 0; i < messages.length(); i++) {
-                JSONObject content = messages.getJSONObject(i).optJSONObject("content");
-                if (content != null) retained.add(content);
-            }
-            sources.removeIf(source -> !retained.contains(source.target));
-            if (history.getJSONArray("archived").length() > 0) messages.put(message("system", "platform:history-index",
-                    new JSONObject().put("instruction", "Older complete call/result groups are archived. This index contains metadata only. Use context.read_result with the exact intent to retrieve original evidence, references, coverage or cursors before relying on omitted details. Never invent missing values.")
-                            .put("archived", history.getJSONArray("archived"))));
-            if (history.getJSONArray("observations").length() > 0) messages.put(message("user", "tool-evidence-projection",
-                    new JSONObject().put("partialProjection", true).put("observations", history.getJSONArray("observations"))));
-            history.remove("messages");
-        }
         JSONObject taskState = policy.optBoolean("taskState", false) || task.getJSONObject("executionLimits").has("maxRepeatedCalls")
                 ? TaskState.derive(basis, facts, pending, offered) : null;
-        if (taskState != null && policy.optBoolean("taskState", false)) messages.put(message("system", "platform:task-state",
+        if (taskState != null && policy.optBoolean("taskState", false)) {
+            JSONObject metadata = RuntimeSupport.copy(taskState); metadata.remove("workingMemory");
+            messages.put(message("system", "platform:task-state",
                 new JSONObject().put("instruction", "Advance the user's goal from confirmed evidence. Identify the next unresolved dependency, choose only an authorized action, and use existing results. Ask for missing user facts. A tool success is not proof the task is complete. Historical errors may have been corrected. Respect remaining budgets; never replay unknown execution.")
-                        .put("state", taskState)));
+                        .put("state", metadata)));
+            messages.put(message("user", "task-working-memory", taskState.getJSONObject("workingMemory")));
+        }
+        JSONObject summaryOptions = policy.optJSONObject("semanticSummary");
+        boolean summaryEnabled = summaryOptions != null && summaryOptions.getBoolean("enabled") && model.getString("backend").equals("java-inference");
+        JSONObject semanticSummary = summaryEnabled ? ContextSummary.latest(basis, messages, facts) : null;
+        if (semanticSummary != null) messages.put(ContextSummary.message(semanticSummary));
+        boolean summaryAllowed = summaryEnabled && pending.length() == 0 && ContextSummary.calls(basis) < summaryOptions.getInt("maxCalls");
+        ContextHistory selection = canReadBack && (policy.has("historyWindow") || policy.optBoolean("adaptiveHistory"))
+                ? new ContextHistory(messages, facts, policy.optInt("historyWindow", 3), policy.optBoolean("adaptiveHistory")) : null;
+        boolean earlyCompression = policy.has("compressionTriggerPercent");
+        JSONObject previous = basis.optJSONObject("compressionState");
+        if (earlyCompression && previous != null) {
+            if (selection != null) selection.restore(previous.optJSONArray("archived"));
+            JSONArray limits = previous.optJSONArray("sourceLimits");
+            if (limits != null) for (Source source : sources) for (Object entry : limits) {
+                JSONObject limit = (JSONObject)entry;
+                if (limit.getString("sourceDigest").equals(JdbcRunStore.hash(source.handle))
+                        && limit.getString("originalDigest").equals(RuntimeSupport.sha(source.original.getBytes(StandardCharsets.UTF_8))))
+                    source.keep = Math.min(source.keep, limit.getInt("allowance"));
+            }
+        }
+        JSONObject history = null;
         JSONObject modelRequest =
                 new JSONObject()
                         .put("messages", messages)
@@ -570,26 +584,76 @@ public final class ContextEngine {
         }
         long tokens;
         String rendered;
+        int summaryReserve = summaryAllowed ? summaryOptions.getInt("maxSummaryBytes") + 256 : 0;
+        long tokenLimit = (long)model.getInt("maxContextTokens") - policy.getInt("outputReserve") - policy.optInt("repairReserveTokens") - summaryReserve;
+        int byteLimit = policy.getInt("maxInputBytes") - policy.optInt("repairReserveBytes") - summaryReserve;
+        int jobLimit = 47744 - policy.optInt("repairReserveBytes");
+        boolean pressure = false, targetReached = false;
+        long initialTokens = -1; int initialBytes = -1;
         for (; ; ) {
+            history = selection == null ? new JSONObject().put("method", "full-ledger-v1").put("archived", new JSONArray()) : selection.view();
+            JSONArray selectedMessages = selection == null ? messages : history.getJSONArray("messages");
+            Set<JSONObject> retained = Collections.newSetFromMap(new IdentityHashMap<JSONObject, Boolean>());
+            for (Object entry : selectedMessages) {
+                JSONObject content = ((JSONObject)entry).optJSONObject("content");
+                if (content != null) retained.add(content);
+            }
+            if (history.getJSONArray("archived").length() > 0) selectedMessages.put(message("system", "platform:history-index",
+                    new JSONObject().put("instruction", "Older complete call/result groups are archived. This index contains metadata only. Use context.read_result with the exact intent to retrieve original evidence. An optional JSON Pointer selector reads a complete field or record from decoded dataJson without concatenating pages. Never invent missing values.")
+                            .put("archived", history.getJSONArray("archived"))));
+            if (history.optJSONArray("observations") != null && history.getJSONArray("observations").length() > 0) selectedMessages.put(message("user", "tool-evidence-projection",
+                    new JSONObject().put("partialProjection", true).put("observations", history.getJSONArray("observations"))));
+            history.remove("messages");
+            modelRequest.put("messages", selectedMessages);
+            modelRequest.remove("contextSummaryRequest");
+            if (summaryAllowed) {
+                JSONObject spec = ContextSummary.request(model, summaryOptions, messages, facts, history.getJSONArray("archived"));
+                if (spec != null && semanticSummary != null && spec.getJSONObject("binding").getString("sourceDigest")
+                        .equals(semanticSummary.getJSONObject("binding").getString("sourceDigest"))) spec = null;
+                if (spec != null) {
+                    try { budgets.admitWire(pin, ContextSummary.wire(spec)); modelRequest.put("contextSummaryRequest", spec); }
+                    catch (cube.service.harness.store.StoreException unavailable) { /* optional summary falls back to deterministic working state */ }
+                }
+            }
             // 预算循环：渲染 -> 计量 -> 超限则把所有可压缩源对折缩短，直到达标或无可压缩。
             for (Source source : sources) {
-                source.render();
+                if (retained.contains(source.target)) source.render();
+            }
+            JSONObject wire = null;
+            if (model.getString("backend").equals("java-inference")) {
+                wire = cube.service.harness.execution.ModelWire.prepare(model, modelRequest);
+                modelRequest.put("wireFormat", cube.service.harness.execution.ModelWire.VERSION).put("wireDigest", JdbcRunStore.hash(wire));
+                modelRequest.put("contextBudgetRetries", 2);
             }
             rendered = PREFIX + JdbcRunStore.canonical(modelRequest);
             int bytes = rendered.getBytes(StandardCharsets.UTF_8).length;
             tokens = budgets.context(model, modelRequest, bytes);
-            if (tokens + policy.getInt("outputReserve") <= model.getInt("maxContextTokens")
-                    && bytes <= policy.getInt("maxInputBytes")) {
+            int wireBytes = wire == null ? bytes : RuntimeSupport.bytes(wire).length;
+            if (initialTokens < 0) { initialTokens = tokens; initialBytes = Math.max(bytes, wireBytes); }
+            boolean hardFits = tokens <= tokenLimit && bytes <= byteLimit && wireBytes <= byteLimit && (wire == null || bytes <= jobLimit);
+            int trigger = policy.optInt("compressionTriggerPercent", 100), target = policy.optInt("compressionTargetPercent", 100);
+            if (earlyCompression && (tokens * 100 > tokenLimit * trigger || (long)Math.max(bytes, wireBytes) * 100 > (long)byteLimit * trigger
+                    || wire != null && (long)bytes * 100 > (long)jobLimit * trigger)) pressure = true;
+            targetReached = !pressure || tokens * 100 <= tokenLimit * target && (long)Math.max(bytes, wireBytes) * 100 <= (long)byteLimit * target
+                    && (wire == null || (long)bytes * 100 <= (long)jobLimit * target);
+            if (hardFits && targetReached) {
                 break;
             }
+            if (selection != null && selection.retire()) continue;
             boolean shrunk = false;
             for (Source source : sources) {
-                if (source.keep > 0) {
-                    source.keep /= 2;
+                int floor = source.field.equals("text") && !source.original.isEmpty() ? 1 : 0;
+                if (retained.contains(source.target) && source.keep > floor) {
+                    source.keep = Math.max(floor, source.keep / 2);
                     shrunk = true;
                 }
             }
             if (!shrunk) {
+                // The lower watermark is a soft goal; immutable instructions/schema may exceed it.
+                if (hardFits) break;
+                if (summaryAllowed) {
+                    summaryAllowed = false; tokenLimit += summaryReserve; byteLimit += summaryReserve; summaryReserve = 0; continue;
+                }
                 throw RuntimeSupport.error(
                         "CONTEXT_BUDGET_EXCEEDED:"
                                 + policy.getString("version")
@@ -597,9 +661,17 @@ public final class ContextEngine {
                                 + policy.getString("budgetVersion"));
             }
         }
+        JSONArray sourceLimits = new JSONArray();
+        for (Source source : sources) sourceLimits.put(new JSONObject().put("sourceDigest", JdbcRunStore.hash(source.handle))
+                .put("originalDigest", RuntimeSupport.sha(source.original.getBytes(StandardCharsets.UTF_8))).put("allowance", source.keep));
         // 压缩审计：只记录实际发生缩短的源，含方法、策略版本与两侧摘要。
         JSONArray audit = new JSONArray();
+        Set<JSONObject> retainedSources = Collections.newSetFromMap(new IdentityHashMap<JSONObject, Boolean>());
+        for (Object entry : modelRequest.getJSONArray("messages")) {
+            JSONObject content = ((JSONObject)entry).optJSONObject("content"); if (content != null) retainedSources.add(content);
+        }
         for (Source source : sources) {
+            if (!retainedSources.contains(source.target)) continue;
             if (source.target.getBoolean("compacted")) {
                 audit.put(
                         new JSONObject()
@@ -632,6 +704,11 @@ public final class ContextEngine {
                 .put("ready", pending.length() == 0)
                 .put("compactions", audit)
                 .put("historySelection", history)
+                .put("semanticSummary", semanticSummary == null ? JSONObject.NULL : semanticSummary)
+                .put("compressionState", new JSONObject().put("version", "context-watermarks-v1").put("archived", history.getJSONArray("archived"))
+                        .put("sourceLimits", sourceLimits).put("pressureTriggered", pressure).put("targetReached", targetReached)
+                        .put("initialInputTokens", initialTokens).put("initialInputBytes", initialBytes)
+                        .put("inputTokenLimit", tokenLimit).put("inputByteLimit", byteLimit))
                 .put("taskState", taskState == null ? JSONObject.NULL : taskState)
                 .put("budgetMeasurement", new JSONObject().put("accuracy", budgets.exact(model) ? "verified-counter" : "estimated")
                         .put("unit", budgets.exact(model) ? "model-tokens" : "utf8-bytes-plus-template-allowance")

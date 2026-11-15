@@ -58,6 +58,11 @@ public final class ModelBudgets {
         return value;
     }
     public long context(JSONObject model, JSONObject request, int renderedBytes) {
+        if (model.optString("backend").equals("java-inference") && request.has("responseSchema")) {
+            JSONObject wire = ModelWire.prepare(model, request);
+            return exact(model) ? Math.max(count(model, request, false), count(model, wire, true))
+                    : (long)JdbcRunStore.canonical(wire).getBytes(StandardCharsets.UTF_8).length + model.getInt("templateOverhead");
+        }
         return exact(model) ? count(model, request, false)
                 : (long)renderedBytes + model.getInt("templateOverhead");
     }

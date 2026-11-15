@@ -1,0 +1,66 @@
+{
+  "type": "object",
+  "properties": {
+    "progress": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      },
+      "maxItems": 8
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      },
+      "maxItems": 8
+    },
+    "nextSteps": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      },
+      "maxItems": 8
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "resultHash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "intent",
+          "resultHash"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 8
+    }
+  },
+  "required": [
+    "progress",
+    "decisions",
+    "constraints",
+    "nextSteps",
+    "evidence"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

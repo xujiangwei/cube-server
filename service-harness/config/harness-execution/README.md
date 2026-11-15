@@ -2,15 +2,28 @@
 
 `execution.profiles=./config/harness-execution` 加载本目录全部 JSON。服务器发布模型和执行器，租户只保存技能授权、权限和业务配额。修改目录后重启 Java；在途任务保留完整快照。
 
-默认 `execution.json` 修订号为 `2`，新增以下可选字段；旧固定配置缺省时保持原行为：
+默认 `execution.json` 修订号为 `3`，上下文参数如下；旧固定配置缺省时保持原行为：
 
 | 字段 | 默认模板值 | 行为 |
 | --- | --- | --- |
-| `contextPolicy.taskState` | `true` | 注入从账本导出的近期证据、历史错误、待决依赖、授权动作及剩余轮次/工具/修复预算 |
-| `contextPolicy.historyWindow` | `3` | 保留最近三组完整工具调用；只有已授权 `context.read_result` 时才归档更早的完整配对 |
+| `contextPolicy.taskState` | `true` | 注入原始用户输入引用、确认事实、查询路线、错误纠正、读取会话、待决依赖及剩余预算；工具内容作为 user 数据 |
+| `contextPolicy.adaptiveHistory` | `true` | 预算充足时保留全部历史，压力下逐组归档；保留最新完整组、当前回读会话、未消费游标及引用依赖闭包 |
+| `contextPolicy.historyWindow` | 模板省略 | 仅旧策略使用固定近期组数；adaptiveHistory=true 时由预算选择取代它 |
+| `contextPolicy.compressionTriggerPercent` | `80` | 输入达到可用预算的 80% 后开始压缩，需同时设置目标百分比并启用 adaptiveHistory |
+| `contextPolicy.compressionTargetPercent` | `60` | 压向可用预算的 60%；不可压缩内容超过此软目标但仍满足硬预算时可继续 |
+| `contextPolicy.repairReserveTokens` / `repairReserveBytes` | `1024` / `2048` | 独立预留格式修复的计数单位和字节空间；字节模式下前者也是保守估算单位 |
+| `contextPolicy.semanticSummary.enabled` | `false` | 可选模型语义交接摘要；必须同时启用 adaptiveHistory 和 finalWireGuard |
+| `contextPolicy.semanticSummary.maxCalls` | `1` | 每个 run 最多摘要次数，允许 1..2；失败调用也占次数，不重复总结同一来源 |
+| `contextPolicy.semanticSummary.outputReserve` / `maxSummaryBytes` | `512` / `4096` | 每次摘要输出预算及完整来源包装的 UTF-8 上限；新增摘要另预留注入空间 |
 | `contextPolicy.skillWindow` | `6` | 优先载入最近访问过的六个 active SKILL 首页；固定资源目录及显式读取句柄仍保留 |
 | `contextPolicy.finalWireGuard` | `true` | 实际推理请求在 Java 入队前重新检查字节和上下文预算，含格式修复请求 |
 | `executionLimits.maxRepeatedCalls` | `3` | 相同参数和相同结果的不可变读取，或相同参数错误连续三次后，以 `TASK_NO_PROGRESS` 停止 |
+
+百分比以扣除 outputReserve、修复预留及本次可选摘要预留后的预算为基数，模型计数、wire 字节、作业字节三道限制分别检查。触发值必须大于目标值。检查点持久保存已归档组和各来源文本额度；下一轮沿用，重新成为依赖的旧组恢复保留，避免反复扩张和压缩。未授权 `context.read_result` 时不归档，不能放入预算的完整回读或固定输入仍明确拒绝。
+
+语义摘要复用同一逻辑模型、Java 推理队列和多 worker 调度，不增加外部服务。只读取最多八项已归档原始证据的有界视图，不把旧摘要再作摘要输入。摘要绑定用户输入摘要、源清单摘要、事件范围、模型版本和 intent/resultHash；Java 从实际响应验证、重建，作为普通 user 数据恢复。用户追加或纠正输入后不复用旧摘要。格式无效或已确认结束的摘要失败可回退确定性状态，unknown 停止且保留容量。摘要独立计真实 usage，不计入格式修复次数，不替代权限、工具原文或报告验证。默认关闭时无需额外推理。
+
+Java 按与 Python 一致的 `openai-wire-v1` 结构计量实际模型输入，worker 校验 wireDigest；工具说明、序列化示例和原生工具定义均计入。实际派发前再次准入。仅 Java 已持久证明未派发的预算拒绝允许最多两次有界正文重建；未知执行不重试。最多一次摘要、一次正常决策、一次格式修复、两次预算拒绝，共五个 wireAttempt；两次预算拒绝用量为零。
 
 无进展检测目前覆盖 resource.read/search/list、context.read_result 和计算器；查询刷新、时间/状态轮询不按结果不变判死。新 `control.resume` 输入重置连续计数；新参数或新结果中断连续重复。它不是通用语义完成判定器，原有轮次、工具、修复和生命周期上限继续约束所有运行。
 
