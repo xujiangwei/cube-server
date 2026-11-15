@@ -10,11 +10,11 @@
 | `contextPolicy.adaptiveHistory` | `true` | 预算充足时保留全部历史，压力下逐组归档；保留最新完整组、当前回读会话、未消费游标及引用依赖闭包 |
 | `contextPolicy.historyWindow` | 模板省略 | 仅旧策略使用固定近期组数；adaptiveHistory=true 时由预算选择取代它 |
 | `contextPolicy.compressionTriggerPercent` | `80` | 输入达到可用预算的 80% 后开始压缩，需同时设置目标百分比并启用 adaptiveHistory |
-| `contextPolicy.compressionTargetPercent` | `60` | 压向可用预算的 60%；不可压缩内容超过此软目标但仍满足硬预算时可继续 |
+| `contextPolicy.compressionTargetPercent` | `60` | 压向可用预算的 60%；不可达时恢复首个满足硬预算的候选并标记 targetUnreachable，保留有效正文 |
 | `contextPolicy.repairReserveTokens` / `repairReserveBytes` | `1024` / `2048` | 独立预留格式修复的计数单位和字节空间；字节模式下前者也是保守估算单位 |
 | `contextPolicy.semanticSummary.enabled` | `false` | 可选模型语义交接摘要；必须同时启用 adaptiveHistory 和 finalWireGuard |
 | `contextPolicy.semanticSummary.maxCalls` | `1` | 每个 run 最多摘要次数，允许 1..2；失败调用也占次数，不重复总结同一来源 |
-| `contextPolicy.semanticSummary.outputReserve` / `maxSummaryBytes` | `512` / `4096` | 每次摘要输出预算及完整来源包装的 UTF-8 上限；新增摘要另预留注入空间 |
+| `contextPolicy.semanticSummary.outputReserve` / `maxSummaryBytes` | `512` / `4096` | 每次摘要输出预算及完整来源包装的 UTF-8 上限；实际安排摘要时按最终 JSON 转义开销预留注入空间，预算拒绝后可撤掉摘要 |
 | `contextPolicy.skillWindow` | `6` | 优先载入最近访问过的六个 active SKILL 首页；固定资源目录及显式读取句柄仍保留 |
 | `contextPolicy.finalWireGuard` | `true` | 实际推理请求在 Java 入队前重新检查字节和上下文预算，含格式修复请求 |
 | `executionLimits.maxRepeatedCalls` | `3` | 相同参数和相同结果的不可变读取，或相同参数错误连续三次后，以 `TASK_NO_PROGRESS` 停止 |

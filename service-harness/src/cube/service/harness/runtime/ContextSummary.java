@@ -67,7 +67,7 @@ public final class ContextSummary {
                     .put("argumentsHash", JdbcRunStore.hash(new JSONObject(f.getJSONObject("payload").getString("argumentsJson"))));
             Object parsed = ContextData.parse(f.getJSONObject("result").optString("dataJson"));
             if (parsed != null) {
-                String projected = ContextData.compact(parsed, 512);
+                String projected = ContextData.compact(parsed, 512, f.getJSONObject("payload").getString("tool").equals("resource.read"));
                 if (projected.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 1536) source.put("dataJson", projected);
                 else if (parsed instanceof JSONObject) source.put("data", TaskProgress.projection((JSONObject)parsed, 512));
             } else {
@@ -113,5 +113,9 @@ public final class ContextSummary {
     }
     public static JSONObject wireMessage(JSONObject summary) {
         return new JSONObject().put("role", "user").put("content", JdbcRunStore.canonical(new JSONObject().put("provenance", "semantic-context-summary").put("data", summary)));
+    }
+    /** A canonical summary is escaped once more as message content; each UTF-8 byte can at most double. */
+    public static int wireReserve(int maxSummaryBytes) {
+        return RuntimeSupport.bytes(wireMessage(new JSONObject())).length - 2 + 2 * maxSummaryBytes + 1;
     }
 }

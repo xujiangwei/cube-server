@@ -205,6 +205,8 @@ public final class ContextEngine {
          */
         final String field, original;
         final Object structured;
+        final Object originalNextOffset;
+        final boolean resourcePage;
 
         /**
          * 当前保留的 codepoint 数；0 表示已压缩到底。
@@ -221,11 +223,17 @@ public final class ContextEngine {
          * @param cap      首次提取上限（policy.maxSourceChars）
          */
         Source(JSONObject target, String field, String original, JSONObject handle, int cap) {
+            this(target, field, original, handle, cap, false);
+        }
+
+        Source(JSONObject target, String field, String original, JSONObject handle, int cap, boolean resourcePage) {
             this.target = target;
             this.field = field;
             this.original = original;
             this.handle = handle;
             this.structured = field.equals("dataJson") ? ContextData.parse(original) : null;
+            this.originalNextOffset = target.has("nextOffset") ? target.get("nextOffset") : null;
+            this.resourcePage = resourcePage;
             keep = Math.min(cap, original.codePointCount(0, original.length()));
             if (field.equals("text") && !original.isEmpty()) keep = Math.max(1, keep);
         }
@@ -235,9 +243,11 @@ public final class ContextEngine {
          */
         void render() {
             target.put(field, structured == null || keep == original.codePointCount(0, original.length())
-                    ? original.substring(0, original.offsetByCodePoints(0, keep)) : ContextData.compact(structured, keep));
-            if (field.equals("text") && keep < original.codePointCount(0, original.length()) && target.has("offset"))
-                target.put("nextOffset", target.getInt("offset") + keep);
+                    ? original.substring(0, original.offsetByCodePoints(0, keep)) : ContextData.compact(structured, keep, resourcePage));
+            if (field.equals("text") && target.has("offset")) {
+                if (keep < original.codePointCount(0, original.length())) target.put("nextOffset", target.getInt("offset") + keep);
+                else if (originalNextOffset != null) target.put("nextOffset", originalNextOffset);
+            }
             target.put("source", handle);
             target.put("originalDigest", RuntimeSupport.sha(original.getBytes(StandardCharsets.UTF_8)));
             target.put("compacted", keep < original.codePointCount(0, original.length()));
@@ -499,7 +509,7 @@ public final class ContextEngine {
                                             .put("kind", "tool-ledger")
                                             .put("intent", k)
                                             .put("resultHash", row.getString("result_hash")),
-                                    policy.getInt("maxSourceChars")));
+                                    policy.getInt("maxSourceChars"), payload.getString("tool").equals("resource.read")));
                 }
                 messages.put(message("tool", "tool-ledger", output).put("proposalId", id));
                 proposals.remove(id);
@@ -584,11 +594,16 @@ public final class ContextEngine {
         }
         long tokens;
         String rendered;
-        int summaryReserve = summaryAllowed ? summaryOptions.getInt("maxSummaryBytes") + 256 : 0;
-        long tokenLimit = (long)model.getInt("maxContextTokens") - policy.getInt("outputReserve") - policy.optInt("repairReserveTokens") - summaryReserve;
-        int byteLimit = policy.getInt("maxInputBytes") - policy.optInt("repairReserveBytes") - summaryReserve;
+        int summaryReserve = 0;
+        long baseTokenLimit = (long)model.getInt("maxContextTokens") - policy.getInt("outputReserve") - policy.optInt("repairReserveTokens");
+        int baseByteLimit = policy.getInt("maxInputBytes") - policy.optInt("repairReserveBytes");
+        long tokenLimit = baseTokenLimit;
+        int byteLimit = baseByteLimit;
         int jobLimit = 47744 - policy.optInt("repairReserveBytes");
         boolean pressure = false, targetReached = false;
+        boolean targetUnreachable = false;
+        int[] hardFitLimits = null;
+        Set<Integer> hardFitHistory = null;
         long initialTokens = -1; int initialBytes = -1;
         for (; ; ) {
             history = selection == null ? new JSONObject().put("method", "full-ledger-v1").put("archived", new JSONArray()) : selection.view();
@@ -605,6 +620,8 @@ public final class ContextEngine {
                     new JSONObject().put("partialProjection", true).put("observations", history.getJSONArray("observations"))));
             history.remove("messages");
             modelRequest.put("messages", selectedMessages);
+            if (taskState != null && policy.optBoolean("taskState"))
+                TaskProgress.visibleReadback(taskState.getJSONObject("workingMemory"), facts, selectedMessages);
             modelRequest.remove("contextSummaryRequest");
             if (summaryAllowed) {
                 JSONObject spec = ContextSummary.request(model, summaryOptions, messages, facts, history.getJSONArray("archived"));
@@ -615,6 +632,9 @@ public final class ContextEngine {
                     catch (cube.service.harness.store.StoreException unavailable) { /* optional summary falls back to deterministic working state */ }
                 }
             }
+            summaryReserve = modelRequest.has("contextSummaryRequest") ? ContextSummary.wireReserve(summaryOptions.getInt("maxSummaryBytes")) : 0;
+            tokenLimit = baseTokenLimit - summaryReserve;
+            byteLimit = baseByteLimit - summaryReserve;
             // 预算循环：渲染 -> 计量 -> 超限则把所有可压缩源对折缩短，直到达标或无可压缩。
             for (Source source : sources) {
                 if (retained.contains(source.target)) source.render();
@@ -636,8 +656,14 @@ public final class ContextEngine {
                     || wire != null && (long)bytes * 100 > (long)jobLimit * trigger)) pressure = true;
             targetReached = !pressure || tokens * 100 <= tokenLimit * target && (long)Math.max(bytes, wireBytes) * 100 <= (long)byteLimit * target
                     && (wire == null || (long)bytes * 100 <= (long)jobLimit * target);
-            if (hardFits && targetReached) {
+            if (hardFits && (targetReached || targetUnreachable)) {
                 break;
+            }
+            if (hardFits && hardFitLimits == null) {
+                // Keep the least destructive admitted candidate while probing the optional lower watermark.
+                hardFitLimits = new int[sources.size()];
+                for (int i = 0; i < sources.size(); i++) hardFitLimits[i] = sources.get(i).keep;
+                if (selection != null) hardFitHistory = selection.mark();
             }
             if (selection != null && selection.retire()) continue;
             boolean shrunk = false;
@@ -649,10 +675,16 @@ public final class ContextEngine {
                 }
             }
             if (!shrunk) {
+                if (hardFitLimits != null) {
+                    for (int i = 0; i < sources.size(); i++) sources.get(i).keep = hardFitLimits[i];
+                    if (selection != null) selection.rewind(hardFitHistory);
+                    targetUnreachable = true;
+                    continue;
+                }
                 // The lower watermark is a soft goal; immutable instructions/schema may exceed it.
                 if (hardFits) break;
                 if (summaryAllowed) {
-                    summaryAllowed = false; tokenLimit += summaryReserve; byteLimit += summaryReserve; summaryReserve = 0; continue;
+                    summaryAllowed = false; continue;
                 }
                 throw RuntimeSupport.error(
                         "CONTEXT_BUDGET_EXCEEDED:"
@@ -707,6 +739,7 @@ public final class ContextEngine {
                 .put("semanticSummary", semanticSummary == null ? JSONObject.NULL : semanticSummary)
                 .put("compressionState", new JSONObject().put("version", "context-watermarks-v1").put("archived", history.getJSONArray("archived"))
                         .put("sourceLimits", sourceLimits).put("pressureTriggered", pressure).put("targetReached", targetReached)
+                        .put("targetUnreachable", targetUnreachable)
                         .put("initialInputTokens", initialTokens).put("initialInputBytes", initialBytes)
                         .put("inputTokenLimit", tokenLimit).put("inputByteLimit", byteLimit))
                 .put("taskState", taskState == null ? JSONObject.NULL : taskState)

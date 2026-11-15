@@ -32,13 +32,7 @@ final class ContextHistory {
                 for (String id : group) owners.put(id, i);
             }
         }
-        Set<String> reading = new HashSet<>();
-        for (int i = facts.length() - 1; i >= 0; i--) {
-            JSONObject f = facts.getJSONObject(i);
-            if (!f.getString("kind").equals("tool")) continue;
-            if (!f.getJSONObject("payload").getString("tool").equals("context.read_result")) break;
-            reading.add(f.getJSONObject("payload").getString("proposalId"));
-        }
+        Set<String> reading = readingCalls(facts);
         for (int group : groups) if (!Collections.disjoint(ids.get(group), reading)) pinned.put(group, "active-readback");
         if (adaptive && !groups.isEmpty()) {
             pinned.put(groups.get(groups.size() - 1), "latest-complete-group");
@@ -52,7 +46,10 @@ final class ContextHistory {
                 for (String id : ids.get(group)) {
                     JSONObject f = results.get(id), data = TaskProgress.data(f);
                     if (data == null || !f.getJSONObject("result").getString("status").equals("success")) continue;
-                    Set<String> produced = new HashSet<>(); collect(data, produced, true, "");
+                    Set<String> produced = new HashSet<>();
+                    // A nextCursor records execution order, not a dependency on the preceding page's body.
+                    // Unconsumed cursors are pinned below; successfully consumed pages can be archived.
+                    for (String field : data.keySet()) if (!field.equals("nextCursor")) collect(data.get(field), produced, true, field);
                     for (String handle : produced) producers.computeIfAbsent(handle, k -> new LinkedHashSet<>()).add(group);
                     Object cursor = data.opt("nextCursor");
                     if (cursor != null && cursor != JSONObject.NULL && !cursor.toString().isEmpty()) {
@@ -78,6 +75,33 @@ final class ContextHistory {
         if (!adaptive) for (int i = 0; i < groups.size() - window; i++) if (!pinned.containsKey(groups.get(i))) removed.add(groups.get(i));
     }
 
+    /** Resume the same evidence stream across intervening tools, including archived earlier pages. */
+    static Set<String> readingCalls(JSONArray facts) {
+        Set<String> sessions = new HashSet<>(), calls = new LinkedHashSet<>();
+        for (int i = facts.length() - 1; i >= 0; i--) {
+            JSONObject f = facts.getJSONObject(i);
+            if (!f.getString("kind").equals("tool")) continue;
+            if (!f.getJSONObject("payload").getString("tool").equals("context.read_result")) break;
+            String session = readSession(f); if (session != null) sessions.add(session);
+        }
+        for (Object entry : facts) {
+            JSONObject f = (JSONObject)entry;
+            String session = readSession(f);
+            if (session != null && sessions.contains(session)) calls.add(f.getJSONObject("payload").getString("proposalId"));
+        }
+        return calls;
+    }
+
+    private static String readSession(JSONObject fact) {
+        if (!fact.getString("kind").equals("tool") || !fact.getJSONObject("payload").getString("tool").equals("context.read_result")
+                || fact.optJSONObject("result") == null || !fact.getJSONObject("result").getString("status").equals("success")) return null;
+        JSONObject data = TaskProgress.data(fact);
+        if (data == null || !Arrays.asList("tool-result-json-v1", "tool-result-selection-json-v1").contains(data.optString("encoding"))) return null;
+        JSONObject args = new JSONObject(fact.getJSONObject("payload").getString("argumentsJson"));
+        return JdbcRunStore.canonical(new JSONArray().put(args.getString("intent")).put(data.getString("resultHash"))
+                .put(data.getString("encoding")).put(args.has("selector") ? args.get("selector") : JSONObject.NULL));
+    }
+
     /** Only typed result handles produce dependencies; arguments are searched as complete values. */
     static void collect(Object value, Set<String> out, boolean typed, String field) {
         if (value instanceof JSONObject) {
@@ -97,6 +121,9 @@ final class ContextHistory {
         for (int group : groups) if (!removed.contains(group) && !pinned.containsKey(group)) { removed.add(group); return true; }
         return false;
     }
+
+    Set<Integer> mark() { return new LinkedHashSet<>(removed); }
+    void rewind(Set<Integer> mark) { removed.clear(); removed.addAll(mark); }
 
     void restore(JSONArray archived) {
         if (!adaptive || archived == null) return;

@@ -33,6 +33,7 @@ final class TaskProgress {
         Map<String, List<int[]>> ranges = new HashMap<>();
         JSONArray pagination = new JSONArray();
         Set<String> readingCalls = new LinkedHashSet<>();
+        Set<String> activeReading = ContextHistory.readingCalls(facts);
         for (Object entry : basis.getJSONArray("events")) {
             JSONObject event = (JSONObject)entry; String type = event.getString("event_type");
             JSONObject input = null;
@@ -46,7 +47,7 @@ final class TaskProgress {
             if (!fact.getString("kind").equals("tool")) continue;
             JSONObject call = fact.getJSONObject("payload"), result = fact.optJSONObject("result");
             String name = call.getString("tool");
-            if (!name.equals("context.read_result")) readingCalls.clear(); else readingCalls.add(fact.getString("intent"));
+            if (activeReading.contains(call.getString("proposalId"))) readingCalls.add(fact.getString("intent"));
             if (result == null) continue;
             JSONObject args = new JSONObject(call.getString("argumentsJson"));
             String fingerprint = name + ":" + JdbcRunStore.hash(args);
@@ -110,6 +111,36 @@ final class TaskProgress {
                 .put("queryRoutes", tail(routes, 8)).put("readingSessions", readers)
                 .put("errorResolutions", corrected).put("unresolvedErrors", unresolved).put("unresolvedDependencies", dependencies)
                 .put("readingIntents", new JSONArray(readingCalls)).put("completion", "not-inferred");
+    }
+    /** Ledger coverage records what was fetched; visibility records what this model request can reconstruct. */
+    static void visibleReadback(JSONObject memory, JSONArray facts, JSONArray messages) {
+        Set<String> selected = new HashSet<>();
+        for (Object entry : messages) {
+            JSONObject message = (JSONObject)entry;
+            if (message.getString("role").equals("tool")) selected.add(message.optString("proposalId"));
+        }
+        for (Object entry : memory.getJSONArray("readingSessions")) {
+            JSONObject session = (JSONObject)entry; List<int[]> ranges = new ArrayList<>();
+            for (Object value : facts) {
+                JSONObject f = (JSONObject)value;
+                if (!f.getString("kind").equals("tool") || !selected.contains(f.getJSONObject("payload").getString("proposalId"))
+                        || !f.getJSONObject("payload").getString("tool").equals("context.read_result")) continue;
+                JSONObject data = data(f);
+                if (data == null || !data.optString("encoding").equals("tool-result-json-v1") || !data.getString("resultHash").equals(session.getString("resultHash"))) continue;
+                JSONObject args = new JSONObject(f.getJSONObject("payload").getString("argumentsJson"));
+                if (!args.getString("intent").equals(session.getString("intent"))) continue;
+                int start = args.getInt("offset"), count = data.getString("text").codePointCount(0, data.getString("text").length());
+                ranges.add(new int[]{start, start + count});
+            }
+            ranges.sort(Comparator.comparingInt(a -> a[0])); int end = 0; JSONArray coverage = new JSONArray();
+            for (int[] range : ranges) {
+                coverage.put(new JSONObject().put("offset", range[0]).put("endOffset", range[1]));
+                if (range[0] <= end) end = Math.max(end, range[1]);
+            }
+            boolean complete = end == session.getInt("totalCodePoints");
+            session.put("visibleRanges", coverage).put("visibleContiguousCodePoints", end).put("visibleComplete", complete)
+                    .put("visibleNextOffset", complete ? JSONObject.NULL : end);
+        }
     }
     private static JSONArray tail(JSONArray array, int max) {
         JSONArray out = new JSONArray(); for (int i = Math.max(0, array.length() - max); i < array.length(); i++) out.put(array.get(i)); return out;

@@ -148,6 +148,59 @@ public final class ContextCompactionTest {
         check(visible(compact, "p6").getString("nextCursor").equals("cursor-unconsumed"), "unconsumed cursor was retired");
         check(compact.getString("requestDigest").equals(contexts.assemble(identity, limited, new JSONArray()).getString("requestDigest")), "adaptive reconstruction is not deterministic");
     }
+    static void paginationChain() throws Exception {
+        JSONObject profile = task("context-pagination", release, "context-large", 4096);
+        profile.getJSONObject("contextPolicy").put("adaptiveHistory", true).put("taskState", true).put("maxInputBytes", 30000);
+        profiles.publish(T, profile);
+        String run = run("context-pagination", "Read all requested pages and summarize the records");
+        JdbcRunStore.Lease lease = running(run, 60000);
+        for (int n = 0; n < 6; n++) {
+            JSONObject route = new JSONObject(); if (n > 0) route.put("cursor", "cursor-" + n);
+            JSONObject args = new JSONObject().put("skill", "test/demo").put("connectorId", "records").put("argumentsJson", route.toString());
+            JSONArray rows = new JSONArray();
+            for (int i = 0; i < 120; i++) rows.put(new JSONObject().put("id", "record-" + n + "-" + i).put("value", i));
+            JSONObject data = new JSONObject().put("records", rows).put("nextCursor", "cursor-" + (n + 1));
+            ProgressTest.step(lease, n, "common.data.query", args, ProgressTest.success(data.toString()));
+        }
+        JSONObject snapshot = contexts.assemble(identity, run, new JSONArray());
+        check(snapshot.getJSONObject("historySelection").getJSONArray("archived").length() > 0, "consumed cursor chain prevented retirement");
+        check(visible(snapshot, "p5").getString("nextCursor").equals("cursor-6"), "active pagination cursor was lost");
+        check(snapshot.getJSONObject("taskState").getJSONObject("workingMemory").getJSONArray("unresolvedDependencies").length() == 1,
+                "consumed pagination cursors remained active");
+        JSONObject recovered = (JSONObject)resources.invoke(identity, run, "context.read_result", new JSONObject().put("intent", "p0/1")
+                .put("offset", 0).put("limit", 1024).put("selector", "/records/0"));
+        check(recovered.getJSONObject("value").getString("id").equals("record-0-0"), "archived page could not be recovered");
+    }
+    static void interleavedReadback() throws Exception {
+        for (boolean adaptive : new boolean[]{true, false}) interleavedReadback(adaptive);
+    }
+    static void interleavedReadback(boolean adaptive) throws Exception {
+        String version = "context-interleaved-" + adaptive;
+        JSONObject profile = task(version, release, "context-large", 4096);
+        profile.getJSONObject("contextPolicy").put("adaptiveHistory", adaptive).put("historyWindow", 1).put("taskState", true).put("maxInputBytes", 24000);
+        profiles.publish(T, profile);
+        String run = run(version, "Reconstruct the original result while making an unrelated query between pages");
+        JdbcRunStore.Lease lease = running(run, 60000);
+        JSONObject original = ProgressTest.success(new JSONObject().put("unknownExact", text(1100)).toString());
+        ProgressTest.step(lease, 0, "common.data.query", new JSONObject(), original);
+        JSONObject firstArgs = new JSONObject().put("intent", "p0/1").put("offset", 0).put("limit", 1024);
+        JSONObject first = (JSONObject)resources.invoke(identity, run, "context.read_result", firstArgs);
+        ProgressTest.step(lease, 1, "context.read_result", firstArgs, ProgressTest.success(first.toString()));
+        ProgressTest.step(lease, 2, "common.data.query", new JSONObject().put("independent", true), ProgressTest.success(new JSONObject().put("unknownExact", text(10000)).toString()));
+        JSONObject middle = contexts.assemble(identity, run, new JSONArray());
+        JSONObject hidden = middle.getJSONObject("taskState").getJSONObject("workingMemory").getJSONArray("readingSessions").getJSONObject(0);
+        check(!hidden.getBoolean("visibleComplete"), "historical read coverage was confused with current visibility");
+        if (!adaptive) check(hidden.getJSONArray("visibleRanges").length() == 0, "fixed window did not archive the first readback page");
+        contexts.checkpoint(lease, middle.getLong("basisVersion"), middle);
+        JSONObject secondArgs = new JSONObject().put("intent", "p0/1").put("offset", first.getInt("nextOffset")).put("limit", 1024);
+        JSONObject second = (JSONObject)resources.invoke(identity, run, "context.read_result", secondArgs);
+        ProgressTest.step(lease, 3, "context.read_result", secondArgs, ProgressTest.success(second.toString()));
+        JSONObject snapshot = contexts.assemble(identity, run, new JSONArray());
+        check((visible(snapshot, "p1").getString("text") + visible(snapshot, "p3").getString("text")).equals(JdbcRunStore.canonical(original)),
+                "resumed readback did not restore the earlier archived page");
+        JSONObject session = snapshot.getJSONObject("taskState").getJSONObject("workingMemory").getJSONArray("readingSessions").getJSONObject(0);
+        check(session.getBoolean("complete") && session.getBoolean("visibleComplete"), "complete readback visibility was not measured");
+    }
     static void watermarks() throws Exception {
         JSONObject policy = new JSONObject().put("adaptiveHistory", true).put("compressionTriggerPercent", 60).put("compressionTargetPercent", 80);
         fail("CONTEXT_THRESHOLDS_INVALID", () -> ContextPolicy.validate(policy));
@@ -166,11 +219,85 @@ public final class ContextCompactionTest {
         JSONObject after = contexts.assemble(identity, run, new JSONArray());
         check(before.getString("requestDigest").equals(after.getString("requestDigest")), "checkpoint re-expanded compacted context");
         check(!after.getJSONObject("compressionState").getBoolean("pressureTriggered"), "compression retriggered below high watermark");
+
+        JSONObject fixed = task("context-unreachable-target", release, "context-large", 4096);
+        fixed.getJSONObject("contextPolicy").put("adaptiveHistory", true).put("maxInputBytes", 40000)
+                .put("compressionTriggerPercent", 80).put("compressionTargetPercent", 60);
+        profiles.publish(T, fixed);
+        String fixedRun = run("context-unreachable-target", "Explain the confirmed evidence for " + text(23000));
+        JdbcRunStore.Lease fixedLease = running(fixedRun, 60000);
+        resources.activate(identity, fixedRun, release);
+        ProgressTest.step(fixedLease, 0, "common.data.query", new JSONObject().put("page", 0), ProgressTest.success(new JSONObject().put("text", text(4096)).toString()));
+        JSONObject preserved = contexts.assemble(identity, fixedRun, new JSONArray());
+        check(visible(preserved, "p0").getString("text").length() == 4096, "unreachable soft watermark erased useful evidence");
+        check(preserved.getJSONObject("compressionState").getBoolean("targetUnreachable") && !preserved.getJSONObject("compressionState").getBoolean("targetReached"),
+                "unreachable target was not distinguished from successful compression");
+        check(RuntimeSupport.bytes(preserved.getJSONObject("request")).length < 40000, "soft-target fallback exceeded the hard budget");
+        for (Object entry : preserved.getJSONObject("request").getJSONArray("messages")) {
+            JSONObject message = (JSONObject)entry;
+            if (message.getString("provenance").equals("skill-resource")) check(message.getJSONObject("content").getInt("nextOffset") == -1,
+                    "restoring the admitted resource view retained a truncated cursor");
+        }
+        contexts.checkpoint(fixedLease, preserved.getLong("basisVersion"), preserved);
+        check(contexts.assemble(identity, fixedRun, new JSONArray()).getString("requestDigest").equals(preserved.getString("requestDigest")),
+                "soft-target fallback changed across checkpoint");
     }
     static JSONObject response(JSONObject content) {
         return new JSONObject().put("choices", new JSONArray().put(new JSONObject().put("index", 0).put("finish_reason", "stop")
                 .put("message", new JSONObject().put("content", content.toString()))))
                 .put("usage", new JSONObject().put("prompt_tokens", 10).put("completion_tokens", 5));
+    }
+    static void summaryWireBudget() throws Exception {
+        profiles.publish(T, ModelProfiles.model("context-summary-large", false, 200000).put("version", "1"));
+        JSONObject profile = task("context-summary-headroom", release, "context-summary-large", 4096);
+        profile.getJSONObject("contextPolicy").put("adaptiveHistory", true).put("taskState", true).put("maxInputBytes", 30000)
+                .put("budgetVersion", "transport-bytes-v1").put("finalWireGuard", true).put("compressionTriggerPercent", 80).put("compressionTargetPercent", 60)
+                .put("semanticSummary", new JSONObject().put("enabled", true).put("maxCalls", 1).put("outputReserve", 2048).put("maxSummaryBytes", 4096));
+        profiles.publish(T, profile);
+        int scheduled = 0;
+        for (int pages : new int[]{3, 7}) {
+            String run = run("context-summary-headroom", "Summarize original records and preserve literal escaped text");
+            JdbcRunStore.Lease lease = running(run, 60000); resources.activate(identity, run, release);
+            for (int n = 0; n < 3; n++) ProgressTest.step(lease, n, "resource.read", new JSONObject().put("page", n),
+                    ProgressTest.success(new JSONObject().put("unknownExact", text(4500)).put("value", n).toString()));
+            JSONArray handles = new JSONArray();
+            for (int n = 0; n < pages; n++) handles.put(new JSONObject().put("release", release).put("path", "guide.txt").put("offset", n).put("limit", 1));
+            JSONObject request = contexts.assemble(identity, run, handles).getJSONObject("request"), pin = catalog.pinned(T, S, run);
+            JSONObject body = ModelWire.prepare(pin.getJSONObject("model"), request); new ModelBudgets().admitWire(pin, body);
+            JSONObject spec = request.optJSONObject("contextSummaryRequest");
+            if (spec == null) continue; // Optional summarization yields its reservation when fixed sources need the space.
+            scheduled++;
+            JSONObject source = spec.getJSONArray("sources").getJSONObject(0); String slashes = text(256).replace('x', '\\');
+            JSONObject content = new JSONObject().put("progress", slashes + slashes).put("decisions", new JSONArray().put(slashes).put(slashes).put(slashes))
+                    .put("constraints", new JSONArray()).put("nextSteps", new JSONArray()).put("evidence", new JSONArray().put(new JSONObject()
+                            .put("intent", source.getString("intent")).put("resultHash", source.getString("resultHash"))));
+            JSONObject summary = ContextSummary.validate(spec, response(content)); check(summary != null, "valid escaped summary was refused");
+            int before = RuntimeSupport.bytes(body).length; body.getJSONArray("messages").put(ContextSummary.wireMessage(summary));
+            check(RuntimeSupport.bytes(body).length - before <= ContextSummary.wireReserve(4096), "summary reserve omitted wire escaping");
+            new ModelBudgets().admitWire(pin, body);
+        }
+        check(scheduled > 0, "summary budget regression never exercised actual summary insertion");
+    }
+    static void resourcePageIdentity() throws Exception {
+        String source = catalog.pinned(T, S, run("context-integrity", "fixture")).getJSONArray("releases").getJSONObject(0).getString("digest");
+        JSONObject profile = task("context-page-identity", source, "context-large", 128);
+        profile.getJSONObject("contextPolicy").put("adaptiveHistory", true); profiles.publish(T, profile);
+        String run = run("context-page-identity", "Read business records and a real resource page"); JdbcRunStore.Lease lease = running(run, 60000);
+        JSONObject numeric = new JSONObject().put("release", "v1").put("path", "business-records").put("offset", 12).put("nextOffset", 777).put("text", text(1000));
+        JSONObject opaque = RuntimeSupport.copy(numeric).put("offset", "opaque-cursor").put("nextOffset", "opaque-next").put("nested", numeric);
+        ProgressTest.step(lease, 0, "common.data.query", new JSONObject(), ProgressTest.success(opaque.toString()));
+        ProgressTest.step(lease, 1, "common.data.query", new JSONObject().put("page", 1), ProgressTest.success(numeric.toString()));
+        resources.activate(identity, run, source);
+        JSONObject args = new JSONObject().put("release", source).put("path", "guide.txt").put("offset", 20).put("limit", 1024);
+        JSONObject original = (JSONObject)resources.invoke(identity, run, "resource.read", args);
+        ProgressTest.step(lease, 2, "resource.read", args, ProgressTest.success(original.toString()));
+        JSONObject snapshot = contexts.assemble(identity, run, new JSONArray()), business = visible(snapshot, "p0");
+        check(business.getString("offset").equals("opaque-cursor") && business.getString("nextOffset").equals("opaque-next"), "business string cursor was treated as a resource offset");
+        check(business.getJSONObject("nested").getInt("nextOffset") == 777 && visible(snapshot, "p1").getInt("nextOffset") == 777,
+                "numeric business cursor was rewritten based on field names");
+        JSONObject page = visible(snapshot, "p2");
+        check(page.getString("text").length() < original.getString("text").length() && page.getInt("nextOffset") == 20 + page.getString("text").length(),
+                "known resource cursor did not follow the visible text");
     }
     static JSONObject modelJob(ModelJobStore jobs, JdbcRunStore.Lease lease, JSONObject request, String worker) throws Exception {
         JSONObject model = catalog.pinned(T, S, lease.runId).getJSONObject("model");
@@ -231,7 +358,11 @@ public final class ContextCompactionTest {
         inference.finish(first.getString("inference_id"), summaryResponse, null, true, "unit");
         fail("INFERENCE_EVIDENCE_REQUIRED", () -> inference.reconcile(summaryJob.getString("jobId"), claim));
         JSONObject main = ModelWire.prepare(model, input); main.getJSONArray("messages").put(ContextSummary.wireMessage(verified));
-        JSONObject second = inference.submit(summaryJob.getString("jobId"), "summary", "instance-summary", "instance-summary", 2, JdbcRunStore.hash(main), main);
+        JSONObject oversizedSummary = RuntimeSupport.copy(main); oversizedSummary.getJSONArray("messages").put(new JSONObject().put("role", "user").put("content", text(50000)));
+        JSONObject summaryRejected = inference.submit(summaryJob.getString("jobId"), "summary", "instance-summary", "instance-summary", 2, JdbcRunStore.hash(oversizedSummary), oversizedSummary);
+        check(summaryRejected.getInt("actual_finished") == 1, "summary fallback lacked finished pre-dispatch rejection evidence");
+        JSONObject withoutSummary = ModelWire.prepare(model, input);
+        JSONObject second = inference.submit(summaryJob.getString("jobId"), "summary", "instance-summary", "instance-summary", 3, JdbcRunStore.hash(withoutSummary), withoutSummary);
         inference.finish(second.getString("inference_id"), response(decision), null, true, "unit");
         JSONObject reconciled = inference.reconcile(summaryJob.getString("jobId"), RuntimeSupport.copy(claim).put("contextSummary", new JSONObject().put("forged", true)));
         check(JdbcRunStore.hash(reconciled.getJSONObject("contextSummary")).equals(JdbcRunStore.hash(verified)), "worker summary overrode actual Java response");
@@ -252,7 +383,7 @@ public final class ContextCompactionTest {
     public static void main(String[] args) throws Exception {
         ExecutionTest.prepare(Files.createTempDirectory("harness-context-regression-"), "");
         profiles.publish(T, RuntimeSupport.copy(model).put("id", "context-large").put("maxContextTokens", 200000));
-        rendering(); integrity(); workingState(); adaptiveHistory(); watermarks(); inferenceEvidence();
+        rendering(); integrity(); workingState(); adaptiveHistory(); paginationChain(); interleavedReadback(); watermarks(); summaryWireBudget(); inferenceEvidence(); resourcePageIdentity();
         System.out.println("PASS: wire parity, exact evidence/cursors/readback, working state, dependency selection, watermarks/restart, authoritative budget retries and optional semantic summaries");
     }
 }

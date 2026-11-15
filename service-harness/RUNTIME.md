@@ -64,7 +64,9 @@ run 的权限是租户策略声明、可信身份授权和平台/固定 release 
 
 可选 `historyWindow` 仅移除较早且完整确认的 assistant/tool 调用组，保留全部用户输入、待决执行和最后若干完整组。snapshot 的 `historySelection` 记录索引和摘要，完整 facts 与原账本不删改。索引只含 intent、工具名、状态和摘要，不能替代原始观测；`context.read_result(intent,offset,limit)` 按 Unicode codepoint 分页读取本 run 已确认工具结果的规范 JSON，返回原 resultHash、totalCodePoints、nextOffset；参数范围为 offset≥0、limit=1..8192。原结果中的引用、覆盖、cursor 和答案可完整恢复。此工具复用 resource.read 权限，校验租户、属主和固定工具选择，拒绝未确认结果与跨 run 句柄，不重执行工具。未获授权回读时保留原完整历史。
 
-默认修订 3 启用 `adaptiveHistory`：预算充足时保留全部完整组，达到高水位后逐组归档，保留最新组、当前连续回读会话、未消费 nextCursor 和它们通过完整类型句柄引用的证据闭包。`historySelection.pinned` 记录保留理由，system 账本元数据使用计数及完整 facts 摘要，避免与历史索引重复装载全部元数据。未决组与调用/结果配对不拆散。旧固定 historyWindow 行为仍可单独使用。
+默认修订 3 启用 `adaptiveHistory`：预算充足时保留全部完整组，达到高水位后逐组归档，保留最新组、当前回读会话、未消费 nextCursor 和它们通过完整类型句柄引用的证据闭包。nextCursor 只表示分页执行顺序，不形成前页正文的递归依赖；成功消费后可归档前页，其他证据句柄的依赖继续保留。恢复同一 intent/resultHash 的回读时，即使中间穿插其他工具，也恢复并保留该来源的早期页；selector 选择与原文分页分别识别。`historySelection.pinned` 记录保留理由，system 账本元数据使用计数及完整 facts 摘要，避免重复装载。未决组与调用/结果配对不拆散。旧固定 historyWindow 行为仍可单独使用。
+
+`workingMemory.readingSessions` 的 ranges/complete/nextOffset 表示账本中已经取回的原文覆盖；visibleRanges/visibleContiguousCodePoints/visibleComplete/visibleNextOffset 表示当前模型消息中可拼接的覆盖。历史读取完成不表示全部原文仍在当前上下文中。可见范围在每次选择历史后重新计入预算。
 
 回读可增加 `selector`，按 RFC 6901 JSON Pointer 在原结果解码后的 dataJson 内选择完整字段或记录，例如 `{"intent":"p0/1","offset":0,"limit":1024,"selector":"/records/0"}`。返回 `encoding=tool-result-selection-json-v1`、原 resultHash、selector、selectedHash、complete=true 和完整 value。选择值超过 limit（codepoint）、路径无效或不存在时拒绝，不返回部分对象；可收窄 selector 或使用原有分页。两种回读编码在 Java/Python 的模型视图中均保持原值。
 
@@ -86,12 +88,12 @@ JSON 模型适配将已确认的 assistant 历史序列化为原决策 schema，
 
 上下文策略使用 `context-v1` / `extractive-v1`；java-inference 的预算版本为 `transport-bytes-v1`，scripted 为 `full-json-bytes-v1`。模型按 tokenizer/template 的 ID、版本及 adapter/nativeTools 匹配，不要求填写配置摘要。渲染为 `harness-json-template-v1` 前缀加完整规范化请求；预算包含 messages、工具完整 schema、响应 schema、模板开销和 outputReserve，并另检查 maxInputBytes。字节计数不等于远端模型真实 token 用量。
 
-在线模型另用共享 `openai-wire-v1` 渲染器计量 Python 最终发送的 messages/tools、工具说明和参数示例，通过 wireDigest 校验两端一致性。作业上限 48000 字节独立于上下文上限，组装预留 Coordinator 增补空间。默认从扣除输出/修复预留的可用预算的 80% 提前触发，尽量压到 60%；检查点保存 sourceLimits 与归档证据，下一轮不自动重新扩张。固定规则和完整用户输入高于软目标但满足硬限制时可继续，硬限制无法满足则拒绝。
+在线模型另用共享 `openai-wire-v1` 渲染器计量 Python 最终发送的 messages/tools、工具说明和参数示例，通过 wireDigest 校验两端一致性。作业上限 48000 字节独立于上下文上限，组装预留 Coordinator 增补空间。默认从扣除输出/修复预留的可用预算的 80% 提前触发，尽量压到 60%；检查点保存 sourceLimits 与归档证据，下一轮不自动重新扩张。探测低水位时保存首个满足硬预算的候选；最低可达视图仍超过软目标时恢复该候选并记录 targetUnreachable=true，避免耗尽正文额度。恢复同时还原资源游标。硬限制无法满足则拒绝。
 
-先按 maxSourceChars 提取资源与工具文本，压力下归档可移除的完整组，再确定性缩短保留来源的正文。合法工具 dataJson 使用 `structured-json-v1`：保留 JSON 结构、数组覆盖、完整 Ref/Id/cursor/version/hash、URL/URI、source/location/fileCode、release/path、answer/response 和未知字段字符串，递归处理内嵌 JSON；只缩短 text/content/snippet/description 等显式正文。resource.read 的可见 text 变化时，nextOffset 改为 offset 加可见 codepoint 数，并保留非空正文至少一个 codepoint，避免跳过原文或游标不前进。原任务、权限、调用参数、schema、pending 与原始账本不改写。审计记录实际 retainedCodePoints 和正文额度 textAllowanceCodePoints。
+先按 maxSourceChars 提取资源与工具文本，压力下归档可移除的完整组，再确定性缩短保留来源的正文。合法工具 dataJson 使用 `structured-json-v1`：保留 JSON 结构、数组覆盖、完整 Ref/Id/cursor/version/hash、URL/URI、source/location/fileCode、release/path、answer/response 和未知字段字符串，递归处理内嵌 JSON；只缩短 text/content/snippet/description 等显式正文。只有已确认来源为 resource.read 且 offset/nextOffset 为有效整数的根结果，才在可见 text 变化时修正 nextOffset，并保留非空正文至少一个 codepoint。普通业务对象及嵌套对象不因同名字段而改写游标。原任务、权限、调用参数、schema、pending 与原始账本不改写。审计记录实际 retainedCodePoints 和正文额度 textAllowanceCodePoints。
 
-可选 `semanticSummary` 默认关闭。启用后从已归档原始证据的有界视图生成 progress/decisions/constraints/nextSteps 与证据引用；原用户输入、事件范围、来源清单和模型版本绑定在摘要中。摘要走现有 Java 持久推理队列，最多每 run 一次（可配置 1..2），独立计 usage；Java 以实际响应重建并核验引用，不接受 worker 自报来源。恢复时只复用用户输入及证据仍匹配的摘要，并以 user 数据注入；不连续总结旧摘要。摘要失败可回退确定性状态，未知执行不继续发起决策。原文、权限和完成检查继续来自各自权威入口。
+可选 `semanticSummary` 默认关闭。启用后从已归档原始证据的有界视图生成 progress/decisions/constraints/nextSteps 与证据引用；原用户输入、事件范围、来源清单和模型版本绑定在摘要中。仅实际安排摘要请求时，按完整来源包装上限的双重 JSON 转义开销及消息外壳预留注入空间；实际响应加入最终请求后仍经 Java 准入复核。摘要走现有持久推理队列，最多每 run 一次（可配置 1..2），独立计 usage；Java 以实际响应重建并核验引用，不接受 worker 自报来源。恢复时只复用用户输入及证据仍匹配的摘要，并以 user 数据注入；不连续总结旧摘要。摘要失败可回退确定性状态，未知执行不继续发起决策。原文、权限和完成检查继续来自各自权威入口。
 
 snapshot 保存 configDigest、固定任务/权限、执行事实、pending、压缩记录、模型 request、精确 rendered、模板及预算。checkpoint 在同一事务中校验 owner、CAS、basisVersion 和配置绑定，并提交事件/Outbox。restore 重验授权、摘要及模板，重建相同输入字节；是否允许再次执行仍由 Coordinator 根据当前状态和 fence 判断。
 
-snapshot 的 `budgetMeasurement` 区分字节估算和服务器已注册计数器；`inputTokens` 在字节模式下不代表远端实际 token。实际请求由 `InferenceStore` 在身份、固定 profile 和幂等校验后、入队前复核，包括摘要注入及格式修复。超限持久保存 `INFERENCE_CONTEXT_BUDGET_EXCEEDED`、actual_finished=1 和未派发证据；原 attempt 同摘要幂等回放，不同摘要拒绝。只有这类预算拒绝允许最多两次新 attempt，重建仅缩短正文，保留引用、参数和完整回读；两次仍失败则结束。预算拒绝零 usage，摘要和正常请求按实际响应累计，摘要及预算拒绝均不计格式修复。unknown 不重试。
+snapshot 的 `budgetMeasurement` 区分字节估算和服务器已注册计数器；`inputTokens` 在字节模式下不代表远端实际 token。实际请求由 `InferenceStore` 在身份、固定 profile 和幂等校验后、入队前复核，包括摘要注入及格式修复。超限持久保存 `INFERENCE_CONTEXT_BUDGET_EXCEEDED`、actual_finished=1 和未派发证据；原 attempt 同摘要幂等回放，不同摘要拒绝。只有这类预算拒绝允许最多两次新 attempt：先撤掉本轮可选摘要，后续再缩短正文，保留引用、参数和完整回读；两次仍失败则结束。本地 maxWireBytes 超限时可在首次派发前省略摘要。预算拒绝零 usage，摘要和正常请求按实际响应累计，摘要及预算拒绝均不计格式修复。unknown 不重试。

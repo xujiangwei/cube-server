@@ -21,20 +21,35 @@ final class ContextData {
     }
 
     static String compact(Object value, int allowance) {
-        return JdbcRunStore.canonical(project(value, "", new int[]{allowance}));
+        return compact(value, allowance, false);
+    }
+
+    static String compact(Object value, int allowance, boolean resourcePage) {
+        Object projected = project(value, "", new int[]{allowance});
+        if (resourcePage && value instanceof JSONObject && projected instanceof JSONObject) {
+            JSONObject original = (JSONObject)value, out = (JSONObject)projected;
+            Object offset = original.opt("offset"), next = original.opt("nextOffset");
+            if (original.opt("release") instanceof String && original.opt("path") instanceof String
+                    && original.opt("text") instanceof String && pageOffset(offset, 0) && pageOffset(next, -1)
+                    && !original.getString("text").equals(out.getString("text"))) {
+                String text = out.getString("text"), raw = original.getString("text");
+                if (text.isEmpty() && !raw.isEmpty()) { text = raw.substring(0, raw.offsetByCodePoints(0, 1)); out.put("text", text); }
+                long end = ((Number)offset).longValue() + text.codePointCount(0, text.length());
+                if (end <= Integer.MAX_VALUE) out.put("nextOffset", end);
+            }
+        }
+        return JdbcRunStore.canonical(projected);
+    }
+
+    private static boolean pageOffset(Object value, int minimum) {
+        return (value instanceof Integer || value instanceof Long) && ((Number)value).longValue() >= minimum
+                && ((Number)value).longValue() <= Integer.MAX_VALUE;
     }
 
     private static Object project(Object value, String key, int[] remaining) {
         if (value instanceof JSONObject) {
             JSONObject out = new JSONObject(), object = (JSONObject)value;
             for (String child : new TreeSet<>(object.keySet())) out.put(child, project(object.get(child), child, remaining));
-            // Resource cursors address the original codepoint stream, including the last page.
-            if (object.has("release") && object.has("path") && object.has("offset") && object.has("nextOffset")
-                    && object.opt("text") instanceof String && !object.getString("text").equals(out.getString("text"))) {
-                if (out.getString("text").isEmpty() && !object.getString("text").isEmpty())
-                    out.put("text", object.getString("text").substring(0, object.getString("text").offsetByCodePoints(0, 1)));
-                out.put("nextOffset", object.getInt("offset") + out.getString("text").codePointCount(0, out.getString("text").length()));
-            }
             return out;
         }
         if (value instanceof JSONArray) {
