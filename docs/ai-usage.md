@@ -13,6 +13,16 @@ AI 用量是 Console Web 的功能，登录后从导航「AI 用量」进入 `/a
 - 数据库时间为 UTC epoch 毫秒，显示与自然月账期使用 Asia/Shanghai。归属以持久派发开始时间为准，迟到结果及修订更新原小时、原账期。流式累计快照取最新值，不累加快照。
 - 旧 `aigc_usage` 保留，不能回填历史账单。旧业务用量查询只允许查询当前 Token 自身 Contact；管理员从 Console 查询。
 
+## 业务 REST 用量查询
+
+`GET /aigc/usage/:token?cid=<Contact ID>` 读取旧累计用量，`cid` 必须是正整数，且必须与该 Token 关联的 Contact ID 一致。不能使用一个用户的 Token 查询另一个用户；查询其他 Contact 时使用目标 Contact 自己的 Token，管理员跨用户查询使用 Console「AI 用量」。接口参数与示例见 [REST API 用量查询](rest-api/output/index.html#api-Data_Management-查询用户用量)。
+
+可通过 `GET /contact/get/:token?code=<同一个 Token>` 核对归属，读取响应的 `id` 并作为用量查询的 `cid`。例如 Token 关联的 `id` 为 `22003303`，则只能查询 `cid=22003303`。
+
+当前实现会将后端查询失败统一映射为 HTTP 400 和 `{"error":{"reason":"SERVER_FAILURE","state":400,"message":"Server failure"}}`，其中也包括 Token 与 `cid` 不匹配。因此遇到该错误应先核对 Token 归属及有效期，不能仅凭 `SERVER_FAILURE` 判断服务故障；确认匹配后仍失败，再检查服务日志。
+
+HTTP 200 且 `total=0`、`usages=[]` 是正常的空结果，表示本接口没有返回旧累计用量记录。Contact 月度账单、实际与估算 Token 等统计以 Console「AI 用量」为准。
+
 ## 数据源配置
 
 复制 `console/config/ai-usage-sources.json.example` 为 Console 工作目录的 `config/ai-usage-sources.json`，删除不用的示例项，填写实际的库地址。可在 Console properties 中使用 `ai.usage.sources=/absolute/path/sources.json` 指定文件。配置在 Console 启动时加载。

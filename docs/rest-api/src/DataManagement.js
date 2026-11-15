@@ -352,12 +352,15 @@
  * @apiGroup Data_Management
  * @apiVersion 1.0.0
  * 
- * @apiDescription 使用用户触点 ID <code>cid</code> 查询其用量统计，适合展示账户使用情况。
- *                 <p>按下方返回字段读取各项统计值，数值为 0 时也应正常展示；查询失败时先检查令牌与用户 ID。</p>
+ * @apiDescription 使用用户触点 ID <code>cid</code> 查询当前 Token 自身触点的旧累计用量，适合展示账户使用情况。
+ *                 <p><code>cid</code> 必须为正整数，且必须与 Token 关联的 Contact ID 一致。不能使用一个用户的 Token 查询另一个用户；查询其他触点时使用目标触点自己的 Token，管理员跨用户查询使用 Console「AI 用量」。</p>
+ *                 <p>可先调用 <code>GET /contact/get/:token?code=&lt;同一个 Token&gt;</code>，将响应的 <code>id</code> 作为 <code>cid</code>。例如 Token 关联的 id 为 22003303，则查询参数必须为 <code>cid=22003303</code>。</p>
+ *                 <p>当前实现中，Token 与 cid 不匹配也会返回 HTTP 400 和 <code>SERVER_FAILURE</code>，应先核对 Token 归属及有效期，不能仅凭该错误判断服务故障；确认匹配后仍失败，再联系服务提供方排查。</p>
+ *                 <p>数值为 0 时应正常展示；HTTP 200 且 <code>total=0</code>、<code>usages=[]</code> 是正常的空结果，表示本接口没有返回旧累计用量记录。Contact 月度账单、实际与估算 Token 等统计通过 Console「AI 用量」查询。</p>
  *
  * @apiParam {String} token 授权令牌。
  * 
- * @apiQuery {Number} cid 待查询用户的触点ID 。
+ * @apiQuery {Number} cid 当前 Token 自身触点的 ID，必须为正整数且与 Token 关联的 Contact ID 一致。
  * 
  * @apiSuccess {Number} contactId 用量所属的触点ID 。
  * @apiSuccess {Number} total 数据总条目数。
@@ -386,9 +389,27 @@
  *         }]
  *     }
  * 
- * @apiError 400 查询数据发生错误。
- * @apiError 401 Token 无效。
- * @apiError 403 参数错误。
+ * @apiSuccessExample {json} 无旧累计用量记录
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "contactId": 22003303,
+ *         "total": 0,
+ *         "usages": []
+ *     }
+ *
+ * @apiError 400 后端查询被拒绝或失败，当前统一返回 SERVER_FAILURE；包括 Token 与 cid 不匹配、cid 非正数等情况。先核对 Token 归属与有效期，确认后再排查服务故障。
+ * @apiError 401 Token 入口校验失败。
+ * @apiError 403 cid 缺失或不能解析为整数。
+ *
+ * @apiErrorExample {json} Token 与 cid 不匹配时的当前响应
+ *     HTTP/1.1 400 Bad Request
+ *     {
+ *         "error": {
+ *             "reason": "SERVER_FAILURE",
+ *             "state": 400,
+ *             "message": "Server failure"
+ *         }
+ *     }
  *
  * @apiParamExample {http} 完整请求示例
  *     GET http://211.157.179.37:7010/aigc/usage/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG?cid=22003303

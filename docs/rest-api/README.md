@@ -15,6 +15,12 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 
 `/filestorage/operation/*` 与文件上传接口默认返回 `{sn,name,data}` 外壳（`data` 内才是业务数据）。请求头 `x-baize-api-version: v1` 时改为直接返回业务数据；令牌可通过请求头 `x-baize-api-token` 传入而不写在请求体里。文件下载直接返回二进制内容。`/filestorage/operation/` 下的操作按 URL 后缀区分：`/list`、`/find`、`/delete`、`/modify`。
 
+### 用量查询的用户归属
+
+`GET /aigc/usage/:token?cid=<Contact ID>` 只允许查询当前 Token 自身触点的旧累计用量，`cid` 必须为正整数且与 Token 关联的 Contact ID 一致。可先调用 `GET /contact/get/:token?code=<同一个 Token>`，将响应的 `id` 用作 `cid`；查询其他触点时使用该触点自己的 Token，管理员跨用户查询使用 Console「AI 用量」。
+
+当前 Token 与 `cid` 不匹配也会返回 HTTP 400 和 `SERVER_FAILURE`，应先核对归属及令牌有效期，再排查服务故障。HTTP 200 且 `total=0`、`usages=[]` 是正常的空结果。完整参数和错误示例见 [查询用户用量](output/index.html#api-Data_Management-查询用户用量)，Console 账单与旧累计用量的区别见 [AI 用量说明](../ai-usage.md#业务-rest-用量查询)。
+
 ## 常见接入流程
 
 专项检测的 subtasks 注册、独立状态上报、节点就绪租约及共享容量约定见
