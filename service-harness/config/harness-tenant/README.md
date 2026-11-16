@@ -2,6 +2,8 @@
 
 本目录由 `execution.tenant.templates=./config/harness-tenant` 加载，只接受一份 `default.json`。模型、运行时、执行器和工具集配置统一位于相邻的 `harness-execution/`，放入本目录会在启动校验时被拒绝。
 
+策略初始化、不可变发布和 CAS 见[运行时方案](../../RUNTIME.md)，安装与授权步骤见[部署指南](../../BUSINESS-DEPLOYMENT.md)。用户后续补充不会扩大本策略权限、技能范围或业务配额，语义见[互动方案](../../INTERACTION.md)。
+
 ```json
 {
   "schemaVersion": 1,

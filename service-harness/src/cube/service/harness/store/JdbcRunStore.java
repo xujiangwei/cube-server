@@ -358,8 +358,12 @@ public final class JdbcRunStore {
      * @throws StoreException STORE_PAYLOAD_TOO_LARGE：UTF-8 编码超过 65536 字节
      */
     private static String json(Object value) {
+        return json(value, 65536);
+    }
+
+    private static String json(Object value, int maximum) {
         String text = canonical(value);
-        if (text.getBytes(StandardCharsets.UTF_8).length > 65536) {
+        if (text.getBytes(StandardCharsets.UTF_8).length > maximum) {
             throw new StoreException("STORE_PAYLOAD_TOO_LARGE");
         }
         return text;
@@ -546,6 +550,8 @@ public final class JdbcRunStore {
                 .put("eventSeq", row.getLong("event_seq"))
                 .put("state", row.getString("state"))
                 .put("executionSettlement", row.getString("execution_settlement"))
+                .put("inputRevision", row.optLong("input_revision", 0))
+                .put("appliedInputRevision", row.optLong("applied_input_revision", 0))
                 .put("executionProfileVersion", row.getString("profile_version"))
                 .put("selection", row.optJSONObject("selection"));
     }
@@ -583,7 +589,9 @@ public final class JdbcRunStore {
             throw new StoreException("VERSION_CONFLICT");
         }
         r.put("version", v + 1).put("event_seq", seq).put("updated_at", time);
-        String payload = json(data);
+        int payloadLimit = Arrays.asList("run.created", "message.accepted", "control.resume", "conversation.history", "run.waiting_input", "interaction.requested").contains(type)
+                ? 262144 : 65536;
+        String payload = json(data, payloadLimit);
         // 追加式、无内容的状态投影支持离线回放。它是权威事件的一部分，不是外部 trace sink；
         // 旧事件保持显式不完整。
         JSONObject persisted =
@@ -620,7 +628,7 @@ public final class JdbcRunStore {
                 r.getString("tenant"),
                 seq,
                 id(topic),
-                json(event),
+                json(event, payloadLimit * 2 + 4096),
                 time);
         if (type.startsWith("run.") && monitoringEvents.get() != null) monitoringEvents.get().add(snapshot(r));
         return snapshot(r);
@@ -803,9 +811,11 @@ public final class JdbcRunStore {
                     String runId = UUID.randomUUID().toString();
                     long time = now(c);
                     JSONObject pinned = resolver == null ? null : resolver.resolve(c);
+                    JSONObject history = pinned == null ? null : pinned.optJSONObject("conversationHistory");
+                    if (pinned != null) pinned.remove("conversationHistory");
                     update(
                             c,
-                            "INSERT INTO harness_run VALUES (?,?,?,?,?,0,0,NULL,0,0,?,?,?,?)",
+                            "INSERT INTO harness_run (run_id,tenant,subject_id,profile_version,state,version,event_seq,owner_id,fence,lease_until,execution_settlement,usage_settlement,created_at,updated_at) VALUES (?,?,?,?,?,0,0,NULL,0,0,?,?,?,?)",
                             runId,
                             tenant,
                             subject,
@@ -841,6 +851,13 @@ public final class JdbcRunStore {
                                     runId,
                                     attachments.getString(i));
                         }
+                    }
+                    if (history != null) {
+                        for (Object file : history.getJSONArray("attachmentIds")) {
+                            if (first(rows(c, "SELECT file_id FROM harness_file_binding WHERE run_id=? AND file_id=?", runId, file)) == null)
+                                update(c, "INSERT INTO harness_file_binding VALUES (?,?)", runId, file);
+                        }
+                        emit(c, run(c, tenant, subject, runId, true), "conversation.history", history, "coordinator");
                     }
                     JSONObject response =
                             emit(c, run(c, tenant, subject, runId, true), "run.created", request, "coordinator");
@@ -1257,6 +1274,10 @@ public final class JdbcRunStore {
                     if (!r.getString("state").equals("running")) {
                         throw new StoreException("INVALID_STATE_TRANSITION");
                     }
+                    if (kind.equals("round")) {
+                        if (payload.has("inputRevision") && payload.getLong("inputRevision") != r.getLong("input_revision"))
+                            throw new StoreException("INPUT_REVISION_CONFLICT");
+                    } else MessageStore.requireCurrent(r);
                     // 未对账的早先 attempt 必须先对账，才允许授权任何重试。
                     JSONObject pending =
                             first(
@@ -1272,14 +1293,16 @@ public final class JdbcRunStore {
                     }
                     update(
                             c,
-                            "INSERT INTO " + table + " VALUES (?,?,?,?,?,?,?,'pending',NULL,NULL)",
+                            "INSERT INTO " + table + " (run_id,intent_id,attempt,tenant,intent_hash,payload_json,origin_fence,status,result_json,result_hash,input_revision) VALUES (?,?,?,?,?,?,?,'pending',NULL,NULL,?)",
                             lease.runId,
                             intentId,
                             attempt,
                             lease.tenant,
                             digest,
                             json(payload),
-                            lease.fence);
+                            lease.fence,
+                            r.getLong("input_revision"));
+                    if (kind.equals("round")) MessageStore.applied(this, c, r);
                     if (kind.equals("round")) {
                         update(
                                 c,
@@ -1372,7 +1395,7 @@ public final class JdbcRunStore {
                             "UPDATE "
                                     + table
                                     + " SET status='confirmed',result_json=?,result_hash=? WHERE run_id=? AND intent_id=? AND attempt=?",
-                            json(result),
+                            json(result, kind.equals("round") ? 262144 : 65536),
                             resultHash,
                             lease.runId,
                             intentId,
@@ -1405,6 +1428,23 @@ public final class JdbcRunStore {
      * @return 存在未确认 intent 时返回 true
      * @throws SQLException SQL 执行失败
      */
+    boolean admitCall(Connection c, JSONObject r, String call, int attempt) throws Exception {
+        JSONObject intent = first(rows(c, "SELECT input_revision,admitted_at FROM harness_tool_call WHERE run_id=? AND intent_id=? AND attempt=?", r.getString("run_id"), call, attempt));
+        if (intent == null) throw new StoreException("INTENT_EVIDENCE_MISMATCH");
+        if (intent.getLong("admitted_at") > 0) return true;
+        if (intent.getLong("input_revision") != r.getLong("input_revision") || !r.getString("state").equals("running")) return false;
+        update(c, "UPDATE harness_tool_call SET admitted_at=? WHERE run_id=? AND intent_id=? AND attempt=?", now(c), r.getString("run_id"), call, attempt);
+        return true;
+    }
+
+    public void admitCall(Lease lease, JSONObject call) {
+        tx(c -> {
+            JSONObject r = run(c, lease.tenant, lease.subject, lease.runId, true); owner(c, r, lease);
+            if (!admitCall(c, r, call.getString("intent_id"), call.getInt("attempt"))) throw new StoreException("INPUT_REVISION_CONFLICT");
+            return null;
+        });
+    }
+
     private boolean outstanding(Connection c, String runId) throws SQLException {
         return first(
                 rows(
@@ -1620,6 +1660,13 @@ public final class JdbcRunStore {
             String executionSettlement,
             JSONObject result,
             JSONArray actualUsage) {
+        return finish(lease, expectedVersion, state, executionSettlement, result, actualUsage, -1);
+    }
+
+    /** Atomically reject a terminal decision derived from a superseded input revision. */
+    public JSONObject finish(
+            Lease lease, long expectedVersion, String state, String executionSettlement,
+            JSONObject result, JSONArray actualUsage, long inputRevision) {
         if (!terminal(state)
                 || !Arrays.asList("confirmed", "unknown").contains(executionSettlement)
                 || (state.equals("succeeded") && !executionSettlement.equals("confirmed"))) {
@@ -1645,6 +1692,11 @@ public final class JdbcRunStore {
                         return new JSONObject(old.getString("result_json"));
                     }
                     version(r, expectedVersion);
+                    if (inputRevision >= 0 && r.getLong("input_revision") != inputRevision)
+                        throw new StoreException("INPUT_REVISION_CONFLICT");
+                    if ((state.equals("succeeded") || inputRevision >= 0) && r.getString("state").equals("cancelling"))
+                        throw new StoreException("VERSION_CONFLICT");
+                    if (state.equals("succeeded")) MessageStore.requireCurrent(r);
                     if (executionSettlement.equals("confirmed") && outstanding(c, lease.runId)) {
                         throw new StoreException("EXECUTION_UNSETTLED");
                     }
@@ -1657,7 +1709,7 @@ public final class JdbcRunStore {
                             lease.runId,
                             lease.tenant,
                             state,
-                            json(envelope),
+                            json(envelope, 1024 * 1024),
                             digest,
                             now(c));
                     update(
@@ -1672,7 +1724,7 @@ public final class JdbcRunStore {
                             lease.runId);
                     r.put("state", state).put("execution_settlement", executionSettlement);
                     emit(c, r, "run." + state, new JSONObject().put("resultHash", digest), "result");
-                    return new JSONObject(json(envelope));
+                    return new JSONObject(json(envelope, 1024 * 1024));
                 });
     }
 

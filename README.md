@@ -21,6 +21,9 @@
 | 业务数据查询、加工与单图分析 | [业务数据能力](service-harness/BUSINESS-DATA.md) |
 | 必需步骤检查与结构化报告 | [执行检查与报告](service-harness/WORKFLOW-REPORTS.md) |
 | 业务能力部署、版本晋级与回退 | [部署指南](service-harness/BUSINESS-DEPLOYMENT.md)、[发布管理](service-harness/RELEASE-MANAGEMENT.md) |
+| 执行中补充、主动问答与对话续接 | [互动方案](service-harness/INTERACTION.md)、[对话客户端](../harness/client/README.md) |
+| 任务恢复、评测与能力边界 | [恢复方案](service-harness/RESILIENCE.md)、[评测方案](service-harness/TRACE.md) |
+
 | 专项检测与外部模型转发 | [专项检测](docs/specialized-detection.md)、[Relay](docs/RELAY.md) |
 | 监控与启停运维 | [REST 监控](docs/dispatcher-rest-monitor.md)、[执行监控](docs/service-execution-monitor.md)、[停机排查](docs/dispatcher-shutdown.md) |
 

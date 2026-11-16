@@ -98,6 +98,7 @@ final class WorkflowGate implements AutoCloseable {
 
     JSONObject check(ProfileRegistry.Identity identity, String run, JSONObject pin, JSONArray active,
                      ResourceTools resourceTools, ProviderStore metadata, JSONObject decision) throws Exception {
+        final JSONObject taskInput = metadata.taskInput(identity.tenant, identity.subject, run);
         Set<String> activated = new HashSet<>();
         for (int i = 0; i < active.length(); i++) activated.add(active.getJSONObject(i).getString("digest"));
         JSONArray checks = new JSONArray(), evidence = null, reports = new JSONArray();
@@ -122,6 +123,7 @@ final class WorkflowGate implements AutoCloseable {
             for (int j = 0; j < evidence.length(); j++) {
                 JSONObject fact = evidence.getJSONObject(j), value = fact.getJSONObject("value");
                 if (!skill.equals(value.optString("skill"))) continue;
+                if (guard.supportsInteraction() && fact.optLong("inputRevision", 0) != taskInput.getLong("inputRevision")) continue;
                 scoped.put(fact);
                 if (value.has("sourceRef")) sources.add(value.getString("sourceRef"));
                 JSONArray refs = value.optJSONArray("sourceRefs");
@@ -129,6 +131,7 @@ final class WorkflowGate implements AutoCloseable {
             }
             for (String source : sources) metadata.authorize(identity.tenant, identity.subject, source);
             CompletionGuard.Resources resources = new CompletionGuard.Resources() {
+                public JSONObject taskInput() { return new JSONObject(taskInput.toString()); }
                 public JSONObject json(String path) throws Exception { return resourceTools.providerResource(identity, run, skill, path); }
                 public byte[] bytes(String path) throws Exception { return resourceTools.providerResourceBytes(identity, run, skill, path); }
             };
@@ -168,6 +171,7 @@ final class WorkflowGate implements AutoCloseable {
     JSONObject advance(ProfileRegistry.Identity identity, String run, JSONObject pin, JSONArray active,
                        ResourceTools tools, ProviderStore metadata) throws Exception {
         if (guard == null) return null;
+        final JSONObject taskInput = metadata.taskInput(identity.tenant, identity.subject, run);
         Set<String> activated = new HashSet<>();
         for (int i = 0; i < active.length(); i++) activated.add(active.getJSONObject(i).getString("digest"));
         JSONArray all = metadata.completionEvidence(identity.tenant, identity.subject, run);
@@ -178,6 +182,7 @@ final class WorkflowGate implements AutoCloseable {
             if (!activated.contains(release.getString("digest")) || !required(manifest)) continue;
             String skill = manifest.getString("name");
             CompletionGuard.Resources resources = new CompletionGuard.Resources() {
+                public JSONObject taskInput() { return new JSONObject(taskInput.toString()); }
                 public JSONObject json(String path) throws Exception { return tools.providerResource(identity, run, skill, path); }
                 public byte[] bytes(String path) throws Exception { return tools.providerResourceBytes(identity, run, skill, path); }
             };
@@ -186,11 +191,13 @@ final class WorkflowGate implements AutoCloseable {
             for (int f = 0; f < all.length(); f++) {
                 JSONObject fact = all.getJSONObject(f), value = fact.getJSONObject("value");
                 if (!skill.equals(value.optString("skill"))) continue;
+                if (guard.supportsInteraction() && fact.optLong("inputRevision", 0) != taskInput.getLong("inputRevision")) continue;
                 if (value.has("sourceRef")) metadata.authorize(identity.tenant, identity.subject, value.getString("sourceRef"));
                 JSONArray refs = value.optJSONArray("sourceRefs");
                 if (refs != null) for (int s = 0; s < refs.length(); s++) metadata.authorize(identity.tenant, identity.subject, refs.getString(s));
                 scoped.put(fact);
             }
+            if (!guard.supportsInteraction() && resources.taskInput().getLong("inputRevision") > 0) throw new StoreException("WORKFLOW_INTERACTION_UNSUPPORTED");
             JSONObject next = guard.advance(resources, scoped, skill);
             if (next != null) {
                 if (proposal != null) throw new StoreException("WORKFLOW_BINDING_AMBIGUOUS");

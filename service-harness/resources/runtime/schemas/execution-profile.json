@@ -222,6 +222,16 @@
           "type": "integer",
           "minimum": 2,
           "maximum": 16
+        },
+        "maxActiveMillis": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 86400000
+        },
+        "maxInteractionWaitMillis": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 86400000
         }
       },
       "required": [

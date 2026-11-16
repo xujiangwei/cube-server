@@ -2,6 +2,23 @@
 
 本文统一说明数据查询、加工、单图分析、必需步骤检查与结构化报告的安装和人工运行顺序。基础服务与 dispatcher 配置见 [服务部署](README.md)，能力契约见 [业务数据](BUSINESS-DATA.md)和[执行检查与报告](WORKFLOW-REPORTS.md)，业务资源跨环境晋级见 [发布与回退](RELEASE-MANAGEMENT.md)。
 
+## 持续输入与问答部署
+
+配套交付为 `cube-server/build/harness-interaction-delivery/` 及同名 ZIP，包含 common、dispatcher、Harness 核心、WorkflowGuard 扩展、Python 节点 ZIP、本地聊天客户端、配置模板和文档。它不包含用户令牌、生产数据库或私有配置。实现契约见 [持续输入与主动问答](INTERACTION.md)。
+
+构建完成后，在 `cube-server/` 执行 `python -B service-harness/scripts/build_interaction_delivery.py --python-root ../../apexnova-wisdom` 组装交付；若配套 Python 工程不在该相对位置，请传实际绝对路径。输出目录和同名 ZIP 必须尚不存在，可用 `--output` 指定新的发布目录。交付入口 README 说明四个 JAR 的安装位置，`checksums.json` 提供逐文件 SHA-256；配置文档保留工作区相对目录，便于交叉阅读。
+
+1. 使用实际 JDK 8 构建 common、dispatcher、service-harness 和 service-harness-skill；Python 3.11 在配套 Python 工程执行 `python -B harness/scripts/build_bundle.py --output <发布目录>/python-harness-node.zip`。关闭新任务准入，drain 并保留在途/unknown 的 journal 和物理对账记录，备份原数据库、JAR 与私有配置。
+2. 成套更新 common、dispatcher 和 Harness 核心；使用固定业务流程时同步更新技能扩展 JAR。安装位置沿用原部署，不保留重复版本。启动会补建 harness_message 及输入版本、工具准入和累计等待字段；MySQL 服务账号需要本库 ALTER/CREATE 权限，不能由旧服务与新服务同时写新账本。结构升级前的备份用于整套回退。
+3. 更新全部可能接收模型作业的 Python 单元完整运行包及 contracts，保留每个 workerId、实例运行目录和 journal 的独立性。无需新增角色或改为 Java/Python 一对一。旧 worker 可以保留处理旧模型格式，但只有声明 structuredInput=true 的新单元可承接开启结构化格式的模型。
+4. 私有配置先保持 interaction.enabled=false。按 [互动配置](config/harness-execution/README.md)发布新模型和执行配置版本：按需启用 generation.structuredInput，配置累计执行、单次等待和总期限，核对租户总期限上限。基础补充不依赖结构化模型格式；自定义旧 CompletionGuard 必须先适配 taskInput/supportsInteraction 才能调整固定流程。
+5. 启动 Java 和多个独立 Python 单元，检查 task-profiles 的就绪信息、capabilities 的 interaction 及各 worker 描述。确认后将 interaction.enabled=true 并重启配置所在 JVM；开放新任务。关闭消息开关只停止新 messages 受理，不清除已持久化消息和在途执行。
+6. 在客户端目录启动 `python server.py --dispatcher http://211.157.179.37:7010 --port 8787`，打开 `http://127.0.0.1:8787`，使用已有 Cube 用户令牌。代理只在本机监听；业务系统也可直接接入同一 REST 契约。客户端说明见 [README](../../harness/client/README.md)。
+
+部署后的人工运行依次为：发起耗时任务；连续补充两条范围限制并核对“已收到/已纳入处理”；让模型发起选项问题，选择后核对结果；问题出现后刷新并继续回答；用 `/调整 新要求` 使旧问题失效；停止在途任务并观察物理对账；任务完成后继续输入，核对新 run 继承旧要求与答复。最后切换可用 Python 单元，检查共享后端容量不重复计算。真实模型质量、目标 MySQL 与现场延迟在部署后运行验证，不作为后续开发前置条件。
+
+回退需先收尾或隔离新任务、保留 unknown，再恢复成套旧代码、配置和升级前数据库备份；不能只替换旧 JAR 继续写新账本。客户端可独立移除。基础消息、结构化问题、固定流程和本地客户端可分别启用，事件页轮询不要求另部署 WebSocket 或通知服务。
+
 ## 任务推进与上下文能力升级
 
 配套交付目录 `cube-server/build/harness-agent-delivery/` 及同名 ZIP 包含两个 Java JAR、Python 节点 ZIP、执行/Provider 模板、通用工具包和离线评测脚本；`checksums.json` 记录 SHA-256。它不包含生产凭据、数据库或已验证的远端 tokenizer。安装和首次运行按以下顺序操作：
@@ -13,7 +30,7 @@
 5. 模型单元配置显式 nativeTools，Java adapter 必须一致。先以原字节预算启动，检查 budgetMeasurement.accuracy=estimated。若有已验证 tokenizer/聊天模板及可信计数器，再安装对应计数器类、注册 model.token.counter.classes 并发布独立配置版本；没有匹配计数器会拒绝执行。无需为当前升级安装 tokenizer 依赖。实际模型质量与目标环境计数一致性在部署后验证。
 6. 需要模型语义交接摘要时，另发布新 execution version，将 semanticSummary.enabled=true，保留 maxCalls=1、outputReserve=512、maxSummaryBytes=4096。运行足以触发历史归档的多轮任务，检查 model outcome 的 summary audit、contextSummary 的用户/来源摘要、intent/resultHash 和后续快照恢复。摘要按现有模型计费及排队，失败可回退，unknown 保留容量并停止；不需要新增 Python 角色或一对一实例。确定性压缩可保持摘要关闭独立部署。
 
-回退时再次关闭新准入、drain 并对账，再恢复成套 JAR、Python 运行代码、旧配置与 policy/binding。已固定新回读工具或新计数模式的任务先收尾，不能交给不认识这些配置的旧运行时；unknown 与未决 journal 保留，不通过清空账本恢复容量。本升级无数据库 schema 迁移。
+回退时再次关闭新准入、drain 并对账，再恢复成套 JAR、Python 运行代码、旧配置与 policy/binding。已固定新回读工具或新计数模式的任务先收尾，不能交给不认识这些配置的旧运行时；unknown 与未决 journal 保留，不通过清空账本恢复容量。此上下文配置升级本身不需要数据库 schema 迁移；持续互动的账本升级与回退要求见上节。
 
 ## 部署组成
 

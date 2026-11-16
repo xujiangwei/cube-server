@@ -126,6 +126,24 @@
     "expected": "SCHEMA_INVALID"
   },
   {
+    "name": "append-message",
+    "schema": "run-message",
+    "raw": "{\"kind\":\"instruction\",\"input\":{\"instruction\":\"only this month\",\"attachmentIds\":[]}}",
+    "expected": "OK"
+  },
+  {
+    "name": "answer-message",
+    "schema": "run-message",
+    "raw": "{\"kind\":\"answer\",\"waitId\":\"wait-1\",\"interactionVersion\":1,\"input\":{\"instruction\":\"A\",\"attachmentIds\":[]},\"answers\":[{\"questionId\":\"q\",\"optionId\":\"a\"}]}",
+    "expected": "OK"
+  },
+  {
+    "name": "answer-without-wait",
+    "schema": "run-message",
+    "raw": "{\"kind\":\"answer\",\"input\":{\"instruction\":\"A\",\"attachmentIds\":[]}}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
     "name": "cancel",
     "schema": "cancel-run",
     "raw": "{\"expectedVersion\":1}",

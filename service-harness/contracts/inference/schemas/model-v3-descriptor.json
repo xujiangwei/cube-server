@@ -28,6 +28,9 @@
       "enum": [
         "transport-bytes-v1"
       ]
+    },
+    "structuredInput": {
+      "type": "boolean"
     }
   },
   "required": [

@@ -46,6 +46,10 @@ public final class CatalogStore {
         this.mysql = mysql;
     }
 
+    public JSONObject conversation(Connection c, String tenant, String subject, String parent, FileStore files) throws Exception {
+        return ConversationStore.inherit(store, c, tenant, subject, parent, files);
+    }
+
     /**
      * 行锁后缀：MySQL 返回 " FOR UPDATE"，SQLite 返回空串。
      *
@@ -667,7 +671,7 @@ public final class CatalogStore {
                 if (!hash(snapshot).equals(latest.getString("digest"))) throw new StoreException("CONTEXT_CORRUPT");
                 if (snapshot.has("compressionState")) compression = snapshot.getJSONObject("compressionState");
             }
-            return new JSONObject().put("version", r.getLong("version")).put("pin", pin)
+            return new JSONObject().put("version", r.getLong("version")).put("inputRevision", r.getLong("input_revision")).put("pin", pin)
                     .put("compressionState", compression)
                     .put("events", rows(c, "SELECT event_seq,event_type,data_json FROM harness_event WHERE run_id=? ORDER BY event_seq", runId))
                     .put("modelOutcomes", rows(c, "SELECT outcome_json FROM harness_model_job WHERE run_id=? AND outcome_json IS NOT NULL ORDER BY round_id,attempt", runId))
@@ -692,13 +696,15 @@ public final class CatalogStore {
             JSONArray previous = rows(c, "SELECT data_json FROM harness_event WHERE run_id=? AND event_type='workflow.binding'", lease.runId);
             for (int i = 0; i < previous.length(); i++) {
                 JSONObject saved = new JSONObject(previous.getJSONObject(i).getString("data_json"));
+                saved.remove("inputRevision");
                 if (saved.getString("proposalId").equals(call.getString("proposalId"))) {
                     if (!canonical(saved).equals(canonical(call))) throw new StoreException("WORKFLOW_BINDING_CONFLICT");
                     return null;
                 }
             }
             store.version(run, expected);
-            store.emit(c, run, "workflow.binding", call, "coordinator");
+            MessageStore.requireCurrent(run);
+            store.emit(c, run, "workflow.binding", new JSONObject(call.toString()).put("inputRevision", run.getLong("input_revision")), "coordinator");
             return null;
         });
     }
@@ -714,7 +720,10 @@ public final class CatalogStore {
                 if (new JSONObject(prior.getJSONObject(i).getString("data_json")).getString("roundId").equals(round)) return null;
             }
             store.version(r, expected);
-            JSONObject latest = first(rows(c, "SELECT intent_id,status,result_json FROM harness_round WHERE run_id=? ORDER BY intent_id DESC,attempt DESC", lease.runId));
+            MessageStore.requireCurrent(r);
+            JSONObject latest = first(rows(c, "SELECT intent_id,status,result_json,input_revision FROM harness_round WHERE run_id=? ORDER BY intent_id DESC,attempt DESC", lease.runId));
+            if (latest != null && latest.getLong("input_revision") != r.getLong("input_revision"))
+                throw new StoreException("INPUT_REVISION_CONFLICT");
             if (latest == null || !latest.getString("intent_id").equals(round) || !latest.getString("status").equals("confirmed")
                     || !new JSONObject(latest.getString("result_json")).getString("kind").equals("final")) {
                 throw new StoreException("WORKFLOW_REPAIR_STALE");

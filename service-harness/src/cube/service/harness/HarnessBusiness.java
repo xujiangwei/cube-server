@@ -153,6 +153,11 @@ final class HarnessBusiness implements AutoCloseable {
                     return reply(202, execution.create(identity, idem, body));
                 case ReadRun:
                     return reply(200, execution.read(approver ? execution.owner(identity, id) : identity, id));
+                case AppendMessage:
+                    return reply(202, execution.controls.messages.append(identity.tenant, identity.subject, id, idem, body));
+                case RunMessages:
+                    long[] messageCursor = cursor(data.optString("query", ""), "");
+                    return reply(200, execution.controls.messages.list(identity.tenant, identity.subject, id, messageCursor[0], (int) messageCursor[1]));
                 case Events:
                     long[] cursor = cursor(data.optString("query", ""), data.optString("lastEventId", ""));
                     return reply(200, execution.events(identity, id, cursor[0], (int) cursor[1]));
@@ -299,8 +304,8 @@ final class HarnessBusiness implements AutoCloseable {
             String code = ((StoreException) e).code;
             int status = code.endsWith("NOT_FOUND") ? 404 : code.endsWith("FORBIDDEN") ? 403
                     : code.equals("FILE_EXPIRED") || code.equals("WAIT_EXPIRED") ? 410
-                    : code.equals("HARNESS_BUSY") || code.equals("FILE_BUSY") || code.equals("FILE_QUOTA_EXCEEDED") ? 429
-                    : code.contains("CONFLICT") || code.equals("EVENT_GAP") || code.equals("RUN_TERMINAL") || code.equals("APPROVAL_ARGUMENTS_CHANGED") ? 409
+                    : code.equals("HARNESS_BUSY") || code.equals("FILE_BUSY") || code.equals("FILE_QUOTA_EXCEEDED") || code.equals("MESSAGE_QUEUE_FULL") ? 429
+                    : code.contains("CONFLICT") || code.equals("EVENT_GAP") || code.equals("RUN_TERMINAL") || code.startsWith("PARENT_RUN_") || code.equals("APPROVAL_ARGUMENTS_CHANGED") ? 409
                     : code.equals("UNSUPPORTED_MEDIA_TYPE") ? 415
                     : code.startsWith("STORE_") || code.equals("HARNESS_DRAINING") || code.endsWith("_NOT_READY") ? 503 : 400;
             return error(status, code);

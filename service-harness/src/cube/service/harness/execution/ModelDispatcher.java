@@ -222,12 +222,17 @@ public final class ModelDispatcher {
      *
      * @return 存在就绪 worker 时为 true
      */
+    private static boolean interactionCompatible(JSONObject model, JSONObject descriptor) {
+        JSONObject generation = model.optJSONObject("generation");
+        return generation == null || !generation.optBoolean("structuredInput", false) || descriptor.optBoolean("structuredInput", false);
+    }
+
     public synchronized boolean ready(JSONObject model) {
         JSONArray list = snapshot();
         for (int i = 0; i < list.length(); i++) {
             JSONObject worker = list.getJSONObject(i), descriptor = worker.getJSONObject("descriptor");
             if (worker.getBoolean("ready") && descriptor.getString("model").equals(model.getString("id"))
-                    && descriptor.getString("adapter").equals(model.optString("adapter", "scripted-v1"))) return true;
+                    && descriptor.getString("adapter").equals(model.optString("adapter", "scripted-v1")) && interactionCompatible(model, descriptor)) return true;
         }
         return false;
     }
@@ -246,7 +251,7 @@ public final class ModelDispatcher {
         for (int i = 0; i < workers.length(); i++) {
             JSONObject worker = workers.getJSONObject(i), d = worker.getJSONObject("descriptor");
             if (!worker.getBoolean("ready") || !d.getString("model").equals(model.getString("id"))
-                    || !d.getString("adapter").equals(model.optString("adapter", "scripted-v1"))) continue;
+                    || !d.getString("adapter").equals(model.optString("adapter", "scripted-v1")) || !interactionCompatible(model, d)) continue;
             ready = true;
             String backend = d.getString("backendId");
             int[] count = counts.computeIfAbsent(backend, k -> new int[2]);

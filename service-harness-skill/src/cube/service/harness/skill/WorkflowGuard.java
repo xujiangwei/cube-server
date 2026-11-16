@@ -10,6 +10,7 @@ import java.util.*;
 
 /** M3: fixed business requirements checked against confirmed query, dataset and analysis facts. */
 public final class WorkflowGuard implements CompletionGuard {
+    @Override public boolean supportsInteraction() { return true; }
     private final int repairCeiling;
 
     public WorkflowGuard(Properties properties) {

@@ -25,6 +25,7 @@ def generate(python_root):
     interaction = obj(dict(waitId=ident, kind=dict(type='string', enum=['input', 'approval']),
                            expiresAt=integer, argumentsHash=dict(type='string', pattern='^[a-f0-9]{64}$'),
                            details=dict(type='object')))
+    interaction["properties"]["interactionVersion"] = integer
     read = json.loads((source / 'execution/schemas/run-read.json').read_text())
     read['properties']['interaction'] = interaction
     metadata = json.loads((source / 'schemas/artifact.json').read_text())

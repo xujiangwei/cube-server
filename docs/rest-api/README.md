@@ -42,6 +42,10 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 
 各接口提供完整请求地址和请求/响应示例。长报告和量表的示例保留代表性条目，实际界面应遍历全部返回数据；所有标记为 JSON 的示例均可直接解析。文件上传下载的 curl 示例只展示本地文件读写，Windows PowerShell 中使用 `curl.exe`。
 
+## Harness 方案与接入
+
+任务接口见 [Harness 任务 API](src/Harness.md)及生成站点；执行中补充、主动问答、游标恢复与后续任务见[互动方案](../../service-harness/INTERACTION.md)。配置和安装见[部署指南](../../service-harness/BUSINESS-DEPLOYMENT.md)，可直接运行的对话界面见[客户端](../../../harness/client/README.md)。接口源码以 `src/Harness.js` 为准，方案文档维护完整语义和使用边界。
+
 ## 专项检测 SpecializedDetection
 
 专项检测用于识别图片、视频及实时画面中的火烟或通用物体。先创建频道；图片和视频文件先上传并取得 64 位文件码，实时视频则使用 RTSP(S) 地址。图片请求直接返回检测区域；视频会话在类别过滤后命中目标时向指定地址推送带检测框的 PNG 图片。

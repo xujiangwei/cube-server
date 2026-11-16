@@ -30,7 +30,7 @@ public final class ContextSummary {
         JSONArray out = new JSONArray();
         for (Object entry : messages) {
             JSONObject m = (JSONObject)entry;
-            if (m.optString("provenance").equals("run.created") || m.optString("provenance").equals("control.resume")) out.put(m.get("content"));
+            if (m.optString("provenance").equals("run.created") || m.optString("provenance").equals("control.resume") || m.optString("provenance").equals("message.accepted") || m.optString("provenance").equals("conversation.history")) out.put(m.get("content"));
         }
         return out;
     }

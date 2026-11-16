@@ -16,6 +16,7 @@ def generate(python_root):
     digest = dict(type="string", pattern="^[a-f0-9]{64}$")
     descriptor = obj(dict(model=ID, adapter=enum("openai-json-v2", "openai-tools-v2"),
         nativeTools=dict(type="boolean"), cancellation=enum("observe-only"), budget=enum("transport-bytes-v1")))
+    descriptor['properties']['structuredInput'] = dict(type='boolean')
     job = json.loads((ROOT / "contracts/execution/schemas/model-job.json").read_text())
     job["properties"]["model"] = ID
     report = json.loads((ROOT / "contracts/execution/schemas/model-report.json").read_text())

@@ -70,6 +70,8 @@ public final class ProfileRegistry {
             JSONObject business = policy.getJSONObject("businessLimits");
             catalog.checkAdmission(c, identity.tenant, business.getInt("maxActiveRuns"));
             JSONObject pin = deployment.select(request), execution = pin.getJSONObject("execution");
+            if (request.has("parentRunId")) pin.put("conversationHistory", catalog.conversation(c,
+                    identity.tenant, identity.subject, request.getString("parentRunId"), files));
             JSONObject limits = execution.getJSONObject("executionLimits");
             limits.put("maxLifetimeMillis", Math.min(limits.getLong("maxLifetimeMillis"), business.getLong("maxLifetimeMillis")));
             RunSelection resolver = new RunSelection(catalog, files != null);

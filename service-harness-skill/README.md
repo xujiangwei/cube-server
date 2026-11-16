@@ -6,6 +6,8 @@
 
 签名业务包的跨环境晋级、CAS 与回退见 [发布管理](../service-harness/RELEASE-MANAGEMENT.md)。业务系统接口、规则与上传资源维护在 [forest/](../../forest/README.md)，不包含在平台工具包中。
 
+持续互动需同步部署支持输入版本的核心与 WorkflowGuard，按[互动方案](../service-harness/INTERACTION.md)隔离旧输入的执行证据、校验和修复预算。公开样本评估与真实质量边界统一见[评测方案](../service-harness/TRACE.md)，本文只维护工具契约、安装和正式回归入口。
+
 ## 工具与配套技能
 
 | 技能包 | 工具 / operation | 权限 | 输入及结果 |

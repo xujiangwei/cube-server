@@ -277,6 +277,9 @@
                 "hashed-v1",
                 "readable-v1"
               ]
+            },
+            "structuredInput": {
+              "type": "boolean"
             }
           },
           "required": [

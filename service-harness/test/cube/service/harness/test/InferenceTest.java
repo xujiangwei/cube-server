@@ -312,6 +312,23 @@ public final class InferenceTest {
             ledger.submit(crash.getString("jobId"), "a", "ia", "ia", 2, JdbcRunStore.hash(wire()), wire());
             check(ledger.page(crash.getString("jobId"), "a", "ia", 2, 0, true).getBoolean("actualFinished"),
                     "Queued cancellation failed");
+            JSONObject structuredModel = RuntimeSupport.copy(model).put("version", "3");
+            structuredModel.getJSONObject("generation").put("structuredInput", true);
+            profiles.publish(T, structuredModel);
+            JSONObject structuredTask = RuntimeSupport.copy(task).put("version", "3");
+            structuredTask.getJSONObject("model").put("version", "3");
+            profiles.publish(T, structuredTask);
+            profiles.bind(T, "task", "task", "task@3", profiles.bindingVersion(T, "task"));
+            String structuredRun = ExecutionTest.create("structured choice routing");
+            coordinator.step(structuredRun);
+            JSONObject oldDescriptor = descriptor().put("backendId", "shared").put("protocolVersion", 3);
+            check(jobs.poll("old-format", "old-instance", "old-session", oldDescriptor, 1, true) == null,
+                    "Legacy worker received structured input request");
+            JSONObject structuredJob = jobs.poll("new-format", "new-instance", "new-session",
+                    RuntimeSupport.copy(oldDescriptor).put("structuredInput", true), 1, true);
+            check(structuredJob != null && structuredRun.equals(structuredJob.getString("runId"))
+                    && new JSONObject(structuredJob.getString("requestJson")).getJSONObject("generation").getBoolean("structuredInput"),
+                    "Capable worker could not claim structured input request");
         }
         pass("Cell v3 dispatch, separate processing slots, shared inference capacity, idempotency, foreign identity, unknown quarantine, late completion and authoritative usage");
     }
@@ -573,7 +590,7 @@ public final class InferenceTest {
             detailed.set(true);
             // Python worker 可忙于处理响应而物理推理空闲；同一模型在另一后端必须保留可执行槽。
             try (Connection c = config.connect(); Statement s = c.createStatement()) {
-                s.execute("INSERT INTO harness_run VALUES ('capacity-run','tenant','subject','profile','running',1,1,NULL,0,0,'pending','settled',1,1)");
+                s.execute("INSERT INTO harness_run (run_id,tenant,subject_id,profile_version,state,version,event_seq,owner_id,fence,lease_until,execution_settlement,usage_settlement,created_at,updated_at) VALUES ('capacity-run','tenant','subject','profile','running',1,1,NULL,0,0,'pending','settled',1,1)");
                 s.execute("INSERT INTO harness_model_job (job_id,run_id,tenant,subject_id,round_id,attempt,origin_fence,intent_hash,model_id,profile_digest,request_hash,request_json,backend_id,worker_id,instance_id,session_id,status,actual_finished,cancel_requested,created_at,execution_protocol) "
                         + "VALUES ('capacity-job','capacity-run','tenant','subject','round',1,1,'intent','Baize2','profile','request','{}','shared','relay-c','irelay-c','session','assigned',0,0,1,3)");
             }

@@ -20,13 +20,16 @@
 | [业务能力部署](BUSINESS-DEPLOYMENT.md) | 配套产物、Provider/guard/权限配置、业务包发布与人工运行顺序 |
 | [发布与回退](RELEASE-MANAGEMENT.md) | 原始签名包跨环境晋级、固定 CAS、操作恢复与回退 |
 | [CONTROL-FILES.md](CONTROL-FILES.md) | 输入、审批、取消、附件、产物和自动清理 |
+| [持续输入与主动问答](INTERACTION.md) | 执行中补充、结构化问题、输入水位、兼容与后续任务续接 |
 | [STORE.md](STORE.md) | SQLite/MySQL 配置、自动建表、任务账本及恢复 |
 | [RESILIENCE.md](RESILIENCE.md) | 接单开关、drain、停机、升级及故障处理 |
 | [TRACE.md](TRACE.md) | 诊断导出、反馈、离线回放及有证据绑定的质量评测/基线比较 |
-| [能力验证总结](../../patrol/evaluation/REPORT.md) | 工程验证、真实推理、视觉校准和验收边界 |
+| [巡检业务与评估入口](../../patrol/README.md) | 业务资源、可复现评估和样本来源；参考观察与适用边界集中于 TRACE.md |
 | [CONTRACT.md](CONTRACT.md) | 协议、注册租约、幂等和兼容规则 |
 
 业务 REST 的完整定义见 [API 文档](../docs/rest-api/src/Harness.md)。客户技能教程与示例位于工作区 [skill/](../../skill/README.md)。
+
+持续互动的配套升级材料位于 `cube-server/build/harness-interaction-delivery/` 及同名 ZIP；具体安装位置、开关、迁移与人工运行顺序统一见[部署指南](BUSINESS-DEPLOYMENT.md)。互动、数据、报告、恢复和评测各方案维护自身契约，运行日志及机器结果保留在独立证据目录。
 
 ## 服务组成与数据流
 
@@ -52,7 +55,7 @@ flowchart LR
 4. 模型决策经 Java 校验后执行资源操作、派发受控工具、等待用户/审批，或提交最终结果。普通模型文本中的代码不会自动执行；动态代码须使用专门配置的 sandbox 链路。
 5. Java 提交事件、结果及实际用量，客户端通过 dispatcher 查询或续读有限 SSE 页。文件控制使用 SHM 消息，文件字节使用同一节点、同一会话的原生流。
 
-一个 JVM 支持多个 model/runner，包括多个同角色单元。每个 Python 进程必须独占 workerId、runtimeDir、实例身份、journal 和租约；Java 按角色、能力、健康及实际空闲容量调度。共享物理模型后端使用同一 backendId 计容，新增 worker 不会增加该后端的物理容量。
+一个 JVM 支持多个 model/runner，包括多个同角色单元。每个逻辑单元必须独占 workerId、runtimeDir、实例身份、journal 和租约；一个 Python 节点进程可承载多个逻辑单元；Java 按角色、能力、健康及实际空闲容量调度。共享物理模型后端使用同一 backendId 计容，新增 worker 不会增加该后端的物理容量。
 
 ## 环境与构建
 

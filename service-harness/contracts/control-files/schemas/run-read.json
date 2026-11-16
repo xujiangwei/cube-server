@@ -49,6 +49,16 @@
           "maxLength": 128,
           "pattern": "^[A-Za-z0-9_.:-]+$"
         },
+        "inputRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "appliedInputRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "selection": {
           "type": "object",
           "properties": {
@@ -281,6 +291,11 @@
         },
         "details": {
           "type": "object"
+        },
+        "interactionVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         }
       },
       "required": [

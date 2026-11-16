@@ -47,6 +47,12 @@
         "pattern": "^[a-z][a-z0-9_.-]*/[a-z][a-z0-9_.-]*$"
       },
       "maxItems": 64
+    },
+    "parentRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
     }
   },
   "required": [

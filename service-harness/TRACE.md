@@ -80,7 +80,22 @@ Trace 放在 `traces/<traceDigest>.json`。复核 sidecar 放在 `reviews/<revie
 
 `scripts/capability_evaluation.py` 通过现有 Python 模型适配器调用真实接口，分别运行 Baize JSON 决策、Baize2 原生工具决策与视觉 Unit。`service-harness-skill/scripts/capability_cell_evaluation.py` 使用 JDK 8、独立账本、真实 dispatcher/Cell/SHM、多个 Python worker 与测试专用 MediaProvider 运行工具及完整编排诊断。代理仅在 test classpath 存在，不修改生产协议；真实模型与视觉调用串行执行。
 
-工作区 [巡检评估入口](../../patrol/README.md)维护复现与评分命令，[能力验证总结](../../patrol/evaluation/REPORT.md)集中记录工程验证、真实推理与视觉校准结论。当前视觉集为 43 张独立照片、48 个案例，来源与标注见[样本登记](../../patrol/media/evaluation/manifest.json)；旧林业路由见[历史对照](../../forest/evaluation/REPORT.md)。重复调用不增加独立样本量。工具成功、任务成功、引用有效和业务判断正确分别评价；失败、修复、调用未知与夹具错误保留。
+工作区 [巡检评估入口](../../patrol/README.md)维护复现与评分命令，[林业样本入口](../../forest/evaluation/README.md)说明旧路由与原始证据。能力行为分别以 [数据能力](BUSINESS-DATA.md)、[执行检查与报告](WORKFLOW-REPORTS.md)及[持续互动](INTERACTION.md)为准，部署步骤集中于[部署指南](BUSINESS-DEPLOYMENT.md)。评测脚本只输出机器记录，不自动改写能力说明。
+
+诊断固定业务包、模型配置、适配方式、工具定义、数据、规则、评分器与预算，再索引原始请求、run/job、回执及摘要。普通报告、缺页保护、取消和单元恢复分别评分；普通报告分母保留真实失败及容量超时，夹具错误与主动中断单列。token 只加总已返回的模型 audit，含修复尝试；缺失、迟到用量和视觉成本不估算。变更路由、提示、适配或调用顺序后重新记录实际配置，不能将多项变更解释为单变量改善。
+
+既有公开诊断可作为选择测试范围的参考，不能作为当前版本完整验收：
+
+| 观察范围 | 参考结果与解释 | 原始记录 |
+| --- | --- | --- |
+| 旧林业路由 | 模型单项 Baize 21/24、Baize2 24/24；完整编排均为 0/24；直接 Broker/JDBC 工具 24/24，不包含 Python Runner | [林业汇总](../../forest/evaluation/results/summary.json) |
+| 一般巡检真实推理 | 完整编排 Baize 0/7，另有 17 次夹具中断；Baize2 10/24，其中普通报告 10/21。定向复测仅覆盖部分场景，不能外推全矩阵 | [巡检汇总](../../patrol/evaluation/results/full/summary.json) |
+| 固定流程可控执行 | 两种适配各普通报告 21/21、缺页保护 3/3、排队取消 3/3、单元健康恢复 3/3；模型和视觉均为显式夹具，只证明控制链路与业务不变量 | [可控执行](../../patrol/evaluation/results/candidate-controlled-accepted/summary.json) |
+| 视觉量纲与复核 | 冻结回放不改原始 answer/payload，不新增模型调用；人员数量逐次精确匹配 33/36。有两人照片返回三框，保留框数 3、唯一人数 null；IoU 只提示重叠 | [视觉回放](../../patrol/evaluation/results/candidate-calibration/summary.json) |
+
+视觉集为 43 张独立照片、48 个案例，烟火、人员、车辆、道路障碍各 12 例，正负各 6；每例三次，共 144 次观察。按独立案例多数预测评分，至少两个可评分且相同的预测才构成多数；失败与不可评分单列，重复调用不扩大样本量。来源、许可和标注见[样本登记](../../patrol/media/evaluation/manifest.json)。参考观察中，烟火误报 2/6、漏报 0/6，人车误报漏报均为 0/6，道路障碍误报 0/6、漏报 1/6；分母仅指该公开样本集。旧林业人员路由为 OmniPerception/counting，当前为 SpecializedDetection/thing，不能合并评分。
+
+公开样本不构成独立留出集，缺少列车正例及充分的夜间、逆光、遮挡样本。人员、车辆或路旁物体的存在不直接等于业务异常；接口失败不计作零目标。工具成功、任务成功、引用有效与业务判断正确分别评价；真实模型完整矩阵、生产媒体 Unit/SHM、现场时延与识别质量须在对应部署验证，不能从可控执行推定。未决物理请求继续按 [恢复约定](RESILIENCE.md)收尾，不以新请求完成替代旧请求的完成证据。
 
 这套诊断与 `evaluate_traces.py` 的严格认证分开。诊断场景数较少，不能跳过原有至少 50 场景、真实 Trace、物理完成和独立语义复核条件，也不以同名样本或 mock 充作认证结果。
 

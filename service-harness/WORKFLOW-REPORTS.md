@@ -109,6 +109,8 @@ final.text UTF-8 上限 64 KiB；最多 8 个技能、每技能 64 个 dataset�
 
 工作流、报告与模型格式修复共享 executionLimits.maxRepairs；补齐次数取业务 maxRepairs 与宿主 workflow.max.repairs 的较小值，最多两次，并消耗 maxRounds、maxTools、maxLifetimeMillis。workflow.repair 在 run 租约/fence/version 下提交，同一 final round 幂等；重启不重置计数，中断恢复不重复扣次。补齐不会重放 unknown 调用。
 
+校验与修复记录还绑定该轮 inputRevision。用户在校验期间补充或更正要求时，旧校验不能消耗新输入的修复预算，也不能提交成功或失败终态；取消已受理后同样拒绝迟到的输入校验结果。连续输入与固定流程重新规划遵循 [互动方案](INTERACTION.md)。执行链路的可控夹具只验证分页、去重、逐记录覆盖、引用防伪和预算约束；真实模型判断及视觉结果按 [评测方案](TRACE.md)另行评价。
+
 仅声明工作流的包在缺项耗尽后报 `WORKFLOW_REQUIREMENTS_UNMET`；声明报告要求的包报 `REPORT_REQUIREMENTS_UNMET`，包括尚缺必需步骤的情况。报告反馈 code 包括 REPORT_FORMAT_INVALID、REPORT_SKILL_SET_INVALID、REPORT_CITATION_INVALID、REPORT_OBSERVATION_MISMATCH、REPORT_FINDINGS_INCOMPLETE、REPORT_DATASETS_INCOMPLETE、REPORT_RULE_REQUIRED、REPORT_RULE_INVALID。权限、配置、交付与尺寸错误保留各自错误码。
 
 没有 workflow/report 要求的旧包保留相应原 final 行为；宿主缺 guard 报 `WORKFLOW_GUARD_UNAVAILABLE`，guard 不支持报告报 `REPORT_GUARD_UNAVAILABLE`，报告资源/规则/schema 错误报 `REPORT_CONFIG_INVALID`。先部署匹配的核心、技能 JAR 与 guard，再发布要求这些能力的业务包；已有 run pin 不迁移。

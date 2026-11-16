@@ -95,7 +95,12 @@ public final class ModelWire {
         JSONObject generation = request.optJSONObject("generation");
         if (generation == null) generation = new JSONObject();
         String style = generation.optString("toolNameStyle", "hashed-v1");
-        String instruction = BASE + canonical(request.getJSONObject("responseSchema")) + DATA;
+        JSONObject visibleSchema = new JSONObject(request.getJSONObject("responseSchema").toString());
+        if (!generation.optBoolean("structuredInput", false)) {
+            JSONArray variants = visibleSchema.optJSONArray("oneOf");
+            if (variants != null) for (Object v : variants) ((JSONObject)v).getJSONObject("properties").remove("questions");
+        }
+        String instruction = BASE + canonical(visibleSchema) + DATA;
         JSONObject names = new JSONObject();
         JSONArray view = new JSONArray(), nativeDefinitions = new JSONArray();
         for (int i = 0; i < tools.length(); i++) {
@@ -123,7 +128,7 @@ public final class ModelWire {
             JSONObject source = (JSONObject)entry;
             String role = source.getString("role"), provenance = source.optString("provenance", null);
             Object content = source.get("content"); JSONObject object = source.optJSONObject("content");
-            if (role.equals("user") && Arrays.asList("run.created", "control.resume").contains(provenance)
+            if (role.equals("user") && Arrays.asList("run.created", "control.resume", "message.accepted", "conversation.history").contains(provenance)
                     && object != null && object.opt("instruction") instanceof String) {
                 String text = object.getString("instruction"); JSONArray attachments = object.optJSONArray("attachmentIds");
                 if (attachments != null && attachments.length() > 0) text += "\n\nAttached input IDs: " + canonical(attachments);
@@ -149,6 +154,10 @@ public final class ModelWire {
         if (nativeTools && tools.length() > 0) {
             nativeDefinitions.put(terminal("respond_to_user", "text", 65536, "Finish the user's task with an answer grounded in the confirmed results already available. Also choose this for ordinary conversation that needs no tool. Do not claim unperformed work."));
             nativeDefinitions.put(terminal("request_user_input", "question", 4096, "Ask a clarification only when the task cannot proceed without a user answer."));
+            if (generation.optBoolean("structuredInput", false)) {
+                JSONObject definition = nativeDefinitions.getJSONObject(nativeDefinitions.length() - 1).getJSONObject("function").getJSONObject("parameters");
+                definition.getJSONObject("properties").put("questions", request.getJSONObject("responseSchema").getJSONArray("oneOf").getJSONObject(2).getJSONObject("properties").getJSONObject("questions"));
+            }
             body.put("tools", nativeDefinitions).put("tool_choice", "auto");
         }
         if (body.getBoolean("stream")) body.put("stream_options", new JSONObject().put("include_usage", true));

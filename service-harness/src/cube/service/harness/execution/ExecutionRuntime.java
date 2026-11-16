@@ -171,7 +171,7 @@ public final class ExecutionRuntime implements AutoCloseable {
                         ? new cube.service.harness.files.FileService(store, p, null)
                         : null;
         profiles = new ProfileRegistry(catalog, files == null ? null : files.ledger, deployment);
-        controls = new ControlStore(store, sc.mysql()).files(files == null ? null : files.ledger);
+        controls = new ControlStore(store, sc.mysql()).files(files == null ? null : files.ledger).configure(p);
         maxActive = Integer.parseInt(p.getProperty("execution.max.active", "128"));
         if (maxActive < 1 || maxActive > 256) {
             throw new IllegalArgumentException("INVALID_ADMISSION_LIMIT");
@@ -572,7 +572,14 @@ public final class ExecutionRuntime implements AutoCloseable {
      * @return events 数组与 nextCursor（本页最大 eventSeq，无事件时维持入参）
      */
     public JSONObject events(ProfileRegistry.Identity identity, String run, long after, int limit) {
-        JSONArray events = store.events(identity.tenant, identity.subject, run, after, limit);
+        JSONArray found = store.events(identity.tenant, identity.subject, run, after, limit), events = new JSONArray();
+        int size = 0;
+        for (Object entry : found) {
+            JSONObject event = (JSONObject) entry;
+            int bytes = event.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            if (events.length() > 0 && size + bytes > 512 * 1024) break;
+            events.put(event); size += bytes;
+        }
         long cursor = after;
         if (events.length() > 0) {
             cursor = events.getJSONObject(events.length() - 1).getLong("eventSeq");

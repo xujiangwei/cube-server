@@ -41,6 +41,8 @@
  * @apiSuccess (202) {Number} eventSeq 最新事件序号。
  * @apiSuccess (202) {String} state queued、running、waiting_input、waiting_approval、cancelling、reconciling、succeeded、failed、cancelled 或 timed_out。
  * @apiSuccess (202) {String} executionSettlement 执行确认状态：pending 为等待确认，confirmed 为已确认，unknown 为尚无法确认；可通过查询任务获取后续变化。
+ * @apiSuccess (202) {Number} inputRevision 当前有效用户输入版本，初始为 0。
+ * @apiSuccess (202) {Number} appliedInputRevision 已绑定到模型上下文的输入水位。
  * @apiSuccess (202) {String} executionProfileVersion 本次任务采用的执行配置版本，仅供诊断关联。
  * @apiSuccess (202) {Object} selection 本次任务实际选择的模型、执行器、技能和工具。
  * @apiSuccess (202) {Object} selection.model 模型名称和版本。
@@ -282,6 +284,7 @@
  * @apiUse HarnessAuth
  * @apiUse HarnessIdempotency
  * @apiUse HarnessJson
+ * @apiBody {String} [parentRunId] 同租户、同用户的已终态且执行已确认的父任务；继承受控用户输入和答复，重新检查附件，不继承执行权限。历史有界，超限返回 CONVERSATION_LIMIT。
  * @apiBody {String} [model] 模型名称或名称@版本，例如 Baize、Baize@1，以任务能力目录返回的名称和版本为准。
  * @apiBody {String} [runtime] 执行器名称或名称@版本，例如 resources、trusted-python，以任务能力目录返回的名称和版本为准。
  * @apiBody {String[]} [skills] 本次可用技能名称，采用命名空间/名称形式，使用任务能力目录返回的实际值；省略为全部获授权且兼容的技能，[] 为禁用。
@@ -396,6 +399,8 @@
  * @apiSuccess {String} [interaction.details.configDigest] kind=approval 时本次执行配置的 SHA-256 摘要。
  * @apiSuccess {String} [interaction.details.checkpointDigest] kind=input 时上下文检查点的 SHA-256 摘要。
  * @apiSuccess {String} interaction.details.binding 本次交互的关联标识，仅供诊断，无需据此构造补充输入或审批请求。
+ * @apiSuccess {Number} interaction.interactionVersion 本次问题的版本，answer 必须原样提交。
+ * @apiSuccess {Object[]} [interaction.details.questions] 最多 3 题；每题含 questionId、prompt、options 和 allowFreeText；最多 8 个选项，每项含 id、label 和可选 description。
  * @apiSuccess {String} [interaction.details.question] kind=input 时需要用户补充回答的问题。
  * @apiSuccess {String} [interaction.details.tool] kind=approval 时的待审批工具名。
  * @apiSuccess {String} [interaction.details.argumentsHash] kind=approval 时的参数摘要。
@@ -508,7 +513,7 @@
  * @apiGroup Harness
  * @apiVersion 1.0.0
  * @apiDescription 按事件序号查询任务进度，可用于时间线展示和断线后继续接收事件。默认返回 JSON 分页，设置 <code>Accept: text/event-stream</code> 可使用 SSE。
- *                 <p>首次请求使用 <code>after=0</code>；JSON 模式以下次返回的 <code>nextCursor</code> 继续查询。SSE 模式将最后完整收到的 <code>id</code> 作为下一次请求的 <code>Last-Event-ID</code>。事件的 <code>dataJson</code> 是 JSON 字符串，使用前需要再次解析。</p>
+ *                 <p>首次请求使用 <code>after=0</code>；JSON 模式以下次返回的 <code>nextCursor</code> 继续查询。页内聚合大小约 512 KiB，至少返回一条；少于 limit 不代表已读完，需继续追赶 read-run 的 eventSeq。SSE 模式将最后完整收到的 <code>id</code> 作为下一次请求的 <code>Last-Event-ID</code>。事件的 <code>dataJson</code> 是 JSON 字符串，使用前需要再次解析。</p>
  *                 <p>SSE 返回一页事件后以注释 <code>: replay-page-complete</code> 结束，并非持续保持的连接。页结束或断线后可继续请求；空页按 <code>retry: 500</code> 至少等待 500 毫秒。判断任务是否结束应读取任务状态，不能只依据连接关闭。</p>
  * @apiUse HarnessAuth
  * @apiParam {String} runId 任务 ID。
@@ -1260,4 +1265,55 @@
  * @apiExample {http} 使用具备诊断权限的用户令牌
  *     GET http://211.157.179.37:7010/harness/v1/runs/run-001/trace
  *     Authorization: Bearer <Cube Token>
+ */
+
+/**
+ * @api {post} /harness/v1/runs/:runId/messages 发送补充要求或回答
+ * @apiName HarnessAppendMessage
+ * @apiGroup Harness
+ * @apiVersion 1.0.0
+ * @apiDescription interaction.enabled 开启时可在 queued、running 或等待期间补充。202 只表示持久化受理，message.applied 才表示已绑定后续上下文。模型正在执行时在下一执行边界生效，已经准入的动作可能继续完成。普通 instruction 使旧问题或审批失效，不构成批准。终态返回 RUN_TERMINAL，可使用 parentRunId 创建后续任务。重试必须保持原键和正文。
+ * @apiUse HarnessAuth
+ * @apiUse HarnessIdempotency
+ * @apiUse HarnessJson
+ * @apiParam {String} runId 任务 ID。
+ * @apiBody {String=instruction,answer} kind 补充要求或回答。
+ * @apiBody {Object} input 用户输入。
+ * @apiBody {String} input.instruction 1～32768 字符。
+ * @apiBody {String[]} input.attachmentIds 最多 16 个已就绪的输入附件；无附件传 []。
+ * @apiBody {String} [waitId] answer 必需，取当前 interaction.waitId。
+ * @apiBody {Number} [interactionVersion] answer 必需，取当前 interaction.interactionVersion。
+ * @apiBody {Object[]} [answers] 每题一项：questionId、可选 optionId 和 text；每题必须作答，text 仅在允许自由回答时使用。单个自由问题可直接用 input.instruction 回答。
+ * @apiSuccess (202) {String} messageId 消息 ID。
+ * @apiSuccess (202) {Number} messageSeq 服务端分配的消息序号。
+ * @apiSuccess (202) {Number} inputRevision 输入版本。
+ * @apiSuccess (202) {String} status accepted；不代表动作执行完成。
+ * @apiSuccess (202) {String} kind instruction 或 answer。
+ * @apiSuccess (202) {Object} input 用于模型的输入，结构化回答会附题干和可信选项标签。
+ * @apiSuccess (202) {Number} receivedAt 受理时间，Unix 毫秒。
+ * @apiError (409) RUN_TERMINAL 任务已结束或正在取消。
+ * @apiError (409) WAIT_STATE_CONFLICT 问题已失效或已被回答。
+ * @apiError (409) INTERACTION_VERSION_CONFLICT 回答版本过时。
+ * @apiError (410) WAIT_EXPIRED 已超过问题或任务期限。
+ * @apiError (429) MESSAGE_QUEUE_FULL 达到消息总数或待采纳上限。
+ * @apiExample {curl} 执行中补充
+ * curl -X POST 'http://211.157.179.37:7010/harness/v1/runs/<runId>/messages' -H 'Authorization: Bearer <Cube Token>' -H 'Content-Type: application/json' -H 'Idempotency-Key: correction-001' -d '{"kind":"instruction","input":{"instruction":"只分析本月并按区域汇总","attachmentIds":[]}}'
+ */
+
+/**
+ * @api {get} /harness/v1/runs/:runId/messages 查询补充消息及采纳状态
+ * @apiName HarnessRunMessages
+ * @apiGroup Harness
+ * @apiVersion 1.0.0
+ * @apiDescription 初始输入在 run.created；本接口列出后续补充和恢复回答。默认上限 128 条消息、32 条待采纳消息，可由部署配置调整。页内聚合大小约 512 KiB，至少返回一条；limit 是条数上限，少于 limit 不代表已读完，需按 nextCursor 继续直到追上 inputRevision。终态中未纳入处理的消息标记 unprocessed_terminal。结合 read-run 的 interaction 和 events 按 eventSeq 续读可恢复页面；认证到期后重新登录续读，不取消任务。
+ * @apiUse HarnessAuth
+ * @apiParam {String} runId 任务 ID。
+ * @apiQuery {Number} [after=0] 返回此消息序号之后的数据。
+ * @apiQuery {Number} [limit=100] 1～100。
+ * @apiSuccess {Object[]} messages 消息列表；含 messageId、messageSeq、inputRevision、kind、input、request、receivedAt 和 status。
+ * @apiSuccess {Number} nextCursor 本页最后消息序号，无数据时保持 after。
+ * @apiSuccess {Number} inputRevision 当前输入版本。
+ * @apiSuccess {Number} appliedInputRevision 已绑定后续模型上下文的水位。
+ * @apiSuccess {String} messages.status accepted、applied 或 unprocessed_terminal。
+ * @apiSuccess {Object} messages.request 原请求，保留 waitId、题目/选项 ID 与自由回答；旧 resume 保存等价输入。
  */

@@ -18,7 +18,11 @@ CREATE TABLE harness_run (
     execution_settlement VARCHAR(32) NOT NULL,
     usage_settlement VARCHAR(32) NOT NULL,
     created_at BIGINT NOT NULL,
-    updated_at BIGINT NOT NULL
+    updated_at BIGINT NOT NULL,
+    input_revision BIGINT NOT NULL DEFAULT 0,
+    applied_input_revision BIGINT NOT NULL DEFAULT 0,
+    wait_started_at BIGINT NOT NULL DEFAULT 0,
+    wait_accumulated_millis BIGINT NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE harness_lease (
@@ -93,6 +97,8 @@ CREATE TABLE harness_round (
     status VARCHAR(32) NOT NULL,
     result_json MEDIUMTEXT,
     result_hash VARCHAR(64),
+    input_revision BIGINT NOT NULL DEFAULT 0,
+    admitted_at BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY(run_id,intent_id,attempt),
     FOREIGN KEY(run_id) REFERENCES harness_run(run_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
@@ -108,6 +114,8 @@ CREATE TABLE harness_tool_call (
     status VARCHAR(32) NOT NULL,
     result_json MEDIUMTEXT,
     result_hash VARCHAR(64),
+    input_revision BIGINT NOT NULL DEFAULT 0,
+    admitted_at BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY(run_id,intent_id,attempt),
     FOREIGN KEY(run_id) REFERENCES harness_run(run_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
@@ -514,4 +522,17 @@ CREATE TABLE harness_admin_request (
     request_hash VARCHAR(64) NOT NULL,
     response_json MEDIUMTEXT NOT NULL,
     PRIMARY KEY(tenant,subject_id,request_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+CREATE TABLE harness_message (
+    message_id VARCHAR(128) NOT NULL PRIMARY KEY,
+    run_id VARCHAR(128) NOT NULL,
+    message_seq BIGINT NOT NULL,
+    kind VARCHAR(32) NOT NULL,
+    input_revision BIGINT NOT NULL,
+    input_json LONGTEXT NOT NULL,
+    received_at BIGINT NOT NULL,
+    request_json LONGTEXT NOT NULL,
+    UNIQUE(run_id,message_seq),
+    FOREIGN KEY(run_id) REFERENCES harness_run(run_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

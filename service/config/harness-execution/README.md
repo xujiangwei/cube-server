@@ -2,6 +2,8 @@
 
 `execution.profiles=./config/harness-execution` 加载本目录全部 JSON。服务器发布模型和执行器，租户只保存技能授权、权限和业务配额。修改目录后重启 Java；在途任务保留完整快照。
 
+完整互动语义见[互动方案](../../../service-harness/INTERACTION.md)，配置更新与人工运行顺序见[部署指南](../../../service-harness/BUSINESS-DEPLOYMENT.md)。普通消息入口与模型结构化提问是独立开关，客户端不能替代服务端配置或 worker 能力声明。
+
 | 文件 | 内容 |
 | --- | --- |
 | `Baize.json` | `Baize@1`，JSON 决策模型 |

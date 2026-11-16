@@ -38,6 +38,7 @@ final class TaskProgress {
             JSONObject event = (JSONObject)entry; String type = event.getString("event_type");
             JSONObject input = null;
             if (type.equals("run.created")) input = new JSONObject(event.getString("data_json")).getJSONObject("input");
+            if (type.equals("message.accepted")) input = new JSONObject(event.getString("data_json")).getJSONObject("input");
             if (type.equals("control.resume")) input = new JSONObject(event.getString("data_json")).getJSONObject("payload").getJSONObject("input");
             if (input != null) inputs.put(new JSONObject().put("source", type).put("eventSeq", event.getLong("event_seq"))
                     .put("inputDigest", JdbcRunStore.hash(input)).put("attachmentIds", input.optJSONArray("attachmentIds") == null ? new JSONArray() : input.getJSONArray("attachmentIds")));

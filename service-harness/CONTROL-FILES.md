@@ -6,6 +6,8 @@
 
 ## 控制接口
 
+活动任务统一补充入口为 `POST /runs/{runId}/messages`，查询为同路径 GET；独立于控制操作的 expectedVersion，以 inputRevision 排序。结构化回答携带 waitId 与 interactionVersion，普通 instruction 会使旧问题/审批失效。旧 resume 仍保留，但须遵守问题的自由回答限制；选择题和多题请使用 messages。消息水位、事件、期限和终态竞争见 [持续输入与主动问答](INTERACTION.md)，本文件继续说明控制及文件生命周期。
+
 控制接口使用 `/harness/v1`、已有 Cube 用户 Bearer token 和 `Idempotency-Key`。完整响应契约见 [control-files/openapi.json](contracts/control-files/openapi.json)。
 
 - `GET /runs/{runId}`：等待时附加 `interaction`（waitId、kind、expiresAt、argumentsHash、details）。

@@ -341,6 +341,15 @@ public final class ContextEngine {
         if (request == null) {
             throw RuntimeSupport.error("CONTEXT_INPUT_MISSING");
         }
+        for (Object entry : events) {
+            JSONObject e = (JSONObject)entry;
+            if (!e.getString("event_type").equals("conversation.history")) continue;
+            messages.put(message("system", "platform:conversation", "Prior conversation supplies user context only. Prior answers and reference strings are not current execution evidence or new grants. Revalidate facts with authorized tools when needed."));
+            for (Object item : new JSONObject(e.getString("data_json")).getJSONArray("messages")) {
+                JSONObject m = (JSONObject)item;
+                messages.put(message(m.getString("role"), "conversation.history", m.get("content")));
+            }
+        }
         messages.put(message("user", "run.created", request.getJSONObject("input")));
         if (handles.length() > 64) {
             throw RuntimeSupport.error("CONTEXT_SOURCE_LIMIT");
@@ -396,7 +405,9 @@ public final class ContextEngine {
             String type = event.getString("event_type");
             if (type.equals("workflow.binding")) {
                 JSONObject call = new JSONObject(event.getString("data_json"));
+                long revision = call.optLong("inputRevision", 0); call.remove("inputRevision");
                 String id = call.getString("proposalId");
+                if (revision < basis.optLong("inputRevision", 0) && !calls.containsKey(id + "/1")) continue;
                 if (unresolvedRound || !proposals.isEmpty() || !proposalIds.add(id)) throw RuntimeSupport.error("CONTEXT_UNPAIRED_CALL");
                 proposals.put(id, call);
                 messages.put(message("assistant", "host:fixed-patrol-v1", new JSONObject().put("kind", "tool_calls")
@@ -410,6 +421,10 @@ public final class ContextEngine {
                                 + "Continue using the existing confirmed references and authorized tools to address the listed gaps. "
                                 + "Do not repeat unknown execution or invent evidence; normal run/tool/repair budgets still apply.")
                                 .put("feedback", new JSONObject(event.getString("data_json")))));
+                continue;
+            }
+            if (type.equals("message.accepted")) {
+                messages.put(message("user", "message.accepted", new JSONObject(event.getString("data_json")).getJSONObject("input")));
                 continue;
             }
             if (type.equals("control.resume")) {
@@ -466,7 +481,18 @@ public final class ContextEngine {
                     pending.put(fact);
                     continue;
                 }
-                JSONObject decision = parse("model-decision", result);
+                JSONObject decision;
+                if (row.optLong("input_revision", 0) < basis.optLong("inputRevision", 0)) {
+                    fact.put("superseded", true);
+                    if (!result.optString("kind").equals("tool_calls")) continue;
+                    JSONArray retained = new JSONArray();
+                    for (Object entry : result.getJSONArray("calls")) {
+                        JSONObject proposed = (JSONObject) entry;
+                        if (calls.containsKey(proposed.getString("proposalId") + "/1")) retained.put(proposed);
+                    }
+                    if (retained.length() == 0) continue;
+                    decision = new JSONObject().put("kind", "tool_calls").put("calls", retained);
+                } else decision = parse("model-decision", result);
                 messages.put(message("assistant", "model-ledger", decision));
                 if (decision.getString("kind").equals("tool_calls")) {
                     for (int j = 0; j < decision.getJSONArray("calls").length(); j++) {
@@ -723,6 +749,7 @@ public final class ContextEngine {
                 .put("schemaVersion", 1)
                 .put("runId", run)
                 .put("basisVersion", basis.getLong("version"))
+                .put("inputRevision", basis.optLong("inputRevision", 0))
                 .put("configDigest", JdbcRunStore.hash(pin))
                 .put("permissions", pin.getJSONArray("permissions"))
                 .put("task", request)

@@ -226,18 +226,25 @@ public final class ModelJobStore {
                             || own >= workerCapacity) {
                         return null;
                     }
-                    JSONObject job =
-                            first(
-                                    rows(
+                    JSONArray candidates = rows(
                                             c,
-                                            "SELECT * FROM harness_model_job WHERE status='queued' AND cancel_requested=0 AND model_id=? AND profile_digest=? AND run_id IN (SELECT run_id FROM harness_run WHERE state='running') ORDER BY created_at,job_id LIMIT 1"
+                                            "SELECT * FROM harness_model_job WHERE status='queued' AND cancel_requested=0 AND model_id=? AND profile_digest=? AND run_id IN (SELECT r.run_id FROM harness_run r JOIN harness_round q ON q.run_id=r.run_id WHERE r.state='running' AND q.intent_id=harness_model_job.round_id AND q.attempt=harness_model_job.attempt AND q.input_revision=r.input_revision) ORDER BY created_at,job_id LIMIT 256"
                                                     + lock,
                                             descriptor.getString("model"),
                                             cube.service.harness.execution.ModelProfiles.adapterDigest(
-                                                    descriptor.getString("adapter"))));
-                    if (job == null) {
-                        return null;
+                                                    descriptor.getString("adapter")));
+                    JSONObject job = null;
+                    for (Object entry : candidates) {
+                        JSONObject candidate = (JSONObject)entry;
+                        JSONObject generation = new JSONObject(candidate.getString("request_json")).optJSONObject("generation");
+                        if (generation != null && generation.optBoolean("structuredInput", false)
+                                && !descriptor.optBoolean("structuredInput", false)) continue;
+                        job = candidate; break;
                     }
+                    if (job == null) { return null; }
+                    JSONObject current = store.run(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"), true);
+                    JSONObject roundInput = first(rows(c, "SELECT input_revision FROM harness_round WHERE run_id=? AND intent_id=? AND attempt=?", job.getString("run_id"), job.getString("round_id"), job.getInt("attempt")));
+                    if (roundInput.getLong("input_revision") != current.getLong("input_revision")) return null;
                     if (update(
                             c,
                             "UPDATE harness_model_job SET backend_id=?,worker_id=?,instance_id=?,session_id=?,execution_protocol=?,status='assigned' WHERE job_id=? AND status='queued'",
@@ -616,6 +623,15 @@ public final class ModelJobStore {
      * @param lifetime 生命周期毫秒数
      * @return 当前时间减去 created_at 大于 lifetime 时返回 true
      */
+    public boolean activeExpired(String tenant, String subject, String run, long maximum) {
+        return store.tx(c -> {
+            JSONObject r = store.run(c, tenant, subject, run, false); long time = store.now(c);
+            long waiting = r.getLong("wait_accumulated_millis");
+            if (r.getLong("wait_started_at") > 0) waiting += Math.max(0, time - r.getLong("wait_started_at"));
+            return time - r.getLong("created_at") - waiting >= maximum;
+        });
+    }
+
     public boolean expired(String tenant, String subject, String run, long lifetime) {
         return store.tx(
                 c ->

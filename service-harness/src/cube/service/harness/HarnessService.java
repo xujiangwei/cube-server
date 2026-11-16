@@ -730,6 +730,7 @@ public final class HarnessService extends AbstractModule {
             result.put("execution", execution.runners == null
                     ? "resource-loop" : "trusted-tool-loop");
             result.put("capacity", execution.workers.capacity());
+            result.put("interaction", execution.controls.messages.capabilities());
             result.put("files", execution.files == null
                     ? JSONObject.NULL : execution.files.metrics());
             return result;

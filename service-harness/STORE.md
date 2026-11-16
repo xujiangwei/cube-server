@@ -6,6 +6,8 @@
 
 当前结构定义随 JAR 分发，SQLite 和 MySQL 分别使用 `resources/store/sqlite.sql`、`resources/store/mysql.sql`，服务启动时按当前结构自动初始化。
 
+持续互动新增 harness_message，保存服务端有序消息、归一化输入、原请求和受理时间；run 保存 input_revision/applied_input_revision、wait_started_at/wait_accumulated_millis，round/tool intent 保存 input_revision，tool 保存 admitted_at。初始输入版本为 0，既有任务缺省值为 0；启动识别升级前 schema 后添加默认列及新表，不回填历史输入。普通消息、回答、旧 resume、问题消费和输入水位均在 run 行锁或 SQLite 写事务内提交。conversation.history 保存后续 run 的受控历史快照，不复制工具执行事实或权限。语义及边界见 [互动契约](INTERACTION.md)。
+
 ## 配置与启动建表
 
 默认 `store.enabled=false`。不回退到其他模块的数据库配置或环境凭据，不修改旧表。设置为 true 后，HarnessService 在接受请求前连接数据库，自动检查并补齐必要表、索引和可安全补建的列。数据库身份、当前结构摘要及已有结构须匹配；失败时仅停止 Harness 自身启动。doctor 和存储校验 API 只读检查，不执行 DDL。
@@ -74,6 +76,8 @@ execution.tenant.templates=./config/harness-tenant
 `submitControl` 仅记录 CAS 控制意图和幂等回执；`requestCompensation` 记录绑定原 intent 的补偿/对账义务。控制接口决定 wait/approval/取消策略，Broker 负责外部执行与对账。存储方法本身不会执行外部效果。
 
 恢复使用 run、intents、事件、控制回执和未发送 Outbox，不依赖 Trace。`recover` 按 tenant 分页返回过期 owner 的非终态 run，以及执行/usage 未结算的终态 run；调用方通过 tenant+subject 继续读取。事件分页明确拒绝错误游标，缺失区间返回 EVENT_GAP；当前不自动删除事件。
+
+普通持久化载荷的 UTF-8 JSON 上限为 64 KiB。用户输入和问题事件（run.created、message.accepted、control.resume、conversation.history、run.waiting_input、interaction.requested）及已确认 round 结果上限为 256 KiB，终态结果信封上限为 1 MiB，以容纳契约允许的中文输入、结构化问题和报告封装；工具结果保持原上限。Outbox 按事件上限另留 JSON 字符串转义与信封空间。HTTP 事件页与消息页按约 512 KiB 聚合，游标只推进实际返回的数据。这些边界不修改表结构，模型上下文仍受其独立预算约束。
 
 ## 工具调度与执行证据
 

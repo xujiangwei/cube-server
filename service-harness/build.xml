@@ -4,6 +4,7 @@
   <property name="trace.test.output" value=""/>
   <property name="tools.test.config" value=""/>
   <property name="control.test.config" value=""/>
+  <property name="interaction.test.config" value=""/>
   <property name="build.dir" location="build"/>
   <property name="lib.dir" location="../deploy/libs"/>
   <property name="cell.jar" location="../deploy/bin/cell.jar"/>
@@ -60,6 +61,9 @@
   </target>
   <target name="test-control-files" depends="test">
     <java classname="cube.service.harness.test.ControlFileTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="control.test.config" value="${control.test.config}"/></java>
+  </target>
+  <target name="test-interaction" depends="test">
+    <java classname="cube.service.harness.test.InteractionTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="execution.test.config" value="${interaction.test.config}"/></java>
   </target>
   <target name="test-trace" depends="test">
     <java classname="cube.service.harness.test.TraceTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath><sysproperty key="trace.test.output" value="${trace.test.output}"/><sysproperty key="trace.test.config" value="${trace.test.config}"/></java>

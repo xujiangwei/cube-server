@@ -10,6 +10,7 @@ public interface CompletionGuard extends AutoCloseable {
 
     interface Resources {
         JSONObject json(String path) throws Exception;
+        default JSONObject taskInput() throws Exception { return new JSONObject().put("inputRevision", 0).put("inputs", new JSONArray()); }
         default byte[] bytes(String path) throws Exception { throw new UnsupportedOperationException("RESOURCE_BYTES_UNAVAILABLE"); }
     }
 
@@ -20,6 +21,8 @@ public interface CompletionGuard extends AutoCloseable {
 
     /** Optional pinned fixed workflow. Returns a host proposal/final, never a model decision. */
     default JSONObject advance(Resources resources, JSONArray evidence, String skill) throws Exception { return null; }
+
+    default boolean supportsInteraction() { return false; }
 
     default boolean supportsReports() { return false; }
     default void validateReport(Resources resources) throws Exception { throw new IllegalStateException("REPORT_GUARD_UNAVAILABLE"); }

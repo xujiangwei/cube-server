@@ -2,6 +2,24 @@
 
 `execution.profiles=./config/harness-execution` 加载本目录全部 JSON。服务器发布模型和执行器，租户只保存技能授权、权限和业务配额。修改目录后重启 Java；在途任务保留完整快照。
 
+完整互动语义见[互动方案](../../INTERACTION.md)，配置更新与人工运行顺序见[部署指南](../../BUSINESS-DEPLOYMENT.md)。普通消息入口与模型结构化提问是独立开关，客户端不能替代服务端配置或 worker 能力声明。
+
+## 互动配置
+
+普通执行中补充只需在私有 harness.properties 开启 `interaction.enabled=true`；默认关闭。消息总数默认 128，待采纳数默认 32，配置分别为 `interaction.max.messages` 和 `interaction.max.pending`，后者不得大于前者。初始输入是版本 0，后续有效输入从版本 1 递增；追加不重置原有轮次、工具、修复、费用或时间预算。
+
+需要选项卡提问时，复制模型 JSON 为一个新版本，例如将 Baize2 的版本改为 `3`，在 `generation` 增加 `"structuredInput":true`，并让当前模型引用指向 `Baize2@3`。旧版本文件可保留；同一 ID 有多个版本时更新下文的 current 映射。新 Python 模型单元声明 `structuredInput=true`，Java 只将此模型的作业交给具备该能力的单元；旧 worker 仍可处理未开启该标志的模型。不能仅更新客户端就开启新模型格式。
+
+互动任务建议发布独立的执行配置版本，例如在 execution.json 保留其他字段、将 version 改为 `4`，并配置：
+
+```json
+{"maxRounds":16,"maxTools":32,"maxRepairs":2,"maxRepeatedCalls":3,"maxActiveMillis":300000,"maxInteractionWaitMillis":600000,"maxLifetimeMillis":1800000}
+```
+
+以上对象替换 `executionLimits`。`maxActiveMillis` 统计排队、处理和对账时间，扣除已持久化的用户输入/审批等待；缺省等于 maxLifetimeMillis。`maxInteractionWaitMillis` 限制每次等待，缺省使用 control.wait.millis；实际等待还受 control.wait.millis 和总期限限制。总期限包括等待，不随重启或追加消息续期。租户 policy.businessLimits.maxLifetimeMillis 必须允许所需总期限，否则取较小值；初始租户模板也需同步配置，修改模板不会改写已初始化租户。
+
+基础补充、结构化提问和固定业务流程可以分别配置。旧 CompletionGuard 默认不支持目标调整，会返回 WORKFLOW_INTERACTION_UNSUPPORTED；配套 WorkflowGuard 已支持按最新输入版本重新规划查询及后续步骤。固定业务要求和授权继续生效。安装与人工运行顺序集中见 [部署指南](../../BUSINESS-DEPLOYMENT.md)。
+
 默认 `execution.json` 修订号为 `3`，上下文参数如下；旧固定配置缺省时保持原行为：
 
 | 字段 | 默认模板值 | 行为 |

@@ -90,6 +90,10 @@ public enum HarnessAction {
      */
     Events("GET", "runs/ID/events", null),
 
+    AppendMessage("POST", "runs/ID/messages", "run-message"),
+
+    RunMessages("GET", "runs/ID/messages", null),
+
     /**
      * 取消运行任务。
      */

@@ -584,6 +584,333 @@
         ]
       }
     },
+    "/harness/v1/runs/{runId}/messages": {
+      "get": {
+        "summary": "Requires the corresponding Harness capability",
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Harness capability response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/messages-page"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Expired wait or bounded message queue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Expired wait or bounded message queue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      },
+      "post": {
+        "summary": "Requires the corresponding Harness capability",
+        "security": [
+          {
+            "HarnessBearer": []
+          }
+        ],
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Capability not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/message-receipt"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Harness error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Expired wait or bounded message queue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Expired wait or bounded message queue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/run-message"
+              }
+            }
+          }
+        }
+      }
+    },
     "/harness/v1/runs/{runId}/cancel": {
       "post": {
         "summary": "Requires the corresponding Harness capability",
@@ -3595,10 +3922,330 @@
               "pattern": "^[a-z][a-z0-9_.-]*/[a-z][a-z0-9_.-]*$"
             },
             "maxItems": 64
+          },
+          "parentRunId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
           }
         },
         "required": [
           "input"
+        ],
+        "additionalProperties": false
+      },
+      "run-message": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "instruction"
+                ]
+              },
+              "input": {
+                "type": "object",
+                "properties": {
+                  "instruction": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32768
+                  },
+                  "attachmentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.:-]+$"
+                    },
+                    "maxItems": 16
+                  }
+                },
+                "required": [
+                  "instruction",
+                  "attachmentIds"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "kind",
+              "input"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "answer"
+                ]
+              },
+              "waitId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              },
+              "interactionVersion": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "input": {
+                "type": "object",
+                "properties": {
+                  "instruction": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32768
+                  },
+                  "attachmentIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.:-]+$"
+                    },
+                    "maxItems": 16
+                  }
+                },
+                "required": [
+                  "instruction",
+                  "attachmentIds"
+                ],
+                "additionalProperties": false
+              },
+              "answers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "questionId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.:-]+$"
+                    },
+                    "optionId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.:-]+$"
+                    },
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4096
+                    }
+                  },
+                  "required": [
+                    "questionId"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 3
+              }
+            },
+            "required": [
+              "kind",
+              "waitId",
+              "interactionVersion",
+              "input"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "message-receipt": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "messageSeq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "inputRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "instruction",
+              "answer"
+            ]
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "instruction": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32768
+              },
+              "attachmentIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "maxItems": 16
+              }
+            },
+            "required": [
+              "instruction",
+              "attachmentIds"
+            ],
+            "additionalProperties": false
+          },
+          "receivedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted"
+            ]
+          }
+        },
+        "required": [
+          "messageId",
+          "messageSeq",
+          "inputRevision",
+          "kind",
+          "input",
+          "receivedAt",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "messages-page": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "messageId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "messageSeq": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "inputRevision": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "instruction",
+                    "answer"
+                  ]
+                },
+                "input": {
+                  "type": "object",
+                  "properties": {
+                    "instruction": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32768
+                    },
+                    "attachmentIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "pattern": "^[A-Za-z0-9_.:-]+$"
+                      },
+                      "maxItems": 16
+                    }
+                  },
+                  "required": [
+                    "instruction",
+                    "attachmentIds"
+                  ],
+                  "additionalProperties": false
+                },
+                "receivedAt": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "accepted",
+                    "applied",
+                    "unprocessed_terminal"
+                  ]
+                },
+                "request": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "messageId",
+                "messageSeq",
+                "inputRevision",
+                "kind",
+                "input",
+                "receivedAt",
+                "status",
+                "request"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "nextCursor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "inputRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "appliedInputRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "messages",
+          "nextCursor",
+          "inputRevision",
+          "appliedInputRevision"
         ],
         "additionalProperties": false
       },
@@ -3871,6 +4518,66 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 4096
+              },
+              "questions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "questionId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128,
+                      "pattern": "^[A-Za-z0-9_.:-]+$"
+                    },
+                    "prompt": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4096
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128,
+                            "pattern": "^[A-Za-z0-9_.:-]+$"
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "description": {
+                            "type": "string",
+                            "maxLength": 1024
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "maxItems": 8
+                    },
+                    "allowFreeText": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "questionId",
+                    "prompt",
+                    "options",
+                    "allowFreeText"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 3
               }
             },
             "required": [
@@ -3928,6 +4635,16 @@
             "minLength": 1,
             "maxLength": 128,
             "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "inputRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "appliedInputRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "selection": {
             "type": "object",
@@ -4508,8 +5225,7 @@
           "skills",
           "tools"
         ],
-        "additionalProperties": false,
-        "$schema": "http://json-schema.org/draft-07/schema#"
+        "additionalProperties": false
       },
       "event": {
         "type": "object",
@@ -4925,6 +5641,84 @@
         ],
         "additionalProperties": false
       },
+      "admin-policy": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "id": {
+            "type": "string",
+            "enum": [
+              "default"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "policy"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.:-]+$"
+            },
+            "maxItems": 64
+          },
+          "skillReleases": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "maxItems": 64
+          },
+          "businessLimits": {
+            "type": "object",
+            "properties": {
+              "maxActiveRuns": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 256
+              },
+              "maxLifetimeMillis": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 86400000
+              }
+            },
+            "required": [
+              "maxActiveRuns",
+              "maxLifetimeMillis"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "id",
+          "version",
+          "kind",
+          "permissions",
+          "skillReleases",
+          "businessLimits"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
       "admin-policy-binding": {
         "type": "object",
         "properties": {
@@ -5007,84 +5801,6 @@
           "allowed"
         ],
         "additionalProperties": false
-      },
-      "admin-policy": {
-        "type": "object",
-        "properties": {
-          "schemaVersion": {
-            "type": "integer",
-            "enum": [
-              1
-            ]
-          },
-          "id": {
-            "type": "string",
-            "enum": [
-              "default"
-            ]
-          },
-          "version": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "pattern": "^[A-Za-z0-9_.:-]+$"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "policy"
-            ]
-          },
-          "permissions": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128,
-              "pattern": "^[A-Za-z0-9_.:-]+$"
-            },
-            "maxItems": 64
-          },
-          "skillReleases": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "pattern": "^[a-f0-9]{64}$"
-            },
-            "maxItems": 64
-          },
-          "businessLimits": {
-            "type": "object",
-            "properties": {
-              "maxActiveRuns": {
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 256
-              },
-              "maxLifetimeMillis": {
-                "type": "integer",
-                "minimum": 1000,
-                "maximum": 86400000
-              }
-            },
-            "required": [
-              "maxActiveRuns",
-              "maxLifetimeMillis"
-            ],
-            "additionalProperties": false
-          }
-        },
-        "required": [
-          "schemaVersion",
-          "id",
-          "version",
-          "kind",
-          "permissions",
-          "skillReleases",
-          "businessLimits"
-        ],
-        "additionalProperties": false,
-        "$schema": "http://json-schema.org/draft-07/schema#"
       },
       "artifact-view": {
         "type": "object",

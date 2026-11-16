@@ -138,6 +138,11 @@ files.enabled=false
 # control.approval.tools=artifact.write_text
 # 等待用户输入、审批等交互的超时时间，单位为毫秒；300000 = 5 分钟。
 # control.wait.millis=300000
+# 执行中补充与结构化回答；先配套升级 Java、Python 和客户端，再显式开启。
+interaction.enabled=false
+# 每个 run 的补充/回答总数（1..1024），以及尚未纳入模型上下文的数量。
+interaction.max.messages=128
+interaction.max.pending=32
 # 取消任务后等待在途执行的宽限期，单位为毫秒；10000 = 10 秒。
 # 宽限结束不代表物理执行已结束，未知执行的容量仍需等待证据确认后释放。
 # control.cancel.grace.millis=10000

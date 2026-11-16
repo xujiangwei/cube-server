@@ -1,6 +1,6 @@
 {
-  "schemas/run-read.json": "863f2a7809c574140d5b7b6a5a21f6b71d8e761f7b5bf3ef670b04476b9a1315",
-  "schemas/interaction.json": "b53799b84fe820c4c1d2e5fad985739e4592aa5334b0df036d608e0ee1c17c41",
+  "schemas/run-read.json": "2033494b7d1dac3c6ad50aec9e78c2afd1bc541172a72af8eb5b0c71fb635bfa",
+  "schemas/interaction.json": "24207a6d3855be09656e0ef6774207d799653c5dbf30a7fd1f8a183fd6f57531",
   "schemas/artifact-metadata.json": "bd37015f51e9941165c9264ce3256db9658107351d6e6c4facabac79fab816aa",
   "schemas/input-metadata.json": "e8fe4e67ab0a156b98745dc15e8585db114bb35969b75c7af04bba5b216b957c",
   "schemas/artifacts-list.json": "5856364a9d1945ea7f88e3e5b1ac99b729cc9a15727c00b202ede97e15e38a57",

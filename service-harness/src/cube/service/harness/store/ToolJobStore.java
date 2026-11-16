@@ -312,7 +312,9 @@ public final class ToolJobStore {
                     requireSelected(c, job);
                     job.put("task_remaining_millis", remainingMillis(c, job));
                     JSONObject wire = factory.create(job, worker, runtime, instance);
-                    if (wire == null) return null; // This worker cannot honor the pinned wait contract.
+                    if (wire == null) return null;
+                    JSONObject current = store.run(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"), true);
+                    if (!store.admitCall(c, current, job.getString("call_id"), job.getInt("attempt"))) return null; // This worker cannot honor the pinned wait contract.
                     if (update(
                             c,
                             "UPDATE harness_tool_job SET worker_id=?,runtime_id=?,instance_id=?,job_hash=?,wire_json=?,status='assigned' WHERE job_id=? AND status='queued'",

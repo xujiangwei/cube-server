@@ -43,8 +43,13 @@ public final class ControlStore {
      * @param files FileStore 实例
      * @return 本实例，便于链式调用
      */
+    public final MessageStore messages;
+
+    public ControlStore configure(java.util.Properties p) { messages.configure(p); return this; }
+
     public ControlStore files(FileStore files) {
         this.files = files;
+        messages.files(files);
         return this;
     }
 
@@ -56,6 +61,7 @@ public final class ControlStore {
      */
     public ControlStore(JdbcRunStore store, boolean mysql) {
         this.store = store;
+        messages = new MessageStore(store, mysql);
         lock = mysql ? " FOR UPDATE" : "";
     }
 
@@ -103,7 +109,8 @@ public final class ControlStore {
                 .put("kind", w.getString("kind"))
                 .put("expiresAt", w.getLong("expires_at"))
                 .put("argumentsHash", w.getString("arguments_hash"))
-                .put("details", new JSONObject(w.getString("payload_json")));
+                .put("details", new JSONObject(w.getString("payload_json")))
+                .put("interactionVersion", new JSONObject(w.getString("payload_json")).optLong("interactionVersion", 0));
     }
 
     /**
@@ -135,6 +142,9 @@ public final class ControlStore {
                     if (!r.getString("state").equals("running") || expires <= store.now(c)) {
                         throw new StoreException("WAIT_EXPIRED");
                     }
+                    MessageStore.requireCurrent(r);
+                    MessageStore.validateQuestions(payload);
+                    payload.put("inputRevision", r.getLong("input_revision")).put("interactionVersion", expected + 1);
                     String wait = hash(new JSONArray().put(l.runId).put(kind).put(payload));
                     JSONObject prior = first(rows(c, "SELECT * FROM harness_wait WHERE wait_id=?", wait));
                     if (prior != null) {
@@ -152,7 +162,7 @@ public final class ControlStore {
                             expires,
                             store.now(c));
                     String state = kind.equals("input") ? "waiting_input" : "waiting_approval";
-                    update(c, "UPDATE harness_run SET state=? WHERE run_id=?", state, l.runId);
+                    update(c, "UPDATE harness_run SET state=?,wait_started_at=? WHERE run_id=?", state, store.now(c), l.runId);
                     r.put("state", state);
                     store.emit(
                             c,
@@ -163,6 +173,7 @@ public final class ControlStore {
                                     .put("expiresAt", expires)
                                     .put("details", payload),
                             "control");
+                    store.emit(c, r, "interaction.requested", new JSONObject().put("waitId", wait).put("details", payload).put("expiresAt", expires), "control");
                     return null;
                 });
     }
@@ -250,6 +261,7 @@ public final class ControlStore {
                         return new JSONObject(old.getString("response_json"));
                     }
                     version(r, payload.getLong("expectedVersion"));
+                    JSONObject effectivePayload = new JSONObject(payload.toString());
                     if (terminal(r.getString("state"))) {
                         throw new StoreException("RUN_TERMINAL");
                     }
@@ -258,7 +270,9 @@ public final class ControlStore {
                             != null) {
                         throw new StoreException("CONTROL_FORBIDDEN");
                     }
+                    JSONObject acceptedMessage = null;
                     if (operation.equals("cancel")) {
+                        MessageStore.endWait(store, c, r);
                         update(c, "UPDATE harness_run SET state='cancelling' WHERE run_id=?", run);
                         r.put("state", "cancelling");
                         update(
@@ -305,6 +319,11 @@ public final class ControlStore {
                             }
                         }
                         if (operation.equals("resume")) {
+                            messages.requireCapacity(c, r);
+                            JSONObject details = new JSONObject(w.getString("payload_json"));
+                            effectivePayload.put("input", MessageStore.answer(w, new JSONObject()
+                                    .put("interactionVersion", details.optLong("interactionVersion", 0))
+                                    .put("input", payload.getJSONObject("input"))));
                             JSONArray attachments = payload.getJSONObject("input").getJSONArray("attachmentIds");
                             if (files == null && attachments.length() > 0) {
                                 throw new StoreException("FILES_DISABLED");
@@ -313,6 +332,8 @@ public final class ControlStore {
                                 files.bind(c, tenant, subject, run, attachments);
                             }
                         }
+                        MessageStore.endWait(store, c, r);
+                        if (operation.equals("resume")) acceptedMessage = MessageStore.record(store, c, r, "answer", effectivePayload.getJSONObject("input"));
                         String status =
                                 operation.equals("resume")
                                         ? "resumed"
@@ -326,6 +347,8 @@ public final class ControlStore {
                         update(c, "UPDATE harness_run SET state=? WHERE run_id=?", state, run);
                         r.put("state", state);
                     }
+                    if (acceptedMessage != null) store.emit(c, r, "interaction.answered", new JSONObject()
+                            .put("waitId", waitId).put("messageId", acceptedMessage.getString("messageId")), "control");
                     JSONObject response =
                             store.emit(
                                     c,
@@ -334,7 +357,7 @@ public final class ControlStore {
                                     new JSONObject()
                                             .put("actor", actor)
                                             .put("waitId", waitId)
-                                            .put("payload", payload),
+                                            .put("payload", effectivePayload),
                                     "control");
                     update(
                             c,
@@ -363,13 +386,11 @@ public final class ControlStore {
                     JSONArray events =
                             rows(
                                     c,
-                                    "SELECT data_json FROM harness_event WHERE run_id=? AND event_type='control.resume' ORDER BY event_seq",
+                                    "SELECT data_json FROM harness_event WHERE run_id=? AND event_type IN ('control.resume','message.accepted') ORDER BY event_seq",
                                     run);
                     for (int i = 0; i < events.length(); i++) {
-                        out.put(
-                                new JSONObject(events.getJSONObject(i).getString("data_json"))
-                                        .getJSONObject("payload")
-                                        .getJSONObject("input"));
+                        JSONObject data = new JSONObject(events.getJSONObject(i).getString("data_json"));
+                        out.put(data.has("payload") ? data.getJSONObject("payload").getJSONObject("input") : data.getJSONObject("input"));
                     }
                     return out;
                 });

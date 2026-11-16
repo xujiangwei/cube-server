@@ -21,7 +21,7 @@ public final class TaskState {
         JSONArray events = basis.getJSONArray("events"), evidence = new JSONArray(), errors = new JSONArray(), actions = new JSONArray();
         for (int i = 0; i < events.length(); i++) {
             JSONObject event = events.getJSONObject(i);
-            if (event.getString("event_type").equals("control.resume")) resumed = event.getLong("event_seq");
+            if (Arrays.asList("control.resume", "message.accepted").contains(event.getString("event_type"))) resumed = event.getLong("event_seq");
             if (event.getString("event_type").equals("workflow.repair")) {
                 repairs++;
                 feedback = new JSONObject(event.getString("data_json"));
@@ -64,7 +64,7 @@ public final class TaskState {
                 .put("maxLifetimeMillis", limits.getLong("maxLifetimeMillis"))
                 .put("deadlineEnforcedByCoordinator", true);
         int maximum = limits.optInt("maxRepeatedCalls", 0);
-        JSONObject state = new JSONObject().put("version", "task-state-v2").put("goalSource", "run.created and control.resume user messages")
+        JSONObject state = new JSONObject().put("version", "task-state-v2").put("goalSource", "run.created, control.resume and message.accepted user messages")
                 .put("phase", pending.length() > 0 ? "pending-execution" : "continue-from-confirmed-evidence")
                 .put("completion", "not-inferred; assess the user goal against confirmed evidence")
                 .put("confirmedTools", calls - countPending(facts)).put("recentEvidence", tail(evidence, 16))

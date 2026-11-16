@@ -26,11 +26,31 @@ import static cube.service.harness.store.JdbcRunStore.*;
  */
 public final class ProviderStore {
 
+    public JSONObject taskInput(String tenant, String subject, String run) {
+        return store.tx(c -> {
+            JSONObject r = store.run(c, tenant, subject, run, true);
+            JSONArray events = rows(c, "SELECT event_type,data_json FROM harness_event WHERE run_id=? AND event_type IN ('conversation.history','run.created','control.resume','message.accepted') ORDER BY event_seq", run);
+            JSONArray inputs = new JSONArray();
+            for (Object entry : events) {
+                JSONObject e = (JSONObject) entry, data = new JSONObject(e.getString("data_json"));
+                if (e.getString("event_type").equals("conversation.history")) {
+                    for (Object item : data.getJSONArray("messages")) {
+                        JSONObject m = (JSONObject)item;
+                        if (m.getString("role").equals("user")) inputs.put(m.getJSONObject("content"));
+                    }
+                    continue;
+                }
+                inputs.put(e.getString("event_type").equals("control.resume") ? data.getJSONObject("payload").getJSONObject("input") : data.getJSONObject("input"));
+            }
+            return new JSONObject().put("inputRevision", r.getLong("input_revision")).put("inputs", inputs);
+        });
+    }
+
     /** Confirmed successful facts for one authenticated run, never model-authored output. */
     public JSONArray completionEvidence(String tenant, String subject, String run) {
         return store.tx(c -> {
             store.run(c, tenant, subject, run, true);
-            JSONArray found = rows(c, "SELECT f.fact_kind,f.fact_id,f.value_json,j.definition_json,j.arguments_json,t.result_json FROM harness_provider_fact f "
+            JSONArray found = rows(c, "SELECT f.fact_kind,f.fact_id,f.value_json,j.definition_json,j.arguments_json,t.result_json,t.input_revision FROM harness_provider_fact f "
                     + "JOIN harness_tool_job j ON f.run_id=j.run_id AND f.job_id=j.job_id "
                     + "JOIN harness_tool_call t ON t.run_id=j.run_id AND t.intent_id=j.call_id AND t.attempt=j.attempt "
                     + "WHERE f.run_id=? AND j.tenant=? AND j.subject_id=? AND j.actual_finished=1 "
@@ -45,7 +65,8 @@ public final class ProviderStore {
                 JSONObject fact = new JSONObject().put("kind", row.getString("fact_kind")).put("id", row.getString("fact_id"))
                         .put("operation", new JSONObject(row.getString("definition_json")).getJSONObject("tool").getString("brokerOperation"))
                         .put("value", new JSONObject(row.getString("value_json")))
-                        .put("arguments", new JSONObject(row.getString("arguments_json")));
+                        .put("arguments", new JSONObject(row.getString("arguments_json")))
+                        .put("inputRevision", row.getLong("input_revision"));
                 if (row.getString("fact_kind").equals("analysis")) fact.put("result", new JSONObject(new JSONObject(row.getString("result_json")).getString("dataJson")));
                 out.put(fact);
             }

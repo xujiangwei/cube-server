@@ -32,6 +32,29 @@ public final class WorkflowExecutionTest {
             return out;
         }
     }
+    public static final class InteractionGuard extends FixtureGuard {
+        static JSONObject input;
+        static Runnable duringCheck;
+        public InteractionGuard(Properties p) { super(p); }
+        public boolean supportsInteraction() { return true; }
+        public JSONObject advance(Resources resources, JSONArray facts, String skill) throws Exception {
+            input = resources.taskInput();
+            return null;
+        }
+        public JSONObject check(Resources resources, JSONArray facts) {
+            if (duringCheck != null) {
+                Runnable action = duringCheck; duringCheck = null; action.run();
+                return new JSONObject().put("satisfied", false).put("maxRepairs", 2).put("missing", new JSONArray());
+            }
+            checkInput(resources);
+            return new JSONObject().put("satisfied", true).put("maxRepairs", 2).put("missing", new JSONArray());
+        }
+        private void checkInput(Resources resources) {
+            try { RuntimeTest.check(resources.taskInput().getLong("inputRevision") == 1
+                    && resources.taskInput().getJSONArray("inputs").toString().contains("only north"), "guard did not receive corrected input"); }
+            catch (Exception e) { throw new AssertionError(e); }
+        }
+    }
     private static ModelJobStore jobs;
     private static ToolBroker broker;
     private static RunCoordinator coordinator;
@@ -173,6 +196,32 @@ public final class WorkflowExecutionTest {
             for (int i = 0; i < 3; i++) { complete(dispatch(run)); coordinator.step(run); if (i < 2) restart(run); }
             check(state(run).equals("failed") && catalog.workflowRepairs(T, S, run).length() == 2, "bad reports cannot reset repair budget across restart");
             check(store.read(T, S, run).toString().contains("REPORT_REQUIREMENTS_UNMET"), "bounded report failure explicit");
+            coordinator.close(); broker.close();
+            settings.setProperty("broker.completion.guard.class", InteractionGuard.class.getName());
+            broker = new ToolBroker(new ToolJobStore(store, false), identity, settings).context(resources, new ProviderStore(store, false), () -> null);
+            coordinator = new RunCoordinator(store, jobs, catalog, identity, resources, broker);
+            // Use the non-report package so this verifies the workflow gate independently.
+            guarded = task.getJSONArray("skillReleases").getString(0);
+            JSONObject interactionTask = RuntimeSupport.copy(task).put("version", "3");
+            profiles.publish(T, interactionTask); profiles.bind(T, "task", "workflow", "workflow@3", 2);
+            Properties interaction = new Properties(); interaction.setProperty("interaction.enabled", "true");
+            ControlStore controls = new ControlStore(store, false).configure(interaction);
+            coordinator.controls(controls, null, interaction);
+            run = create(); JSONObject obsolete = dispatch(run);
+            controls.messages.append(T, S, run, key(), InteractionTest.instruction("only north"));
+            complete(obsolete); JSONObject corrected = dispatch(run);
+            check(corrected.getString("requestJson").contains("only north"), "model workflow did not receive new input");
+            complete(corrected); coordinator.step(run);
+            check(InteractionGuard.input.getLong("inputRevision") == 1, "host workflow did not replan against new input");
+            check(state(run).equals("succeeded"), "interactive workflow failed to complete");
+            String racing = create(); JSONObject racingJob = dispatch(racing);
+            InteractionGuard.duringCheck = () -> controls.messages.append(T,S,racing,key(),InteractionTest.instruction("only north"));
+            complete(racingJob);
+            try { coordinator.step(racing); throw new AssertionError("stale workflow assessment accepted"); }
+            catch (StoreException e) { check(e.code.equals("INPUT_REVISION_CONFLICT"), e.code); }
+            check(catalog.workflowRepairs(T,S,racing).length() == 0, "stale assessment consumed workflow repair budget");
+            complete(dispatch(racing)); coordinator.step(racing);
+            check(state(racing).equals("succeeded"), "correction during workflow validation did not recover");
             System.out.println("PASS M3/M4 coordinator: workflow/report withholding, normalized durable report, finite shared repairs across restart, event-only crash recovery, legacy final compatibility.");
         } finally { coordinator.close(); broker.close(); }
     }

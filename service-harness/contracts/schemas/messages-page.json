@@ -1,0 +1,112 @@
+{
+  "type": "object",
+  "properties": {
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_.:-]+$"
+          },
+          "messageSeq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "inputRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "instruction",
+              "answer"
+            ]
+          },
+          "input": {
+            "type": "object",
+            "properties": {
+              "instruction": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32768
+              },
+              "attachmentIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9_.:-]+$"
+                },
+                "maxItems": 16
+              }
+            },
+            "required": [
+              "instruction",
+              "attachmentIds"
+            ],
+            "additionalProperties": false
+          },
+          "receivedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "applied",
+              "unprocessed_terminal"
+            ]
+          },
+          "request": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "messageId",
+          "messageSeq",
+          "inputRevision",
+          "kind",
+          "input",
+          "receivedAt",
+          "status",
+          "request"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "nextCursor": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "inputRevision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "appliedInputRevision": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "messages",
+    "nextCursor",
+    "inputRevision",
+    "appliedInputRevision"
+  ],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
