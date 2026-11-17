@@ -32,6 +32,16 @@
 
 回退时再次关闭新准入、drain 并对账，再恢复成套 JAR、Python 运行代码、旧配置与 policy/binding。已固定新回读工具或新计数模式的任务先收尾，不能交给不认识这些配置的旧运行时；unknown 与未决 journal 保留，不通过清空账本恢复容量。此上下文配置升级本身不需要数据库 schema 迁移；持续互动的账本升级与回退要求见上节。
 
+## 证据调整策略的安装与运行
+
+本工作区整个 service 进程使用 `cube-server/service/config`；核心模板位于 `service-harness/config`。默认 execution.json 已同步为修订 4，启用 taskState、adaptiveHistory、evidenceAdjustment，语义摘要保持关闭，仍为 8 轮、32 次工具、2 次修复、5 分钟。目标机若已有私有模型引用、activeVersions 或预算，应逐字段合并，保留其环境值；确认私有 harness.properties 的 execution.profiles 实际指向该进程配置目录下的 harness-execution。不要在同一目录保留第二份 execution JSON。
+
+1. 构建并安装新核心 `cube-service-harness-3.0.jar`，同步执行配置和离线脚本。纯资源证据调整不需要新增 Provider、Runner 类型或 Python 模型决策协议；已有模型单元仍可按原能力参与调度，一个 JVM 支持多个 model/runner 单元。
+2. 重启后创建新任务，确认实际 selection/configDigest；旧 run 保持固定配置。先检查一次原文回读、参数纠正和冲突保留，核对原限额没有重置，unknown 没有被重发。业务完成门禁保持原要求。
+3. 使用[评测方案](TRACE.md)的 prepare 命令生成对照目录和只读测试 ZIP；按正常资源发布流程安装该包，在隔离测试租户授权最小资源读取能力。先部署并跑通，再执行真实模型诊断。24 个开发案例不作为正式认证，也不要求先完成现场验收才能继续本地开发。
+4. 基线与候选均用本次二进制及共同观测层，仅切换 evidenceAdjustment 和 execution 修订号；每次独立运行均保存实际配置与原始证据。用现有独立人工 review 补全行为标签，再运行 evaluate_traces.py --diagnostic；保留失败、缺测与所有重试。
+5. 回退策略时发布新的执行修订，将 evidenceAdjustment=false，重启后仅影响新 run；错误投影、观测及原执行边界继续工作。本次功能不增加数据库迁移。保留未决账本、journal 和物理容量，不能通过删记录回退。
+
 ## 部署组成
 
 Java 构建、测试与运行使用 **JDK 8**。common、service、dispatcher、Harness 核心与技能扩展须配套；视觉桥接需要同 Kernel/JVM 的 Auth/AIGC 与 FileStorage。普通 Python model/Runner 使用独立 Python 3.11 环境。
@@ -44,7 +54,7 @@ Java 构建、测试与运行使用 **JDK 8**。common、service、dispatcher、
 | `cube-service-harness-skill-3.0.jar` | 宿主 libs/，提供 Provider 与 WorkflowGuard |
 | Python `harness/runner_process.py`、`harness/runner_sdk.py` | 更新全部普通 Runner 节点并重启，根入口和 SDK 派生入口统一 UTF-8 |
 | Python `harness/model_adapter.py`、`context_compaction.py`、`context_summary.py` 及 `contracts/` | 用完整 Python 节点 ZIP 更新全部模型单元；同步实际 wire 渲染、预算重建、可选摘要和五次 wireAttempt 契约 |
-| `scripts/evaluate_traces.py`、`quality_evaluation.py`、`replay_trace.py` | 同目录部署的离线评测工具；v2 证据与基线比较见 [TRACE.md](TRACE.md)，不需新增在线服务 |
+| `scripts/evaluate_traces.py`、`quality_evaluation.py`、`behavior_evaluation.py`、`replay_trace.py`、`prepare_adjustment_evaluation.py` | 同目录部署的离线评测、案例/配置准备及待复核 sidecar 工具；证据与基线比较见 [TRACE.md](TRACE.md)，不需新增在线服务 |
 | data、processing、capability、capabilities、time 工具 ZIP | 管理员发布 executable 工具，授权其实际 ready release |
 | Provider、guard、身份及视觉配置 | 合并到私有绝对路径与宿主配置，重启生效 |
 | 签名业务资源 ZIP、policy、binding | 业务包锁定真实依赖，发布 policy 后 CAS 切换，新 run 生效 |

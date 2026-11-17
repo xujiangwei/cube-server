@@ -14,12 +14,13 @@ final class TaskProgress {
     }
     static JSONObject evidence(JSONObject fact) {
         return new JSONObject().put("intent", fact.getString("intent")).put("resultHash", fact.getString("resultHash"))
-                .put("tool", fact.getJSONObject("payload").getString("tool"));
+                .put("tool", fact.getJSONObject("payload").getString("tool"))
+                .put("inputRevision", fact.optLong("inputRevision", 0));
     }
     static JSONObject projection(JSONObject original, int bytes) {
         JSONObject out = new JSONObject(); JSONArray omitted = new JSONArray();
         for (String name : Arrays.asList("answer", "response", "value", "totalItems", "totalRecords", "totalMedia", "complete", "partial",
-                "coverage", "nextCursor", "nextOffset", "pageRef", "datasetRef", "profileId", "references", "refs")) {
+                "coverage", "nextCursor", "nextOffset", "pageRef", "datasetRef", "profileId", "references", "refs", "conflicts", "sourceVersion")) {
             if (!original.has(name)) continue;
             JSONObject candidate = RuntimeSupport.copy(out).put(name, original.get(name));
             if (RuntimeSupport.bytes(candidate).length <= bytes) out = candidate; else omitted.put(name);
@@ -51,10 +52,12 @@ final class TaskProgress {
             if (activeReading.contains(call.getString("proposalId"))) readingCalls.add(fact.getString("intent"));
             if (result == null) continue;
             JSONObject args = new JSONObject(call.getString("argumentsJson"));
-            String fingerprint = name + ":" + JdbcRunStore.hash(args);
+            String argumentsHash = JdbcRunStore.hash(args);
             if (result.getString("status").equals("error")) {
-                JSONObject error = evidence(fact).put("errorCode", result.optString("errorCode", "TOOL_ERROR_UNSPECIFIED"));
-                errors.put(fingerprint, error); continue;
+                JSONObject error = evidence(fact).put("errorCode", result.optString("errorCode", "TOOL_ERROR_UNSPECIFIED"))
+                        .put("argumentsHash", argumentsHash);
+                // Keep every failure. A later success must not erase earlier attempts.
+                errors.put(fact.getString("intent"), error); continue;
             }
             if (!result.getString("status").equals("success")) continue;
             Set<String> consumed = new HashSet<>(); ContextHistory.collect(args, consumed, false, "");
@@ -62,8 +65,21 @@ final class TaskProgress {
                 JSONObject page = (JSONObject)entryPage;
                 if (consumed.contains(page.get("nextCursor").toString())) page.put("consumed", true);
             }
-            JSONObject error = errors.get(fingerprint);
-            if (error != null) error.put("resolvedBy", fact.getString("intent")).put("resolvedResultHash", fact.getString("resultHash"));
+            for (JSONObject error : errors.values()) {
+                if (error.has("resolvedBy") || !error.getString("tool").equals(name)
+                        || error.getLong("inputRevision") != fact.optLong("inputRevision", 0)) continue;
+                if (error.getString("argumentsHash").equals(argumentsHash)) {
+                    error.put("resolvedBy", fact.getString("intent")).put("resolvedResultHash", fact.getString("resultHash"))
+                            .put("resolution", "same-arguments-execution-succeeded; task-correctness-not-inferred");
+                } else {
+                    // Changed arguments can target unrelated work. Link the observation,
+                    // but require evidence review rather than inventing semantic recovery.
+                    JSONArray candidates = error.optJSONArray("successfulFollowUps");
+                    if (candidates == null) { candidates = new JSONArray(); error.put("successfulFollowUps", candidates); }
+                    if (candidates.length() < 3) candidates.put(evidence(fact).put("argumentsHash", argumentsHash));
+                    error.put("resolution", "changed-arguments-success-observed; verify-relatedness-before-retrying");
+                }
+            }
             JSONObject data = data(fact);
             if (data != null) {
                 JSONObject values = projection(data, 1536);
@@ -106,8 +122,13 @@ final class TaskProgress {
                     .put("intent", entry.getKey()).put("resultHash", session.getString("resultHash")).put("offset", end));
         }
         JSONArray corrected = new JSONArray(), unresolved = new JSONArray();
-        for (JSONObject error : errors.values()) { corrected.put(error); if (!error.has("resolvedBy")) unresolved.put(error); }
-        return new JSONObject().put("version", "task-working-state-v1").put("userInputs", inputs).put("userInputsDigest", JdbcRunStore.hash(inputs))
+        for (JSONObject error : errors.values()) {
+            if (error.getLong("inputRevision") < basis.optLong("inputRevision", 0))
+                error.put("supersededByInputRevision", basis.getLong("inputRevision"));
+            corrected.put(error);
+            if (!error.has("resolvedBy") && !error.has("supersededByInputRevision")) unresolved.put(error);
+        }
+        return new JSONObject().put("version", "task-working-state-v2").put("userInputs", inputs).put("userInputsDigest", JdbcRunStore.hash(inputs))
                 .put("confirmedEvidence", boundedEvidence(evidence)).put("confirmedEvidenceDigest", JdbcRunStore.hash(evidence))
                 .put("queryRoutes", tail(routes, 8)).put("readingSessions", readers)
                 .put("errorResolutions", corrected).put("unresolvedErrors", unresolved).put("unresolvedDependencies", dependencies)

@@ -1031,7 +1031,8 @@ public final class RunCoordinator implements AutoCloseable {
                     "round",
                     round,
                     1,
-                    new JSONObject().put("inputRevision", snapshot.optLong("inputRevision", 0)).put("contextDigest", JdbcRunStore.hash(snapshot)).put("request", request),
+                    new JSONObject().put("inputRevision", snapshot.optLong("inputRevision", 0)).put("contextDigest", JdbcRunStore.hash(snapshot))
+                            .put("decisionObservation", snapshot.getJSONObject("decisionObservation")).put("request", request),
                     snapshot.getLong("inputTokens"),
                     snapshot.getLong("outputReserve"));
             // Queue immediately after the intent commits; a crash between the two

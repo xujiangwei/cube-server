@@ -6,6 +6,8 @@ import org.json.JSONObject;
 public final class ContextPolicy {
     private ContextPolicy() {}
     public static void validate(JSONObject policy) {
+        if (policy.optBoolean("evidenceAdjustment", false) && !policy.optBoolean("taskState", false))
+            throw RuntimeSupport.error("EVIDENCE_ADJUSTMENT_POLICY_INVALID");
         if (policy.has("compressionTriggerPercent") != policy.has("compressionTargetPercent")
                 || policy.optInt("compressionTargetPercent", 60) >= policy.optInt("compressionTriggerPercent", 80)
                 || policy.has("compressionTriggerPercent") && !policy.optBoolean("adaptiveHistory"))

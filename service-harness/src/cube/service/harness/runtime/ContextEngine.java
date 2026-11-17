@@ -457,6 +457,7 @@ public final class ContextEngine {
                     new JSONObject()
                             .put("kind", round ? "round" : "tool")
                             .put("intent", k)
+                            .put("inputRevision", row.optLong("input_revision", 0))
                             .put("eventSeq", event.getLong("event_seq"))
                             .put("intentHash", row.getString("intent_hash"))
                             .put("originFence", row.getLong("origin_fence"))
@@ -583,6 +584,9 @@ public final class ContextEngine {
                 new JSONObject().put("instruction", "Advance the user's goal from confirmed evidence. Identify the next unresolved dependency, choose only an authorized action, and use existing results. Ask for missing user facts. A tool success is not proof the task is complete. Historical errors may have been corrected. Respect remaining budgets; never replay unknown execution.")
                         .put("state", metadata)));
             messages.put(message("user", "task-working-memory", taskState.getJSONObject("workingMemory")));
+            if (policy.optBoolean("evidenceAdjustment", false)) {
+                messages.put(message("system", "platform:evidence-adjustment", DecisionObservation.INSTRUCTION));
+            }
         }
         JSONObject summaryOptions = policy.optJSONObject("semanticSummary");
         boolean summaryEnabled = summaryOptions != null && summaryOptions.getBoolean("enabled") && model.getString("backend").equals("java-inference");
@@ -770,6 +774,7 @@ public final class ContextEngine {
                         .put("initialInputTokens", initialTokens).put("initialInputBytes", initialBytes)
                         .put("inputTokenLimit", tokenLimit).put("inputByteLimit", byteLimit))
                 .put("taskState", taskState == null ? JSONObject.NULL : taskState)
+                .put("decisionObservation", DecisionObservation.context(basis, facts, taskState, modelRequest.getJSONArray("messages")))
                 .put("budgetMeasurement", new JSONObject().put("accuracy", budgets.exact(model) ? "verified-counter" : "estimated")
                         .put("unit", budgets.exact(model) ? "model-tokens" : "utf8-bytes-plus-template-allowance")
                         .put("remoteTokenizerVerified", budgets.exact(model)))

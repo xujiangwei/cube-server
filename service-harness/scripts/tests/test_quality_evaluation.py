@@ -215,6 +215,39 @@ class QualityEvaluation(unittest.TestCase):
         scene["budget"]["maxInputTokens"] = 10
         self.assertFalse(hard_assertions(scene, self.fixture["deployments"][0], next(iter(self.traces.values()))))
 
+    def test_behavior_labels_require_original_visible_context_bound_to_each_round(self):
+        payload = dict(request=dict(messages=[dict(role="user", provenance="run.created", content=self.fixture["scenarios"][0]["input"])]))
+        trace = copy.deepcopy(self.traces[self.rows[0]["traceDigest"]])
+        trace["rounds"][0]["payload_json_sha256"] = commitment(json.dumps(payload).encode())
+        trace["events"][0]["event_type"] = "run.succeeded"
+        trace["metrics"] = dict(adjustmentControlDigest="a" * 64, adjustmentEnabled=True, hostWorkflowSteps=0,
+                                decisionObservations=[dict(roundId="round-1", attempt=1)])
+        trace["digest"] = digest({k: v for k, v in trace.items() if k != "digest"})
+        self.traces[trace["digest"]] = trace
+        self.rows[0]["traceDigest"] = trace["digest"]
+        context = dict(self.artifact("context-0.json", payload, "round-context"), id="context", round="round-1/1")
+        behavior = dict(version="evidence-adjustment-v1", calls=[], requests=[], interventions=[], adjustments=[
+            dict(round="round-1/1", trigger="none", effect="neutral", rationale="Initial action, no feedback yet", evidenceIds=["context"])])
+        self.change_review(0, lambda r: r.update(traceDigest=trace["digest"], behavior=behavior, evidence=r["evidence"] + [context]))
+        self.assertEqual(self.run_evaluation()["deployments"][0]["behaviorMetrics"]["reviewedAttempts"], 1)
+        from prepare_adjustment_evaluation import review_template
+        for name, value in (("fixture-for-review.json", self.fixture), ("trace-for-review.json", trace),
+                            ("contexts.json", [dict(round="round-1/1", path="context-0.json")])):
+            (self.root / name).write_text(json.dumps(value), encoding="utf-8")
+        pending = self.root / "pending-review.json"
+        review_template(self.root / "fixture-for-review.json", self.root / "trace-for-review.json", "0", self.root,
+                        "request-0.json", "result-0.json", "reference.json", "independent-test-reviewer", pending, self.root / "contexts.json")
+        template = json.loads(pending.read_bytes())
+        self.assertTrue(all(c["verdict"] == "fail" for c in template["criteria"]))
+        self.assertEqual(template["behavior"]["adjustments"][0]["effect"], "unassessable")
+        self.change_review(0, lambda r: r.update(evidence=r["evidence"][:-1]))
+        with self.assertRaisesRegex(ValueError, "BEHAVIOR_ROUND_CONTEXT_REQUIRED"):
+            self.run_evaluation()
+        wrong = dict(self.artifact("context-0.json", dict(request="a different visible context"), "round-context"), id="context", round="round-1/1")
+        self.change_review(0, lambda r: r.update(evidence=r["evidence"] + [wrong]))
+        with self.assertRaisesRegex(ValueError, "REVIEW_ROUND_CONTEXT_MISMATCH"):
+            self.run_evaluation()
+
     def test_legacy_boolean_results_are_readable_but_not_certified(self):
         self.fixture["schemaVersion"] = 1
         for row in self.rows:

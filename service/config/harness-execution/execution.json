@@ -7,7 +7,18 @@
     "outputReserve": 2048,
     "version": "context-v1",
     "taskState": true,
-    "historyWindow": 3,
+    "evidenceAdjustment": true,
+    "adaptiveHistory": true,
+    "compressionTriggerPercent": 80,
+    "compressionTargetPercent": 60,
+    "repairReserveTokens": 1024,
+    "repairReserveBytes": 2048,
+    "semanticSummary": {
+      "enabled": false,
+      "maxCalls": 1,
+      "outputReserve": 512,
+      "maxSummaryBytes": 4096
+    },
     "skillWindow": 6,
     "finalWireGuard": true
   },
@@ -33,5 +44,5 @@
     "version": "1"
   },
   "schemaVersion": 1,
-  "version": "2"
+  "version": "4"
 }

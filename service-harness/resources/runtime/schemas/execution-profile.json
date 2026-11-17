@@ -118,6 +118,9 @@
         "taskState": {
           "type": "boolean"
         },
+        "evidenceAdjustment": {
+          "type": "boolean"
+        },
         "historyWindow": {
           "type": "integer",
           "minimum": 1,

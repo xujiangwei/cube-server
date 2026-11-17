@@ -46,6 +46,44 @@ python -I -S scripts/evaluate_traces.py <fixture.json> <observations.jsonl> --tr
 
 使用 Python 3.11，`evaluate_traces.py`、`quality_evaluation.py`、`replay_trace.py` 须放在同一目录，均只读本地证据，不调用模型或业务服务。输出独占创建，已有报告不会覆盖。成功认证退出码为 0，证据齐备但未认证为 2；证据缺失、摘要不符或格式错误直接报错，不能计作成功。场景与复核模板见工作区 [fixtures](../../skill/harness-extensions/fixtures/)。
 
+配套行为评测还需要同目录的 `behavior_evaluation.py`。Trace 的 metrics.decisionObservations 对齐每个模型轮次的输入版本、近期确认结果、先前行动和本次决定；旧轮次没有观测时标为缺测。metrics.adjustmentControlDigest 对完整固定配置移除 execution.version 与 evidenceAdjustment 后求摘要，比较时用于约束授权、模型、生成参数、工具/资源、固定流程和预算一致。二进制、外部数据与运行环境仍须由实验流程冻结，配置摘要不替代这些条件。hostWorkflowSteps 单列宿主固定步骤，不能将其成功归因于模型自主选择。
+
+### 证据调整的独立行为复核
+
+fixture 增加 `behaviorEvaluation:"evidence-adjustment-v1"`，每份现有独立人工 review 增加 behavior，version 同值，并完整标注四个数组。每条都须有具体 rationale 和本 review 中的 evidenceIds；不允许只写总体计数或模型自评：
+
+| 数组 | 绑定与分类 |
+| --- | --- |
+| calls | 覆盖全部 `intent_id/attempt`，字段 intent；classification 为 useful、necessary_exploration、wasteful 或 uncertain |
+| requests | 覆盖全部 run.waiting_input/run.waiting_approval 的 event_seq，字段 eventSeq；分类为 necessary_clarification、required_approval、avoidable 或 uncertain |
+| interventions | 覆盖全部 message.accepted/control.resume/control.approval；分类同上，另允许 goal_change；可填有证据的 elapsedMillis，缺测另列 |
+| adjustments | 覆盖全部模型 `intent_id/attempt`，字段 round；trigger 为 confirmed_error、information_gap、evidence_conflict 或 none；effect 为 helpful、harmful、neutral 或 unassessable |
+
+interaction.requested/answered 是上述操作的伴随事件，不重复计数。既定审批必须标为 required_approval，不能计为可避免救援；改变用户目标另列。首次探索失败、合理回读、必要分页和冲突交叉核对不自动算浪费；已有可用证据却重复读取、收到明确反馈仍重复错误参数等，须结合当轮实际可见内容判定。评审工作本身不是运行中的人工介入。没有行为复核时统计缺测，不报告零救援/零浪费；存在 uncertain、unassessable 或目标变化时不宣称完整目标达成。
+
+baseline 比较同时输出 behaviorComparison：按同一任务和 repetition 配对，保留全部尝试，先在任务内平均三次重复，再按独立任务做固定种子的 4000 次聚类 bootstrap，报告正确率、无需救援正确率、可避免请求/介入、无效调用与总调用量差的 95% 区间。重复运行不扩大独立样本数。基线开关必须关闭、候选开启，固定配置约束摘要一致、Trace 不复用、观测与复核完整才可比较。旧式 nonRegressing 仍仅表示现有条件下未退化。
+
+goalAchieved 还要求非诊断、原有正式认证通过、至少 50 个独立任务及三次重复、正常任务（category=clean）不退化、零执行硬失败、无宿主固定流程代替模型选择，以及正确率提高、人工救援减少、无效调用减少三项区间分别支持对应方向；可避免请求也不能增加。三项分别报告，费用或时延增加须单列，不能用“同预算上限”代替“同实际成本”。该统计只适用于冻结任务集，不证明生产分布上的普遍收益。
+
+准备 24 个公开开发任务、两份执行配置和无可执行代码的资源测试包：
+
+```text
+python -I -S scripts/prepare_adjustment_evaluation.py prepare <实际harness-execution目录> <全新实验目录>
+python -I -S scripts/prepare_adjustment_evaluation.py freeze <实验目录>/suite.template.json <实验目录>/baseline.fixture.json --model <逻辑模型> --profile <共同逻辑profile> --config-digest <基线真实run的config.digest>
+```
+
+候选另用其真实 config.digest 冻结同一模板，两份 fixture 的 suiteDigest 应一致。必须使用同一套新二进制，仅更换开关和执行修订；不能拿升级前旧流程作唯一因果基线。包按标准发布、审核、ready、授权后显式选择 `skills:["evaluation/evidence-adjustment"]`，runtime=resources@1，模型选择真实网关配置。两组每任务三次，每次独立 run；澄清任务按 interactionScript 使用同一固定答案和延迟，保留原问题及全部交互。对照所用配置在独立目录中，不把两份 execution JSON 放进同一加载目录。
+
+测试包含旧路径、需补读的资料、可消解/不可消解冲突、必要澄清和正常任务，每类四个；旧路径不保证模型一定犯错，提前选对来源也应按实际结果评分。明确已确认错误的注入及 unknown/取消/权限/重启控制由本地边界回归覆盖；真实质量运行意外出现的 unknown 保留为失败，不换新任务抹除。24 例全为公开 development，不是留出集，评估须用 --diagnostic，不能认证。扩展到正式规模和封存 holdout 后重新冻结。参考答案放在实验目录 references，不在模型可读包内；实际 request/result/reference 与人工 sidecar 的保存仍遵循下文的摘要绑定规则。
+
+保存真实请求、run 响应 result 字段及该场景参考答案后，还须由获授权的账本读取/采集流程保存每轮 harness_round.payload_json 原样 JSON 到受控证据目录。它包含当轮真正送入模型的 request/messages，而非仅有账本结果的摘要；不得复制进公开 Trace。以 `[{"round":"round-0001/1","path":"run/round-0001.json"}]` 列出全部轮次及其相对路径，生成逐项对齐的待复核 sidecar：
+
+```text
+python -I -S scripts/prepare_adjustment_evaluation.py review --fixture <冻结fixture.json> --trace <真实trace.json> --scenario <场景ID> --evidence-root <原始证据目录> --request <相对request.json> --result <相对result.json> --reference <相对reference.json> --contexts <逐轮证据索引.json> --reviewer <独立评审ID> --destination <全新review.template.json>
+```
+
+输出初始标准均为 fail，行为项为 uncertain/unassessable；人工完成事实判定、记录实际复核时间及逐项依据后，按规范 digest 命名为 `<reviewDigest>.json`。round-context 证据与 Trace 的 payload_json_sha256 逐轮绑定，所有行为判定须引用上下文证据；缺少当轮可见内容时不能认定重复读取是浪费。observations 按原格式绑定对应 run、Trace 和 review，不以模板替代复核。该命令不提交任务、不调用模型，也不自动判定成功。
+
 ### 冻结任务与评分口径
 
 新版 fixture 使用 `schemaVersion=2,status=FROZEN`，固定实际部署的 model、逻辑 profile 和 configDigest，以及每个任务的真实 input、expectedScope、faults、预期终态和预算。输入摘要必须互异；改名或重复调用不能增加独立场景数。模板仍标记 `TEMPLATE_NOT_FROZEN`，不能直接认证。输入中的 attachmentIds 也应固定，复现时保留获准的同一批 Input。

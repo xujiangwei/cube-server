@@ -1,6 +1,6 @@
 {
   "fixtures.json": "6ab4feecf7f10a3c355efdead11326d06c73962ac997e67e715f0019c997383a",
-  "openapi.json": "9f50b3912f328f9fe2a4b488d437536e02b2ec1c8583600ff2d4cc31c0e360ad",
+  "openapi.json": "df37911d6af7356276f3779f8b1afe064b67acee3dbcdcd5bfda93bbef51fd6a",
   "schemas/admin-policy-binding.json": "c7306df286675e161faf3cb3c3a558d108b58e87a05a77a181c1bb0ea62a8c14",
   "schemas/admin-policy.json": "3a40089a0514d78be47817977fa21bcf5980936c10e31386faf180cad884c8ea",
   "schemas/admin-source-grant.json": "67a33062848ddbb18ae415e50f879120e70e33ca6dd4ed251ef19c1cf9375d4a",

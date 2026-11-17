@@ -211,14 +211,34 @@ public final class TraceStore {
                 }
                 e.remove("projection_json");
             }
-            JSONArray rounds = contentRows(rows(c, "SELECT intent_id,attempt,intent_hash,origin_fence,status,payload_json,result_json,result_hash FROM harness_round WHERE run_id=? ORDER BY intent_id,attempt LIMIT 257", run));
+            JSONArray rawRounds = rows(c, "SELECT intent_id,attempt,intent_hash,origin_fence,status,payload_json,result_json,result_hash FROM harness_round WHERE run_id=? ORDER BY intent_id,attempt LIMIT 257", run);
+            JSONArray observations = new JSONArray();
+            for (Object entry : rawRounds) {
+                JSONObject row = (JSONObject)entry, payload = new JSONObject(row.getString("payload_json"));
+                JSONObject context = payload.optJSONObject("decisionObservation");
+                if (context == null) continue; // Missing legacy instrumentation is not zero adjustments.
+                JSONObject observed = new JSONObject().put("roundId", row.getString("intent_id")).put("attempt", row.getInt("attempt"))
+                        .put("executor", "model").put("context", context);
+                if (!row.isNull("result_json")) observed.put("decision",
+                        cube.service.harness.runtime.DecisionObservation.action(new JSONObject(row.getString("result_json"))));
+                observations.put(observed);
+            }
+            JSONArray rounds = contentRows(rawRounds);
             JSONArray calls = contentRows(rows(c, "SELECT intent_id,attempt,intent_hash,origin_fence,status,payload_json,result_json,result_hash FROM harness_tool_call WHERE run_id=? ORDER BY intent_id,attempt LIMIT 257", run));
             if (rounds.length() > 256 || calls.length() > 256) {
                 throw new StoreException("TRACE_EXPORT_TOO_LARGE");
             }
             JSONObject pinned = first(rows(c, "SELECT digest,config_json FROM harness_run_config WHERE run_id=?", run));
+            String adjustmentControlDigest = null;
+            boolean adjustmentEnabled = false;
             if (pinned != null) {
                 JSONObject fixed = new JSONObject(pinned.getString("config_json"));
+                JSONObject controls = new JSONObject(fixed.toString());
+                JSONObject execution = controls.getJSONObject("execution");
+                adjustmentEnabled = execution.getJSONObject("contextPolicy").optBoolean("evidenceAdjustment", false);
+                execution.remove("version");
+                execution.getJSONObject("contextPolicy").remove("evidenceAdjustment");
+                adjustmentControlDigest = hash(controls);
                 pinned.remove("config_json");
                 for (String kind : new String[]{"execution", "model", "runtime", "tenantPolicy"}) {
                     JSONObject definition = fixed.getJSONObject(kind);
@@ -227,7 +247,13 @@ public final class TraceStore {
             }
             JSONObject result = first(rows(c, "SELECT result_hash,committed_at FROM harness_result WHERE run_id=?", run));
             JSONObject out = new JSONObject().put("schemaVersion", 1).put("kind", "harness-redacted-state-trace").put("runId", run).put("redaction", "all-content-strings-sha256").put("replayComplete", complete).put("snapshot", snapshot(r).put("usageSettlement", r.getString("usage_settlement"))).put("config", pinned == null ? JSONObject.NULL : pinned).put("events", events).put("rounds", rounds).put("calls", calls).put("usage", rows(c, "SELECT round_id,attempt,estimated_input,estimated_output,actual_input,actual_output,revision FROM harness_usage WHERE run_id=? ORDER BY round_id,attempt", run)).put("modelJobs", rows(c, "SELECT job_id,round_id,attempt,model_id,profile_digest,backend_id,worker_id,status,actual_finished,cancel_requested,created_at,dispatched_at,finished_at,cancelled_at FROM harness_model_job WHERE run_id=? ORDER BY created_at,job_id", run)).put("toolJobs", rows(c, "SELECT job_id,call_id,attempt,release_digest,tool_name,worker_id,status,actual_finished,cancel_requested,effect_status,created_at,dispatched_at,finished_at,cancelled_at,cleanup_after,cleanup_done FROM harness_tool_job WHERE run_id=? ORDER BY created_at,job_id", run)).put("inferences", rows(c, "SELECT inference_id,job_id,wire_attempt,backend_id,status,actual_finished,cancel_requested,error_code,created_at,dispatched_at,finished_at,cancelled_at FROM harness_inference WHERE job_id IN (SELECT job_id FROM harness_model_job WHERE run_id=?) ORDER BY created_at,inference_id", run)).put("files", rows(c, "SELECT file_id,kind,size_bytes,sha256,status,created_at,ready_at,expires_at,deleted_at,attempts FROM harness_file WHERE run_id=? ORDER BY created_at,file_id", run)).put("feedback", rows(c, "SELECT feedback_id,payload_hash,rating,created_at FROM harness_feedback WHERE run_id=? ORDER BY created_at,feedback_id", run)).put("resultCommitment", result == null ? JSONObject.NULL : result).put("timingCoverage", "event timestamps, queue creation, file ready/delete, commit; unavailable stage timestamps are not inferred");
-            JSONObject metrics = new JSONObject().put("rounds", rounds.length()).put("calls", calls.length());
+            JSONObject metrics = new JSONObject().put("rounds", rounds.length()).put("calls", calls.length())
+                    .put("decisionObservations", observations).put("observedModelRounds", observations.length())
+                    .put("adjustmentControlDigest", adjustmentControlDigest == null ? JSONObject.NULL : adjustmentControlDigest)
+                    .put("adjustmentEnabled", adjustmentEnabled);
+            int hostWorkflowSteps = 0;
+            for (Object entry : events) if (((JSONObject)entry).getString("event_type").equals("workflow.binding")) hostWorkflowSteps++;
+            metrics.put("hostWorkflowSteps", hostWorkflowSteps);
             for (String kind : new String[]{"modelJobs", "toolJobs", "inferences"}) {
                 JSONArray list = out.getJSONArray(kind), timings = new JSONArray();
                 int active = 0, queued = 0;

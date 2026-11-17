@@ -31,6 +31,7 @@
   <target name="test-runtime" depends="test">
     <java classname="cube.service.harness.test.ContextCompactionTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.ProgressTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
+    <java classname="cube.service.harness.test.EvidenceAdjustmentTest" fork="true" failonerror="true"><classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath></java>
     <java classname="cube.service.harness.test.RuntimeTest" fork="true" failonerror="true">
       <classpath><path refid="cp"/><pathelement location="${build.dir}/test-classes"/></classpath>
       <sysproperty key="runtime.test.config" value="${runtime.test.config}"/>
@@ -104,7 +105,7 @@
     <sync todir="${stage.dir}/config/harness-tenant"><fileset dir="config/harness-tenant"/></sync>
     <copy file="config/standalone.xml" tofile="${stage.dir}/cell.xml"/>
     <copy todir="${stage.dir}/scripts">
-      <fileset dir="scripts" includes="run.sh,run.ps1,init_dev.py,evaluate_traces.py,quality_evaluation.py,replay_trace.py"/>
+      <fileset dir="scripts" includes="run.sh,run.ps1,init_dev.py,evaluate_traces.py,quality_evaluation.py,behavior_evaluation.py,replay_trace.py,prepare_adjustment_evaluation.py"/>
     </copy>
   </target>
   <target name="clean"><delete dir="${build.dir}"/></target>

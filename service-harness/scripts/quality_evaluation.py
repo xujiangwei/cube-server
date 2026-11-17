@@ -8,6 +8,7 @@ from collections import Counter
 from decimal import Decimal
 from pathlib import Path
 from replay_trace import digest, load, pairs, replay
+from behavior_evaluation import reviewed_behavior, summarize as summarize_behavior, paired_comparison
 
 DIMENSIONS = ("protocol", "task", "grounding", "limitations")
 SHA256 = re.compile(r"[a-f0-9]{64}\Z")
@@ -32,6 +33,7 @@ def validate_fixture(fixture):
     if version == 1:
         require(len(scenes) >= 50, "FIXTURE_INCOMPLETE")
         return
+    require(fixture.get("behaviorEvaluation", False) in (False, "evidence-adjustment-v1"), "BEHAVIOR_EVALUATION_VERSION_INVALID")
     rubric = fixture["rubric"]
     require(bool(rubric["id"]) and bool(rubric["version"]), "RUBRIC_INVALID")
     criteria = {c["id"]: c for c in rubric["criteria"]}
@@ -176,6 +178,8 @@ def reviewed_dimensions(fixture, scene, row, trace, reviews, evidence_root):
             and bool(review.get("recordedAt")), "INDEPENDENT_REVIEW_REQUIRED")
     require(trace_has_input(trace, scene["input"]), "TRACE_REQUEST_COMMITMENT_MISMATCH")
     evidence, evidence_ids, kinds = review.get("evidence", []), set(), set()
+    round_payloads = {r["intent_id"] + "/" + str(r["attempt"]): r.get("payload_json_sha256") for r in trace["rounds"]}
+    context_rounds, context_ids = set(), set()
     require(1 <= len(evidence) <= 64, "REVIEW_EVIDENCE_REQUIRED")
     for item in evidence:
         require(bool(item.get("id")) and item["id"] not in evidence_ids, "REVIEW_EVIDENCE_INVALID")
@@ -186,6 +190,12 @@ def reviewed_dimensions(fixture, scene, row, trace, reviews, evidence_root):
             require(commitment(raw) == (trace.get("resultCommitment") or {}).get("result_hash"), "REVIEW_RESULT_COMMITMENT_MISMATCH")
         if item.get("kind") == "request":
             require(commitment(raw) == commitment(json.dumps(scene["input"]).encode()), "REVIEW_REQUEST_MISMATCH")
+        if item.get("kind") == "round-context":
+            identity = item.get("round")
+            require(identity in round_payloads and identity not in context_rounds
+                    and round_payloads[identity] == commitment(raw), "REVIEW_ROUND_CONTEXT_MISMATCH")
+            context_rounds.add(identity)
+            context_ids.add(item["id"])
     require({"request", "result", "reference"} <= kinds, "REVIEW_EVIDENCE_REQUIRED")
     criteria = review.get("criteria", [])
     require(len(criteria) == len(scene["qualityCriteria"])
@@ -197,7 +207,13 @@ def reviewed_dimensions(fixture, scene, row, trace, reviews, evidence_root):
         require(criterion.get("verdict") in ("pass", "fail") and bool(criterion.get("rationale", "").strip())
                 and bool(refs) and set(refs) <= evidence_ids, "REVIEW_CRITERION_INVALID")
         dimensions[rubric[criterion["id"]]["dimension"]] &= criterion["verdict"] == "pass"
-    return dimensions
+    if review.get("behavior") is not None or fixture.get("behaviorEvaluation"):
+        require(context_rounds == set(round_payloads), "BEHAVIOR_ROUND_CONTEXT_REQUIRED")
+        for section in ("calls", "requests", "interventions", "adjustments"):
+            for item in review.get("behavior", {}).get(section, []):
+                require(not round_payloads or bool(set(item.get("evidenceIds", [])) & context_ids), "BEHAVIOR_VISIBLE_CONTEXT_EVIDENCE_REQUIRED")
+    behavior = reviewed_behavior(review, trace, evidence_ids, bool(fixture.get("behaviorEvaluation")))
+    return dimensions, behavior
 
 
 def score_slots(slots):
@@ -244,15 +260,18 @@ def evaluate(fixture, observations, traces=None, reviews=None, evidence_root=Non
             real_runs.add(trace["runId"])
             hard = hard_assertions(scene, deployment, trace) and row["hardPassed"]
             if version == 2:
-                dimensions = reviewed_dimensions(fixture, scene, row, trace, reviews, evidence_root)
+                dimensions, behavior = reviewed_dimensions(fixture, scene, row, trace, reviews, evidence_root)
             else:
                 require(isinstance(row.get("languagePassed"), bool), "REAL_EVIDENCE_REQUIRED")
                 dimensions = {name: row["languagePassed"] for name in DIMENSIONS}
+                behavior = None
             failures.update({"execution": int(not hard), **{k: int(not v) for k, v in dimensions.items()}})
             failures["language"] += int(not all(dimensions.values()))
             attempt = dict(attempt=row["attempt"], passed=hard and all(dimensions.values()))
             attempts_report.append(dict(scenarioId=row["scenarioId"], repetition=row["repetition"], **attempt,
-                                        executionPassed=hard, dimensions=dimensions, traceDigest=row["traceDigest"], reviewDigest=row.get("reviewDigest")))
+                                        executionPassed=hard, dimensions=dimensions, traceDigest=row["traceDigest"], reviewDigest=row.get("reviewDigest"),
+                                        behavior=behavior, category=scene.get("category"), split=scene.get("split"),
+                                        modelRounds=len(trace["rounds"]), toolCalls=len(trace["calls"])))
             slot = (row["scenarioId"], row["repetition"])
             slots.setdefault(slot, []).append(attempt)
             for kind in ("split", "category"):
@@ -290,9 +309,10 @@ def evaluate(fixture, observations, traces=None, reviews=None, evidence_root=Non
                             metrics=dict(modelRounds=rounds, toolCalls=calls, measuredDurationAttempts=len(durations),
                                          p50Millis=percentile(durations, .5), p95Millis=percentile(durations, .95),
                                          reportedInputTokens=sum(inputs) if inputs else None,
-                                         reportedOutputTokens=sum(outputs) if outputs else None, missingUsageEntries=missing_usage)))
+                                         reportedOutputTokens=sum(outputs) if outputs else None, missingUsageEntries=missing_usage),
+                            behaviorMetrics=summarize_behavior(attempts_report)))
     return dict(schemaVersion=2, fixtureDigest=frozen,
-                suiteDigest=digest({k: fixture[k] for k in ("schemaVersion", "scenarios", "rubric") if k in fixture}),
+                suiteDigest=digest({k: fixture[k] for k in ("schemaVersion", "scenarios", "rubric", "behaviorEvaluation") if k in fixture}),
                 evidenceVersion=version, diagnostic=diagnostic, deployments=reports,
                 result="PASS" if reports and all(r["result"] == "PASS" for r in reports) else "NOT_CERTIFIED")
 
@@ -314,12 +334,15 @@ def compare(baseline, candidate):
         metrics = {name: new["metrics"][name] - old["metrics"][name]
                    if new["metrics"][name] is not None and old["metrics"][name] is not None else None
                    for name in ("modelRounds", "toolCalls", "p50Millis", "p95Millis", "reportedInputTokens", "reportedOutputTokens")}
+        non_regressing = (comparable and new["passed"] >= old["passed"] and holdout_new >= holdout_old
+                          and new["hardFailures"] == 0 and all(v <= 0 for v in dimension_deltas.values()))
+        behavior = paired_comparison(old, new, baseline.get("diagnostic", True) or candidate.get("diagnostic", True))
+        behavior["goalAchieved"] = behavior["goalAchieved"] and non_regressing
         changes.append(dict(model=new["model"], profile=new["profile"], comparable=comparable,
                             baselineConfigDigest=old["configDigest"], candidateConfigDigest=new["configDigest"],
                             passedDelta=new["passed"] - old["passed"], holdoutPassedDelta=holdout_new - holdout_old,
                             failureDeltasByDimension=dimension_deltas, metricDeltas=metrics,
-                            nonRegressing=comparable and new["passed"] >= old["passed"] and holdout_new >= holdout_old
-                            and new["hardFailures"] == 0 and all(v <= 0 for v in dimension_deltas.values())))
+                            nonRegressing=non_regressing, behaviorComparison=behavior))
     return changes
 
 
