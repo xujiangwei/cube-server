@@ -13,7 +13,6 @@ import cube.service.harness.execution.ExecutionRuntime;
 import cube.service.harness.protocol.Contract;
 import cube.service.harness.runtime.ProfileRegistry;
 import cube.service.harness.store.StoreException;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.OutputStream;
@@ -140,9 +139,11 @@ final class HarnessBusiness implements AutoCloseable {
                 String role = action == HarnessAction.PutSource || action == HarnessAction.ReadSource ? "source"
                         : action == HarnessAction.SourceGrant ? "source-grant"
                         : action == HarnessAction.PublishPolicy || action == HarnessAction.ReadPolicyBinding || action == HarnessAction.BindPolicy ? "policy" : "release";
-                if (!authenticated.allowed(config.values, "admin." + role + ".subjects")) throw new Failure(403, "ADMIN_FORBIDDEN");
+                if (!authenticated.allowed(config.values, "admin." + role + ".subjects"))
+                    throw new Failure(403, "ADMIN_FORBIDDEN");
                 if (action != HarnessAction.ValidatePackage && action != HarnessAction.PublishRelease && !"GET".equals(action.method)
-                        && !data.optString("contentType").toLowerCase(Locale.ROOT).startsWith("application/json")) throw new Failure(415, "UNSUPPORTED_MEDIA_TYPE");
+                        && !data.optString("contentType").toLowerCase(Locale.ROOT).startsWith("application/json"))
+                    throw new Failure(415, "UNSUPPORTED_MEDIA_TYPE");
                 return reply(action == HarnessAction.PublishRelease || action == HarnessAction.PutSource || action == HarnessAction.PublishPolicy ? 201 : 200,
                         execution.admin.handle(identity, action, data, raw));
             }

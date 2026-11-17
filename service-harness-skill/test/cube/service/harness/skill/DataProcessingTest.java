@@ -103,6 +103,6 @@ public final class DataProcessingTest {
             manyPages.put(page("p" + page, page == 0 ? "" : "c" + page, page == 8 ? "" : "c" + (page + 1), rows));
         }
         fails("RESULT_BUDGET_EXCEEDED", () -> DataProcessing.process(p, new JSONObject(), manyPages));
-        System.out.println("PASS M2 processing: " + assertions + " assertions; deterministic data fixtures, no model inference.");
+        System.out.println("PASS data processing: " + assertions + " assertions; deterministic data fixtures, no model inference.");
     }
 }

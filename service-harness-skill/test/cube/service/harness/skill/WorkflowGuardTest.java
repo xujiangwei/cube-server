@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
-/** Real M2 datasets and independent query/analysis facts; no model inference. */
+/** Real data-processing datasets and independent query/analysis facts; no model inference. */
 public final class WorkflowGuardTest {
     static final Map<String, JSONObject> config = new HashMap<>();
     private static final WorkflowGuard guard = new WorkflowGuard(new Properties());
@@ -120,6 +120,6 @@ public final class WorkflowGuardTest {
         invalid(() -> config.get(CompletionGuard.FILE).getJSONArray("pipelines").remove(0));
         Properties ceiling = new Properties(); ceiling.setProperty("workflow.max.repairs", "1");
         check(new WorkflowGuard(ceiling).check(resources(), new JSONArray()).getInt("maxRepairs") == 1, "deployment repair ceiling");
-        System.out.println("PASS M3 workflow rules: " + assertions + " assertions; no model inference.");
+        System.out.println("PASS workflow rules: " + assertions + " assertions; no model inference.");
     }
 }

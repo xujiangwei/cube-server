@@ -167,7 +167,7 @@ public final class WorkflowExecutionTest {
                 String constrained = profiles.createRun(identity, key(), id, request("constrained workflow")).getString("runId");
                 resources.activate(identity, constrained, guarded);
                 complete(dispatch(constrained)); coordinator.step(constrained);
-                check(state(constrained).equals("failed") && catalog.workflowRepairs(T, S, constrained).length() == 0, "M3 cannot expand " + id + " execution budget");
+                check(state(constrained).equals("failed") && catalog.workflowRepairs(T, S, constrained).length() == 0, "workflow guard cannot expand " + id + " execution budget");
             }
             content.put(CompletionGuard.REPORT_FILE, bytes("{\"version\":\"1\"}"));
             JSONObject reportManifest = manifest(content).put("version", "4");
@@ -222,7 +222,7 @@ public final class WorkflowExecutionTest {
             check(catalog.workflowRepairs(T,S,racing).length() == 0, "stale assessment consumed workflow repair budget");
             complete(dispatch(racing)); coordinator.step(racing);
             check(state(racing).equals("succeeded"), "correction during workflow validation did not recover");
-            System.out.println("PASS M3/M4 coordinator: workflow/report withholding, normalized durable report, finite shared repairs across restart, event-only crash recovery, legacy final compatibility.");
+            System.out.println("PASS workflow/report coordinator: workflow/report withholding, normalized durable report, finite shared repairs across restart, event-only crash recovery, legacy final compatibility.");
         } finally { coordinator.close(); broker.close(); }
     }
 }

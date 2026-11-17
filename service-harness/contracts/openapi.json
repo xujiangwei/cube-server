@@ -2857,7 +2857,7 @@
     },
     "/harness/v1/admin/packages/validate": {
       "post": {
-        "summary": "Harness M1 administration: packages/validate",
+        "summary": "Harness administration: packages/validate",
         "parameters": [
           {
             "name": "Authorization",
@@ -2914,7 +2914,7 @@
     },
     "/harness/v1/admin/releases": {
       "post": {
-        "summary": "Harness M1 administration: releases",
+        "summary": "Harness administration: releases",
         "parameters": [
           {
             "name": "Authorization",
@@ -2987,7 +2987,7 @@
     },
     "/harness/v1/admin/releases/{digest}": {
       "get": {
-        "summary": "Harness M1 administration: releases/{digest}",
+        "summary": "Harness administration: releases/{digest}",
         "parameters": [
           {
             "name": "Authorization",
@@ -3033,7 +3033,7 @@
     },
     "/harness/v1/admin/policies": {
       "post": {
-        "summary": "Harness M1 administration: policies",
+        "summary": "Harness administration: policies",
         "parameters": [
           {
             "name": "Authorization",
@@ -3089,7 +3089,7 @@
     },
     "/harness/v1/admin/bindings/policy/default": {
       "get": {
-        "summary": "Harness M1 administration: bindings/policy/default",
+        "summary": "Harness administration: bindings/policy/default",
         "parameters": [
           {
             "name": "Authorization",
@@ -3144,7 +3144,7 @@
         }
       },
       "put": {
-        "summary": "Harness M1 administration: bindings/policy/default",
+        "summary": "Harness administration: bindings/policy/default",
         "parameters": [
           {
             "name": "Authorization",
@@ -3200,7 +3200,7 @@
     },
     "/harness/v1/admin/sources/{id}/versions/{version}": {
       "put": {
-        "summary": "Harness M1 administration: sources/{id}/versions/{version}",
+        "summary": "Harness administration: sources/{id}/versions/{version}",
         "parameters": [
           {
             "name": "Authorization",
@@ -3276,7 +3276,7 @@
         }
       },
       "get": {
-        "summary": "Harness M1 administration: sources/{id}/versions/{version}",
+        "summary": "Harness administration: sources/{id}/versions/{version}",
         "parameters": [
           {
             "name": "Authorization",
@@ -3333,7 +3333,7 @@
     },
     "/harness/v1/admin/source-grants": {
       "post": {
-        "summary": "Harness M1 administration: source-grants",
+        "summary": "Harness administration: source-grants",
         "parameters": [
           {
             "name": "Authorization",

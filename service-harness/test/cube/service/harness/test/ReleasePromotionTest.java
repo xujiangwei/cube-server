@@ -11,7 +11,7 @@ import java.util.concurrent.*;
 import org.json.*;
 import static cube.service.harness.test.RuntimeTest.*;
 
-/** M5: signed remote publication, two tenants, real policy CAS and production immutable run pins. */
+/** promotion: signed remote publication, two tenants, real policy CAS and production immutable run pins. */
 public final class ReleasePromotionTest {
     private static RemoteAdmin admin;
     private static PrivateKey signingKey;
@@ -30,12 +30,12 @@ public final class ReleasePromotionTest {
         return admin.handle(identity, HarnessAction.PublishPolicy, new JSONObject().put("key", key()), bytes(value.toString()));
     }
     private static String selected(ProfileRegistry registry) {
-        String run = registry.createRun(identity, key(), request("M5 local publication fixture").put("skills", new JSONArray().put("test/guide"))).getString("runId");
+        String run = registry.createRun(identity, key(), request("promotion local publication fixture").put("skills", new JSONArray().put("test/guide"))).getString("runId");
         return run;
     }
     private static String pinned(CatalogStore c, String run) { return c.pinned(T, S, run).getJSONArray("releases").getJSONObject(0).getString("digest"); }
     public static void main(String[] args) throws Exception {
-        ExecutionTest.prepare(Files.createTempDirectory("harness-m5-promotion-"), "");
+        ExecutionTest.prepare(Files.createTempDirectory("harness-promotion-"), "");
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA"); generator.initialize(2048);
         KeyPair keys = generator.generateKeyPair(); signingKey = keys.getPrivate();
         PackageRepository signed = new PackageRepository(catalog, new AssetFiles(Files.createDirectory(root.resolve("signed")), 8000000, "promotion-repository"),
@@ -46,26 +46,26 @@ public final class ReleasePromotionTest {
         settings.setProperty("admin.tenant." + T + ".signers", "promotion-author");
         admin = new RemoteAdmin(catalog, signed, new ProviderStore(store, false), new ProfileRegistry(catalog), null, settings, TEST_PERMISSIONS);
         ProfileRegistry.Identity testIdentity = new ProfileRegistry.Identity(testTenant, S, TEST_PERMISSIONS);
-        Map<String, byte[]> original = entries("M5 original version"), candidate = entries("M5 candidate version");
-        byte[] firstZip = zip(manifest(original).put("version", "m5-1"), original);
-        byte[] nextZip = zip(manifest(candidate).put("version", "m5-2"), candidate);
+        Map<String, byte[]> original = entries("promotion original version"), candidate = entries("promotion candidate version");
+        byte[] firstZip = zip(manifest(original).put("version", "promotion-1"), original);
+        byte[] nextZip = zip(manifest(candidate).put("version", "promotion-2"), candidate);
         String old = publish(testIdentity, firstZip).getString("digest");
         check(publish(identity, firstZip).getString("digest").equals(old), "same signed ZIP preserved across tenants");
         String next = publish(testIdentity, nextZip).getString("digest");
-        JSONObject task = task("m5", old, "scripted", 1024);
-        profiles.configure(settings, T, task, root.resolve("m5-execution"));
+        JSONObject task = task("promotion", old, "scripted", 1024);
+        profiles.configure(settings, T, task, root.resolve("promotion-execution"));
         ProfileRegistry registry = new ProfileRegistry(catalog, null, ExecutionProfiles.load(settings));
         String oldRun = selected(registry);
         String oldPin = JdbcRunStore.canonical(catalog.pinned(T, S, oldRun));
         JSONObject base = catalog.tenantPolicy(T), before = catalog.binding(T, "policy", "default");
         check(publish(identity, nextZip).getString("digest").equals(next), "promotion has identical manifest digest");
         check(Arrays.equals(signed.export(testTenant, next), signed.export(T, next)), "both tenants export identical content");
-        JSONObject desired = new JSONObject(base.toString()).put("version", "m5-next").put("skillReleases", new JSONArray().put(next));
+        JSONObject desired = new JSONObject(base.toString()).put("version", "promotion-next").put("skillReleases", new JSONArray().put(next));
         policy(desired);
         check(catalog.binding(T, "policy", "default").similar(before), "publication does not activate");
         String operation = key();
-        JSONObject switched = bind(operation, "default@m5-next", before.getLong("version"));
-        check(bind(operation, "default@m5-next", before.getLong("version")).similar(switched), "CAS same-key replay returns original receipt");
+        JSONObject switched = bind(operation, "default@promotion-next", before.getLong("version"));
+        check(bind(operation, "default@promotion-next", before.getLong("version")).similar(switched), "CAS same-key replay returns original receipt");
         fail("IDEMPOTENCY_CONFLICT", () -> bind(operation, before.getString("target"), switched.getLong("version")));
         fail("VERSION_CONFLICT", () -> bind(key(), before.getString("target"), before.getLong("version")));
         String newRun = selected(registry);
@@ -73,7 +73,7 @@ public final class ReleasePromotionTest {
         JSONObject rolledBack = bind(key(), before.getString("target"), switched.getLong("version"));
         String rollbackRun = selected(registry);
         check(pinned(catalog, rollbackRun).equals(old) && pinned(catalog, newRun).equals(next), "rollback keeps candidate run fixed");
-        check(bind(operation, "default@m5-next", before.getLong("version")).similar(switched)
+        check(bind(operation, "default@promotion-next", before.getLong("version")).similar(switched)
                 && catalog.binding(T, "policy", "default").similar(rolledBack), "historical ACK replay cannot undo later rollback");
         CatalogStore reopened = new CatalogStore(new JdbcRunStore(config), false);
         check(JdbcRunStore.canonical(reopened.pinned(T, S, oldRun)).equals(oldPin), "full in-flight pin survives publication, rollback and reopen");
@@ -82,12 +82,12 @@ public final class ReleasePromotionTest {
         try {
             long expected = rolledBack.getLong("version");
             List<Future<String>> results = pool.invokeAll(Arrays.asList(
-                () -> attempt("default@m5-next", expected), () -> attempt("default@m5-next", expected)));
+                () -> attempt("default@promotion-next", expected), () -> attempt("default@promotion-next", expected)));
             List<String> statuses = Arrays.asList(results.get(0).get(), results.get(1).get());
             check(Collections.frequency(statuses, "OK") == 1 && Collections.frequency(statuses, "VERSION_CONFLICT") == 1, "exactly one concurrent operator wins CAS");
         } finally { pool.shutdownNow(); }
         check(catalog.binding(testTenant, "policy", "default").getLong("version") == 0, "target publication never changes source tenant binding");
-        System.out.println("PASS M5: signed same-digest promotion across tenants, immutable publication, CAS race/replay/conflict, rollback, pinned in-flight runs and restart. No live environment modified.");
+        System.out.println("PASS promotion: signed same-digest promotion across tenants, immutable publication, CAS race/replay/conflict, rollback, pinned in-flight runs and restart. No live environment modified.");
     }
     private static String attempt(String target, long expected) throws Exception {
         try { bind(key(), target, expected); return "OK"; }

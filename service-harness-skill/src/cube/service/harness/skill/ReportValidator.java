@@ -10,7 +10,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-/** M4: validate model report structure/references; derive factual fields from confirmed host evidence. */
+/** Validate model report structure/references; derive factual fields from confirmed host evidence. */
 final class ReportValidator {
     private static final JSONObject SCHEMA;
     static {
@@ -121,7 +121,7 @@ final class ReportValidator {
             }
             require(names.equals(skills) && selected != null);
         } catch (Exception invalid) { return result("REPORT_SKILL_SET_INVALID", new JSONObject().put("skills", new JSONArray(skills))); }
-        // M3 feedback has the actual page/dataset/media refs needed to complete the workflow.
+        // Workflow feedback has the actual page/dataset/media refs needed to complete the workflow.
         if (!workflow.getBoolean("satisfied")) return new JSONObject().put("satisfied", true).put("missingCount", 0).put("missing", new JSONArray());
         JSONArray expected = workflow.getJSONArray("datasetRefs");
         try {
@@ -169,7 +169,7 @@ final class ReportValidator {
                 for (JSONObject fact : analyses.values()) {
                     JSONObject value = fact.getJSONObject("value");
                     if (mediaRef.equals(value.getString("mediaRef")) && profileId.equals(value.getString("profileId")) && hash.equals(value.getString("profileHash"))) {
-                        // Choose complete M4 provenance if old M3-only evidence also exists.
+                        // Choose complete report provenance if old workflow-only evidence also exists.
                         if (value.has("source") && value.has("artifact") && fact.has("result")) {
                             if (actual == null) actual = fact;
                             // Repeated, confirmed analyses may have different answers; accept any real one the report cites verbatim.

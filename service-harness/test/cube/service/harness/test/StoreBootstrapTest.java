@@ -205,7 +205,7 @@ public final class StoreBootstrapTest {
         StoreBootstrap.selfCheck(config);
         check(new ProviderStore(new JdbcRunStore(config), config.mysql()).source("fixture", "source@1").getBoolean("fixture"), "Restart lost source version");
         check(count("harness_run", "retained") == before, "Provider migration lost existing runs");
-        System.out.println("PASS: pre-M1 schema upgraded through startup; source versions and run data survive strict re-open");
+        System.out.println("PASS: legacy schema upgraded through startup; source versions and run data survive strict re-open");
     }
 
     public static void main(String[] args) throws Exception {

@@ -1,4 +1,4 @@
-"""Apply the additive M1 admin contracts after the existing contract generators.
+"""Apply the additive admin contracts after the existing contract generators.
 
 Preserves unrelated schemas and paths in each checkout, including local Python changes.
 """
@@ -56,7 +56,7 @@ def generate(python_root):
             for segment in relative.split("/"):
                 if segment.startswith("{"):
                     parameters.append(dict(name=segment[1:-1], **{"in": "path"}, required=True, schema=string))
-            operation = dict(summary="Harness M1 administration: " + relative, parameters=parameters,
+            operation = dict(summary="Harness administration: " + relative, parameters=parameters,
                              security=[dict(HarnessBearer=[])],
                              description="Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.",
                              responses={str(status): dict(description="Success"), "400": dict(description="Invalid request"), "403": dict(description="Administrator or source forbidden"), "409": dict(description="CAS, immutable version or idempotency conflict")})

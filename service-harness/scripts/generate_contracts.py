@@ -146,7 +146,7 @@ for path,method,schema,status in [
     if method in ('post','put'):params.append(dict(name='Idempotency-Key',**{'in':'header'},required=True,schema=identity))
     if path=='releases' and method=='post':
         params += [dict(name=name,**{'in':'header'},required=True,schema=dict(type='string')) for name in ('X-Harness-Key-Id','X-Harness-Signature')]
-    operation=dict(summary='Harness M1 administration: '+path,parameters=params,security=[{'HarnessBearer':[]}],
+    operation=dict(summary='Harness administration: '+path,parameters=params,security=[{'HarnessBearer':[]}],
         description='Cube authentication and independent administrator allowlist. Body <=256KiB. No policy can grant administration rights.',
         responses={status:dict(description='Success'),'400':dict(description='Invalid request'),'403':dict(description='Administrator or source forbidden'),'409':dict(description='CAS, immutable version or idempotency conflict')})
     if schema:operation['requestBody']=dict(required=True,content={('application/zip' if schema=='zip' else 'application/json'):{'schema':dict(type='string',format='binary') if schema=='zip' else {'$ref':'#/components/schemas/'+schema}}})

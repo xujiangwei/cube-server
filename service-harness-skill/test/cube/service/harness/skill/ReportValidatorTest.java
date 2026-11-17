@@ -9,7 +9,7 @@ import java.nio.file.*;
 import java.util.*;
 import static cube.service.harness.skill.WorkflowGuardTest.*;
 
-/** Independent submission mutations against real M2 data and host-style confirmed facts. */
+/** Independent submission mutations against real data-processing data and host-style confirmed facts. */
 public final class ReportValidatorTest {
     private static CompletionGuard.Resources resources;
     private static JSONArray evidence;
@@ -125,7 +125,7 @@ public final class ReportValidatorTest {
         actual.getJSONObject("value").getJSONObject("source").put("analysisResultSha256", "wrong");
         check(!run(valid).getBoolean("satisfied"), "tampered analysis digest rejected");
         actual.getJSONObject("value").remove("source");
-        check(!run(valid).getBoolean("satisfied"), "legacy M3 fact cannot impersonate M4 provenance");
+        check(!run(valid).getBoolean("satisfied"), "legacy workflow fact cannot impersonate report provenance");
         JSONObject requirements = config.get(CompletionGuard.REPORT_FILE);
         String saved = requirements.getJSONArray("rules").getJSONObject(0).getString("sha256");
         requirements.getJSONArray("rules").getJSONObject(0).put("sha256", String.join("",Collections.nCopies(64,"0")));
@@ -136,6 +136,6 @@ public final class ReportValidatorTest {
         evidence = new JSONArray().put(emptyPage).put(emptyDataset);
         JSONObject emptySubmission = copy(valid); emptySubmission.getJSONArray("reports").getJSONObject(0).put("datasets",new JSONArray().put(new JSONObject().put("datasetRef","empty-data").put("findings",new JSONArray())));
         check(run(emptySubmission).getBoolean("satisfied"), "empty confirmed dataset report is valid");
-        System.out.println("PASS M4 report: " + checks + " assertions; structure, provenance, completeness, rules, unknown capture time; no live inference.");
+        System.out.println("PASS report: " + checks + " assertions; structure, provenance, completeness, rules, unknown capture time; no live inference.");
     }
 }
