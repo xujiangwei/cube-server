@@ -1,35 +1,66 @@
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
+
 package cube.service.harness.execution;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Deployment-installed business completion check. Uploaded resources cannot install Java code. */
+/**
+ * Deployment-installed business completion check. Uploaded resources cannot install Java code.
+ */
 public interface CompletionGuard extends AutoCloseable {
+
     String FILE = "workflow-requirements.json";
+
     String REPORT_FILE = "report-requirements.json";
 
     interface Resources {
         JSONObject json(String path) throws Exception;
-        default JSONObject taskInput() throws Exception { return new JSONObject().put("inputRevision", 0).put("inputs", new JSONArray()); }
-        default byte[] bytes(String path) throws Exception { throw new UnsupportedOperationException("RESOURCE_BYTES_UNAVAILABLE"); }
+
+        default JSONObject taskInput() throws Exception {
+            return new JSONObject().put("inputRevision", 0).put("inputs", new JSONArray());
+        }
+
+        default byte[] bytes(String path) throws Exception {
+            throw new UnsupportedOperationException("RESOURCE_BYTES_UNAVAILABLE");
+        }
     }
 
     void validate(Resources resources) throws Exception;
 
-    /** Evidence is supplied exclusively by the host's confirmed Provider/job ledger. */
+    /**
+     * Evidence is supplied exclusively by the host's confirmed Provider/job ledger.
+     */
     JSONObject check(Resources resources, JSONArray evidence) throws Exception;
 
-    /** Optional pinned fixed workflow. Returns a host proposal/final, never a model decision. */
-    default JSONObject advance(Resources resources, JSONArray evidence, String skill) throws Exception { return null; }
+    /**
+     * Optional pinned fixed workflow. Returns a host proposal/final, never a model decision.
+     */
+    default JSONObject advance(Resources resources, JSONArray evidence, String skill) throws Exception {
+        return null;
+    }
 
-    default boolean supportsInteraction() { return false; }
+    default boolean supportsInteraction() {
+        return false;
+    }
 
-    default boolean supportsReports() { return false; }
-    default void validateReport(Resources resources) throws Exception { throw new IllegalStateException("REPORT_GUARD_UNAVAILABLE"); }
+    default boolean supportsReports() {
+        return false;
+    }
+
+    default void validateReport(Resources resources) throws Exception {
+        throw new IllegalStateException("REPORT_GUARD_UNAVAILABLE");
+    }
+
     default JSONObject checkFinal(Resources resources, JSONArray evidence, JSONObject decision,
                                   String skill, java.util.Set<String> reportSkills) throws Exception {
         return check(resources, evidence);
     }
 
-    default void close() { }
+    default void close() {
+    }
 }

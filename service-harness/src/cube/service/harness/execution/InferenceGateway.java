@@ -160,8 +160,7 @@ public final class InferenceGateway implements AutoCloseable {
                     if (capacity < 1 || capacity > 32) {
                         throw new IllegalArgumentException("INVALID_BACKEND_CAPACITY");
                     }
-                    p = new OpenAIHttpProvider(property(backend, "baseUrl", ""), property(backend, "model", ""),
-                            property(backend, "token", ""), capacity);
+                    p = new OpenAIHttpProvider(property(backend, "baseUrl", ""), property(backend, "model", ""), property(backend, "token", ""), capacity);
                     external.put(backend, p);
                 }
             }
@@ -214,8 +213,7 @@ public final class InferenceGateway implements AutoCloseable {
         try {
             CompletionProvider p = provider(backend);
             if (p != null) {
-                return p.completionCapacity(property(backend, "token", ""),
-                        descriptor.getString("model"), descriptor.getBoolean("nativeTools"));
+                return p.completionCapacity(property(backend, "token", ""), descriptor.getString("model"), descriptor.getBoolean("nativeTools"));
             }
         } catch (Exception e) {
             lastError = "INFERENCE_BACKEND_NOT_READY";
@@ -286,8 +284,7 @@ public final class InferenceGateway implements AutoCloseable {
                     if (seconds < 1 || seconds > 600) {
                         throw new IllegalArgumentException("INVALID_BACKEND_TIMEOUT");
                     }
-                    if (p.completionCapacity(property(backend, "token", ""), wire.getString("model"),
-                            wire.optJSONArray("tools") != null).getInt("available") < 1) {
+                    if (p.completionCapacity(property(backend, "token", ""), wire.getString("model"), wire.optJSONArray("tools") != null).getInt("available") < 1) {
                         continue;
                     }
                 } catch (Exception e) {
@@ -299,11 +296,9 @@ public final class InferenceGateway implements AutoCloseable {
                 }
                 try {
                     if (property(backend, "type", "unit").equals("unit")) {
-                        p.submitCompletion(property(backend, "token", ""), id, canonical, seconds * 1000L,
-                                ledger.accountingContext(id).delegate(), event -> accept(id, wire.getString("model"), event));
+                        p.submitCompletion(property(backend, "token", ""), id, canonical, seconds * 1000L, ledger.accountingContext(id).delegate(), event -> accept(id, wire.getString("model"), event));
                     } else {
-                        p.submitCompletion(property(backend, "token", ""), id, canonical, seconds * 1000L,
-                                event -> accept(id, wire.getString("model"), event));
+                        p.submitCompletion(property(backend, "token", ""), id, canonical, seconds * 1000L, event -> accept(id, wire.getString("model"), event));
                     }
                 } catch (Exception e) {
                     // 调用可能已到达提供方；保留预约，以 unknown 收尾，不自动重发。
@@ -332,8 +327,7 @@ public final class InferenceGateway implements AutoCloseable {
             if (kind.equals("completed")) {
                 JSONObject response = event.optJSONObject("rawResponse");
                 if (response == null) {
-                    response = OpenAICompletionProtocol.result(event.getJSONObject("payload").getJSONObject("result"),
-                            false, id, model, System.currentTimeMillis() / 1000);
+                    response = OpenAICompletionProtocol.result(event.getJSONObject("payload").getJSONObject("result"), false, id, model, System.currentTimeMillis() / 1000);
                 }
                 ledger.finish(id, response, null, true, event.optString("unitId", null));
             } else if (kind.equals("error")) {
@@ -344,9 +338,7 @@ public final class InferenceGateway implements AutoCloseable {
                 if (!event.optBoolean("modelDispatched", true)) code = "MODEL_NOT_DISPATCHED";
                 ledger.finish(id, null, code, event.optBoolean("actualFinished", false), event.optString("unitId", null), event.optJSONObject("payload"));
             } else if (kind.equals("delta")) {
-                JSONObject chunk = new JSONObject().put("id", id).put("model", model).put("object", "chat.completion.chunk")
-                        .put("choices", new JSONArray().put(new JSONObject().put("index", 0)
-                                .put("delta", event.getJSONObject("payload").getJSONObject("delta")).put("finish_reason", JSONObject.NULL)));
+                JSONObject chunk = new JSONObject().put("id", id).put("model", model).put("object", "chat.completion.chunk").put("choices", new JSONArray().put(new JSONObject().put("index", 0).put("delta", event.getJSONObject("payload").getJSONObject("delta")).put("finish_reason", JSONObject.NULL)));
                 ledger.append(id, chunk);
             }
         } catch (Exception e) {
