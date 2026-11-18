@@ -91,6 +91,7 @@ public final class RunnerDispatcher {
          */
         boolean healthy;
         boolean providerAwait;
+        JSONArray fileEnvironments = new JSONArray();
     }
 
     /**
@@ -194,6 +195,13 @@ public final class RunnerDispatcher {
             if (capacity != d.getInt("capacity")) {
                 throw new StoreException("RUNNER_CAPACITY_MISMATCH");
             }
+            JSONArray environments = d.optJSONArray("fileEnvironments");
+            if (environments == null) environments = new JSONArray();
+            for (int i = 0; i < environments.length(); i++) {
+                JSONObject env = environments.getJSONObject(i);
+                if (!env.getString("environmentDigest").equals(config.getProperty("worker." + id + ".file.environment."
+                        + env.getString("environmentId"), ""))) throw new StoreException("FILE_ENVIRONMENT_FORBIDDEN");
+            }
             if (ToolProtocol.SANDBOX.equals(r.getString("runnerType"))) {
                 String prefix = "worker." + id + ".sandbox.";
                 if (capacity != 1
@@ -221,6 +229,7 @@ public final class RunnerDispatcher {
                 w.runtime = d.getString("runtimeId");
                 w.capacity = capacity;
                 w.runnerType = r.getString("runnerType");
+                w.fileEnvironments = environments;
                 w.providerAwait = "provider-await-v1".equals(d.optString("waitProtocol"));
                 w.nonce = UUID.randomUUID().toString();
                 workers.put(id, w);
@@ -270,8 +279,10 @@ public final class RunnerDispatcher {
         }
         if (action.equals("poll") && !w.draining) {
             final boolean await = w.providerAwait;
+            final JSONArray fileEnvironments = w.fileEnvironments;
             JSONObject job = jobs.poll(id, w.runtime, w.instance, w.healthy, w.runnerType,
-                    (j, worker, runtime, instance) -> broker.wire(j, worker, runtime, instance, await));
+                    (j, worker, runtime, instance) -> broker.acceptsFileEnvironment(j, fileEnvironments)
+                            ? broker.wire(j, worker, runtime, instance, await) : null);
             if (job != null) {
                 out.put("job", job);
             }
@@ -280,6 +291,7 @@ public final class RunnerDispatcher {
                 || action.equals("status")
                 || action.equals("sandbox_prepare")
                 || action.equals("sandbox_complete")
+                || action.equals("file_exchange")
                 || action.equals("broker_invoke")) {
             JSONObject j = jobs.evidence(id, w.runtime, r.getString("jobId"), r.getString("jobHash"));
             if (action.equals("accepted")) {
@@ -313,6 +325,15 @@ public final class RunnerDispatcher {
                 for (String k : result.keySet()) {
                     out.put(k, result.get(k));
                 }
+            } else if (action.equals("file_exchange")) {
+                if (!ToolProtocol.TOOL.equals(w.runnerType)) throw new StoreException("PROTOCOL_MISMATCH");
+                try {
+                    out.put("dataJson", cube.service.harness.store.JdbcRunStore.canonical(broker.fileExchange(j,
+                            r.getJSONObject("grant"), cube.service.harness.protocol.StrictJson.object(
+                            r.getString("transferJson").getBytes(java.nio.charset.StandardCharsets.UTF_8)))));
+                    out.put("status", "finished");
+                } catch (StoreException e) { throw e; }
+                catch (Exception e) { throw new StoreException("FILE_TRANSFER_RETRY"); }
             } else {
                 // broker_invoke：普通工具经 Broker 复核授权后调用提供方。
                 JSONObject result = broker.invokeArguments(
@@ -371,6 +392,8 @@ public final class RunnerDispatcher {
                             .put("role", "runner").put("transportId", w.transport)
                             .put("protocolVersion", ToolProtocol.VERSION)
                             .put("runnerType", w.runnerType)
+                            .put("providerAwait", w.providerAwait)
+                            .put("fileEnvironments", w.fileEnvironments)
                             .put("healthy", healthy).put("draining", w.draining).put("leaseRemainingMs", Math.max(0, w.deadline - now()))
                             .put("ready", !w.draining && healthy)
                             .put("capacity", w.capacity)

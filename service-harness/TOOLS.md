@@ -14,6 +14,8 @@
 
 一个 Java JVM 可连接多个同角色 Runner，每个独占 workerId、runtimeDir、journal、实例身份和租约。调度检查角色、类型、能力、健康、drain 状态及实际容量。
 
+平台[文件处理](FILE-PROCESSING.md)通过 tool Runner 的受控文件通道调用安装好的 Python 处理程序，支持 PDF 水印与选页、图片处理、表格和报告，使用各自校验过的能力 venv。OCR 和音频转写由普通 tool Runner 复用现有 Unit。输出进入任务产物，原附件保留。
+
 ## 启用可信工具
 
 按 [EXECUTION.md](EXECUTION.md) 配置存储、执行、模型与资源仓库，然后补充私有配置：

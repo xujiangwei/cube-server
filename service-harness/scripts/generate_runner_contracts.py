@@ -23,15 +23,18 @@ def generate(python_root):
     boolean = dict(type="boolean")
     text = lambda n: dict(type="string", maxLength=n)
     grant = obj(dict(bodyJson=text(8192), signature=digest))
+    environment = obj(dict(environmentId=ident, environmentDigest=digest))
+    processing = obj(dict(environmentId=ident, environmentDigest=digest, operation=ident))
     job = obj(dict(runnerType=dict(type="string", enum=["tool"]), jobId=digest, jobHash=digest, runId=ident, callId=ident, attempt=integer,
         originFence=integer, intentHash=digest, tenantId=ident, subjectId=ident, release=digest,
         tool=ident, argumentsJson=text(16384), argumentsHash=digest, bundleJson=text(180000),
         workerId=ident, instanceId=ident, runtimeId=ident, grant=grant,
         timeoutMillis=dict(type="integer", minimum=100, maximum=30000),
         maxOutputBytes=dict(type="integer", minimum=1024, maximum=65536),
-        maxWorkspaceBytes=dict(type="integer", minimum=1024, maximum=10485760),
+        maxWorkspaceBytes=dict(type="integer", minimum=1024, maximum=67108864),
         maxWorkspaceFiles=dict(type="integer", minimum=1, maximum=256)))
     job['properties']['timeoutMillis']['maximum'] = 290000
+    job['properties']['fileProcessing'] = processing
     job['properties']['waitProtocol'] = dict(type='string', enum=['provider-await-v1'])
     job['oneOf'] = [
         dict(type='object', properties=dict(timeoutMillis=dict(type='integer', maximum=30000))),
@@ -42,6 +45,7 @@ def generate(python_root):
     descriptor = obj(dict(runtimeId=ident, capacity=dict(type="integer", minimum=1, maximum=8),
         runtime=dict(type="string", enum=["trusted-python-v1"])))
     descriptor['properties']['waitProtocol'] = dict(type='string', enum=['provider-await-v1'])
+    descriptor['properties']['fileEnvironments'] = dict(type='array', items=environment, maxItems=16)
     common = dict(protocolVersion=dict(type="integer", enum=[1]), runnerType=dict(type="string", enum=["tool"]), action=ident, requestId=ident,
         credential=text(256), workerId=ident, instanceId=ident, role=dict(type="string", enum=["runner"]),
         capabilities=dict(type="array", items=dict(type="string", enum=["tool.execute"]), minItems=1, maxItems=1),
@@ -53,6 +57,7 @@ def generate(python_root):
         "result": dict(report=report),
         "cleanup_ack": dict(jobId=digest, jobHash=digest, resultHash=digest),
         "broker_invoke": dict(jobId=digest, jobHash=digest, grant=grant, argumentsJson=text(16384)),
+        "file_exchange": dict(jobId=digest, jobHash=digest, grant=grant, transferJson=text(24576)),
     }.items():
         properties = copy.deepcopy(common)
         properties["action"] = dict(type="string", enum=[action])
@@ -104,6 +109,7 @@ def generate_sandbox(python_root):
                 node['properties'].update(executionProfile=profile)
                 node['required'] += ['executionProfile']
                 node['properties']['timeoutMillis']['maximum'] = 30000
+                node['properties']['maxWorkspaceBytes']['maximum'] = 10485760
                 node['properties'].pop('waitProtocol', None)
                 node.pop('oneOf', None)
             for child in node.values():
@@ -113,6 +119,14 @@ def generate_sandbox(python_root):
                 job(child)
     for value in files.values():
         job(value)
+    def remove_file_processing(node):
+        if isinstance(node, dict):
+            node.get('properties', {}).pop('fileProcessing', None)
+            node.get('properties', {}).pop('fileEnvironments', None)
+            for child in node.values(): remove_file_processing(child)
+        elif isinstance(node, list):
+            for child in node: remove_file_processing(child)
+    for value in files.values(): remove_file_processing(value)
     request = files['runner-request.json']
     descriptor = request['oneOf'][0]['properties']['descriptor']
     descriptor['properties'].pop('waitProtocol', None)
@@ -133,7 +147,7 @@ def generate_sandbox(python_root):
     complete['properties']['receiptJson'] = dict(type='string', maxLength=65536)
     complete['required'].append('receiptJson')
     request['oneOf'] = [b for b in request['oneOf']
-        if b['properties']['action']['enum'][0] != 'broker_invoke']
+        if b['properties']['action']['enum'][0] not in ('broker_invoke', 'file_exchange')]
     request['oneOf'] += [prepare, complete]
     output = dict(type='object', properties=dict(stdout=dict(type='string', maxLength=8192),
                   artifactText=dict(type='string', maxLength=8192)),

@@ -1,6 +1,6 @@
 # Harness 通用技能工具包
 
-本工程使用 Ant 和 **JDK 8** 构建 `cube-service-harness-skill-3.0.jar`，由 Java `service-harness` 在同一 JVM 内加载。十一个 Provider 可独立注册；Python tool Runner 执行技能的薄入口，通过 SDK/Broker 调用 Java，返回结构化证据。
+本工程使用 Ant 和 **JDK 8** 构建 `cube-service-harness-skill-3.0.jar`，由 Java `service-harness` 在同一 JVM 内加载。十二个 Provider 可独立注册；Python tool Runner 执行技能的薄入口，通过 SDK/Broker 调用 Java，返回结构化证据。
 
 业务能力统一见 [数据查询、加工与单图分析](../service-harness/BUSINESS-DATA.md)和[必需步骤检查与报告](../service-harness/WORKFLOW-REPORTS.md)。WorkflowGuard 根据固定业务资源检查真实完成证据与报告，成功报告位于 result.result.report，text 为同一 JSON 镜像。配套 JAR、Provider、guard、工具 release 与权限的安装顺序见 [部署指南](../service-harness/BUSINESS-DEPLOYMENT.md)。
 
@@ -22,15 +22,24 @@
 | `common/capability` | `common.capability.invoke` / `common.capability.invoke.v1` | `capability.invoke` | skill、profileId、mediaRef、content；调用已配置的真实 Unit，保留原始字段并写来源文本产物 |
 | `common/capabilities` | `common.capabilities.inspect` / `common.capabilities.inspect.v1` | `capability.read` | skill；只读查询 active 业务包中的逻辑 profileId、mediaTypes、ready/unavailable/disabled；不执行分析、不预留容量 |
 | `common/processing` | `common.processing.process` / `common.processing.process.v1` | `data.process` | 对已确认 pageRefs 按 data-processing.json 加工；返回可分页的 datasetRef、覆盖情况、统计及完整来源 |
+| `common/document` | `common.document.watermark` / `common.document.watermark.v1` | `document.watermark` | inputId、text；Python 独立环境生成 PDF 水印副本，返回二进制产物引用 |
+| `common/pdf` | `common.pdf.process` | `pdf.process` | PDF 选页、文本层提取、按序合并和单页拆分 |
+| `common/image` | `common.image.process` | `image.process` | JPEG/PNG 裁剪、缩放、压缩和转换 |
+| `common/table` | `common.table.process` | `table.process` | CSV/XLSX 筛选、排序、去重和导出 |
+| `common/report` | `common.report.process` | `report.process` | 内置版式生成 Word 或 PDF，可附图片 |
+| `common/ocr` | `common.ocr.recognize` | `ocr.recognize` | 使用 OmniPerception 执行图片 OCR |
+| `common/transcription` | `common.transcription.recognize` | `transcription.recognize` | 使用 Speech 执行 WAV/MP3 转写 |
 | `common/retrieval` | `common.retrieval.query` / `common.retrieval.query.v1` | `resource.retrieve` | action=plan/search、skill；从真实输入生成结构化任务，search 接受已确认 planRef/不透明 cursor |
 
-十一套作者包唯一源码在本工程 `harness-tools/`，每项都有 `SKILL.md`、`manifest.template.json`、输入输出 schema、`main.py`、空依赖锁和执行/租户策略模板。schema 构建时复制到 JAR；provider 与发布包使用同一份定义。包格式为 schemaVersion=6，runnerType=tool，effect=read-only。
+作者包源码位于 `harness-tools/`，参数和结果 schema 构建时复制到 JAR。工具使用 schemaVersion=6、runnerType=tool，通过 Broker 调用同名 `.v1` 操作。Python 固定文件处理工具声明 `artifact-create`；Unit 识别沿用宿主读取附件与生成文字产物接口。
 
 `CapabilityInspectProvider` 可独立登记为 capabilities，使用与调用 Provider 一致的私有 `capability.allowed.units` 名单。查询按已激活业务包读取 `analysis-profiles.json`，只投影逻辑档案和媒体类型；不返回 Unit 名、实例、地址、路径或内部传输参数。ready 只表示兼容实例就绪，不反映当前预留量；实际调用仍重新授权并由持久容量账本调度。声明 SpecializedDetection 时按实例实际支持的 profile/sliced 能力判断。只有查询权限不会获得执行权限。
 
 原正文 SKILL 加载器不会执行这些入口。需要新 Harness 的技能发布、授权、激活及显式工具调用链路。上传技能 ZIP 不会安装 Java JAR；安装 JAR 也不会自动发布技能或授予权限。
 
 `RetrievalProvider` 可独立登记为 retrieval，读取业务包 `retrieval-profiles.json`；`resource-retrieval-v1` 配套 WorkflowGuard 由宿主推进时间/区域解析、语义校验、问答及分页。图片、录像、文档等资源由业务档案配置。成功结果位于 `result.result.retrieval`，只交付可信元数据与固定版本引用。契约、解析边界见 [资源检索](../service-harness/RETRIEVAL.md)，安装见部署指南。`ant test-retrieval` 运行解析和真实 JDBC/Broker/双 Runner/签名 HTTP 回归；完整 `ant test` 同样包含它。
+
+`DocumentProvider` 和 `FileUtilityProvider` 使用独立 Python 能力环境；`RecognitionProvider` 使用 AIGC 宿主路由。限制见[文件处理](../service-harness/FILE-PROCESSING.md)，安装见[部署指南](../service-harness/BUSINESS-DEPLOYMENT.md#通用文件工具部署)。`ant test-document` 验证水印文件通道，`ant test-utilities` 验证多附件授权和识别回执。
 
 ## 构建和打包
 
@@ -48,10 +57,10 @@ ant test
 
 ```text
 build/cube-service-harness-skill-3.0.jar
-build/packages/{search,web,knowledge,attachment,time,calculator,data,processing,capability}-v1.zip
+build/packages/{search,web,knowledge,attachment,time,calculator,data,processing,capability,capabilities,retrieval,document}-v1.zip
 ```
 
-`packages` 可重复执行，原子更新自己生成的 ZIP，同一来源得到相同 manifest 摘要。生产 Java ZIP 校验器在 `ant test` 中校验十一个实际 ZIP。
+`packages` 可重复执行，原子更新自己生成的 ZIP，同一来源得到相同 manifest 摘要。生产 Java ZIP 校验器在 `ant test` 中校验十二个实际 ZIP。
 
 本模块的 `build` 只生成 `build/cube-service-harness-skill-3.0.jar`；`build-debug` / `build-release` 还会将该 JAR 复制到服务器统一的 `../build/`。服务器顶层的 `build` / `build-debug` 均包含本模块，也可单独构建这条依赖链（自动依次构建 common、service-harness、service-harness-skill）：
 
@@ -69,7 +78,7 @@ Project SDK 选择实际 JDK 8；本模块继承 Project SDK，语言级别固�
 
 模块依赖现有 `common`、`service-harness`、`deploy/bin/cell.jar` 与 `deploy/libs/*.jar`。集成测试还引用 `service-harness/build/test-classes`；首次开发或修改核心测试夹具后，用 JDK 8 执行 `ant -f ../service-harness/build.xml test` 生成它。IDE 运行 `ProviderTest`、`CommonToolsTest` 的 main 时，将工作目录设为本模块目录，程序参数填 `build/packages`，并先执行 `ant packages`。
 
-发布 JAR、复制 schema 和生成十一个 ZIP 仍以本模块 Ant 目标为准；IDE 的普通编译用于开发和调试。
+发布 JAR、复制 schema 和生成十二个 ZIP 仍以本模块 Ant 目标为准；IDE 的普通编译用于开发和调试。
 
 ## 安装和授权
 
@@ -157,7 +166,7 @@ result.max.bytes=12288
 
 ## 验证
 
-`ant test` 覆盖十一个实际作者 ZIP、输入输出 schema 一致性、算术精度、时区和夏令时、知识 ACL、附件绑定、中文与转义输出预算。网络测试使用真实本地 HTTP/TLS 服务，覆盖 SearXNG 空结果/部分失败/403/429/超时/无效响应，以及公网 DNS 拒绝、TLS 主机名、chunked/gzip 和响应大小。Broker 测试使用真实 SQLite、grant、结果持久化、重复调用和 ACK 重送；`ant test-media` 验证签名业务包、分页快照、媒体绑定、来源防伪和物理完成回执，部署与实机验证边界见 [部署指南](../service-harness/BUSINESS-DEPLOYMENT.md)。
+`ant test` 覆盖十二个实际作者 ZIP、输入输出 schema 一致性、算术精度、时区和夏令时、知识 ACL、附件绑定、中文与转义输出预算。网络测试使用真实本地 HTTP/TLS 服务，覆盖 SearXNG 空结果/部分失败/403/429/超时/无效响应，以及公网 DNS 拒绝、TLS 主机名、chunked/gzip 和响应大小。Broker 测试使用真实 SQLite、grant、结果持久化、重复调用和 ACK 重送；`ant test-media` 验证签名业务包、分页快照、媒体绑定、来源防伪和物理完成回执，部署与实机验证边界见 [部署指南](../service-harness/BUSINESS-DEPLOYMENT.md)。
 
 专项检测 options 支持 `classes` 和字符串 profile（含 `thing`），保留未知字段拒绝；
 预检、持久预留及发送按节点注册的 profile、状态租约、切片支持与图像余量匹配。

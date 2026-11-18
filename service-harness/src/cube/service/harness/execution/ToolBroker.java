@@ -367,7 +367,8 @@ public final class ToolBroker implements AutoCloseable {
         if (!runtime.getString("mode").equals("trusted-python-v1")
                 || !runtime.getString("certification").equals("offline-trusted-runner")
                 || !RuntimeSupport.strings(runtime.getJSONArray("capabilities")).contains("tool.execute")
-                || !tool.getString("effect").equals("read-only")
+                || !tool.getString("effect").equals(provider.effect())
+                || (provider.effect().equals("artifact-create") && !(provider instanceof FileProcessingProvider))
                 || !tool.getString("permission").equals(provider.permission())
                 || !permissions.contains(provider.permission())) {
             throw new StoreException("TOOL_PROFILE_FORBIDDEN");
@@ -393,8 +394,21 @@ public final class ToolBroker implements AutoCloseable {
     public boolean supports(JSONObject tool) {
         try {
             QueryProvider provider = providers.get(tool.getString("brokerOperation"));
-            return provider.runnerType().equals(tool.getString("runnerType")) && provider.permission().equals(tool.getString("permission"));
+            return provider.runnerType().equals(tool.getString("runnerType"))
+                    && provider.permission().equals(tool.getString("permission"))
+                    && provider.effect().equals(tool.getString("effect"))
+                    && (!(provider instanceof FileProcessingProvider) || files != null);
         } catch (StoreException unavailable) { return false; }
+    }
+
+    /** Use the same capability filter for discovery/admission and queue dispatch. */
+    public boolean acceptsRunner(JSONObject tool, JSONObject node) {
+        if (!supports(tool)) return false;
+        QueryProvider provider = providers.get(tool.getString("brokerOperation"));
+        if (!provider.runnerType().equals(node.getString("runnerType"))
+                || (provider.runnerWaitMillis() > 30000 && !node.optBoolean("providerAwait", false))) return false;
+        JSONArray environments = node.optJSONArray("fileEnvironments");
+        return acceptsFileEnvironment(provider, environments == null ? new JSONArray() : environments);
     }
 
     /**
@@ -445,13 +459,16 @@ public final class ToolBroker implements AutoCloseable {
                         .put("maxOutputBytes", 32768)
                         .put(
                                 "maxWorkspaceBytes",
-                                Math.min(10485760, d.getJSONObject("runtime").getLong("maxWorkspaceBytes")))
+                                Math.min(provider(j) instanceof FileProcessingProvider ? 67108864 : 10485760,
+                                        d.getJSONObject("runtime").getLong("maxWorkspaceBytes")))
                         .put(
                                 "maxWorkspaceFiles",
                                 Math.min(256, d.getJSONObject("runtime").getInt("maxWorkspaceFiles")));
         if (provider(j) instanceof WorkerExecutionProvider) {
             w.put("executionProfile", ((WorkerExecutionProvider) provider(j)).executionProfile());
         }
+        if (provider(j) instanceof FileProcessingProvider)
+            w.put("fileProcessing", ((FileProcessingProvider) provider(j)).fileProcessing());
         if (w.getInt("timeoutMillis") > 30000) w.put("waitProtocol", "provider-await-v1");
         w.put("jobHash", hash(w));
         JSONObject a = new JSONObject(j.getString("arguments_json"));
@@ -475,6 +492,62 @@ public final class ToolBroker implements AutoCloseable {
         w.put("grant", new JSONObject().put("bodyJson", body).put("signature", sign(body)));
         ToolProtocol.parse("runner-job", RuntimeSupport.bytes(w));
         return w;
+    }
+
+    public boolean acceptsFileEnvironment(JSONObject job, JSONArray environments) {
+        return acceptsFileEnvironment(provider(job), environments);
+    }
+
+    private boolean acceptsFileEnvironment(QueryProvider p, JSONArray environments) {
+        if (!(p instanceof FileProcessingProvider)) return true;
+        JSONObject required = ((FileProcessingProvider) p).fileProcessing();
+        for (int i = 0; i < environments.length(); i++) {
+            JSONObject available = environments.getJSONObject(i);
+            if (required.getString("environmentId").equals(available.getString("environmentId"))
+                    && required.getString("environmentDigest").equals(available.getString("environmentDigest"))) return true;
+        }
+        return false;
+    }
+
+    public JSONObject fileExchange(JSONObject job, JSONObject grant, JSONObject request) throws Exception {
+        authorize(job, grant);
+        if (!job.getString("status").equals("accepted")) throw new StoreException("TOOL_NOT_ACCEPTED");
+        QueryProvider p = provider(job);
+        if (!(p instanceof FileProcessingProvider)) throw new StoreException("FILE_PROCESSING_FORBIDDEN");
+        String action = request.optString("operation");
+        java.util.Set<String> fields = new java.util.HashSet<>(java.util.Arrays.asList("operation"));
+        if (action.equals("read")) {
+            fields.add("offset");
+            if (request.has("inputIndex")) {
+                fields.add("inputIndex");
+                Object index = request.get("inputIndex");
+                if (!(index instanceof Number) || request.getDouble("inputIndex") != request.getInt("inputIndex")
+                        || request.getInt("inputIndex") < 0 || request.getInt("inputIndex") > 15)
+                    throw new StoreException("FILE_INPUT_INDEX_INVALID");
+            }
+        }
+        else if (action.equals("write")) { fields.add("offset"); fields.add("data"); }
+        else if (action.equals("begin")) { fields.add("size"); fields.add("sha256"); }
+        else if (!action.equals("finish")) throw new StoreException("FILE_OPERATION_INVALID");
+        if (!request.keySet().equals(fields)) throw new StoreException("FILE_OPERATION_INVALID");
+        if (request.has("offset") && (!(request.get("offset") instanceof Number)
+                || request.getDouble("offset") != request.getLong("offset"))) throw new StoreException("FILE_OFFSET_INVALID");
+        if (request.has("size") && (!(request.get("size") instanceof Number)
+                || request.getDouble("size") != request.getLong("size"))) throw new StoreException("FILE_SIZE_INVALID");
+        if (request.has("sha256") && (!(request.get("sha256") instanceof String)
+                || !request.getString("sha256").matches("[a-f0-9]{64}"))) throw new StoreException("FILE_DIGEST_INVALID");
+        if (request.has("data")) {
+            if (!(request.get("data") instanceof String) || request.getString("data").length() > 21848)
+                throw new StoreException("FILE_CHUNK_INVALID");
+            try {
+                byte[] decoded = java.util.Base64.getDecoder().decode(request.getString("data"));
+                if (decoded.length < 1 || decoded.length > 16384
+                        || !java.util.Base64.getEncoder().encodeToString(decoded).equals(request.getString("data")))
+                    throw new StoreException("FILE_CHUNK_INVALID");
+            } catch (IllegalArgumentException invalid) { throw new StoreException("FILE_CHUNK_INVALID"); }
+        }
+        return invocation(job).fileExchange((FileProcessingProvider) p,
+                new JSONObject(job.getString("arguments_json")), request);
     }
 
     /**

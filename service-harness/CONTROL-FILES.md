@@ -31,7 +31,7 @@
 6. `GET /runs/{runId}/artifacts`、`GET /inputs/{inputId}`、`GET /artifacts/{artifactId}` 查询元数据；`GET /artifacts/{artifactId}/content` 下载。
 7. `GET /artifacts/{artifactId}/download-handle` 返回短期签名相对 URL；打开仍需 API 认证，句柄有效期不超过文件有效期。
 
-支持 text/plain、text/csv、application/json（顶层 object）、application/octet-stream。文本严格 UTF-8、拒绝 NUL；JSON 拒绝重复字段。文件大小默认 10 MiB、根配额默认 1 GiB。每个文件身份使用独立随机 storageKey，**不共享或去重 blob**；同内容文件分别计额、分别到期，避免一个引用的删除影响另一个身份。上传意图与可信工具调用分账，失败仅补传/complete，不重做业务工具。
+支持 text/plain、text/csv、application/json（顶层 object）、application/octet-stream、application/pdf、image/jpeg、image/png、application/zip、XLSX 与 DOCX 的标准 MIME、audio/wav、audio/mpeg。文本严格 UTF-8、拒绝 NUL；JSON 拒绝重复字段。文件大小默认 10 MiB、根配额默认 1 GiB，具体工具可设更低上限。每个文件身份使用独立随机 storageKey，**不共享或去重 blob**；同内容文件分别计额、分别到期，避免一个引用的删除影响另一个身份。上传意图与可信工具调用分账，失败仅补传/complete，不重做业务工具。
 
 `harness.properties` 参数、单位与范围见 [主配置模板](config/harness.properties.template)。默认 Input 7 天、Artifact 30 天、未完成上传 24 小时；重启应用新配置，不追溯重算已保存 expiresAt。活跃多 JVM 的同根策略不同会拒绝启动，需先 drain 全部旧策略节点再改。
 
@@ -40,5 +40,7 @@
 Java 在 OS 根锁内执行文件回收，DB claim/fence/CAS 与失败退避记录删除结果；提交回执丢失时根据墓碑/缺失字节恢复，不重做工具。扫描批量有界，指标见 capabilities 中的 files。Runner 按持久化 call.confirmed 事实推导并保存 cleanup_after，经过宽限后下发绑定 runtime/jobHash/resultHash 的清理指令；只有执行树已结束、结果已 ACK 且非 unknown 才删除自己的 calls/jobId 目录，保留 journal。指令和 ACK 可幂等重传。失败仅日志记录脱敏错误码并重试，不清理旧目录、包或仓库证据。
 
 ## 业务 SKILL 的边界
+
+PDF Input 完成时检查 PDF 头和结束标记，完整结构与可处理性由 Python 文档工具校验。`common.document.watermark` 使用独立文件能力环境和二进制产物通道，不通过 `input.read_text` 或 `artifact.write_text` 处理 PDF；能力、限制及分块恢复见 [文件处理](FILE-PROCESSING.md)。业务上传 API 仍为完整流上传，内部工作器的分块通道不改变该 REST 契约。
 
 Console 状态查询由工作区 [server-status SKILL](../../skill/harness-packages/server-status/README.md) 提供，使用独立 provider、私有配置与认证入口。Harness 不包含 Console API/Cookie/节点解释逻辑；通用扩展注册见 [TOOLS.md](TOOLS.md)。是否配置 Console 不影响控制和文件能力。

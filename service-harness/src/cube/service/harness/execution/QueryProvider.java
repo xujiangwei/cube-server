@@ -21,6 +21,7 @@ import org.json.JSONObject;
  * </ul>
  */
 public interface QueryProvider extends AutoCloseable {
+    default String effect() { return "read-only"; }
     /** Includes queueing, preparation and result delivery; >30s requires provider-await-v1. */
     default int runnerWaitMillis() { return independentExecution() ? 30000 : 10000; }
     default java.util.Set<String> configurationFiles() { return java.util.Collections.emptySet(); }

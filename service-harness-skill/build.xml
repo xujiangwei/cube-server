@@ -6,6 +6,7 @@
   <property name="build.dir" location="build"/>
   <property name="harness.module" location="../service-harness"/>
   <property name="python.exe" value="python"/>
+  <property name="document.environment.manifest" location="../../../apexnova-wisdom/harness/environments/pdf-watermark-v1/environment.json"/>
   <path id="cp">
     <pathelement location="${harness.module}/build/cube-service-harness-3.0.jar"/>
     <pathelement location="../build/cube-common-3.0.jar"/>
@@ -44,7 +45,7 @@
     <javac srcdir="test" destdir="${build.dir}/test-classes" release="8" encoding="UTF-8" includeantruntime="false" unless:true="${jdk.is8}"><classpath><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/></classpath></javac>
   </target>
   <path id="test.cp"><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/><pathelement location="${build.dir}/test-classes"/></path>
-  <target name="test" depends="compile-tests,test-media">
+  <target name="test" depends="compile-tests,test-media,test-document,test-utilities">
     <java classname="cube.service.harness.skill.RetrievalTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../tutorials/examples/retrieval-package"/></java>
     <java classname="cube.service.harness.test.RetrievalToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/><arg path="../../tutorials/examples/retrieval-package"/></java>
     <java classname="cube.service.harness.skill.WorkflowGuardTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../forest/packages/fhe-patrol"/></java>
@@ -62,6 +63,18 @@
   <target name="test-retrieval" depends="compile-tests">
     <java classname="cube.service.harness.skill.RetrievalTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../tutorials/examples/retrieval-package"/></java>
     <java classname="cube.service.harness.test.RetrievalToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/><arg path="../../tutorials/examples/retrieval-package"/></java>
+  </target>
+  <target name="test-document" depends="compile-tests">
+    <tempfile property="document.test.output" destdir="${java.io.tmpdir}" prefix="harness-document-"/>
+    <java classname="cube.service.harness.test.DocumentToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/>
+      <arg value="test"/><arg path="${document.test.output}"/><arg path="${build.dir}/packages"/><arg path="${document.environment.manifest}"/>
+    </java>
+  </target>
+  <target name="test-utilities" depends="compile-tests">
+    <tempfile property="utility.test.output" destdir="${java.io.tmpdir}" prefix="harness-utilities-"/>
+    <java classname="cube.service.harness.test.UtilityToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/>
+      <arg path="${utility.test.output}"/><arg path="${build.dir}/packages"/><arg path="${document.environment.manifest}"/>
+    </java>
   </target>
   <target name="test-media" depends="compile-tests">
     <exec executable="${python.exe}" failonerror="true"><arg value="-B"/><arg path="../../forest/scripts/build_package.py"/><arg value="--tool-packages"/><arg path="${build.dir}/packages"/><arg value="--version"/><arg value="4"/><arg value="--output"/><arg path="${build.dir}/fhe-patrol-m4-test.zip"/></exec>

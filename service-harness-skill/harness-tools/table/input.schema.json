@@ -1,0 +1,120 @@
+{
+  "type": "object",
+  "properties": {
+    "inputId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "fileName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "format": {
+      "type": "string",
+      "maxLength": 32,
+      "enum": [
+        "csv",
+        "xlsx"
+      ]
+    },
+    "sheet": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "minItems": 1,
+      "maxItems": 128
+    },
+    "deduplicateBy": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "minItems": 1,
+      "maxItems": 16
+    },
+    "filters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "column": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "op": {
+            "type": "string",
+            "maxLength": 32,
+            "enum": [
+              "eq",
+              "ne",
+              "contains"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "column",
+          "op",
+          "value"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 16
+    },
+    "sort": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "column": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "direction": {
+            "type": "string",
+            "maxLength": 32,
+            "enum": [
+              "asc",
+              "desc"
+            ]
+          }
+        },
+        "required": [
+          "column",
+          "direction"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 8
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000
+    }
+  },
+  "required": [
+    "inputId"
+  ],
+  "additionalProperties": false
+}

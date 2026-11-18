@@ -498,11 +498,21 @@ public final class FileService implements AutoCloseable {
                     }
                     String type = row.getString("media_type");
                     if (!Arrays.asList(
-                                    "text/plain", "text/csv", "application/json", "application/octet-stream")
+                                    "text/plain", "text/csv", "application/json", "application/octet-stream", "application/pdf",
+                                    "image/jpeg", "image/png", "application/zip",
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                    "audio/wav", "audio/mpeg")
                             .contains(type)) {
                         throw new StoreException("FILE_TYPE_UNSUPPORTED");
                     }
-                    if (!type.equals("application/octet-stream")) {
+                    if (type.equals("application/pdf")) {
+                        byte[] bytes = Files.readAllBytes(content);
+                        String head = new String(bytes, 0, Math.min(bytes.length, 8), StandardCharsets.US_ASCII);
+                        String tail = new String(bytes, Math.max(0, bytes.length - 1024), Math.min(bytes.length, 1024), StandardCharsets.US_ASCII);
+                        if (!head.matches("%PDF-[12]\\.[0-9].*") || !tail.contains("%%EOF"))
+                            throw new StoreException("FILE_TYPE_MISMATCH");
+                    } else if (type.startsWith("text/") || type.equals("application/json")) {
                         byte[] bytes = Files.readAllBytes(content);
                         String text = decode(bytes);
                         if (text.indexOf('\0') >= 0) {
@@ -510,6 +520,14 @@ public final class FileService implements AutoCloseable {
                         }
                         if (type.equals("application/json")) {
                             cube.service.harness.protocol.StrictJson.object(bytes);
+                        }
+                    } else if (!type.equals("application/octet-stream")) {
+                        try (InputStream stream = Files.newInputStream(content)) {
+                            byte[] head = new byte[12];
+                            int count = 0;
+                            for (int n; count < head.length && (n = stream.read(head, count, head.length - count)) > 0; )
+                                count += n;
+                            if (!binarySignature(type, head, count)) throw new StoreException("FILE_TYPE_MISMATCH");
                         }
                     }
                     return view(ledger.complete(identity.tenant, identity.subject, id, sha));
@@ -530,6 +548,17 @@ public final class FileService implements AutoCloseable {
                 .onUnmappableCharacter(CodingErrorAction.REPORT)
                 .decode(ByteBuffer.wrap(bytes))
                 .toString();
+    }
+
+    private static boolean binarySignature(String type, byte[] b, int count) {
+        if (type.equals("image/jpeg")) return count >= 3 && b[0] == (byte) 0xff && b[1] == (byte) 0xd8 && b[2] == (byte) 0xff;
+        if (type.equals("image/png")) return count >= 8 && Arrays.equals(Arrays.copyOf(b, 8),
+                new byte[]{(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10});
+        if (type.equals("audio/wav")) return count >= 12 && b[0] == 'R' && b[1] == 'I' && b[2] == 'F'
+                && b[3] == 'F' && b[8] == 'W' && b[9] == 'A' && b[10] == 'V' && b[11] == 'E';
+        if (type.equals("audio/mpeg")) return count >= 3 && ((b[0] == 'I' && b[1] == 'D' && b[2] == '3')
+                || (b[0] == (byte) 0xff && (b[1] & 0xe0) == 0xe0));
+        return count >= 4 && b[0] == 'P' && b[1] == 'K' && b[2] == 3 && b[3] == 4;
     }
 
     /**
@@ -947,6 +976,116 @@ public final class FileService implements AutoCloseable {
         return writeTextArtifact(lease, ledger.requireProvider(lease, jobId), args);
     }
 
+    /** Bounded binary input exchange. The worker verifies the complete digest after assembly. */
+    public JSONObject readProviderChunk(JdbcRunStore.Lease lease, String jobId, String id,
+            Set<String> mediaTypes, long offset) throws Exception {
+        String call = ledger.requireProvider(lease, jobId);
+        ProfileRegistry.Identity identity = owner(lease);
+        if (offset < 0 || offset > config.maxFile) throw new StoreException("FILE_OFFSET_INVALID");
+        return disk.tryLocked(() -> {
+            ledger.owner(lease);
+            JSONObject row = ledger.pin(identity.tenant, identity.subject, id,
+                    "read-" + JdbcRunStore.hash(new JSONArray().put(lease.runId).put(call).put(id)), lease.runId, "consume");
+            if (!row.getString("kind").equals("input") || !mediaTypes.contains(row.getString("media_type")))
+                throw new StoreException("INPUT_TYPE_OR_SIZE_FORBIDDEN");
+            Path data = path(row, ".data");
+            long size = row.getLong("size_bytes");
+            if (offset > size || Files.size(data) != size) throw new StoreException("FILE_OFFSET_INVALID");
+            if (offset == 0 && !RuntimeSupport.sha(Files.readAllBytes(data)).equals(row.getString("sha256")))
+                throw new StoreException("FILE_DIGEST_MISMATCH");
+            ByteBuffer buffer = ByteBuffer.allocate((int) Math.min(16384, size - offset));
+            try (FileChannel in = FileChannel.open(data, StandardOpenOption.READ)) {
+                in.position(offset);
+                while (buffer.hasRemaining()) if (in.read(buffer) < 0) throw new StoreException("FILE_DIGEST_MISMATCH");
+            }
+            return new JSONObject().put("offset", offset).put("size", size).put("sha256", row.getString("sha256"))
+                    .put("data", java.util.Base64.getEncoder().encodeToString(buffer.array()));
+        });
+    }
+
+    public JSONObject beginProviderArtifact(JdbcRunStore.Lease lease, String jobId, JSONObject metadata) {
+        return view(ledger.create(lease, ledger.requireProvider(lease, jobId), metadata));
+    }
+
+    /** Offset-based, idempotent output upload. Allocation and quota are durable before the first byte. */
+    public JSONObject writeProviderChunk(JdbcRunStore.Lease lease, String jobId, long offset, byte[] bytes) throws Exception {
+        if (offset < 0 || bytes.length < 1 || bytes.length > 16384) throw new StoreException("FILE_OFFSET_INVALID");
+        return disk.tryLocked(() -> {
+            JSONObject row = ledger.providerArtifact(lease, jobId);
+            if (offset > row.getLong("size_bytes") - bytes.length) throw new StoreException("FILE_OFFSET_INVALID");
+            Path data = path(row, row.getString("status").equals("ready") ? ".data" : ".part");
+            if (row.getLong("expires_at") <= ledger.now()) throw new StoreException("FILE_EXPIRED");
+            if (!Arrays.asList("ready", "uploading").contains(row.getString("status"))) throw new StoreException("FILE_UPLOAD_CLOSED");
+            try (FileChannel out = FileChannel.open(data, row.getString("status").equals("ready")
+                    ? new StandardOpenOption[]{StandardOpenOption.READ}
+                    : new StandardOpenOption[]{StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE})) {
+                if (offset > out.size()) throw new StoreException("FILE_OFFSET_INVALID");
+                out.position(offset);
+                int overlap = (int) Math.min(bytes.length, out.size() - offset);
+                if (overlap > 0) {
+                    ByteBuffer old = ByteBuffer.allocate(overlap);
+                    while (old.hasRemaining()) if (out.read(old) < 0) throw new StoreException("FILE_OFFSET_INVALID");
+                    if (!java.security.MessageDigest.isEqual(old.array(), Arrays.copyOf(bytes, overlap))) throw new StoreException("FILE_CHUNK_CONFLICT");
+                }
+                if (overlap < bytes.length) {
+                    if (row.getString("status").equals("ready")) throw new StoreException("FILE_UPLOAD_CLOSED");
+                    ByteBuffer buffer = ByteBuffer.wrap(bytes, overlap, bytes.length - overlap);
+                    while (buffer.hasRemaining()) out.write(buffer);
+                }
+                if (!row.getString("status").equals("ready")) {
+                    out.force(true);
+                }
+            }
+            return new JSONObject().put("offset", offset + bytes.length);
+        });
+    }
+
+    public JSONObject finishProviderArtifact(JdbcRunStore.Lease lease, String jobId) throws Exception {
+        ProfileRegistry.Identity identity = owner(lease);
+        JSONObject completed = disk.tryLocked(() -> {
+            JSONObject row = ledger.providerArtifact(lease, jobId);
+            Path part = path(row, ".part"), data = path(row, ".data");
+            if (row.getString("status").equals("uploading")) {
+                Path source = Files.exists(data) ? data : part;
+                if (!Files.exists(source) || Files.size(source) != row.getLong("size_bytes")
+                        || !RuntimeSupport.sha(Files.readAllBytes(source)).equals(row.getString("sha256")))
+                    throw new StoreException("FILE_DIGEST_MISMATCH");
+                if (source.equals(part)) Files.move(part, data, StandardCopyOption.ATOMIC_MOVE);
+                ledger.uploaded(identity.tenant, identity.subject, row.getString("file_id"), row.getString("sha256"));
+            }
+            return row;
+        });
+        ledger.owner(lease);
+        return complete(identity, completed.getString("file_id"), completed.getString("sha256"));
+    }
+
+    public JSONObject providerArtifact(JdbcRunStore.Lease lease, String jobId) {
+        JSONObject result = view(ledger.providerArtifact(lease, jobId));
+        if (!result.getString("state").equals("ready")) throw new StoreException("FILE_NOT_READY");
+        return reference(result);
+    }
+
+    public JSONObject providerArtifactText(JdbcRunStore.Lease lease, String jobId, int maxChars) throws Exception {
+        if (maxChars < 1 || maxChars > 1024) throw new IllegalArgumentException("maxChars");
+        return disk.tryLocked(() -> {
+            JSONObject row = ledger.providerArtifact(lease, jobId);
+            if (!view(row).getString("state").equals("ready") || !row.getString("media_type").startsWith("text/"))
+                throw new StoreException("FILE_NOT_READY");
+            try (java.io.Reader reader = Files.newBufferedReader(path(row, ".data"), StandardCharsets.UTF_8)) {
+                char[] data = new char[maxChars + 2];
+                int count = 0;
+                while (count < data.length) {
+                    int n = reader.read(data, count, data.length - count);
+                    if (n < 0) break;
+                    count += n;
+                }
+                int end = Math.min(maxChars, count);
+                if (end > 0 && Character.isHighSurrogate(data[end - 1])) --end;
+                return new JSONObject().put("text", new String(data, 0, end)).put("truncated", count > end);
+            }
+        });
+    }
+
     private JSONObject writeTextArtifact(JdbcRunStore.Lease lease, String call, JSONObject args) throws Exception {
         ProfileRegistry.Identity identity = owner(lease);
         byte[] content = args.getString("text").getBytes(StandardCharsets.UTF_8);
@@ -1019,7 +1158,7 @@ public final class FileService implements AutoCloseable {
      */
     public byte[] readBound(JdbcRunStore.Lease lease, String call, String id, int maxBytes, Set<String> mediaTypes) throws Exception {
         ProfileRegistry.Identity identity = owner(lease);
-        if (maxBytes < 1 || maxBytes > 1048576) {
+        if (maxBytes < 1 || maxBytes > 10485760) {
             throw new StoreException("INPUT_LIMIT_INVALID");
         }
         return disk.tryLocked(() -> {

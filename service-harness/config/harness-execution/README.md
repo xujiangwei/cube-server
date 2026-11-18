@@ -2,6 +2,8 @@
 
 `execution.profiles=./config/harness-execution` 加载本目录全部 JSON。服务器发布模型和执行器，租户只保存技能授权、权限和业务配额。修改目录后重启 Java；在途任务保留完整快照。
 
+`document-python.json` 提供 32 MiB 工作区的可信文件执行器，用于 PDF、图片、表格和报告。它需要文件服务、对应 Provider 和具有匹配环境摘要及 provider-await 协议的健康 Python Runner。OCR 和音频转写使用具备 provider-await 的普通执行器，由现有 Unit 处理。健康节点满载时允许排队，目录的 available 表示当前空闲容量。安装与授权见[文件处理部署](../../BUSINESS-DEPLOYMENT.md#通用文件工具部署)。
+
 完整互动语义见[互动方案](../../INTERACTION.md)，配置更新与人工运行顺序见[部署指南](../../BUSINESS-DEPLOYMENT.md)。普通消息入口与模型结构化提问是独立开关，客户端不能替代服务端配置或 worker 能力声明。
 
 ## 互动配置

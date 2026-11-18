@@ -2,6 +2,8 @@
 
 本文规定将现有全部 Unit 的业务操作接入 Harness 的目标架构、配置契约、实现顺序和交付条件。[操作目录与公共契约](../common/unit-tools/README.md)提供已落地的描述和接口；本文的网关执行链路、新工具及配套配置仍按下述方案实现。实际可执行的工具以 [TOOLS.md](TOOLS.md) 和 [通用工具包](../service-harness-skill/README.md) 为准。
 
+已上线的代码路径中，`common.ocr.recognize` 与 `common.transcription.recognize` 通过同 JVM 媒体桥复用 OmniPerception 和 Speech；它们继承现有的容量预留、物理派发记录、回执及未知状态对账。安装要求与可执行参数分别见[部署](BUSINESS-DEPLOYMENT.md#通用文件工具部署)和[工具契约](FILE-PROCESSING.md)。
+
 目标是让业务开发者通过统一的 Harness 契约使用全部受支持的 Unit，把主要精力放在业务系统的数据、规则、工作流和结果集成。采用“统一能力目录、统一调用网关、按操作生成强类型工具”的实现方式。能力名称可以明确选择，实例调度和部署位置由平台内部处理。
 
 ## 业务开发者接入契约

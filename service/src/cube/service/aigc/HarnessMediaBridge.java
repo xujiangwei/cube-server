@@ -19,6 +19,8 @@ import cube.common.entity.AIGCUnit;
 import cube.common.entity.FileLabel;
 import cube.common.entity.MultimodalInput;
 import cube.common.entity.SpecializedDetectionInput;
+import cube.common.entity.AICapability;
+import cube.common.state.AIGCStateCode;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -177,13 +179,14 @@ public final class HarnessMediaBridge implements MediaProvider {
         if (!service.isStarted() || !Boolean.parseBoolean(config.getProperty("harness.media.dedicated", "false"))) {
             return out;
         }
-        Set<String> names = new HashSet<>(Arrays.asList(config.getProperty("harness.media.units", "").split(",")));
+        Set<String> names = allowedUnits();
         // 白名单由运维显式启用已预热的实际路由，源码树不作为就绪判据。
         for (AIGCUnit unit : service.getAllUnits()) {
             if (names.contains(unit.getCapability().getName())) {
                 JSONObject descriptor = SpecializedDetectionInput.UNIT.equals(unit.getCapability().getName())
                         ? service.getSpecializedDetections().descriptor(unit) : new JSONObject();
                 boolean ready = unit.getContext() != null && unit.getContext().isValid()
+                        && speechCapable(unit)
                         && (!SpecializedDetectionInput.UNIT.equals(unit.getCapability().getName())
                         || SpecializedDetectionCapabilities.ready(descriptor));
                 out.put(descriptor.put("unit", unit.getCapability().getName()).put("instanceId", instance(unit))
@@ -191,6 +194,38 @@ public final class HarnessMediaBridge implements MediaProvider {
             }
         }
         return out;
+    }
+
+    private Set<String> allowedUnits() {
+        Set<String> names = new HashSet<>();
+        for (String name : config.getProperty("harness.media.units", "").split(",")) names.add(name.trim());
+        return names;
+    }
+
+    private static boolean speechCapable(AIGCUnit unit) {
+        return !"Speech".equals(unit.getCapability().getName()) || unit.getCapability()
+                .containsSubtask(AICapability.AudioProcessing.AutomaticSpeechRecognition)
+                && unit.getCapability().containsSubtask("harness-bounded-transcription-v1");
+    }
+
+    static String action(JSONObject execution) {
+        switch (execution.getString("adapter")) {
+            case "speech-recognition": return AIGCAction.AutomaticSpeechRecognition.name;
+            case "specialized-detection": return AIGCAction.SpecializedDetection.name;
+            case "multimodal": return AIGCAction.Multimodal.name;
+            default: throw new IllegalArgumentException("MEDIA_ADAPTER_INVALID");
+        }
+    }
+
+    static JSONObject unitData(JSONObject execution, String code, FileLabel label) {
+        if ("speech-recognition".equals(execution.getString("adapter")))
+            return new JSONObject().put("fileLabel", label.toJSON()).put("harness", true);
+        JSONObject input = mediaInput(execution, code);
+        if ("specialized-detection".equals(execution.getString("adapter")))
+            return new SpecializedDetectionInput(input).toUnitJSON(label);
+        MultimodalInput multimodal = new MultimodalInput(input);
+        multimodal.fileLabels = Collections.singletonList(label);
+        return multimodal.toUnitJson();
     }
 
     /**
@@ -259,7 +294,8 @@ public final class HarnessMediaBridge implements MediaProvider {
         AIGCUnit selected = null;
         for (AIGCUnit unit : service.getAllUnits()) {
             if (unit.getCapability().getName().equals(execution.getString("unit"))
-                    && instance(unit).equals(execution.getString("instanceId")) && unit.getContext().isValid()) {
+                    && instance(unit).equals(execution.getString("instanceId"))
+                    && unit.getContext() != null && unit.getContext().isValid() && speechCapable(unit)) {
                 selected = unit;
             }
         }
@@ -273,17 +309,29 @@ public final class HarnessMediaBridge implements MediaProvider {
         pending.put(sn, p);
         Path temporary = null;
         try {
-            if (unit == null) {
+            if (unit == null || !service.isStarted()
+                    || !Boolean.parseBoolean(config.getProperty("harness.media.dedicated", "false"))
+                    || !allowedUnits().contains(execution.getString("unit"))) {
                 throw new IllegalStateException("CAPABILITY_NOT_READY");
             }
             checkDetection(unit, execution);
             if (expired(execution)) {
                 throw new IllegalStateException("MEDIA_CANCELLED_BEFORE_SEND");
             }
-            if (image.length > 1048576 || image.length == 0) {
+            String type = execution.getString("mediaType");
+            boolean speech = "speech-recognition".equals(execution.getString("adapter"));
+            if (speech != "Speech".equals(execution.getString("unit")))
+                throw new IllegalArgumentException("MEDIA_ADAPTER_INVALID");
+            String extension;
+            if (speech && "audio/wav".equals(type)) extension = ".wav";
+            else if (speech && "audio/mpeg".equals(type)) extension = ".mp3";
+            else if (!speech && "image/png".equals(type)) extension = ".png";
+            else if (!speech && "image/jpeg".equals(type)) extension = ".jpg";
+            else throw new IllegalArgumentException("MEDIA_TYPE_UNSUPPORTED");
+            if (image.length > (speech ? 10485760 : 1048576) || image.length == 0) {
                 throw new IllegalArgumentException("MEDIA_SIZE");
             }
-            temporary = Files.createTempFile("harness-media-", execution.getString("mediaType").equals("image/png") ? ".png" : ".jpg");
+            temporary = Files.createTempFile("harness-media-", extension);
             Files.write(temporary, image);
             FileLabel label = service.saveHarnessMedia(execution, code, temporary.toFile());
             if (label == null) {
@@ -292,16 +340,7 @@ public final class HarnessMediaBridge implements MediaProvider {
             if (expired(execution)) {
                 throw new IllegalStateException("MEDIA_CANCELLED_BEFORE_SEND");
             }
-            JSONObject input = mediaInput(execution, code);
-            boolean specialized = execution.getString("adapter").equals("specialized-detection");
-            JSONObject data;
-            if (specialized) {
-                data = new SpecializedDetectionInput(input).toUnitJSON(label);
-            } else {
-                MultimodalInput multimodal = new MultimodalInput(input);
-                multimodal.fileLabels = Collections.singletonList(label);
-                data = multimodal.toUnitJson();
-            }
+            JSONObject data = unitData(execution, code, label);
             UsageContext usage = UsageContext.run(execution.getString("tenant"), Long.parseLong(execution.getString("subject")), execution.getString("runId"), execution.getString("requestId"));
             service.getStorage().getUsageWriter().begin(usage, execution.getString("requestId"), unit.getCapability().getName(), unit.getQueryKey(), System.currentTimeMillis());
             p.usageStarted = true;
@@ -311,7 +350,7 @@ public final class HarnessMediaBridge implements MediaProvider {
             checkDetection(unit, execution);
             unit.setRunning(true);
             p.runningMarked = true;
-            Packet packet = new Packet(sn, specialized ? AIGCAction.SpecializedDetection.name : AIGCAction.Multimodal.name, data);
+            Packet packet = new Packet(sn, action(execution), data);
             listener.accept(new JSONObject().put("requestId", execution.getString("requestId"))
                     .put("instanceId", execution.getString("instanceId")).put("actualFinished", false)
                     .put("stage", "physical-dispatch").put("dispatchedAt", System.currentTimeMillis()).put("serviceSn", sn));
@@ -326,7 +365,9 @@ public final class HarnessMediaBridge implements MediaProvider {
                     unit.setRunning(false);
                     p.runningMarked = false;
                 }
-                p.receipt = unsent.put("payload", new JSONObject()).put("finishedAt", System.currentTimeMillis());
+                p.receipt = unsent.put("payload", new JSONObject().put("errorCode",
+                        "CAPABILITY_NOT_READY".equals(failure.getMessage()) ? "CAPABILITY_NOT_READY" : "CAPABILITY_FAILED"))
+                        .put("finishedAt", System.currentTimeMillis());
                 reconcile(); // 即使是已证实未发出的回执也先交付落库，再释放宿主预留。
             }
             // 一旦发出，保留暂存文件、在途路由与宿主的持久容量预留。
@@ -397,7 +438,7 @@ public final class HarnessMediaBridge implements MediaProvider {
         if (p == null || p.unit == null || p.unit.getContext() != context) {
             return;
         }
-        String expected = p.request.getString("adapter").equals("specialized-detection") ? AIGCAction.SpecializedDetection.name : AIGCAction.Multimodal.name;
+        String expected = action(p.request);
         if (!expected.equals(packet.name) || !packet.data.has("code")) {
             return;
         }
@@ -407,12 +448,27 @@ public final class HarnessMediaBridge implements MediaProvider {
             }
             JSONObject payload = packet.data.optJSONObject("data");
             payload = payload == null ? new JSONObject() : new JSONObject(payload.toString());
-            payload.remove("thought");
-            p.receipt = new JSONObject().put("requestId", p.request.getString("requestId")).put("instanceId", p.request.getString("instanceId"))
-                    .put("serviceSn", packet.sn).put("actualFinished", true).put("success", Packet.extractCode(packet) == 0).put("payload", payload)
-                    .put("finishedAt", System.currentTimeMillis());
+            p.receipt = responseReceipt(p.request, packet.sn, Packet.extractCode(packet), payload);
         }
         reconcile();
+    }
+
+    static JSONObject responseReceipt(JSONObject request, long sn, int code, JSONObject payload) {
+        payload = new JSONObject(payload.toString());
+        payload.remove("thought");
+        if (AIGCAction.AutomaticSpeechRecognition.name.equals(action(request))) {
+            JSONObject result = payload.optJSONObject("result");
+            payload = new JSONObject();
+            if (result != null) {
+                for (String key : Arrays.asList("text", "lang", "duration", "audioDurationSeconds"))
+                    if (result.has(key)) payload.put(key, result.get(key));
+            }
+        }
+        if (code == AIGCStateCode.UnitNoReady.code) payload.put("errorCode", "CAPABILITY_NOT_READY");
+        return new JSONObject().put("requestId", request.getString("requestId"))
+                .put("instanceId", request.getString("instanceId")).put("serviceSn", sn)
+                .put("actualFinished", true).put("success", code == 0).put("payload", payload)
+                .put("finishedAt", System.currentTimeMillis());
     }
 
     /**

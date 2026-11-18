@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "properties": {
+    "inputId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "mediaType": {
+      "type": "string",
+      "enum": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxLength": 10
+    },
+    "region": {
+      "type": "object",
+      "properties": {
+        "x1": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16000000
+        },
+        "y1": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16000000
+        },
+        "x2": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16000000
+        },
+        "y2": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16000000
+        }
+      },
+      "required": [
+        "x1",
+        "y1",
+        "x2",
+        "y2"
+      ],
+      "additionalProperties": false
+    },
+    "language": {
+      "type": "string",
+      "enum": [
+        "zh",
+        "en"
+      ],
+      "maxLength": 2
+    }
+  },
+  "required": [
+    "inputId",
+    "mediaType"
+  ],
+  "additionalProperties": false
+}

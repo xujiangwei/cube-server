@@ -205,7 +205,8 @@
               "effect": {
                 "type": "string",
                 "enum": [
-                  "read-only"
+                  "read-only",
+                  "artifact-create"
                 ]
               },
               "brokerOperation": {

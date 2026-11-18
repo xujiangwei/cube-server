@@ -1,4 +1,4 @@
-"""Package the built interaction/retrieval upgrade, public configuration and local chat client."""
+"""Package the built Harness capabilities, public configuration and local chat client."""
 
 import argparse
 import hashlib
@@ -16,24 +16,27 @@ JARS = {
     "cube-dispatcher-3.0.jar": "cube/dispatcher/harness/HarnessGateway.class",
     "cube-service-harness-3.0.jar": "cube/service/harness/HarnessService.class",
     "cube-service-harness-skill-3.0.jar": "cube/service/harness/skill/WorkflowGuard.class",
+    "cube-service-3.0.jar": "cube/service/aigc/HarnessMediaBridge.class",
 }
 DOCS = (
     "README.md", "INTERACTION.md", "BUSINESS-DEPLOYMENT.md", "BUSINESS-DATA.md",
-    "WORKFLOW-REPORTS.md", "RETRIEVAL.md", "CONTROL-FILES.md", "STORE.md", "CONTRACT.md", "EXECUTION.md",
+    "WORKFLOW-REPORTS.md", "RETRIEVAL.md", "FILE-PROCESSING.md", "CONTROL-FILES.md", "STORE.md", "CONTRACT.md", "EXECUTION.md",
     "RUNTIME.md", "REMOTE-NODES.md", "RESILIENCE.md", "RELEASE-MANAGEMENT.md", "TOOLS.md",
     "TRANSPORT.md", "TRACE.md", "UNIT-TOOLS.md",
 )
-README = """# Harness 持续互动与资源检索交付包
+README = """# Harness 互动、检索与文件处理交付包
 
-此包用于升级已有 Cube 部署，提供执行中补充和调整、主动问题与选择、刷新恢复及完成后继续对话，以及可配置的图片、录像和文档元数据检索。
+此包用于升级已有 Cube 部署，提供持续互动、可配置资源检索、PDF/图片/表格处理、Word/PDF 报告，以及复用现有 Unit 的 OCR 和语音转写。
 
 | 路径 | 用途 |
 | --- | --- |
 | `jars/cube-common-3.0.jar` | 配套更新 service 和 dispatcher 的 libs/ |
 | `jars/cube-dispatcher-3.0.jar` | 更新 dispatcher 的 cellets/ |
 | `jars/cube-service-harness-3.0.jar` | 更新 service 的 cellets/ |
-| `jars/cube-service-harness-skill-3.0.jar` | 使用 WorkflowGuard 时更新 service 的 libs/ |
+| `jars/cube-service-harness-skill-3.0.jar` | 使用内置 Provider 或 WorkflowGuard 时更新 service 的 libs/ |
+| `jars/cube-service-3.0.jar` | 启用 OCR 或转写时，更新同 JVM AIGC 宿主的 cellets/ |
 | `python-harness-node.zip` | 在每个 Python 单元更新完整运行包，保留各自身份、运行目录和 journal |
+| `python-ai-unit/cube/` | 转写部署所需的匹配版本源文件，随完整 Speech Unit 重新发布 |
 | [部署指南](cube-server/service-harness/BUSINESS-DEPLOYMENT.md) | 升级、迁移、配置、人工运行和回退顺序 |
 | [互动契约](cube-server/service-harness/INTERACTION.md) | 消息、问题、执行边界、恢复和历史限制 |
 | [聊天客户端](harness/client/README.md) | Python 3.11 本机代理及浏览器界面 |
@@ -41,13 +44,16 @@ README = """# Harness 持续互动与资源检索交付包
 | `cube-server/service-harness/contracts/` | REST 与 worker 协议及摘要索引 |
 | `cube-server/service-harness/resources/store/` | SQLite/MySQL 版本化建表定义 |
 | `cube-server/service-harness-skill/config/` | 可选 Provider/WorkflowGuard 配置示例 |
-| `cube-server/service-harness-skill/packages/` | 内置工具 ZIP，含 common/retrieval；须按部署指南授权发布 |
+| `cube-server/service-harness-skill/packages/` | 18 套内置工具 ZIP，须授权发布 |
 | [资源检索契约](cube-server/service-harness/RETRIEVAL.md) | 结构化任务、时间/区域语义与结果边界 |
+| [文件处理能力](cube-server/service-harness/FILE-PROCESSING.md) | 各工具参数、环境隔离、文件传输及 Unit 识别 |
 | `checksums.json` | 其余交付文件的 SHA-256，清单不包含自身 |
 
-先按部署指南关闭新准入、drain、备份，再成套替换并启动。Java 构建和运行要求 JDK 8；Python 要求 3.11，依赖按节点包 requirements.txt 安装。此包不包含基础 Cell、Cube Auth/AIGC、第三方 JAR、生产数据库或私有凭据；沿用原部署的兼容依赖。
+先按部署指南关闭新准入、drain、备份，再成套替换并启动。Java 构建和运行要求 JDK 8；Python 要求 3.11，依赖按节点包 requirements.txt 安装。模型权重、第三方运行依赖、生产数据库和私有凭据由原部署提供。
 
 interaction.enabled 默认 false，部署后显式开启。结构化问题按需另发布 generation.structuredInput=true 的模型配置；普通补充不依赖该格式。一个 Java JVM 可连接多个同角色 Python 单元，调度按能力、健康和容量选择。固定业务流程需配套更新 WorkflowGuard。
+
+通用文件能力可独立部署。解压 Python 节点包后，使用 CPython 3.11.9 执行 harness/scripts/install_file_environment.py，按需安装锁定 venv；字体与 OFL 许可已包含。离线部署须提前准备锁定 wheel。合并 Provider 私有模板、document-python.json 与 runner-file-utilities.template.json，逐 worker 配置环境授权，再发布并授权所选技能。识别走普通 tool Runner 和已预热 Unit，见部署指南。
 
 能力和配置文档保持工作区目录结构；涉及业务包、教程或其他宿主组件的链接应在完整源码工作区阅读。本包是升级材料，不会自动部署或覆盖私有配置。
 """
@@ -83,11 +89,13 @@ def build(python_root, output):
     for name in JARS:
         copy(SERVER / "build" / name, Path("jars") / name)
     bundle.build(output / "python-harness-node.zip")
+    for name in ("aigc_service.py", "unit_speech.py"):
+        copy(python_root / "cube" / name, Path("python-ai-unit/cube") / name)
     for name in DOCS:
         module_copy(name)
     for name in ("harness.properties.template", "standalone.xml", "cohost-cellet.xml",
                  "harness-execution/README.md", "harness-execution/Baize.json", "harness-execution/Baize2.json",
-                 "harness-execution/execution.json", "harness-execution/resources.json", "harness-execution/trusted-python.json",
+                 "harness-execution/execution.json", "harness-execution/resources.json", "harness-execution/trusted-python.json", "harness-execution/document-python.json",
                  "harness-tenant/README.md", "harness-tenant/default.json"):
         module_copy(Path("config") / name)
     for family, pattern in (("contracts", "*.json"), ("resources/store", "*.sql")):
@@ -123,6 +131,6 @@ def build(python_root, output):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--python-root", required=True, type=Path)
-    parser.add_argument("--output", type=Path, default=SERVER / "build/harness-interaction-delivery")
+    parser.add_argument("--output", type=Path, default=SERVER / "build/harness-file-utilities-delivery")
     args = parser.parse_args()
     build(args.python_root, args.output)

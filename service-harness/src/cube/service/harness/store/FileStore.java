@@ -192,6 +192,19 @@ public final class FileStore {
         return store.tx(c -> file(c, tenant, subject, id, false));
     }
 
+    /** Resolve only the artifact allocated to this exact authorized durable job. */
+    public JSONObject providerArtifact(Lease lease, String jobId) {
+        String call = requireProvider(lease, jobId);
+        String request = hash(new JSONArray().put(lease.tenant).put(lease.subject)
+                .put("artifact").put(lease.runId).put(id(call)));
+        return store.tx(c -> {
+            store.owner(c, store.run(c, lease.tenant, lease.subject, lease.runId, true), lease);
+            JSONObject row = first(rows(c, "SELECT file_id FROM harness_file_request WHERE request_id=?", request));
+            if (row == null) throw new StoreException("FILE_NOT_FOUND");
+            return file(c, lease.tenant, lease.subject, row.getString("file_id"), false);
+        });
+    }
+
     /**
      * 校验文件行可被读取/使用：未因 run 撤销而被禁、未过期、状态为 ready。
      *

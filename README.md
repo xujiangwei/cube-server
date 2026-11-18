@@ -18,6 +18,7 @@
 | --- | --- |
 | REST 接入与认证 | [API 文档](docs/rest-api/README.md) |
 | 智能体任务、模型与工具执行 | [Harness 服务](service-harness/README.md) |
+| 通用文件处理与识别 | [PDF、图片、表格、报告、OCR 与转写](service-harness/FILE-PROCESSING.md) |
 | 业务数据查询、加工与单图分析 | [业务数据能力](service-harness/BUSINESS-DATA.md) |
 | 必需步骤检查与结构化报告 | [执行检查与报告](service-harness/WORKFLOW-REPORTS.md) |
 | 业务能力部署、版本晋级与回退 | [部署指南](service-harness/BUSINESS-DEPLOYMENT.md)、[发布管理](service-harness/RELEASE-MANAGEMENT.md) |

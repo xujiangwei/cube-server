@@ -298,21 +298,21 @@ public final class ToolJobStore {
                             >= identity.getInt("capacity")) {
                         return null;
                     }
-                    JSONObject job =
-                            first(
-                                    rows(
+                    JSONArray candidates = rows(
                                             c,
                                             "SELECT * FROM harness_tool_job WHERE status='queued' AND broker_protocol=?"
-                                                    + " AND cancel_requested=0 AND EXISTS (SELECT run_id FROM harness_run r WHERE r.run_id=harness_tool_job.run_id AND r.state='running') ORDER BY created_at,job_id LIMIT 1"
+                                                    + " AND cancel_requested=0 AND EXISTS (SELECT run_id FROM harness_run r WHERE r.run_id=harness_tool_job.run_id AND r.state='running') ORDER BY created_at,job_id LIMIT 256"
                                                     + lock,
-                                            runnerCode));
-                    if (job == null) {
-                        return null;
+                                            runnerCode);
+                    JSONObject job = null, wire = null;
+                    for (int i = 0; i < candidates.length(); i++) {
+                        JSONObject candidate = candidates.getJSONObject(i);
+                        requireSelected(c, candidate);
+                        candidate.put("task_remaining_millis", remainingMillis(c, candidate));
+                        JSONObject possible = factory.create(candidate, worker, runtime, instance);
+                        if (possible != null) { job = candidate; wire = possible; break; }
                     }
-                    requireSelected(c, job);
-                    job.put("task_remaining_millis", remainingMillis(c, job));
-                    JSONObject wire = factory.create(job, worker, runtime, instance);
-                    if (wire == null) return null;
+                    if (job == null) return null;
                     JSONObject current = store.run(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"), true);
                     if (!store.admitCall(c, current, job.getString("call_id"), job.getInt("attempt"))) return null; // This worker cannot honor the pinned wait contract.
                     if (update(

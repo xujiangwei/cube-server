@@ -29,5 +29,22 @@ broker.provider.calculator.config=C:/private/harness/calculator.properties
 # broker.provider.retrieval.class=cube.service.harness.skill.RetrievalProvider
 # broker.provider.retrieval.config=C:/private/harness/retrieval.properties
 # Optional workflow/report guard: add after installing matching core/skill JARs.
+# Optional Python PDF text watermark: append document; grant document.watermark.
+# broker.provider.document.class=cube.service.harness.skill.DocumentProvider
+# broker.provider.document.config=C:/private/harness/document.properties
+# File tools: append the desired ids to broker.providers; configure the matching worker environments.
+# broker.provider.pdf.class=cube.service.harness.skill.FileUtilityProvider
+# broker.provider.pdf.config=C:/private/harness/pdf.properties
+# broker.provider.image.class=cube.service.harness.skill.FileUtilityProvider
+# broker.provider.image.config=C:/private/harness/image.properties
+# broker.provider.table.class=cube.service.harness.skill.FileUtilityProvider
+# broker.provider.table.config=C:/private/harness/table.properties
+# broker.provider.report.class=cube.service.harness.skill.FileUtilityProvider
+# broker.provider.report.config=C:/private/harness/report.properties
+# Existing Unit tools: append ocr and/or transcription; enable the corresponding AIGC Unit.
+# broker.provider.ocr.class=cube.service.harness.skill.RecognitionProvider
+# broker.provider.ocr.config=C:/private/harness/ocr.properties
+# broker.provider.transcription.class=cube.service.harness.skill.RecognitionProvider
+# broker.provider.transcription.config=C:/private/harness/transcription.properties
 # broker.completion.guard.class=cube.service.harness.skill.WorkflowGuard
 # broker.completion.guard.config=C:/private/harness/workflow.properties

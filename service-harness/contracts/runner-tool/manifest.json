@@ -1,6 +1,6 @@
 {
-  "schemas/runner-job.json": "ad247601183a947b7a74a4ca12cea3b7356f0a232f824f26eae963ac1674469c",
+  "schemas/runner-job.json": "ec38aa93c31ebffc60bbb186ed9f6c0534c556fc51bbedae1bd9f2250a41cc6c",
   "schemas/runner-report.json": "21588e0ee4d416c6a235e4b061911a44aef133f06c8485057f62c3c7914a5fc6",
-  "schemas/runner-request.json": "aefe7863a8dbe94c79fedb506d475c43c98b088c0fdb68d9295fd3ca3f44d4ed",
-  "schemas/runner-response.json": "65ac74577a90555a9c4fec6d03ee63ad6cbb1bb4f25c0b05c12fc69da1c8771c"
+  "schemas/runner-request.json": "26640278f63d79e7d812710f7682e4880e5631df38869d8b1b20fa1f4d22e606",
+  "schemas/runner-response.json": "711c92d7f4e995866b9b6fcd6e42197b90a2a67e71dfb29ee25aaaa5defaa2ae"
 }

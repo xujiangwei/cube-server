@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "properties": {
+    "inputId": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1
+    },
+    "fileName": {
+      "type": "string",
+      "maxLength": 256,
+      "minLength": 5
+    },
+    "opacity": {
+      "type": "number",
+      "minimum": 0.05,
+      "maximum": 0.8
+    },
+    "fontSize": {
+      "type": "number",
+      "minimum": 8,
+      "maximum": 96
+    },
+    "rotation": {
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1000
+      },
+      "minItems": 1,
+      "maxItems": 256
+    }
+  },
+  "required": [
+    "inputId",
+    "text"
+  ],
+  "additionalProperties": false
+}

@@ -89,6 +89,30 @@
               "enum": [
                 "provider-await-v1"
               ]
+            },
+            "fileEnvironments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "environmentId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+                    "maxLength": 128
+                  },
+                  "environmentDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "environmentId",
+                  "environmentDigest"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 16
             }
           },
           "required": [
@@ -948,6 +972,123 @@
         "jobHash",
         "grant",
         "argumentsJson"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        },
+        "runnerType": {
+          "type": "string",
+          "enum": [
+            "tool"
+          ]
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "file_exchange"
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "maxLength": 128
+        },
+        "credential": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "workerId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "maxLength": 128
+        },
+        "instanceId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "runner"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "tool.execute"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+          "maxLength": 128
+        },
+        "healthy": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "maxLength": 64
+        },
+        "jobHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "maxLength": 64
+        },
+        "grant": {
+          "type": "object",
+          "properties": {
+            "bodyJson": {
+              "type": "string",
+              "maxLength": 8192
+            },
+            "signature": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "bodyJson",
+            "signature"
+          ],
+          "additionalProperties": false
+        },
+        "transferJson": {
+          "type": "string",
+          "maxLength": 24576
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "runnerType",
+        "action",
+        "requestId",
+        "credential",
+        "workerId",
+        "instanceId",
+        "role",
+        "capabilities",
+        "sessionId",
+        "jobId",
+        "jobHash",
+        "grant",
+        "transferJson"
       ],
       "additionalProperties": false
     }

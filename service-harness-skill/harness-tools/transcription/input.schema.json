@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "inputId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "mediaType": {
+      "type": "string",
+      "enum": [
+        "audio/wav",
+        "audio/mpeg"
+      ],
+      "maxLength": 10
+    }
+  },
+  "required": [
+    "inputId",
+    "mediaType"
+  ],
+  "additionalProperties": false
+}

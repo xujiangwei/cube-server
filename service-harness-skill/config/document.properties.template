@@ -1,0 +1,3 @@
+# Copy the same reviewed environment.json and requirements.lock to Java and Python deployments.
+# This provider authorizes files; PDF libraries execute in the Python worker's isolated venv.
+environment.manifest=C:/private/harness/environments/pdf-watermark-v1/environment.json

@@ -376,6 +376,15 @@ public final class ExecutionRuntime implements AutoCloseable {
                 .put("reason", ready ? "" : "RUNTIME_NOT_READY");
     }
 
+    private JSONObject toolAvailability(JSONObject runtime, JSONObject tool, JSONArray nodes) {
+        JSONArray compatible = new JSONArray();
+        for (int i = 0; i < nodes.length(); i++) {
+            JSONObject node = nodes.getJSONObject(i);
+            if (broker != null && broker.acceptsRunner(tool, node)) compatible.put(node);
+        }
+        return runtimeAvailability(runtime, Collections.singleton(tool.getString("runnerType")), compatible);
+    }
+
     private void requireReady(JSONObject pin, Set<String> readyModels, JSONArray readyRunners) {
         JSONObject model = pin.getJSONObject("model");
         if (!readyModels.contains(model.getString("id") + "@" + model.getString("version"))) {
@@ -394,7 +403,7 @@ public final class ExecutionRuntime implements AutoCloseable {
             for (int j = 0; j < declared.length(); j++) {
                 JSONObject tool = declared.getJSONObject(j);
                 if (tools.contains(tool.getString("name")) && tool.getString("kind").equals("executable")
-                        && (broker == null || !broker.supports(tool))) {
+                        && !toolAvailability(pin.getJSONObject("runtime"), tool, readyRunners).getBoolean("ready")) {
                     throw new StoreException("RUNTIME_NOT_READY");
                 }
             }
@@ -417,6 +426,7 @@ public final class ExecutionRuntime implements AutoCloseable {
         JSONArray models = out.getJSONArray("models");
         JSONArray runtimes = out.getJSONArray("runtimes");
         JSONArray tools = out.getJSONArray("tools");
+        JSONArray readyRunners = runners == null ? new JSONArray() : runners.snapshot();
 
         for (int i = 0; i < models.length(); i++) {
             JSONObject model = models.getJSONObject(i);
@@ -435,6 +445,15 @@ public final class ExecutionRuntime implements AutoCloseable {
         }
         for (int i = 0; i < tools.length(); i++) {
             JSONObject tool = tools.getJSONObject(i);
+            JSONObject executable = null;
+            if (tool.getString("kind").equals("executable")) {
+                JSONObject release = catalog.release(identity.tenant, tool.getString("release"));
+                JSONArray declared = new JSONObject(release.getString("manifest_json")).getJSONArray("tools");
+                for (int j = 0; j < declared.length(); j++) {
+                    if (declared.getJSONObject(j).getString("name").equals(tool.getString("name")))
+                        executable = declared.getJSONObject(j);
+                }
+            }
             int capacity = 0, available = 0;
             boolean ready = false;
             for (int j = 0; j < runtimes.length(); j++) {
@@ -450,22 +469,12 @@ public final class ExecutionRuntime implements AutoCloseable {
                 if (!compatible) {
                     continue;
                 }
-                JSONObject status = runtimeAvailability(runtime,
+                JSONObject status = executable != null ? toolAvailability(runtime, executable, readyRunners) : runtimeAvailability(runtime,
                         tool.has("runnerType") ?
-                                Collections.singleton(tool.getString("runnerType")) : Collections.emptySet());
+                                Collections.singleton(tool.getString("runnerType")) : Collections.emptySet(), readyRunners);
                 ready |= status.getBoolean("ready");
                 capacity = Math.max(capacity, status.getInt("capacity"));
                 available = Math.max(available, status.getInt("available"));
-            }
-            if (tool.getString("kind").equals("executable")) {
-                JSONObject release = catalog.release(identity.tenant, tool.getString("release"));
-                JSONArray declared = new JSONObject(release.getString("manifest_json")).getJSONArray("tools");
-                for (int j = 0; j < declared.length(); j++) {
-                    if (declared.getJSONObject(j).getString("name").equals(tool.getString("name"))
-                            && (broker == null || !broker.supports(declared.getJSONObject(j)))) {
-                        ready = false;
-                    }
-                }
             }
             tool.put("ready", ready).put("capacity", ready ? capacity : 0)
                     .put("available", ready ? available : 0)

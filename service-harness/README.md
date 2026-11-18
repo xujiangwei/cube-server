@@ -14,6 +14,7 @@
 | [EXECUTION.md](EXECUTION.md) | 模型推理、资源循环、多单元容量和结果对账 |
 | [RUNTIME.md](RUNTIME.md) | 技能包发布、固定配置、权限、工作区和上下文 |
 | [TOOLS.md](TOOLS.md) | 可信工具、业务 provider 与 sandbox Runner |
+| [文件处理与识别](FILE-PROCESSING.md) | PDF、图片、表格、报告、OCR、转写及产物下载 |
 | [全量 Unit 工具接入方案](UNIT-TOOLS.md) | 开发者统一业务接入契约、全量能力目录、内部 Service 网关、工具与实现顺序（设计方案） |
 | [业务数据能力](BUSINESS-DATA.md) | 数据连接器、分页覆盖、过滤聚合、精确去重、单图分析与可信来源 |
 | [任务结构化与资源检索](RETRIEVAL.md) | 时间/区域解析、语义校验、主动澄清及可配置的图片/录像/文档检索 |
@@ -30,7 +31,7 @@
 
 业务 REST 的完整定义见 [API 文档](../docs/rest-api/src/Harness.md)。客户技能教程与示例位于工作区 [skill/](../../skill/README.md)。
 
-持续互动的配套升级材料位于 `cube-server/build/harness-interaction-delivery/` 及同名 ZIP；具体安装位置、开关、迁移与人工运行顺序统一见[部署指南](BUSINESS-DEPLOYMENT.md)。互动、数据、报告、恢复和评测各方案维护自身契约，运行日志及机器结果保留在独立证据目录。
+互动、检索与通用文件工具的配套升级材料构建至 `cube-server/build/harness-file-utilities-delivery/` 及同名 ZIP；具体安装位置、开关、迁移与人工运行顺序见[部署指南](BUSINESS-DEPLOYMENT.md)。
 
 ## 服务组成与数据流
 

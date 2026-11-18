@@ -332,6 +332,10 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
      * @throws Exception 读取或解码图片过程中的异常。
      */
     static void inspect(byte[] bytes, String mediaType, int maxPixels) throws Exception {
+        inspectDimensions(bytes, mediaType, maxPixels);
+    }
+
+    static java.awt.Dimension inspectDimensions(byte[] bytes, String mediaType, int maxPixels) throws Exception {
         if (bytes.length < 8 || bytes.length > MAX_IMAGE_BYTES) {
             throw new StoreException("MEDIA_IMAGE_INVALID");
         }
@@ -356,6 +360,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
                 if (reader.read(0) == null) {
                     throw new StoreException("MEDIA_IMAGE_INVALID");
                 }
+                return new java.awt.Dimension((int) width, (int) height);
             } finally {
                 reader.dispose();
             }

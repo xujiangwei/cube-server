@@ -239,4 +239,33 @@ public final class ProviderInvocation {
         return files.writeProviderText(
                 lease(), jobId, new JSONObject().put("fileName", fileName).put("text", text));
     }
+
+    JSONObject fileExchange(FileProcessingProvider provider, JSONObject arguments, JSONObject request) throws Exception {
+        if (files == null) throw new StoreException("FILES_DISABLED");
+        JdbcRunStore.Lease current = lease();
+        String action = request.getString("operation");
+        if (action.equals("read")) {
+            java.util.List<String> ids = provider.inputIds(arguments);
+            int index = request.optInt("inputIndex", 0);
+            if (index < 0 || index >= ids.size()) throw new StoreException("FILE_INPUT_INDEX_INVALID");
+            return files.readProviderChunk(current, jobId, ids.get(index),
+                    provider.inputMediaTypes(arguments, index), request.getLong("offset"));
+        }
+        if (action.equals("begin")) return files.beginProviderArtifact(current, jobId,
+                provider.outputMetadata(arguments, request.getLong("size"), request.getString("sha256")));
+        if (action.equals("write")) return files.writeProviderChunk(current, jobId,
+                request.getLong("offset"), java.util.Base64.getDecoder().decode(request.getString("data")));
+        if (action.equals("finish")) return files.finishProviderArtifact(current, jobId);
+        throw new StoreException("FILE_OPERATION_INVALID");
+    }
+
+    public JSONObject binaryArtifact() {
+        if (files == null) throw new StoreException("FILES_DISABLED");
+        return files.providerArtifact(lease(), jobId);
+    }
+
+    public JSONObject binaryArtifactText(int maxChars) throws Exception {
+        if (files == null) throw new StoreException("FILES_DISABLED");
+        return files.providerArtifactText(lease(), jobId, maxChars);
+    }
 }

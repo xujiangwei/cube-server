@@ -1,0 +1,105 @@
+{
+  "type": "object",
+  "properties": {
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "artifactId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "fileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "mediaType": {
+          "type": "string",
+          "maxLength": 128,
+          "enum": [
+            "application/pdf",
+            "text/plain",
+            "application/zip",
+            "image/jpeg",
+            "image/png",
+            "text/csv",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          ]
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10485760
+        },
+        "sha256": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "expiresAt": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "artifactId",
+        "runId",
+        "fileName",
+        "mediaType",
+        "size",
+        "sha256",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "operation": {
+      "type": "string",
+      "maxLength": 32,
+      "enum": [
+        "image.utility.v1"
+      ]
+    },
+    "inputIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "minItems": 0,
+      "maxItems": 16
+    },
+    "preview": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 1024
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "text",
+        "truncated"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "artifact",
+    "operation",
+    "inputIds"
+  ],
+  "additionalProperties": false
+}

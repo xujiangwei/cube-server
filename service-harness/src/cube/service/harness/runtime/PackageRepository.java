@@ -380,7 +380,7 @@ public final class PackageRepository {
                         || !tool.has("entrypoint")
                         || !declared.contains(RuntimeSupport.path(tool.getString("entrypoint")))
                         || !file(manifest, tool.getString("entrypoint")).getString("role").equals("entrypoint")
-                        || !tool.getString("effect").equals("read-only")) {
+                        || !java.util.Arrays.asList("read-only", "artifact-create").contains(tool.getString("effect"))) {
                     throw RuntimeSupport.error("PACKAGE_EXECUTABLE_INVALID");
                 }
             } else {

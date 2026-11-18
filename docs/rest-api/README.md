@@ -46,6 +46,8 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 
 任务接口见 [Harness 任务 API](src/Harness.md)及生成站点；执行中补充、主动问答、游标恢复与后续任务见[互动方案](../../service-harness/INTERACTION.md)。配置和安装见[部署指南](../../service-harness/BUSINESS-DEPLOYMENT.md)，可直接运行的对话界面见[客户端](../../../harness/client/README.md)。接口源码以 `src/Harness.js` 为准，方案文档维护完整语义和使用边界。
 
+PDF、图片、表格、报告、OCR 和音频转写复用 Input、任务和 Artifact 接口。参数和限制见[文件处理能力](../../service-harness/FILE-PROCESSING.md)，接入步骤见[教程](../../../tutorials/src/content/docs/reference/file-processing.md)。
+
 ## 专项检测 SpecializedDetection
 
 专项检测用于识别图片、视频及实时画面中的火烟或通用物体。先创建频道；图片和视频文件先上传并取得 64 位文件码，实时视频则使用 RTSP(S) 地址。图片请求直接返回检测区域；视频会话在类别过滤后命中目标时向指定地址推送带检测框的 PNG 图片。

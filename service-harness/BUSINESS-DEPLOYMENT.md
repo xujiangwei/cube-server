@@ -16,7 +16,7 @@
 
 ## 持续输入与问答部署
 
-配套交付为 `cube-server/build/harness-interaction-delivery/` 及同名 ZIP，包含 common、dispatcher、Harness 核心、WorkflowGuard 扩展、Python 节点 ZIP、本地聊天客户端、配置模板和文档。它不包含用户令牌、生产数据库或私有配置。实现契约见 [持续输入与主动问答](INTERACTION.md)。
+配套交付为 `cube-server/build/harness-file-processing-delivery/` 及同名 ZIP，包含 common、dispatcher、Harness 核心、WorkflowGuard 扩展、Python 节点 ZIP、本地聊天客户端、配置模板和文档。它不包含用户令牌、生产数据库或私有配置。实现契约见 [持续输入与主动问答](INTERACTION.md)。
 
 构建完成后，在 `cube-server/` 执行 `python -B service-harness/scripts/build_interaction_delivery.py --python-root ../../apexnova-wisdom` 组装交付；若配套 Python 工程不在该相对位置，请传实际绝对路径。输出目录和同名 ZIP 必须尚不存在，可用 `--output` 指定新的发布目录。交付入口 README 说明四个 JAR 的安装位置，`checksums.json` 提供逐文件 SHA-256；配置文档保留工作区相对目录，便于交叉阅读。
 
@@ -177,6 +177,83 @@ python -B scripts/build_package.py --dependency common/data=<获准digest> --dep
 5. 检查 workflow.satisfied、report 的记录统计、逐记录观测、判断、时间信任标记与原图；空资料应有真实空 dataset 报告。保存版本、digest、policy target、runId 与现象，作为后续实际环境质量、性能与故障验证依据。
 
 一般巡检作者包与评估入口见 [patrol](../../patrol/README.md)。核心 JAR 更新后提供授权资源目录与结构化上下文压缩，须与上述 Python Runner 更新一并部署。先跑单页中文记录，确认完整 pageRef/datasetRef/mediaRef，再检查分页、空资料和失败恢复；不通过扩大 8 轮、32 工具、2 次修复或 5 分钟预算掩盖问题。多 worker 仍使用各自身份、目录、journal 与租约，升级按节点逐个 drain、对账、重启。
+
+## 通用文件工具部署
+
+PDF、图片、表格、报告和识别按需独立开通。启用 PDF、图片、表格或报告时，更新核心、技能 JAR 和 Python 节点包，合并 Provider 私有模板，将对应环境加入 `runner.fileEnvironments` 并逐 worker 授权其清单摘要。PDF 工具复用水印环境；其余需各自安装 `image-utility-v1`、`table-utility-v1` 或 `report-utility-v1`。报告和 PDF 水印共享能力目录中的校验字体，保留两者在节点包内的同级目录关系。
+
+OCR 和转写走同 JVM 的 AIGC 宿主与 FileStorage，使用具备 `providerAwait=true` 的普通 tool Runner。更新 `cube-service-3.0.jar`，按需将 `OmniPerception`、`Speech` 加入 `harness.media.units`，设置 `harness.media.dedicated=true`，确认独立算力及 Unit 已预热。转写需要随 Python AI Unit 发布更新的 `cube/aigc_service.py` 与 `cube/unit_speech.py`，且 Speech 注册声明 `harness-bounded-transcription-v1`；现有 Speech 模型、FFmpeg 及 Unit 运行依赖继续由原部署管理。
+
+先构建和签名发布所选 `common/pdf`、`common/image`、`common/table`、`common/report`、`common/ocr`、`common/transcription`。授权对应的 `pdf.process`、`image.process`、`table.process`、`report.process`、`ocr.recognize`、`transcription.recognize`，并在任务配置选择相应执行器。依次检查 worker 环境匹配、上传与绑定、小文件结果、产物鉴权下载。识别工具再用已知文字图片和短音频核对 Unit 回执、结果及已知错误；撤销已发布版本时按原有 drain、对账和版本切换流程操作。
+
+## PDF 文字水印部署
+
+此能力可独立安装，不依赖业务数据源、视觉 Unit 或业务 WorkflowGuard。能力契约与限制见 [文件处理](FILE-PROCESSING.md)。文件编辑在 Python 工作器执行，Java 负责授权、调度及文件账本。
+
+### 部署结构与进程关系
+
+先以一个 Java Harness 服务 JVM、一个 Python Harness 节点进程部署，沿用已有 dispatcher、Auth/AIGC 与模型后端。下图的 Java 侧和 Python 侧可以同机，也可以分布在不同机器；一个 Java JVM 可以接入多个 Python 节点。
+
+正式业务部署将 Harness 挂入已有 Cube 服务 JVM，保留宿主 ServiceCarpet，通过同 Kernel 的 Auth/AIGC 模块取得用户认证与推理能力；合并模板为 `config/cohost-cellet.xml`。
+
+```mermaid
+flowchart TB
+    U["业务系统 / 用户界面"]
+    subgraph JS["Java 侧"]
+        D["常驻进程 J1：dispatcher JVM<br/>业务 REST 入口"]
+        H["常驻进程 J2：Java 服务 JVM · JDK 8<br/>宿主 Auth/AIGC + service-harness<br/>DocumentProvider / 文件与任务管理"]
+        S[("持久化存储<br/>任务数据库 + 输入/产物文件根")]
+        D <-->|"Cell / SHM 转发"| H
+        H --- S
+    end
+    subgraph PS["Python 侧：可与 Java 同机"]
+        subgraph P1["常驻进程 P1：Python Harness 节点 · 宿主 venv"]
+            M["Model Worker<br/>节点内逻辑单元 / 线程"]
+            R["PDF Runner · pdf-a<br/>节点内逻辑单元 / 线程"]
+        end
+        C["临时子进程 P2：PDF 编辑<br/>file_operation.py<br/>随作业启动，结束后退出"]
+        E[("PDF 能力 venv · 磁盘目录<br/>固定 Python + pypdf + reportlab + 字体")]
+        R -->|"创建、监管、取消；本地文件交换"| C
+        E -.->|"提供解释器与依赖"| C
+    end
+    B["既有模型推理服务 / Unit<br/>沿用原部署"]
+    N["可选扩容：其他常驻 Python 节点<br/>独立 workerId、运行目录、journal<br/>可登记多个同角色 Runner"]
+    U <-->|"REST：上传 PDF、提交任务、下载产物"| D
+    H <-->|"Cell：模型轮次与结果"| M
+    H <-->|"Cell：作业、PDF 分块、结果"| R
+    H <-->|"经宿主 AIGC 调用"| B
+    N -.->|"同样通过 Cell 注册、领取和回报作业"| H
+```
+
+图中 J1、J2、P1、P2 是示意进程标识，不是固定 PID。Model Worker 处理模型轮次，PDF Runner 领取并监管文件作业；两者可作为线程运行在同一个 P1 进程内。Model Worker 通过 Java 推理网关使用现有模型服务，PDF 子进程仅负责文件编辑。已有独立 worker 进程也可继续使用，`runner-document.template.json` 就是独立 Runner 的配置格式；节点合并方式见 Python 运行包的 `harness/NODE.md`。
+
+venv 是磁盘上的解释器与依赖目录，不需要单独启动服务。P1 使用宿主 venv；P2 使用 PDF venv 的解释器，避免向宿主加载 PDF 库。启动和执行前还会短暂创建环境校验子进程，图中省略。一个 Runner 可以配置多个能力 venv，每次按作业的环境身份和摘要选择；目前交付的固定文件处理器是 PDF 水印。
+
+| 部署位置 | 放置内容 | 需要启动的进程 |
+| --- | --- | --- |
+| Java 服务目录 | 核心 JAR 放 cellets/；技能 JAR 放 libs/；DocumentProvider 配置、document-python.json、同一份 environment.json、获准的 document 技能 ZIP | 原 Java 服务 JVM，重启加载更新；Provider、runtime JSON 和 SKILL ZIP 都不是独立服务 |
+| Python 运行目录 | 完整节点包、宿主 venv、节点配置；每个逻辑 worker 的独立运行目录与 journal | 一个 Harness 节点进程；也可沿用各 worker 独立进程的部署方式 |
+| Python 能力目录 | PDF 独立 venv、environment.json、requirements.lock、字体与许可 | 无常驻进程；Runner 按作业启动 PDF 子进程 |
+| 现有平台 | dispatcher、模型服务及持久化存储；Auth/AIGC 保留在 Java 宿主 JVM | 沿用既有进程和部署方式 |
+
+一次请求的顺序是：业务系统上传 PDF → Java 保存 Input 并创建任务 → Model Worker 结合模型生成工具参数 → Java 选择环境匹配的 PDF Runner → Runner 下载分块并启动 P2 编辑 → 上传新 PDF 到 Java 产物库 → 业务系统鉴权下载。Python 主机不需要挂载 Java 的文件根，文件通过现有通道传输。
+
+### 安装与启动顺序
+
+1. 以实际 JDK 8 构建并更新 `cube-service-harness-3.0.jar`（service 的 cellets/）与 `cube-service-harness-skill-3.0.jar`（service 的 libs/）；更新全部相关 Python 单元的完整运行包，保留各自 workerId、runtimeDir 和 journal。dispatcher 无新增业务路径，继续使用配套版本。
+2. 在 Python 主机准备清单要求的 CPython 3.11.9。节点宿主保留自己的 venv 和 `harness/requirements.txt`。从 Python 发行包根执行下列安装命令，创建独立 PDF venv；不要向宿主或其他能力 venv 安装这些库。
+
+   ```powershell
+   python -B harness/scripts/install_file_environment.py --manifest C:/private/harness-node/harness/environments/pdf-watermark-v1/environment.json --destination C:/private/venvs/pdf-watermark-v1
+   ```
+
+   安装脚本先核对清单、锁和资源，要求目标目录不存在，使用全部依赖的 wheel hash lock 并运行 pip check；pip 忽略用户配置与 PIP 环境变量，启动和任务执行不运行 pip。离线部署提前准备锁定的目标平台 wheel，安装命令追加 `--wheelhouse C:/private/wheels/pdf-watermark-v1`。完整环境含固定字体、OFL 许可和来源信息。Linux 使用相同命令，配置中的解释器改为 `/private/venvs/pdf-watermark-v1/bin/python`。
+3. 将同一份环境清单安装到 Java 主机，复制 `service-harness-skill/config/document.properties.template` 为私有配置，设置 `environment.manifest` 绝对路径。在现有 `broker.providers` 中追加 document，配置 `broker.provider.document.class=cube.service.harness.skill.DocumentProvider` 及对应 `.config` 路径。Java 不需要 PDF Python 库。
+4. 按 `runner-document.template.json` 配置 PDF 工作器，设置 `providerAwait=true`，在 `fileEnvironments` 中填写独立解释器、清单的绝对路径。每个工作器独立身份、目录和 journal。单 JVM 可接多个同角色 PDF 工作器；同一节点也可同时配置其他能力的独立环境。`harness java-config --config <节点配置>` 输出逐 worker 的 role、capacity 和 `file.environment.<id>=<digest>` 授权；单 worker 部署可按安装输出的 descriptor 填写。
+5. Java 启用 `files.enabled=true` 并准备专用文件根及原有文件密钥；执行权限和租户 policy 均授予 `document.watermark`。安装 `config/harness-execution/document-python.json` 执行器，32 MiB 工作区容纳输入、输出与中间资料。发布 `document-v1.zip` 为 ready，将实际 release 摘要并入租户 policy。保留现有权限和技能，勿用模板覆盖已有策略。任务可指定 `runtime: "document-python"`；模型需有工具调用能力，预算建议至少 180000 毫秒。
+6. 先执行 doctor，再按原节点脚本启动；从任务目录确认文档技能、匹配执行器和工作器可用。上传一个不超过 10 MiB 的 PDF，complete 后将 inputId 列入 attachmentIds，提交“给这份 PDF 加上‘内部资料’水印”。检查任务成功、唯一 PDF 产物、实际下载及摘要，再检查指定页码、中文、旋转页和缺参问答。原文件应保持不变。
+
+普通 Runner 不具备环境声明时不会领取 PDF 作业。环境缺失、Python 补丁版本不符、依赖集合或内容变化、字体变化、Java 授权摘要不符时明确拒绝；不要通过扩大权限、改用全局 Python 或在运行中的 venv 安装库绕过检查。新增库版本须创建新环境档案并验证，随后 drain 工作器并成套切换 Java/Python 配置，保留在途任务所用旧环境。
 
 ## 本地验证入口
 

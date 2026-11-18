@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "heading": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 3000
+          }
+        },
+        "required": [
+          "heading",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 8
+    },
+    "inputIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "minItems": 1,
+      "maxItems": 6
+    },
+    "fileName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "format": {
+      "type": "string",
+      "maxLength": 32,
+      "enum": [
+        "docx",
+        "pdf"
+      ]
+    }
+  },
+  "required": [
+    "title",
+    "sections",
+    "format"
+  ],
+  "additionalProperties": false
+}
