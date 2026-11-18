@@ -42,7 +42,7 @@
  * @apiSuccess (202) {String} state queued、running、waiting_input、waiting_approval、cancelling、reconciling、succeeded、failed、cancelled 或 timed_out。
  * @apiSuccess (202) {String} executionSettlement 执行确认状态：pending 为等待确认，confirmed 为已确认，unknown 为尚无法确认；可通过查询任务获取后续变化。
  * @apiSuccess (202) {Number} inputRevision 当前有效用户输入版本，初始为 0。
- * @apiSuccess (202) {Number} appliedInputRevision 已绑定到模型上下文的输入水位。
+ * @apiSuccess (202) {Number} appliedInputRevision 已绑定到模型上下文或可信宿主规划的输入水位。
  * @apiSuccess (202) {String} executionProfileVersion 本次任务采用的执行配置版本，仅供诊断关联。
  * @apiSuccess (202) {Object} selection 本次任务实际选择的模型、执行器、技能和工具。
  * @apiSuccess (202) {Object} selection.model 模型名称和版本。
@@ -377,6 +377,13 @@
  * @apiSuccess {Object} result.result 任务结果对象。回答文本和生成文件使用下列字段；不同执行器可能返回其他业务字段。
  * @apiSuccess {String} [result.result.kind] 结果类别；文本回答为 final。
  * @apiSuccess {String} [result.result.text] kind=final 时的最终回答。
+ * @apiSuccess {Object} [result.result.retrieval] 启用通用业务资源检索流程时的可信元数据结果，text 为同一 JSON 镜像。
+ * @apiSuccess {Number} result.result.retrieval.schemaVersion 结果版本，当前为 1。
+ * @apiSuccess {String} result.result.retrieval.format resource-retrieval-v1。
+ * @apiSuccess {Object[]} result.result.retrieval.results 各业务技能的检索结果：skill、release、task、resources、coverage。
+ * @apiSuccess {Object} result.result.retrieval.results.task 最新输入版本的结构化任务，包含类型、时间、区域及已采用条件。
+ * @apiSuccess {Object[]} result.result.retrieval.results.resources 固定版本资源元数据及 resourceRef；引用不代表内容已下载、播放或分析。
+ * @apiSuccess {Object} result.result.retrieval.results.coverage 完整页链的 complete、snapshotId、pages、totalResources；失败不作为空结果。
  * @apiSuccess {String} [result.result.errorCode] 失败、取消或超时时的稳定错误码。
  * @apiSuccess {Object[]} [result.result.artifacts] 启用文件服务且成功交付时返回的产物元数据；无产物时为 []。
  * @apiSuccess {String} result.result.artifacts.artifactId 产物 ID。
@@ -1313,7 +1320,7 @@
  * @apiSuccess {Object[]} messages 消息列表；含 messageId、messageSeq、inputRevision、kind、input、request、receivedAt 和 status。
  * @apiSuccess {Number} nextCursor 本页最后消息序号，无数据时保持 after。
  * @apiSuccess {Number} inputRevision 当前输入版本。
- * @apiSuccess {Number} appliedInputRevision 已绑定后续模型上下文的水位。
+ * @apiSuccess {Number} appliedInputRevision 已绑定后续模型上下文或可信宿主规划的水位。
  * @apiSuccess {String} messages.status accepted、applied 或 unprocessed_terminal。
  * @apiSuccess {Object} messages.request 原请求，保留 waitId、题目/选项 ID 与自由回答；旧 resume 保存等价输入。
  */

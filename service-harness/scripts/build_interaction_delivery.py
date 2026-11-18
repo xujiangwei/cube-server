@@ -1,4 +1,4 @@
-"""Package the built interaction upgrade, public configuration and local chat client."""
+"""Package the built interaction/retrieval upgrade, public configuration and local chat client."""
 
 import argparse
 import hashlib
@@ -19,13 +19,13 @@ JARS = {
 }
 DOCS = (
     "README.md", "INTERACTION.md", "BUSINESS-DEPLOYMENT.md", "BUSINESS-DATA.md",
-    "WORKFLOW-REPORTS.md", "CONTROL-FILES.md", "STORE.md", "CONTRACT.md", "EXECUTION.md",
+    "WORKFLOW-REPORTS.md", "RETRIEVAL.md", "CONTROL-FILES.md", "STORE.md", "CONTRACT.md", "EXECUTION.md",
     "RUNTIME.md", "REMOTE-NODES.md", "RESILIENCE.md", "RELEASE-MANAGEMENT.md", "TOOLS.md",
     "TRANSPORT.md", "TRACE.md", "UNIT-TOOLS.md",
 )
-README = """# Harness 持续互动交付包
+README = """# Harness 持续互动与资源检索交付包
 
-此包用于升级已有 Cube 部署，提供执行中补充和调整、主动问题与选择、刷新恢复及完成后继续对话。
+此包用于升级已有 Cube 部署，提供执行中补充和调整、主动问题与选择、刷新恢复及完成后继续对话，以及可配置的图片、录像和文档元数据检索。
 
 | 路径 | 用途 |
 | --- | --- |
@@ -41,6 +41,8 @@ README = """# Harness 持续互动交付包
 | `cube-server/service-harness/contracts/` | REST 与 worker 协议及摘要索引 |
 | `cube-server/service-harness/resources/store/` | SQLite/MySQL 版本化建表定义 |
 | `cube-server/service-harness-skill/config/` | 可选 Provider/WorkflowGuard 配置示例 |
+| `cube-server/service-harness-skill/packages/` | 内置工具 ZIP，含 common/retrieval；须按部署指南授权发布 |
+| [资源检索契约](cube-server/service-harness/RETRIEVAL.md) | 结构化任务、时间/区域语义与结果边界 |
 | `checksums.json` | 其余交付文件的 SHA-256，清单不包含自身 |
 
 先按部署指南关闭新准入、drain、备份，再成套替换并启动。Java 构建和运行要求 JDK 8；Python 要求 3.11，依赖按节点包 requirements.txt 安装。此包不包含基础 Cell、Cube Auth/AIGC、第三方 JAR、生产数据库或私有凭据；沿用原部署的兼容依赖。
@@ -98,6 +100,8 @@ def build(python_root, output):
         if path.name.endswith((".template", ".example", ".example.json")) or path.name == "runtime-cpu.json":
             copy(path, Path("cube-server/service-harness-skill/config") / path.name)
     copy(skill / "README.md", "cube-server/service-harness-skill/README.md")
+    for path in sorted((skill / "build/packages").glob("*.zip")):
+        copy(path, Path("cube-server/service-harness-skill/packages") / path.name)
     for name in ("README.md", "src/Harness.js", "src/Harness.md"):
         source = SERVER / "docs/rest-api" / name
         if source.exists():

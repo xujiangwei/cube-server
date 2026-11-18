@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "maxLength": 16,
+      "enum": [
+        "plan",
+        "search"
+      ]
+    },
+    "skill": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_.-]*/[a-z][a-z0-9_.-]*$"
+    },
+    "planRef": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1
+    }
+  },
+  "required": [
+    "action",
+    "skill"
+  ],
+  "additionalProperties": false,
+  "description": "从当前任务的真实用户输入规划检索。plan 不接受模型编造的日期、区域或原话；search 只接受已确认的 planRef 及本任务签发的 cursor。需要澄清时先回答问题，不能绕过校验检索。"
+}

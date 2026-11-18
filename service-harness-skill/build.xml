@@ -45,6 +45,8 @@
   </target>
   <path id="test.cp"><path refid="cp"/><pathelement location="${harness.module}/build/test-classes"/><pathelement location="${build.dir}/test-classes"/></path>
   <target name="test" depends="compile-tests,test-media">
+    <java classname="cube.service.harness.skill.RetrievalTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../tutorials/examples/retrieval-package"/></java>
+    <java classname="cube.service.harness.test.RetrievalToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/><arg path="../../tutorials/examples/retrieval-package"/></java>
     <java classname="cube.service.harness.skill.WorkflowGuardTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../forest/packages/fhe-patrol"/></java>
     <java classname="cube.service.harness.skill.ReportValidatorTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../forest/packages/fhe-patrol"/></java>
     <java classname="cube.service.harness.skill.AssessmentPolicyTest" fork="true" failonerror="true"><classpath refid="test.cp"/></java>
@@ -57,6 +59,10 @@
     <java classname="cube.service.harness.skill.ProviderTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/></java>
     <java classname="cube.service.harness.test.CommonToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/></java>
   </target>
+  <target name="test-retrieval" depends="compile-tests">
+    <java classname="cube.service.harness.skill.RetrievalTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="../../tutorials/examples/retrieval-package"/></java>
+    <java classname="cube.service.harness.test.RetrievalToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/><arg path="../../tutorials/examples/retrieval-package"/></java>
+  </target>
   <target name="test-media" depends="compile-tests">
     <exec executable="${python.exe}" failonerror="true"><arg value="-B"/><arg path="../../forest/scripts/build_package.py"/><arg value="--tool-packages"/><arg path="${build.dir}/packages"/><arg value="--version"/><arg value="4"/><arg value="--output"/><arg path="${build.dir}/fhe-patrol-m4-test.zip"/></exec>
     <java classname="cube.service.harness.test.MediaToolsTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${build.dir}/packages"/><arg path="../../forest"/></java>
@@ -68,6 +74,10 @@
     <java classname="cube.service.harness.skill.BusinessPackageValidationTest" fork="true" failonerror="true"><classpath refid="test.cp"/>
       <arg path="../../forest/build/fhe-patrol-v4.zip"/><arg path="../../forest/build/patrol-tutorial-http-v4.zip"/><arg path="../../forest/build/patrol-tutorial-snapshot-v4.zip"/>
     </java>
+  </target>
+  <target name="validate-retrieval" depends="compile-tests">
+    <fail unless="retrieval.package" message="Set -Dretrieval.package to a built retrieval business ZIP"/>
+    <java classname="cube.service.harness.skill.BusinessPackageValidationTest" fork="true" failonerror="true"><classpath refid="test.cp"/><arg path="${retrieval.package}"/></java>
   </target>
   <target name="stage" depends="build,packages">
     <fail unless="stage.dir" message="Set -Dstage.dir to the intended Harness stage; this target does not activate providers"/>

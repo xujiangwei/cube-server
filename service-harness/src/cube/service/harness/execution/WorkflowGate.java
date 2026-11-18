@@ -101,7 +101,7 @@ final class WorkflowGate implements AutoCloseable {
         final JSONObject taskInput = metadata.taskInput(identity.tenant, identity.subject, run);
         Set<String> activated = new HashSet<>();
         for (int i = 0; i < active.length(); i++) activated.add(active.getJSONObject(i).getString("digest"));
-        JSONArray checks = new JSONArray(), evidence = null, reports = new JSONArray();
+        JSONArray checks = new JSONArray(), evidence = null, reports = new JSONArray(), retrievals = new JSONArray();
         Set<String> reportSkills = new java.util.TreeSet<>();
         JSONArray pinned = pin.getJSONArray("releases");
         for (int i = 0; i < pinned.length(); i++) {
@@ -139,6 +139,10 @@ final class WorkflowGate implements AutoCloseable {
             boolean report = reportRequired(manifest);
             if (report) guard.validateReport(resources);
             JSONObject result = report && decision != null ? guard.checkFinal(resources, scoped, decision, skill, reportSkills) : guard.check(resources, scoped);
+            if (result.has("retrieval")) {
+                JSONObject retrieval = result.getJSONObject("retrieval");
+                retrieval.put("release", release.getString("digest")); retrievals.put(retrieval); result.remove("retrieval");
+            }
             if (result.has("report")) {
                 JSONObject normalized = result.getJSONObject("report");
                 normalized.put("skill", skill).put("release", release.getString("digest"))
@@ -156,6 +160,11 @@ final class WorkflowGate implements AutoCloseable {
         JSONObject result = new JSONObject().put("required", checks.length() > 0).put("satisfied", satisfied)
                 .put("maxRepairs", repairs).put("checks", checks);
         if (RuntimeSupport.bytes(result).length > 65536) throw new StoreException("WORKFLOW_CHECK_INVALID");
+        if (satisfied && retrievals.length() > 0) {
+            JSONObject delivery = new JSONObject().put("schemaVersion", 1).put("format", "resource-retrieval-v1").put("results", retrievals);
+            if (RuntimeSupport.bytes(delivery).length > 262144) throw new StoreException("RETRIEVAL_RESULT_LIMIT");
+            result.put("retrieval", delivery);
+        }
         if (decision != null && !reportSkills.isEmpty()) {
             result.put("reportRequired", true);
             if (satisfied) {

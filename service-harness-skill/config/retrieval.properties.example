@@ -1,0 +1,3 @@
+# Secrets stay in the private provider configuration; names match approved data source secretRef.
+# secret.my-business-system-source=REPLACE_WITH_AT_LEAST_32_UTF8_BYTES
+result.max.bytes=12288

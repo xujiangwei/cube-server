@@ -25,6 +25,9 @@ broker.provider.calculator.config=C:/private/harness/calculator.properties
 # Optional processing provider; append processing to broker.providers and grant data.process.
 # broker.provider.processing.class=cube.service.harness.skill.DataProcessProvider
 # broker.provider.processing.config=C:/private/harness/processing.properties
+# Optional configurable business resource retrieval; append retrieval and grant resource.retrieve.
+# broker.provider.retrieval.class=cube.service.harness.skill.RetrievalProvider
+# broker.provider.retrieval.config=C:/private/harness/retrieval.properties
 # Optional workflow/report guard: add after installing matching core/skill JARs.
 # broker.completion.guard.class=cube.service.harness.skill.WorkflowGuard
 # broker.completion.guard.config=C:/private/harness/workflow.properties

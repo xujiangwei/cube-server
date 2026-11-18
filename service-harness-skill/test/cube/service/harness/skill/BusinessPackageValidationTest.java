@@ -23,7 +23,9 @@ public final class BusinessPackageValidationTest {
                     return checked.resource(path);
                 }
             };
-            guard.validate(resources); guard.validateReport(resources);
+            guard.validate(resources);
+            for(Object file:checked.manifest.getJSONArray("files"))
+                if(((JSONObject)file).getString("path").equals(CompletionGuard.REPORT_FILE))guard.validateReport(resources);
             System.out.println("PASS release package " + name + " " + checked.digest);
         }
     }

@@ -96,6 +96,7 @@
     <java classname="cube.service.harness.test.HarnessCelletTest" fork="true" failonerror="true"><classpath refid="transport.cp"/></java>
   </target>
   <target name="stage" depends="build">
+    <copy todir="${stage.dir}/cube-server/service-harness"><fileset dir="." includes="*.md"/></copy>
     <mkdir dir="${stage.dir}/cellets"/>
     <copy file="${build.dir}/cube-service-harness-3.0.jar" todir="${stage.dir}/cellets"/>
     <copy todir="${stage.dir}/config">

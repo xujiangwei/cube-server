@@ -82,6 +82,7 @@ public final class WorkflowGuard implements CompletionGuard {
      */
     @Override
     public JSONObject advance(Resources resources, JSONArray evidence, String skill) throws Exception {
+        if (RetrievalWorkflow.active(resources)) return RetrievalWorkflow.advance(resources, evidence, skill);
         return FixedPatrol.advance(this, resources, evidence, skill);
     }
 
@@ -130,6 +131,7 @@ public final class WorkflowGuard implements CompletionGuard {
     public void validate(Resources resources) throws Exception {
         try {
             JSONObject requirements = resources.json(FILE);
+            if (RetrievalWorkflow.active(resources)) { RetrievalWorkflow.validate(resources); return; }
             ConnectorConfig.keys(requirements, "version,maxRepairs,pipelines", "execution");
             require("1".equals(requirements.getString("version")));
             int repairs = requirements.getInt("maxRepairs");
@@ -357,6 +359,10 @@ public final class WorkflowGuard implements CompletionGuard {
      */
     @Override
     public JSONObject check(Resources resources, JSONArray evidence) throws Exception {
+        if (RetrievalWorkflow.active(resources)) {
+            JSONObject result = RetrievalWorkflow.check(resources, evidence);
+            return result.put("maxRepairs", Math.min(repairCeiling, result.getInt("maxRepairs")));
+        }
         JSONObject requirements = resources.json(FILE);
         JSONObject processing = resources.json("data-processing.json");
         JSONObject analysis = resources.json("analysis-profiles.json");

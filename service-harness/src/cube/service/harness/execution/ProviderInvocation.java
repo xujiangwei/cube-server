@@ -96,6 +96,10 @@ public final class ProviderInvocation {
     public JSONObject confirmed(String kind, String id) {
         active(); return metadata().fact(job, kind, id, null, true);
     }
+    /** Original user inputs and their durable reception times; never supplied by a model. */
+    public JSONObject taskInput() {
+        active(); return metadata().taskInput(tenant, subject, runId);
+    }
     public JSONObject reserveMedia(String unit, JSONObject request) {
         active();
         cube.aigc.completion.MediaProvider bridge = media == null ? null : media.get();

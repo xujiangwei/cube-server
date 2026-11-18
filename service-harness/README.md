@@ -16,6 +16,7 @@
 | [TOOLS.md](TOOLS.md) | 可信工具、业务 provider 与 sandbox Runner |
 | [全量 Unit 工具接入方案](UNIT-TOOLS.md) | 开发者统一业务接入契约、全量能力目录、内部 Service 网关、工具与实现顺序（设计方案） |
 | [业务数据能力](BUSINESS-DATA.md) | 数据连接器、分页覆盖、过滤聚合、精确去重、单图分析与可信来源 |
+| [任务结构化与资源检索](RETRIEVAL.md) | 时间/区域解析、语义校验、主动澄清及可配置的图片/录像/文档检索 |
 | [执行检查与报告](WORKFLOW-REPORTS.md) | 必需步骤证据、有限补齐、报告结构、记录覆盖与来源引用 |
 | [业务能力部署](BUSINESS-DEPLOYMENT.md) | 配套产物、Provider/guard/权限配置、业务包发布与人工运行顺序 |
 | [发布与回退](RELEASE-MANAGEMENT.md) | 原始签名包跨环境晋级、固定 CAS、操作恢复与回退 |

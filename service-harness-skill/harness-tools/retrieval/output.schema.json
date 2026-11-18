@@ -1,0 +1,67 @@
+{
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "maxLength": 16,
+      "enum": [
+        "plan",
+        "page"
+      ]
+    },
+    "planRef": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "maxLength": 16,
+      "enum": [
+        "ready",
+        "needs_input"
+      ]
+    },
+    "taskJson": {
+      "type": "string",
+      "maxLength": 8192,
+      "minLength": 2
+    },
+    "question": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "questionsJson": {
+      "type": "string",
+      "maxLength": 4096
+    },
+    "pageRef": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1
+    },
+    "itemsJson": {
+      "type": "string",
+      "maxLength": 8192,
+      "minLength": 2
+    },
+    "nextCursor": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "snapshotId": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "complete": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "kind",
+    "planRef",
+    "status",
+    "taskJson"
+  ],
+  "additionalProperties": false
+}

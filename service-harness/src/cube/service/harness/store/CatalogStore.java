@@ -687,6 +687,17 @@ public final class CatalogStore {
         });
     }
 
+    /** Bind current input to a deployment-installed host planner under the same run lease. */
+    public void adoptWorkflowInput(JdbcRunStore.Lease lease, long expected, long inputRevision) {
+        store.tx(c -> {
+            JSONObject run = store.run(c, lease.tenant, lease.subject, lease.runId, true);
+            store.owner(c, run, lease); store.version(run, expected);
+            if (!run.getString("state").equals("running")) throw new StoreException("WORKFLOW_NOT_RUNNING");
+            if (run.getLong("input_revision") != inputRevision) throw new StoreException("INPUT_REVISION_CONFLICT");
+            MessageStore.applied(store, c, run); return null;
+        });
+    }
+
     /** Persist host proposals separately from model rounds; repeated recovery is idempotent. */
     public void workflowBinding(JdbcRunStore.Lease lease, long expected, JSONObject call) {
         store.tx(c -> {

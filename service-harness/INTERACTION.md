@@ -60,7 +60,7 @@ Idempotency-Key: <本次操作唯一键>
 
 202 返回 messageId、messageSeq、inputRevision、kind、input、receivedAt 和 status=accepted。GET `/runs/{runId}/messages?after=0&limit=100` 返回 messages、nextCursor、inputRevision 和 appliedInputRevision；after 是消息序号，limit 为 1..100 的条数上限。消息页按约 512 KiB 限制聚合大小，至少返回一条；少于 limit 不代表读完，应以 nextCursor 继续，直到追上 inputRevision。初始输入仍在 run.created，消息列表包含后续补充和旧 resume 转换的回答。
 
-列表 status 为 accepted、applied 或 unprocessed_terminal。applied 代表输入已绑定到后续模型上下文，不代表要求对应的业务动作已完成。任务在纳入消息前取消、失败或到期时显示 unprocessed_terminal；原受理回执保持不变。列表 request 保存原始消息/回答，input 是用于模型的输入，结构化回答会附上可信题干与所选标签。
+列表 status 为 accepted、applied 或 unprocessed_terminal。applied 代表输入已绑定到后续模型上下文或可信宿主规划，不代表要求对应的业务动作已完成。任务在纳入消息前取消、失败或到期时显示 unprocessed_terminal；原受理回执保持不变。列表 request 保存原始消息/回答，input 是用于模型的输入，结构化回答会附上可信题干与所选标签。
 
 默认每个任务最多 128 条补充/回答、32 条尚未采纳消息，超限返回 HTTP 429 MESSAGE_QUEUE_FULL。指令最长 32768 字符，附件最多 16 个，均须通过归属、ready 与有效期校验；HTTP 请求继续受平台的总大小及嵌套限制。消息不重置任务配额和预算。
 
@@ -92,7 +92,9 @@ harness_run 保存 input_revision、applied_input_revision 和等待时间累计
 
 ContextEngine、TaskState/Progress/Summary、Java ModelWire 与 Python adapter 都识别新增用户输入。过时决定保留在事实账本，但不再作为可执行决定注入历史；已真实创建的调用与结果继续严格配对。用户输入不被当成技能资料，工具和技能资料不能伪装为用户指令。输入变化使旧语义摘要绑定失效。
 
-CompletionGuard.Resources.taskInput 提供统一输入版本和输入集合，默认 supportsInteraction=false 兼容旧扩展加载。配套 WorkflowGuard 声明支持；按最新版本过滤用于业务完成检查的执行证据，使 fixed-patrol-v1 重新请求查询范围，再推进固定步骤。旧证据仍留在账本。固定流程不解释任意新增业务能力，不放松原检查；不支持互动的旧 guard 明确拒绝目标调整。
+CompletionGuard.Resources.taskInput 提供统一输入版本、输入集合及带持久接收时间的原始消息，默认 supportsInteraction=false 兼容旧扩展加载。配套 WorkflowGuard 声明支持；按最新版本过滤用于业务完成检查的执行证据，使 fixed-patrol-v1 重新请求查询范围，再推进固定步骤。旧证据仍留在账本。固定流程不解释任意新增业务能力，不放松原检查；不支持互动的旧 guard 明确拒绝目标调整。
+
+`resource-retrieval-v1` 使用同一输入版本边界，由可信宿主从原始消息和接收时间规划时间、区域及资源类型，直接创建当前问题并推进获准检索。新输入使旧计划和旧页证据失效，宿主采纳会推进 applied 水位；具体契约见 [资源检索](RETRIEVAL.md)。
 
 固定流程校验、修复预算记录和基于输入的成功或失败收尾均绑定对应输入版本，提交事务拒绝过时结果。取消已受理后，迟到的成功或输入校验失败不能覆盖 cancelling 状态；取消和执行对账继续遵循原结算规则。
 

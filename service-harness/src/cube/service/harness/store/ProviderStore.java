@@ -29,8 +29,8 @@ public final class ProviderStore {
     public JSONObject taskInput(String tenant, String subject, String run) {
         return store.tx(c -> {
             JSONObject r = store.run(c, tenant, subject, run, true);
-            JSONArray events = rows(c, "SELECT event_type,data_json FROM harness_event WHERE run_id=? AND event_type IN ('conversation.history','run.created','control.resume','message.accepted') ORDER BY event_seq", run);
-            JSONArray inputs = new JSONArray();
+            JSONArray events = rows(c, "SELECT event_type,data_json,occurred_at FROM harness_event WHERE run_id=? AND event_type IN ('conversation.history','run.created','control.resume','message.accepted') ORDER BY event_seq", run);
+            JSONArray inputs = new JSONArray(), messages = new JSONArray();
             for (Object entry : events) {
                 JSONObject e = (JSONObject) entry, data = new JSONObject(e.getString("data_json"));
                 if (e.getString("event_type").equals("conversation.history")) {
@@ -40,9 +40,25 @@ public final class ProviderStore {
                     }
                     continue;
                 }
-                inputs.put(e.getString("event_type").equals("control.resume") ? data.getJSONObject("payload").getJSONObject("input") : data.getJSONObject("input"));
+                JSONObject input = e.getString("event_type").equals("control.resume") ? data.getJSONObject("payload").getJSONObject("input") : data.getJSONObject("input");
+                inputs.put(input);
+                JSONObject message = new JSONObject().put("input", input).put("receivedAt", e.getLong("occurred_at"))
+                        .put("kind", "instruction");
+                if (e.getString("event_type").equals("message.accepted")) {
+                    JSONObject saved = first(rows(c, "SELECT request_json FROM harness_message WHERE run_id=? AND message_id=?", run, data.getString("messageId")));
+                    if (saved != null) {
+                        JSONObject request = new JSONObject(saved.getString("request_json"));
+                        message.put("request", request).put("kind", request.getString("kind"));
+                        if ("answer".equals(request.getString("kind")) && request.has("waitId")) {
+                            JSONObject wait = first(rows(c, "SELECT payload_json FROM harness_wait WHERE run_id=? AND wait_id=?", run, request.getString("waitId")));
+                            if (wait != null) message.put("questionContext", new JSONObject(wait.getString("payload_json")));
+                        }
+                    }
+                }
+                messages.put(message);
             }
-            return new JSONObject().put("inputRevision", r.getLong("input_revision")).put("inputs", inputs);
+            return new JSONObject().put("inputRevision", r.getLong("input_revision")).put("createdAt", r.getLong("created_at"))
+                    .put("inputs", inputs).put("messages", messages);
         });
     }
 
@@ -55,7 +71,7 @@ public final class ProviderStore {
                     + "JOIN harness_tool_call t ON t.run_id=j.run_id AND t.intent_id=j.call_id AND t.attempt=j.attempt "
                     + "WHERE f.run_id=? AND j.tenant=? AND j.subject_id=? AND j.actual_finished=1 "
                     + "AND j.effect_status='completed' AND t.status='confirmed' "
-                    + "AND f.fact_kind IN ('data-page','data-set','analysis') ORDER BY f.fact_kind,f.fact_id",
+                    + "AND f.fact_kind IN ('data-page','data-set','analysis','retrieval-plan','retrieval-page') ORDER BY f.fact_kind,f.fact_id",
                     run, tenant, subject);
             JSONArray out = new JSONArray();
             for (int i = 0; i < found.length(); i++) {

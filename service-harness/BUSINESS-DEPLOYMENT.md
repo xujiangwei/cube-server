@@ -2,6 +2,18 @@
 
 本文统一说明数据查询、加工、单图分析、必需步骤检查与结构化报告的安装和人工运行顺序。基础服务与 dispatcher 配置见 [服务部署](README.md)，能力契约见 [业务数据](BUSINESS-DATA.md)和[执行检查与报告](WORKFLOW-REPORTS.md)，业务资源跨环境晋级见 [发布与回退](RELEASE-MANAGEMENT.md)。
 
+## 可配置资源检索部署
+
+此能力可独立部署，契约见 [任务结构化与业务资源检索](RETRIEVAL.md)。更新匹配的 `cube-service-harness-3.0.jar` 和 `cube-service-harness-skill-3.0.jar`，安装位置分别为原 `cellets/` 与宿主扩展 `libs/`；先 drain、保留在途账本，再成套替换。检索复用现有账本与普通 tool Runner，不新增 Python 协议或视觉 Unit 要求，一个 JVM 可接多个独立 Runner。旧环境尚未完成持续互动账本升级时，先遵循下面的互动升级步骤。
+
+1. JDK 8 下执行 `ant -f service-harness/build.xml build` 和 `ant -f service-harness-skill/build.xml build packages`，生成核心/扩展 JAR 与 `service-harness-skill/build/packages/retrieval-v1.zip`。阶段目录用两个模块现有 stage 目标合并；交付时同时包含本文、RETRIEVAL.md 和配置模板，不能只沿用旧交付 ZIP 内的 JAR。
+2. 私有目录安装 `service-harness-skill/config/retrieval.properties.example`，按已登记 source 的 secretRef 设置 `secret.<secretRef>`。broker.providers 追加 retrieval，登记 `broker.provider.retrieval.class=cube.service.harness.skill.RetrievalProvider` 和实际 `broker.provider.retrieval.config` 绝对路径。保留其他 Provider；配置 WorkflowGuard 类及其私有 workflow.properties，启用 `interaction.enabled=true`。部署权限上限、身份和租户 policy 均加入 `resource.retrieve` 及业务资源读取权限。
+3. 发布可信 `common/retrieval` 工具 ZIP，取得 ready digest。登记业务查询及可选区域目录的 source，合并 admin.sources.allowedOrigins/allowedPaths/secretRefs，给实际对话用户 source-grant；每次请求的 HMAC 与业务用户 ACL 沿用已有契约。业务配置不授予访问权限。
+4. 使用 [教程检索资源](../../tutorials/examples/retrieval-package/) 编写纯资源业务包：SKILL.md、retrieval-profiles.json、workflow-requirements.json，依赖锁只需 common/retrieval。`execution.version=resource-retrieval-v1`，按真实 digest 构包、签名发布、合并 policy 并 CAS 切换。工具、来源和业务配置共同预检；不需要巡检分析的 processing/analysis/report 文件。maxTools 要覆盖1次规划、各页和预计输入修订，仍受总期限与预算限制。
+5. 启动 Java 及多个独立 tool Runner，核对 task-profiles 的业务技能与 common.retrieval.query 就绪。人工依次运行固定日期的录像、图片、已发布文档查询；确认时间/区域/类型；缺区域时选择真实选项；执行中补充“改成图片”；刷新待答页面后继续；测试授权撤销、完整空结果及游标分页。读取 `result.result.retrieval` 的完整覆盖与固定版本引用，再由业务系统重新鉴权取内容。
+
+教程的独立可运行业务接口、构包与客户端命令见 [资料检索接入](../../tutorials/src/content/docs/reference/resource-retrieval.md)。先部署人工跑通，再检查真实数据检索效果、目标数据库和容量。回退先收尾/隔离已固定新检索工具与工作流的任务，保留 unknown 证据，再恢复匹配的 JAR/config/policy/binding；旧 guard 不承接新检索包。
+
 ## 持续输入与问答部署
 
 配套交付为 `cube-server/build/harness-interaction-delivery/` 及同名 ZIP，包含 common、dispatcher、Harness 核心、WorkflowGuard 扩展、Python 节点 ZIP、本地聊天客户端、配置模板和文档。它不包含用户令牌、生产数据库或私有配置。实现契约见 [持续输入与主动问答](INTERACTION.md)。

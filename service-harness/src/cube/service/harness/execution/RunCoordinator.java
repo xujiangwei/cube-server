@@ -794,54 +794,66 @@ public final class RunCoordinator implements AutoCloseable {
                 fail(l, "REPAIR_LIMIT_EXCEEDED", state(run).optLong("inputRevision", 0));
                 return;
             }
-            // A fixed workflow starts only from confirmed query facts. It uses normal
-            // tool intents/budgets and never manufactures a model round or a receipt.
+            // Host workflows use persisted input and confirmed facts with normal tool
+            // intents/budgets; they never manufacture a model round or a receipt.
             JSONObject planning = null;
-            if (broker != null && state(run).optLong("inputRevision", 0) == state(run).optLong("appliedInputRevision", 0)) {
+            if (broker != null) {
                 long planningRevision = state(run).optLong("inputRevision", 0);
                 try {
                     if (!identity.permissions.containsAll(RuntimeSupport.strings(pin.getJSONArray("permissions"))))
                         throw new StoreException("CONTEXT_AUTHORIZATION_CHANGED");
                     JSONObject bound = broker.advance(identity, run, pin, catalog.activeSkills(identity.tenant, identity.subject, run));
                     if (state(run).optLong("inputRevision", 0) != planningRevision) throw new StoreException("INPUT_REVISION_CONFLICT");
+                    if (state(run).optLong("inputRevision", 0) != state(run).optLong("appliedInputRevision", 0)) {
+                        if (bound != null && bound.optBoolean("adoptsInput", false)) catalog.adoptWorkflowInput(l, version(run), planningRevision);
+                        else bound = null;
+                    }
                     if (bound != null) {
                         if (bound.getString("kind").equals("planning")) {
                             planning = bound;
                         } else {
-                        if (bound.getString("kind").equals("final")) {
-                            JSONObject checked = broker.completion(identity, run, pin, catalog.activeSkills(identity.tenant, identity.subject, run), bound);
-                            if (!checked.getBoolean("satisfied") || !checked.has("report")) throw new StoreException("WORKFLOW_REQUIREMENTS_UNMET");
-                            JSONObject report = checked.getJSONObject("report"); checked.remove("report");
-                            finish(l, "succeeded", "confirmed", new JSONObject().put("kind", "final").put("text", JdbcRunStore.canonical(report))
-                                    .put("report", report).put("workflow", checked).put("construction", "fixed-patrol-v1"), planningRevision);
-                            return;
-                        }
-                        JSONObject call = bound.getJSONObject("call");
-                        if (planningRevision > 0) call.put("proposalId", call.getString("proposalId") + ":r" + planningRevision);
-                        for (int i = 0; i < calls.length(); i++) {
-                            JSONObject prior = calls.getJSONObject(i);
-                            if (prior.getString("intent_id").equals(call.getString("proposalId"))) {
-                                JSONObject result = new JSONObject(prior.getString("result_json"));
-                                throw new StoreException(result.optString("errorCode", "WORKFLOW_NO_PROGRESS"));
+                            if (bound.getString("kind").equals("need_input")) {
+                                cube.service.harness.store.MessageStore.validateQuestions(bound);
+                                if (controls == null) throw new StoreException("INTERACTION_NOT_READY");
+                                controls.waitFor(l, version(run), "input", bound,
+                                        Math.min(jobs.created(l) + limits.getLong("maxLifetimeMillis"), controls.now() + Math.min(waitMillis, limits.optLong("maxInteractionWaitMillis", waitMillis))));
+                                store.release(l, version(run)); leases.remove(run); return;
                             }
-                        }
-                        if (calls.length() >= limits.getInt("maxTools")) throw new StoreException("TOOL_LIMIT_EXCEEDED");
-                        JSONObject definition = null;
-                        JSONArray available = resources.tools(identity, run);
-                        for (int t = 0; t < available.length(); t++) if (available.getJSONObject(t).getString("name").equals(call.getString("tool"))) definition = available.getJSONObject(t);
-                        if (definition == null) throw new StoreException("RESOURCE_FORBIDDEN");
-                        JSONObject arguments = StrictJson.object(call.getString("argumentsJson").getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                        Contract.validate(arguments, definition.getJSONObject("parameters"));
-                        String binding = "proposal:" + call.getString("proposalId");
-                        if (controls != null && approvalTools.contains(call.getString("tool")) && !controls.handled(run, "approval", binding)) {
-                            controls.waitFor(l, version(run), "approval", new JSONObject().put("binding", binding)
-                                    .put("tool", call.getString("tool")).put("arguments", arguments).put("argumentsHash", JdbcRunStore.hash(arguments))
-                                    .put("configDigest", JdbcRunStore.hash(pin)), Math.min(jobs.created(l) + limits.getLong("maxLifetimeMillis"), controls.now() + Math.min(waitMillis, limits.optLong("maxInteractionWaitMillis", waitMillis))));
-                            store.release(l, version(run)); leases.remove(run); return;
-                        }
-                        catalog.workflowBinding(l, version(run), call);
-                        store.intent(l, version(run), "call", call.getString("proposalId"), 1, call, 0, 0);
-                        return;
+                            if (bound.getString("kind").equals("final")) {
+                                JSONObject checked = broker.completion(identity, run, pin, catalog.activeSkills(identity.tenant, identity.subject, run), bound);
+                                if (!checked.getBoolean("satisfied") || !(checked.has("report") || checked.has("retrieval"))) throw new StoreException("WORKFLOW_REQUIREMENTS_UNMET");
+                                String field = checked.has("report") ? "report" : "retrieval";
+                                JSONObject delivery = checked.getJSONObject(field); checked.remove(field);
+                                finish(l, "succeeded", "confirmed", new JSONObject().put("kind", "final").put("text", JdbcRunStore.canonical(delivery))
+                                        .put(field, delivery).put("workflow", checked).put("construction", bound.optString("construction", "fixed-patrol-v1")), planningRevision);
+                                return;
+                            }
+                            JSONObject call = bound.getJSONObject("call");
+                            if (planningRevision > 0) call.put("proposalId", call.getString("proposalId") + ":r" + planningRevision);
+                            for (int i = 0; i < calls.length(); i++) {
+                                JSONObject prior = calls.getJSONObject(i);
+                                if (prior.getString("intent_id").equals(call.getString("proposalId"))) {
+                                    JSONObject result = new JSONObject(prior.getString("result_json"));
+                                    throw new StoreException(result.optString("errorCode", "WORKFLOW_NO_PROGRESS"));
+                                }
+                            }
+                            if (calls.length() >= limits.getInt("maxTools")) throw new StoreException("TOOL_LIMIT_EXCEEDED");
+                            JSONObject definition = null;
+                            JSONArray available = resources.tools(identity, run);
+                            for (int t = 0; t < available.length(); t++) if (available.getJSONObject(t).getString("name").equals(call.getString("tool"))) definition = available.getJSONObject(t);
+                            if (definition == null) throw new StoreException("RESOURCE_FORBIDDEN");
+                            JSONObject arguments = StrictJson.object(call.getString("argumentsJson").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                            Contract.validate(arguments, definition.getJSONObject("parameters"));
+                            String binding = "proposal:" + call.getString("proposalId");
+                            if (controls != null && approvalTools.contains(call.getString("tool")) && !controls.handled(run, "approval", binding)) {
+                                controls.waitFor(l, version(run), "approval", new JSONObject().put("binding", binding)
+                                        .put("tool", call.getString("tool")).put("arguments", arguments).put("argumentsHash", JdbcRunStore.hash(arguments))
+                                        .put("configDigest", JdbcRunStore.hash(pin)), Math.min(jobs.created(l) + limits.getLong("maxLifetimeMillis"), controls.now() + Math.min(waitMillis, limits.optLong("maxInteractionWaitMillis", waitMillis))));
+                                store.release(l, version(run)); leases.remove(run); return;
+                            }
+                            catalog.workflowBinding(l, version(run), call);
+                            store.intent(l, version(run), "call", call.getString("proposalId"), 1, call, 0, 0);
+                            return;
                         }
                     }
                 } catch (StoreException error) {
@@ -885,6 +897,10 @@ public final class RunCoordinator implements AutoCloseable {
                             JSONObject report = assessment.getJSONObject("report");
                             assessment.remove("report");
                             last.put("report", report).put("text", JdbcRunStore.canonical(report));
+                        }
+                        if (assessment.has("retrieval")) {
+                            JSONObject retrieval = assessment.getJSONObject("retrieval"); assessment.remove("retrieval");
+                            last.put("retrieval", retrieval).put("text", JdbcRunStore.canonical(retrieval));
                         }
                         if (assessment.getBoolean("required")) last.put("workflow", assessment);
                         finish(l, "succeeded", "confirmed", last, decisionRevision);
