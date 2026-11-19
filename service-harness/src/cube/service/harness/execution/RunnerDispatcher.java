@@ -6,15 +6,20 @@
 
 package cube.service.harness.execution;
 
+import cube.service.harness.protocol.StrictJson;
+import cube.service.harness.runtime.RuntimeSupport;
+import cube.service.harness.store.JdbcRunStore;
 import cube.service.harness.store.StoreException;
 import cube.service.harness.store.ToolJobStore;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 
 /**
  * 按传输通道（Cell 长连接）维度的 runner 注册表与作业分发入口。
@@ -90,7 +95,15 @@ public final class RunnerDispatcher {
          * 健康标记：runner 自报与持久存储侧健康的复合结果。
          */
         boolean healthy;
+
+        /**
+         * 是否声明支持 provider-await-v1 长等待协议。
+         */
         boolean providerAwait;
+
+        /**
+         * 该 worker 声明可接受的文件处理环境列表。
+         */
         JSONArray fileEnvironments = new JSONArray();
     }
 
@@ -169,7 +182,7 @@ public final class RunnerDispatcher {
      *                        SANDBOX_RECEIPT_RETRY（沙箱回执处理失败）
      */
     public synchronized JSONObject apply(
-            JSONObject r, long transport, java.util.function.BooleanSupplier valid) {
+            JSONObject r, long transport, BooleanSupplier valid) {
         if (r.getInt("protocolVersion") != ToolProtocol.VERSION) {
             throw new StoreException("PROTOCOL_MISMATCH");
         }
@@ -177,7 +190,8 @@ public final class RunnerDispatcher {
             throw new StoreException("STALE_SESSION");
         }
         expire();
-        String id = r.getString("workerId"), action = r.getString("action");
+        String id = r.getString("workerId");
+        String action = r.getString("action");
         if (!"runner".equals(config.getProperty("worker." + id + ".role"))) {
             throw new StoreException("FORBIDDEN");
         }
@@ -196,7 +210,9 @@ public final class RunnerDispatcher {
                 throw new StoreException("RUNNER_CAPACITY_MISMATCH");
             }
             JSONArray environments = d.optJSONArray("fileEnvironments");
-            if (environments == null) environments = new JSONArray();
+            if (environments == null) {
+                environments = new JSONArray();
+            }
             for (int i = 0; i < environments.length(); i++) {
                 JSONObject env = environments.getJSONObject(i);
                 if (!env.getString("environmentDigest").equals(config.getProperty("worker." + id + ".file.environment."
@@ -259,7 +275,8 @@ public final class RunnerDispatcher {
                         .put("leaseMillis", lease)
                         .put("registered", !action.equals("unregister"))
                         .put("ready", !w.draining && w.healthy);
-        JSONArray cancel = new JSONArray(), rows = jobs.cancellations(id);
+        JSONArray cancel = new JSONArray();
+        JSONArray rows = jobs.cancellations(id);
         for (int i = 0; i < rows.length(); i++) {
             cancel.put(rows.getJSONObject(i).getString("job_id"));
         }
@@ -314,9 +331,9 @@ public final class RunnerDispatcher {
                                     ? broker.prepareWorker(j, r.getJSONObject("grant"))
                                     : broker.completeWorker(
                                     j,
-                                    cube.service.harness.protocol.StrictJson.object(
+                                    StrictJson.object(
                                             r.getString("receiptJson")
-                                                    .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                                                    .getBytes(StandardCharsets.UTF_8)));
                 } catch (StoreException e) {
                     throw e;
                 } catch (Exception e) {
@@ -326,30 +343,35 @@ public final class RunnerDispatcher {
                     out.put(k, result.get(k));
                 }
             } else if (action.equals("file_exchange")) {
-                if (!ToolProtocol.TOOL.equals(w.runnerType)) throw new StoreException("PROTOCOL_MISMATCH");
+                if (!ToolProtocol.TOOL.equals(w.runnerType)) {
+                    throw new StoreException("PROTOCOL_MISMATCH");
+                }
                 try {
-                    out.put("dataJson", cube.service.harness.store.JdbcRunStore.canonical(broker.fileExchange(j,
-                            r.getJSONObject("grant"), cube.service.harness.protocol.StrictJson.object(
-                            r.getString("transferJson").getBytes(java.nio.charset.StandardCharsets.UTF_8)))));
+                    out.put("dataJson", JdbcRunStore.canonical(broker.fileExchange(j,
+                            r.getJSONObject("grant"), StrictJson.object(
+                                    r.getString("transferJson").getBytes(StandardCharsets.UTF_8)))));
                     out.put("status", "finished");
-                } catch (StoreException e) { throw e; }
-                catch (Exception e) { throw new StoreException("FILE_TRANSFER_RETRY"); }
+                } catch (StoreException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new StoreException("FILE_TRANSFER_RETRY");
+                }
             } else {
                 // broker_invoke：普通工具经 Broker 复核授权后调用提供方。
                 JSONObject result = broker.invokeArguments(
                         j,
                         r.getJSONObject("grant"),
-                        cube.service.harness.protocol.StrictJson.object(
+                        StrictJson.object(
                                 r.getString("argumentsJson")
-                                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                                        .getBytes(StandardCharsets.UTF_8)));
                 for (String k : result.keySet()) {
                     out.put(k, result.get(k));
                 }
             }
         }
         if (action.equals("result")) {
-            JSONObject report = r.getJSONObject("report"),
-                    j = jobs.evidence(id, w.runtime, report.getString("jobId"), report.getString("jobHash"));
+            JSONObject report = r.getJSONObject("report");
+            JSONObject j = jobs.evidence(id, w.runtime, report.getString("jobId"), report.getString("jobHash"));
             JSONObject saved = broker.report(j, report);
             out.put("resultHash", saved.getString("report_hash"))
                     .put("actualFinished", saved.getInt("actual_finished") == 1);
@@ -359,7 +381,7 @@ public final class RunnerDispatcher {
         if (action.equals("unregister")) {
             workers.remove(id);
         }
-        ToolProtocol.parse("runner-response", cube.service.harness.runtime.RuntimeSupport.bytes(out));
+        ToolProtocol.parse("runner-response", RuntimeSupport.bytes(out));
         return out;
     }
 
@@ -389,12 +411,15 @@ public final class RunnerDispatcher {
                             .put("workerId", w.id)
                             .put("instanceId", w.instance)
                             .put("runtimeId", w.runtime)
-                            .put("role", "runner").put("transportId", w.transport)
+                            .put("role", "runner")
+                            .put("transportId", w.transport)
                             .put("protocolVersion", ToolProtocol.VERSION)
                             .put("runnerType", w.runnerType)
                             .put("providerAwait", w.providerAwait)
                             .put("fileEnvironments", w.fileEnvironments)
-                            .put("healthy", healthy).put("draining", w.draining).put("leaseRemainingMs", Math.max(0, w.deadline - now()))
+                            .put("healthy", healthy)
+                            .put("draining", w.draining)
+                            .put("leaseRemainingMs", Math.max(0, w.deadline - now()))
                             .put("ready", !w.draining && healthy)
                             .put("capacity", w.capacity)
                             .put("occupied", used)

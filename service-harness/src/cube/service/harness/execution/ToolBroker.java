@@ -6,11 +6,16 @@
 
 package cube.service.harness.execution;
 
+import cube.aigc.completion.MediaProvider;
+import cube.service.harness.files.FileService;
 import cube.service.harness.protocol.Contract;
 import cube.service.harness.protocol.StrictJson;
+import cube.service.harness.runtime.PackageRepository;
 import cube.service.harness.runtime.ProfileRegistry;
+import cube.service.harness.runtime.ResourceTools;
 import cube.service.harness.runtime.RuntimeSupport;
 import cube.service.harness.store.JdbcRunStore;
+import cube.service.harness.store.ProviderStore;
 import cube.service.harness.store.StoreException;
 import cube.service.harness.store.ToolJobStore;
 import org.json.JSONArray;
@@ -19,10 +24,24 @@ import org.json.JSONObject;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.TreeSet;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static cube.service.harness.store.JdbcRunStore.canonical;
 import static cube.service.harness.store.JdbcRunStore.hash;
@@ -82,64 +101,148 @@ public final class ToolBroker implements AutoCloseable {
     /**
      * 文件服务，可后置注入；为 null 表示未启用受控文件访问。
      */
-    private cube.service.harness.files.FileService files;
-    private cube.service.harness.runtime.ResourceTools resources;
-    private cube.service.harness.store.ProviderStore metadata;
-    private java.util.function.Supplier<cube.aigc.completion.MediaProvider> media;
+    private FileService files;
+    private ResourceTools resources;
+    private ProviderStore metadata;
+    private Supplier<MediaProvider> media;
 
-    public ToolBroker context(cube.service.harness.runtime.ResourceTools resources,
-            cube.service.harness.store.ProviderStore metadata,
-            java.util.function.Supplier<cube.aigc.completion.MediaProvider> media) {
-        this.resources = resources; this.metadata = metadata; this.media = media;
+    /**
+     * 后置注入资源读取、提供方元数据与媒体能力依赖。
+     *
+     * @param resources 资源读取工具。
+     * @param metadata  提供方元数据存储。
+     * @param media     媒体能力提供方工厂，可为 null。
+     * @return 本 Broker 实例，便于链式调用。
+     */
+    public ToolBroker context(ResourceTools resources,
+                              ProviderStore metadata,
+                              Supplier<MediaProvider> media) {
+        this.resources = resources;
+        this.metadata = metadata;
+        this.media = media;
         return this;
     }
+
+    /**
+     * 为作业行构造可信调用上下文。
+     *
+     * @param job 作业行。
+     * @return 绑定本 Broker 依赖的调用上下文。
+     */
     private ProviderInvocation invocation(JSONObject job) {
         return new ProviderInvocation(job, jobs, files).services(resources, metadata, permissions, media);
     }
-    public static boolean hasCompletionRequirements(JSONObject manifest) { return WorkflowGate.required(manifest); }
-    public void validatePackage(cube.service.harness.runtime.PackageRepository.Validated checked) throws Exception {
-        workflow.validate(checked);
-        for (QueryProvider provider : providers.all()) for (String path : provider.configurationFiles()) {
-            for (int i = 0; i < checked.manifest.getJSONArray("files").length(); i++) {
-                if (checked.manifest.getJSONArray("files").getJSONObject(i).getString("path").equals(path))
-                    provider.validateConfiguration(path, cube.service.harness.protocol.StrictJson.object(checked.resource(path)));
-            }
-        }
+
+    /**
+     * 判断发布清单是否声明了业务完成度校验需求。
+     *
+     * @param manifest 发布清单。
+     * @return 需要工作流或报告校验时返回 true。
+     */
+    public static boolean hasCompletionRequirements(JSONObject manifest) {
+        return WorkflowGate.required(manifest);
     }
-    /** Called outside the run-creation transaction: no network/DB recursion under its lock. */
-    public JSONObject businessReadiness(ProfileRegistry.Identity identity, org.json.JSONArray releases,
-            cube.service.harness.runtime.PackageRepository repo) {
+
+    /**
+     * 校验业务包：先走守卫校验，再逐提供方校验其声明的配置文件。
+     *
+     * @param checked 已验签的业务包。
+     * @throws Exception 配置非法或读取失败时抛出。
+     */
+    public void validatePackage(PackageRepository.Validated checked) throws Exception {
+        workflow.validate(checked);
+        for (QueryProvider provider : providers.all())
+            for (String path : provider.configurationFiles()) {
+                for (int i = 0; i < checked.manifest.getJSONArray("files").length(); i++) {
+                    if (checked.manifest.getJSONArray("files").getJSONObject(i).getString("path").equals(path))
+                        provider.validateConfiguration(path, StrictJson.object(checked.resource(path)));
+                }
+            }
+    }
+
+    /**
+     * 在 run 创建事务之外预检各发布包的业务就绪度：其锁内不做网络或数据库递归。
+     *
+     * @param identity 调用方身份。
+     * @param releases 待预检的发布列表。
+     * @param repo     包仓库，提供已验签资源读取。
+     * @return 发布摘要到错误码的映射，空串表示就绪。
+     */
+    public JSONObject businessReadiness(ProfileRegistry.Identity identity, JSONArray releases,
+                                        PackageRepository repo) {
         JSONObject result = new JSONObject();
         QueryProvider.ProviderInvocationLookup lookup = new QueryProvider.ProviderInvocationLookup() {
-            public JSONObject source(String ref) { metadata.authorize(identity.tenant, identity.subject, ref); return metadata.source(identity.tenant, ref); }
-            public org.json.JSONArray mediaUnits() { cube.aigc.completion.MediaProvider bridge = media == null ? null : media.get(); return bridge == null ? new org.json.JSONArray() : bridge.mediaUnits(); }
+            public JSONObject source(String ref) {
+                metadata.authorize(identity.tenant, identity.subject, ref);
+                return metadata.source(identity.tenant, ref);
+            }
+
+            public JSONArray mediaUnits() {
+                MediaProvider bridge = media == null ? null : media.get();
+                return bridge == null ? new JSONArray() : bridge.mediaUnits();
+            }
         };
         for (int i = 0; i < releases.length(); i++) {
-            JSONObject release = releases.getJSONObject(i), manifest = release.getJSONObject("manifest");
+            JSONObject release = releases.getJSONObject(i);
+            JSONObject manifest = release.getJSONObject("manifest");
             String error = "";
             try {
                 workflow.preflight(manifest, repo);
-                for (QueryProvider provider : providers.all()) for (String path : provider.configurationFiles()) {
-                    for (int j = 0; j < manifest.getJSONArray("files").length(); j++) {
-                        if (manifest.getJSONArray("files").getJSONObject(j).getString("path").equals(path))
-                            provider.preflightConfiguration(lookup, path, cube.service.harness.protocol.StrictJson.object(repo.readVerified(manifest, path)));
+                for (QueryProvider provider : providers.all())
+                    for (String path : provider.configurationFiles()) {
+                        for (int j = 0; j < manifest.getJSONArray("files").length(); j++) {
+                            if (manifest.getJSONArray("files").getJSONObject(j).getString("path").equals(path))
+                                provider.preflightConfiguration(lookup, path, StrictJson.object(repo.readVerified(manifest, path)));
+                        }
                     }
-                }
-            } catch (Exception e) { error = e instanceof StoreException ? ((StoreException) e).code : "CONNECTOR_CONFIG_INVALID"; }
+            } catch (Exception e) {
+                error = e instanceof StoreException ? ((StoreException) e).code : "CONNECTOR_CONFIG_INVALID";
+            }
             result.put(release.getString("digest"), error);
         }
         return result;
     }
 
-    public JSONObject completion(ProfileRegistry.Identity identity, String run, JSONObject pin, org.json.JSONArray active) throws Exception {
+    /**
+     * 校验 run 的业务完成度，不带模型决策。
+     *
+     * @param identity 调用方身份。
+     * @param run      run 标识。
+     * @param pin      已固定的发布配置。
+     * @param active   已激活的发布列表。
+     * @return 业务检查结果。
+     * @throws Exception 校验失败时抛出。
+     */
+    public JSONObject completion(ProfileRegistry.Identity identity, String run, JSONObject pin, JSONArray active) throws Exception {
         return completion(identity, run, pin, active, null);
     }
 
+    /**
+     * 推进 run 的固定工作流。
+     *
+     * @param identity 调用方身份。
+     * @param run      run 标识。
+     * @param pin      已固定的发布配置。
+     * @param active   已激活的发布列表。
+     * @return 宿主提案或终态。
+     * @throws Exception 推进失败时抛出。
+     */
     public JSONObject advance(ProfileRegistry.Identity identity, String run, JSONObject pin, JSONArray active) throws Exception {
         return workflow.advance(identity, run, pin, active, resources, metadata);
     }
 
-    public JSONObject completion(ProfileRegistry.Identity identity, String run, JSONObject pin, org.json.JSONArray active, JSONObject decision) throws Exception {
+    /**
+     * 结合模型决策校验 run 的业务完成度与报告。
+     *
+     * @param identity 调用方身份。
+     * @param run      run 标识。
+     * @param pin      已固定的发布配置。
+     * @param active   已激活的发布列表。
+     * @param decision 模型决策，可为 null。
+     * @return 业务检查结果。
+     * @throws Exception 校验失败时抛出。
+     */
+    public JSONObject completion(ProfileRegistry.Identity identity, String run, JSONObject pin, JSONArray active, JSONObject decision) throws Exception {
         return workflow.check(identity, run, pin, active, resources, metadata, decision);
     }
 
@@ -149,7 +252,7 @@ public final class ToolBroker implements AutoCloseable {
      * @param value 文件服务实例；传 null 表示关闭文件访问
      * @return 本 Broker 实例，便于链式调用
      */
-    public ToolBroker files(cube.service.harness.files.FileService value) {
+    public ToolBroker files(FileService value) {
         files = value;
         return this;
     }
@@ -248,15 +351,19 @@ public final class ToolBroker implements AutoCloseable {
         ToolProtocol.verify();
         this.jobs = jobs;
         this.identity = identity;
-        this.permissions = java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(permissions));
+        this.permissions = Collections.unmodifiableSet(new TreeSet<>(permissions));
         key = p.getProperty("runner.grant.key", "");
         node = RuntimeSupport.id(p.getProperty("broker.node.id", ""));
         if (key.length() < 32) {
             throw new IllegalArgumentException("RUNNER_GRANT_KEY_REQUIRED");
         }
         workflow = new WorkflowGate(p);
-        try { providers = new QueryProviders(p); }
-        catch (Exception error) { workflow.close(); throw error; }
+        try {
+            providers = new QueryProviders(p);
+        } catch (Exception error) {
+            workflow.close();
+            throw error;
+        }
         queries =
                 new ThreadPoolExecutor(
                         2,
@@ -358,8 +465,8 @@ public final class ToolBroker implements AutoCloseable {
      *                        TOOL_REGISTRY_SCHEMA_MISMATCH（schema 与注册不一致）
      */
     public JSONObject enqueue(JdbcRunStore.Lease l, JSONObject intent, JSONObject definition) {
-        JSONObject tool = definition.getJSONObject("tool"),
-                runtime = definition.getJSONObject("runtime");
+        JSONObject tool = definition.getJSONObject("tool");
+        JSONObject runtime = definition.getJSONObject("runtime");
         QueryProvider provider = providers.get(tool.getString("brokerOperation"));
         if ((ToolProtocol.SANDBOX.equals(provider.runnerType())) != (provider instanceof WorkerExecutionProvider)) {
             throw new StoreException("PROVIDER_EXECUTION_OWNER_INVALID");
@@ -390,7 +497,9 @@ public final class ToolBroker implements AutoCloseable {
         return jobs.enqueue(l, intent, definition);
     }
 
-    /** Capability discovery and admission use the same registered provider identity. */
+    /**
+     * 能力发现与准入使用同一份已注册提供方身份判定。
+     */
     public boolean supports(JSONObject tool) {
         try {
             QueryProvider provider = providers.get(tool.getString("brokerOperation"));
@@ -398,10 +507,14 @@ public final class ToolBroker implements AutoCloseable {
                     && provider.permission().equals(tool.getString("permission"))
                     && provider.effect().equals(tool.getString("effect"))
                     && (!(provider instanceof FileProcessingProvider) || files != null);
-        } catch (StoreException unavailable) { return false; }
+        } catch (StoreException unavailable) {
+            return false;
+        }
     }
 
-    /** Use the same capability filter for discovery/admission and queue dispatch. */
+    /**
+     * 发现/准入与队列派发共用同一套能力过滤规则。
+     */
     public boolean acceptsRunner(JSONObject tool, JSONObject node) {
         if (!supports(tool)) return false;
         QueryProvider provider = providers.get(tool.getString("brokerOperation"));
@@ -428,11 +541,25 @@ public final class ToolBroker implements AutoCloseable {
         return wire(j, worker, runtime, instance, false);
     }
 
+    /**
+     * 组装作业线报，长等待作业仅在提供方声明 providerAwait 时下发。
+     *
+     * @param j            作业行。
+     * @param worker       目标 workerId。
+     * @param runtime      目标 runtimeId。
+     * @param instance     目标实例标识。
+     * @param providerAwait 调用方是否声明支持长等待。
+     * @return 线报对象；长等待不被支持时返回 null。
+     */
     public JSONObject wire(JSONObject j, String worker, String runtime, String instance, boolean providerAwait) {
         JSONObject d = new JSONObject(j.getString("definition_json"));
         int wait = provider(j).runnerWaitMillis();
-        if (wait < 100 || wait > 290000) throw new StoreException("PROVIDER_WAIT_CONFIG_INVALID");
-        if (wait > 30000 && !providerAwait) return null;
+        if (wait < 100 || wait > 290000) {
+            throw new StoreException("PROVIDER_WAIT_CONFIG_INVALID");
+        }
+        if (wait > 30000 && !providerAwait) {
+            return null;
+        }
         wait = (int) Math.max(100, Math.min(wait, j.optLong("task_remaining_millis", 300000)));
         JSONObject w =
                 new JSONObject()
@@ -467,9 +594,12 @@ public final class ToolBroker implements AutoCloseable {
         if (provider(j) instanceof WorkerExecutionProvider) {
             w.put("executionProfile", ((WorkerExecutionProvider) provider(j)).executionProfile());
         }
-        if (provider(j) instanceof FileProcessingProvider)
+        if (provider(j) instanceof FileProcessingProvider) {
             w.put("fileProcessing", ((FileProcessingProvider) provider(j)).fileProcessing());
-        if (w.getInt("timeoutMillis") > 30000) w.put("waitProtocol", "provider-await-v1");
+        }
+        if (w.getInt("timeoutMillis") > 30000) {
+            w.put("waitProtocol", "provider-await-v1");
+        }
         w.put("jobHash", hash(w));
         JSONObject a = new JSONObject(j.getString("arguments_json"));
         JSONObject claims =
@@ -494,57 +624,103 @@ public final class ToolBroker implements AutoCloseable {
         return w;
     }
 
+    /**
+     * 判断作业运行环境是否满足其文件处理环境要求。
+     *
+     * @param job          作业行。
+     * @param environments 可用文件处理环境列表。
+     * @return 满足时返回 true。
+     */
     public boolean acceptsFileEnvironment(JSONObject job, JSONArray environments) {
         return acceptsFileEnvironment(provider(job), environments);
     }
 
+    /**
+     * 判断提供方声明的文件环境是否出现在可用列表中。
+     *
+     * @param p            目标提供方。
+     * @param environments 可用文件处理环境列表。
+     * @return 非文件处理提供方或环境匹配时返回 true。
+     */
     private boolean acceptsFileEnvironment(QueryProvider p, JSONArray environments) {
         if (!(p instanceof FileProcessingProvider)) return true;
         JSONObject required = ((FileProcessingProvider) p).fileProcessing();
         for (int i = 0; i < environments.length(); i++) {
             JSONObject available = environments.getJSONObject(i);
             if (required.getString("environmentId").equals(available.getString("environmentId"))
-                    && required.getString("environmentDigest").equals(available.getString("environmentDigest"))) return true;
+                    && required.getString("environmentDigest").equals(available.getString("environmentDigest")))
+                return true;
         }
         return false;
     }
 
+    /**
+     * 复核授权后执行受控文件交换（read/begin/write/finish）。
+     *
+     * @param job     作业行。
+     * @param grant   执行授权。
+     * @param request 交换请求，字段集合严格限定。
+     * @return 交换结果。
+     * @throws Exception 授权、参数或文件读写失败时抛出。
+     */
     public JSONObject fileExchange(JSONObject job, JSONObject grant, JSONObject request) throws Exception {
         authorize(job, grant);
-        if (!job.getString("status").equals("accepted")) throw new StoreException("TOOL_NOT_ACCEPTED");
+        if (!job.getString("status").equals("accepted")) {
+            throw new StoreException("TOOL_NOT_ACCEPTED");
+        }
         QueryProvider p = provider(job);
-        if (!(p instanceof FileProcessingProvider)) throw new StoreException("FILE_PROCESSING_FORBIDDEN");
+        if (!(p instanceof FileProcessingProvider)) {
+            throw new StoreException("FILE_PROCESSING_FORBIDDEN");
+        }
         String action = request.optString("operation");
-        java.util.Set<String> fields = new java.util.HashSet<>(java.util.Arrays.asList("operation"));
+        Set<String> fields = new HashSet<>(Arrays.asList("operation"));
         if (action.equals("read")) {
             fields.add("offset");
             if (request.has("inputIndex")) {
                 fields.add("inputIndex");
                 Object index = request.get("inputIndex");
                 if (!(index instanceof Number) || request.getDouble("inputIndex") != request.getInt("inputIndex")
-                        || request.getInt("inputIndex") < 0 || request.getInt("inputIndex") > 15)
+                        || request.getInt("inputIndex") < 0 || request.getInt("inputIndex") > 15) {
                     throw new StoreException("FILE_INPUT_INDEX_INVALID");
+                }
             }
+        } else if (action.equals("write")) {
+            fields.add("offset");
+            fields.add("data");
+        } else if (action.equals("begin")) {
+            fields.add("size");
+            fields.add("sha256");
+        } else if (!action.equals("finish")) {
+            throw new StoreException("FILE_OPERATION_INVALID");
         }
-        else if (action.equals("write")) { fields.add("offset"); fields.add("data"); }
-        else if (action.equals("begin")) { fields.add("size"); fields.add("sha256"); }
-        else if (!action.equals("finish")) throw new StoreException("FILE_OPERATION_INVALID");
-        if (!request.keySet().equals(fields)) throw new StoreException("FILE_OPERATION_INVALID");
+        if (!request.keySet().equals(fields)) {
+            throw new StoreException("FILE_OPERATION_INVALID");
+        }
         if (request.has("offset") && (!(request.get("offset") instanceof Number)
-                || request.getDouble("offset") != request.getLong("offset"))) throw new StoreException("FILE_OFFSET_INVALID");
+                || request.getDouble("offset") != request.getLong("offset"))) {
+            throw new StoreException("FILE_OFFSET_INVALID");
+        }
         if (request.has("size") && (!(request.get("size") instanceof Number)
-                || request.getDouble("size") != request.getLong("size"))) throw new StoreException("FILE_SIZE_INVALID");
+                || request.getDouble("size") != request.getLong("size"))) {
+            throw new StoreException("FILE_SIZE_INVALID");
+        }
         if (request.has("sha256") && (!(request.get("sha256") instanceof String)
-                || !request.getString("sha256").matches("[a-f0-9]{64}"))) throw new StoreException("FILE_DIGEST_INVALID");
+                || !request.getString("sha256").matches("[a-f0-9]{64}"))) {
+            throw new StoreException("FILE_DIGEST_INVALID");
+        }
         if (request.has("data")) {
-            if (!(request.get("data") instanceof String) || request.getString("data").length() > 21848)
+            if (!(request.get("data") instanceof String) || request.getString("data").length() > 21848) {
                 throw new StoreException("FILE_CHUNK_INVALID");
+            }
             try {
-                byte[] decoded = java.util.Base64.getDecoder().decode(request.getString("data"));
+                byte[] decoded = Base64.getDecoder().decode(request.getString("data"));
                 if (decoded.length < 1 || decoded.length > 16384
-                        || !java.util.Base64.getEncoder().encodeToString(decoded).equals(request.getString("data")))
+                        || !Base64.getEncoder().encodeToString(decoded).equals(request.getString("data"))) {
                     throw new StoreException("FILE_CHUNK_INVALID");
-            } catch (IllegalArgumentException invalid) { throw new StoreException("FILE_CHUNK_INVALID"); }
+                }
+            } catch (IllegalArgumentException invalid) {
+                throw new StoreException("FILE_CHUNK_INVALID");
+            }
         }
         return invocation(job).fileExchange((FileProcessingProvider) p,
                 new JSONObject(job.getString("arguments_json")), request);
@@ -562,7 +738,7 @@ public final class ToolBroker implements AutoCloseable {
     public void authorize(JSONObject j, JSONObject grant) {
         JSONObject stored = new JSONObject(j.getString("wire_json")).getJSONObject("grant");
         if (!canonical(stored).equals(canonical(grant))
-                || !java.security.MessageDigest.isEqual(
+                || !MessageDigest.isEqual(
                 sign(grant.getString("bodyJson")).getBytes(StandardCharsets.US_ASCII),
                 grant.getString("signature").getBytes(StandardCharsets.US_ASCII))) {
             throw new StoreException("GRANT_INVALID");
@@ -868,8 +1044,8 @@ public final class ToolBroker implements AutoCloseable {
      * @param data 待校验的结果数据
      */
     private void validateData(JSONObject j, JSONObject data) {
-        JSONObject definition = new JSONObject(j.getString("definition_json")),
-                args = new JSONObject(j.getString("arguments_json"));
+        JSONObject definition = new JSONObject(j.getString("definition_json"));
+        JSONObject args = new JSONObject(j.getString("arguments_json"));
         Contract.validate(data, definition.getJSONObject("resultSchema"));
         provider(j).validateResult(args, data);
     }

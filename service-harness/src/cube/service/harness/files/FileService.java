@@ -551,7 +551,8 @@ public final class FileService implements AutoCloseable {
     }
 
     private static boolean binarySignature(String type, byte[] b, int count) {
-        if (type.equals("image/jpeg")) return count >= 3 && b[0] == (byte) 0xff && b[1] == (byte) 0xd8 && b[2] == (byte) 0xff;
+        if (type.equals("image/jpeg"))
+            return count >= 3 && b[0] == (byte) 0xff && b[1] == (byte) 0xd8 && b[2] == (byte) 0xff;
         if (type.equals("image/png")) return count >= 8 && Arrays.equals(Arrays.copyOf(b, 8),
                 new byte[]{(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10});
         if (type.equals("audio/wav")) return count >= 12 && b[0] == 'R' && b[1] == 'I' && b[2] == 'F'
@@ -971,14 +972,18 @@ public final class FileService implements AutoCloseable {
         return writeTextArtifact(lease, call, args);
     }
 
-    /** Result artifacts are authorized by the provider's durable job, without granting a standalone file tool. */
+    /**
+     * Result artifacts are authorized by the provider's durable job, without granting a standalone file tool.
+     */
     public JSONObject writeProviderText(JdbcRunStore.Lease lease, String jobId, JSONObject args) throws Exception {
         return writeTextArtifact(lease, ledger.requireProvider(lease, jobId), args);
     }
 
-    /** Bounded binary input exchange. The worker verifies the complete digest after assembly. */
+    /**
+     * Bounded binary input exchange. The worker verifies the complete digest after assembly.
+     */
     public JSONObject readProviderChunk(JdbcRunStore.Lease lease, String jobId, String id,
-            Set<String> mediaTypes, long offset) throws Exception {
+                                        Set<String> mediaTypes, long offset) throws Exception {
         String call = ledger.requireProvider(lease, jobId);
         ProfileRegistry.Identity identity = owner(lease);
         if (offset < 0 || offset > config.maxFile) throw new StoreException("FILE_OFFSET_INVALID");
@@ -1007,7 +1012,9 @@ public final class FileService implements AutoCloseable {
         return view(ledger.create(lease, ledger.requireProvider(lease, jobId), metadata));
     }
 
-    /** Offset-based, idempotent output upload. Allocation and quota are durable before the first byte. */
+    /**
+     * Offset-based, idempotent output upload. Allocation and quota are durable before the first byte.
+     */
     public JSONObject writeProviderChunk(JdbcRunStore.Lease lease, String jobId, long offset, byte[] bytes) throws Exception {
         if (offset < 0 || bytes.length < 1 || bytes.length > 16384) throw new StoreException("FILE_OFFSET_INVALID");
         return disk.tryLocked(() -> {
@@ -1015,7 +1022,8 @@ public final class FileService implements AutoCloseable {
             if (offset > row.getLong("size_bytes") - bytes.length) throw new StoreException("FILE_OFFSET_INVALID");
             Path data = path(row, row.getString("status").equals("ready") ? ".data" : ".part");
             if (row.getLong("expires_at") <= ledger.now()) throw new StoreException("FILE_EXPIRED");
-            if (!Arrays.asList("ready", "uploading").contains(row.getString("status"))) throw new StoreException("FILE_UPLOAD_CLOSED");
+            if (!Arrays.asList("ready", "uploading").contains(row.getString("status")))
+                throw new StoreException("FILE_UPLOAD_CLOSED");
             try (FileChannel out = FileChannel.open(data, row.getString("status").equals("ready")
                     ? new StandardOpenOption[]{StandardOpenOption.READ}
                     : new StandardOpenOption[]{StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE})) {
@@ -1025,7 +1033,8 @@ public final class FileService implements AutoCloseable {
                 if (overlap > 0) {
                     ByteBuffer old = ByteBuffer.allocate(overlap);
                     while (old.hasRemaining()) if (out.read(old) < 0) throw new StoreException("FILE_OFFSET_INVALID");
-                    if (!java.security.MessageDigest.isEqual(old.array(), Arrays.copyOf(bytes, overlap))) throw new StoreException("FILE_CHUNK_CONFLICT");
+                    if (!java.security.MessageDigest.isEqual(old.array(), Arrays.copyOf(bytes, overlap)))
+                        throw new StoreException("FILE_CHUNK_CONFLICT");
                 }
                 if (overlap < bytes.length) {
                     if (row.getString("status").equals("ready")) throw new StoreException("FILE_UPLOAD_CLOSED");

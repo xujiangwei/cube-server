@@ -160,7 +160,9 @@ public final class InferenceGateway implements AutoCloseable {
                     if (capacity < 1 || capacity > 32) {
                         throw new IllegalArgumentException("INVALID_BACKEND_CAPACITY");
                     }
-                    p = new OpenAIHttpProvider(property(backend, "baseUrl", ""), property(backend, "model", ""), property(backend, "token", ""), capacity);
+                    p = new OpenAIHttpProvider(property(backend, "baseUrl", ""),
+                            property(backend, "model", ""),
+                            property(backend, "token", ""), capacity);
                     external.put(backend, p);
                 }
             }
@@ -213,7 +215,9 @@ public final class InferenceGateway implements AutoCloseable {
         try {
             CompletionProvider p = provider(backend);
             if (p != null) {
-                return p.completionCapacity(property(backend, "token", ""), descriptor.getString("model"), descriptor.getBoolean("nativeTools"));
+                return p.completionCapacity(property(backend, "token", ""),
+                        descriptor.getString("model"),
+                        descriptor.getBoolean("nativeTools"));
             }
         } catch (Exception e) {
             lastError = "INFERENCE_BACKEND_NOT_READY";

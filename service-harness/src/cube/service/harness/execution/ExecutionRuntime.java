@@ -168,8 +168,8 @@ public final class ExecutionRuntime implements AutoCloseable {
         }
         permissions = Collections.unmodifiableSet(configured);
         files = Boolean.parseBoolean(p.getProperty("files.enabled", "false"))
-                        ? new cube.service.harness.files.FileService(store, p, null)
-                        : null;
+                ? new cube.service.harness.files.FileService(store, p, null)
+                : null;
         profiles = new ProfileRegistry(catalog, files == null ? null : files.ledger, deployment);
         controls = new ControlStore(store, sc.mysql()).files(files == null ? null : files.ledger).configure(p);
         maxActive = Integer.parseInt(p.getProperty("execution.max.active", "128"));
@@ -179,8 +179,8 @@ public final class ExecutionRuntime implements AutoCloseable {
         store.admissionLimit(maxActive);
         accepting = Boolean.parseBoolean(p.getProperty("execution.accepting", "true"));
         Path path = Paths.get(
-                        Objects.requireNonNull(
-                                p.getProperty("execution.repository"), "execution.repository"));
+                Objects.requireNonNull(
+                        p.getProperty("execution.repository"), "execution.repository"));
         PackageRepository repo =
                 new PackageRepository(catalog,
                         new AssetFiles(path,
@@ -198,23 +198,23 @@ public final class ExecutionRuntime implements AutoCloseable {
         inference = new InferenceGateway(new InferenceStore(store, sc.mysql(), budgets), p, provider);
         workers = new ModelDispatcher(jobs, p, lease, inference);
         broker = Boolean.parseBoolean(p.getProperty("execution.tools.enabled", "false"))
-                        ? new ToolBroker(new ToolJobStore(store, sc.mysql()), permissions, p)
-                        .files(files)
-                        .context(resourceTools, providerMetadata, () -> {
-                            Object bridge = provider.get();
-                            return bridge instanceof cube.aigc.completion.MediaProvider ? (cube.aigc.completion.MediaProvider) bridge : null;
-                        })
-                        : null;
+                ? new ToolBroker(new ToolJobStore(store, sc.mysql()), permissions, p)
+                .files(files)
+                .context(resourceTools, providerMetadata, () -> {
+                    Object bridge = provider.get();
+                    return bridge instanceof cube.aigc.completion.MediaProvider ? (cube.aigc.completion.MediaProvider) bridge : null;
+                })
+                : null;
         admin = new RemoteAdmin(catalog, repo, providerMetadata, profiles, broker, p, permissions);
         runners = broker == null ? null : new RunnerDispatcher(broker, p, lease);
         coordinator = new RunCoordinator(
-                        store,
-                        jobs,
-                        catalog,
-                        permissions,
-                        resourceTools,
-                        broker)
-                        .controls(controls, files, p).budgets(budgets);
+                store,
+                jobs,
+                catalog,
+                permissions,
+                resourceTools,
+                broker)
+                .controls(controls, files, p).budgets(budgets);
     }
 
     /**
@@ -258,11 +258,11 @@ public final class ExecutionRuntime implements AutoCloseable {
         if (priorCreation != null) return priorCreation;
         if (!accepting) {
             JSONObject prior = store.findCreate(
-                            identity.tenant,
-                            identity.subject,
-                            key,
-                            "server-default",
-                            request);
+                    identity.tenant,
+                    identity.subject,
+                    key,
+                    "server-default",
+                    request);
             if (prior != null) {
                 return prior;
             }
@@ -271,11 +271,11 @@ public final class ExecutionRuntime implements AutoCloseable {
         // 持久化创建重放先于准入判断（含已满额时）：同键请求在 catalog/store 内仍可重放。
         if (jobs.active(identity.tenant) >= maxActive) {
             JSONObject prior = store.findCreate(
-                            identity.tenant,
-                            identity.subject,
-                            key,
-                            "server-default",
-                            request);
+                    identity.tenant,
+                    identity.subject,
+                    key,
+                    "server-default",
+                    request);
             if (prior != null) {
                 return prior;
             }
@@ -586,14 +586,19 @@ public final class ExecutionRuntime implements AutoCloseable {
         for (Object entry : found) {
             JSONObject event = (JSONObject) entry;
             int bytes = event.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-            if (events.length() > 0 && size + bytes > 512 * 1024) break;
-            events.put(event); size += bytes;
+            if (!events.isEmpty() && size + bytes > 512 * 1024) {
+                break;
+            }
+            events.put(event);
+            size += bytes;
         }
         long cursor = after;
-        if (events.length() > 0) {
+        if (!events.isEmpty()) {
             cursor = events.getJSONObject(events.length() - 1).getLong("eventSeq");
         }
-        return new JSONObject().put("events", events).put("nextCursor", cursor);
+        return new JSONObject()
+                .put("events", events)
+                .put("nextCursor", cursor);
     }
 
     /**

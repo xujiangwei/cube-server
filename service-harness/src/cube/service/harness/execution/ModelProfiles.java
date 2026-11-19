@@ -65,11 +65,14 @@ public final class ModelProfiles {
      * @return 当前格式的 model profile JSON，无需 schemaVersion
      */
     public static JSONObject model(String name) {
-        if (!name.equals("Baize") && !name.equals("Baize2")) throw new IllegalArgumentException("MODEL_CAPABILITIES_REQUIRED");
+        if (!name.equals("Baize") && !name.equals("Baize2"))
+            throw new IllegalArgumentException("MODEL_CAPABILITIES_REQUIRED");
         return model(name, name.equals("Baize2"), name.equals("Baize") ? 40960 : 65536);
     }
 
-    /** Generic models require explicit verified native-tool support and a configured context window. */
+    /**
+     * Generic models require explicit verified native-tool support and a configured context window.
+     */
     public static JSONObject model(String name, boolean nativeTools, int contextTokens) {
         cube.service.harness.runtime.RuntimeSupport.id(name);
         if (contextTokens < 128 || contextTokens > 1048576) throw new IllegalArgumentException("MODEL_CONTEXT_INVALID");

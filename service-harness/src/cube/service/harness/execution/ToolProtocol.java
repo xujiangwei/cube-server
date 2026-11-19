@@ -11,6 +11,8 @@ import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.runtime.RuntimeSupport;
 import org.json.JSONObject;
 
+import java.io.IOException;
+
 /**
  * 当前通用工具（tool）与专用沙箱（sandbox）两类 runner 的契约定义与校验入口。
  *
@@ -42,6 +44,12 @@ public final class ToolProtocol {
      * 专用沙箱 runner 类型标识，对应契约目录 runner-sandbox。
      */
     public static final String SANDBOX = "sandbox";
+
+    /**
+     * 工具类，禁止实例化。
+     */
+    private ToolProtocol() {
+    }
 
     /**
      * 将 runner 类型映射为契约根目录名，并拒绝未知类型。
@@ -77,7 +85,7 @@ public final class ToolProtocol {
             Contract.validate(
                     value, StrictJson.object(Contract.resource(root + "/schemas/" + schema + ".json")));
             return value;
-        } catch (java.io.IOException e) {
+        } catch (IOException e) {
             throw new IllegalStateException("RUNNER_CONTRACT_MISSING", e);
         }
     }
@@ -101,7 +109,7 @@ public final class ToolProtocol {
                     }
                 }
             }
-        } catch (java.io.IOException e) {
+        } catch (IOException e) {
             throw new IllegalStateException("RUNNER_CONTRACT_MISSING", e);
         }
     }

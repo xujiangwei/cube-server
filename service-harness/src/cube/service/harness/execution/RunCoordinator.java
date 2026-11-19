@@ -7,22 +7,35 @@
 package cube.service.harness.execution;
 
 import cell.util.log.Logger;
+import cube.service.harness.files.FileService;
 import cube.service.harness.protocol.Contract;
 import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.runtime.ContextEngine;
+import cube.service.harness.runtime.ExecutionProfiles;
 import cube.service.harness.runtime.ProfileRegistry;
 import cube.service.harness.runtime.ResourceTools;
 import cube.service.harness.runtime.RuntimeSupport;
 import cube.service.harness.store.CatalogStore;
+import cube.service.harness.store.ControlStore;
+import cube.service.harness.store.InferenceStore;
 import cube.service.harness.store.JdbcRunStore;
+import cube.service.harness.store.MessageStore;
 import cube.service.harness.store.ModelJobStore;
 import cube.service.harness.store.StoreException;
+import cube.service.harness.store.ToolJobStore;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -75,7 +88,7 @@ public final class RunCoordinator implements AutoCloseable {
     /**
      * 多租户模式下使用的权限集合，构造时排序并包为不可变视图。
      */
-    private final java.util.Set<String> permissions;
+    private final Set<String> permissions;
 
     /**
      * 资源工具注册表：工具定义查询与受控调用。
@@ -117,7 +130,14 @@ public final class RunCoordinator implements AutoCloseable {
      */
     private volatile JdbcRunStore.Lease activeLease;
 
+    /**
+     * 最近一次诊断的限频键（runId 与错误码的组合）。
+     */
     private String lastDiagnosticKey;
+
+    /**
+     * 最近一次诊断的纳秒时间戳，用于错误限频。
+     */
     private long lastDiagnosticNanos;
 
     /**
@@ -133,17 +153,17 @@ public final class RunCoordinator implements AutoCloseable {
     /**
      * 控制面存储（等待输入、审批、取消时间），可后置注入。
      */
-    private cube.service.harness.store.ControlStore controls;
+    private ControlStore controls;
 
     /**
      * 文件服务，可后置注入；为 null 表示未启用受控文件访问。
      */
-    private cube.service.harness.files.FileService files;
+    private FileService files;
 
     /**
      * 需要人工审批的工具名集合，来自 control.approval.tools 配置。
      */
-    private java.util.Set<String> approvalTools = java.util.Collections.emptySet();
+    private Set<String> approvalTools = Collections.emptySet();
 
     /**
      * 等待输入/审批的最长毫秒数，范围 1000..86400000。
@@ -166,14 +186,14 @@ public final class RunCoordinator implements AutoCloseable {
      * @throws IllegalArgumentException 等待或宽严时间越界时抛出，错误码为 INVALID_CONTROL_CONFIG
      */
     public RunCoordinator controls(
-            cube.service.harness.store.ControlStore controls,
-            cube.service.harness.files.FileService files,
-            java.util.Properties p) {
+            ControlStore controls,
+            FileService files,
+            Properties p) {
         this.controls = controls;
         this.files = files;
         approvalTools =
-                new java.util.HashSet<>(
-                        java.util.Arrays.asList(p.getProperty("control.approval.tools", "").split(",")));
+                new HashSet<>(
+                        Arrays.asList(p.getProperty("control.approval.tools", "").split(",")));
         waitMillis = Long.parseLong(p.getProperty("control.wait.millis", "300000"));
         cancelGrace = Long.parseLong(p.getProperty("control.cancel.grace.millis", "10000"));
         if (waitMillis < 1000 || waitMillis > 86400000 || cancelGrace < 1000 || cancelGrace > 60000) {
@@ -182,7 +202,16 @@ public final class RunCoordinator implements AutoCloseable {
         return this;
     }
 
-    public RunCoordinator budgets(ModelBudgets value) { contexts.budgets(value); return this; }
+    /**
+     * 设置上下文引擎使用的 token 预算计量器。
+     *
+     * @param value token 预算计量器。
+     * @return 本协调器实例，便于链式调用。
+     */
+    public RunCoordinator budgets(ModelBudgets value) {
+        contexts.budgets(value);
+        return this;
+    }
 
     /**
      * 以受信身份构造协调器（不启用工具 Broker）。
@@ -233,7 +262,7 @@ public final class RunCoordinator implements AutoCloseable {
      * @param broker      工具 Broker，可为 null
      */
     public RunCoordinator(JdbcRunStore store, ModelJobStore jobs, CatalogStore catalog,
-                          java.util.Set<String> permissions, ResourceTools resources, ToolBroker broker) {
+                          Set<String> permissions, ResourceTools resources, ToolBroker broker) {
         this(store, jobs, catalog, null, permissions, resources, broker);
     }
 
@@ -249,14 +278,14 @@ public final class RunCoordinator implements AutoCloseable {
      * @param broker      工具 Broker，可为 null
      */
     private RunCoordinator(JdbcRunStore store, ModelJobStore jobs, CatalogStore catalog,
-                           ProfileRegistry.Identity identity, java.util.Set<String> permissions,
+                           ProfileRegistry.Identity identity, Set<String> permissions,
                            ResourceTools resources, ToolBroker broker) {
         this.broker = broker;
         this.store = store;
         this.jobs = jobs;
         this.catalog = catalog;
         this.identity = identity;
-        this.permissions = java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(permissions));
+        this.permissions = Collections.unmodifiableSet(new TreeSet<>(permissions));
         this.resources = resources;
         this.contexts = new ContextEngine(catalog, resources);
         executor =
@@ -280,13 +309,19 @@ public final class RunCoordinator implements AutoCloseable {
      */
     private void renewActiveLease() {
         JdbcRunStore.Lease lease = activeLease;
-        if (lease == null) return;
+        if (lease == null) {
+            return;
+        }
         try {
             store.renew(lease, RUN_LEASE_MILLIS);
         } catch (StoreException e) {
-            if (activeLease == lease) lastError = e.code;
+            if (activeLease == lease) {
+                lastError = e.code;
+            }
         } catch (Exception e) {
-            if (activeLease == lease) lastError = "COORDINATOR_LEASE_RENEW_FAILED";
+            if (activeLease == lease) {
+                lastError = "COORDINATOR_LEASE_RENEW_FAILED";
+            }
         }
     }
 
@@ -473,6 +508,15 @@ public final class RunCoordinator implements AutoCloseable {
             finish(l, state, settlement, result, -1);
         }
 
+        /**
+         * 收尾 run 并绑定输入修订号。
+         *
+         * @param l             run 租约
+         * @param state         目标状态
+         * @param settlement    执行结算方式，confirmed 或 unknown
+         * @param result        结果载荷
+         * @param inputRevision 本次收尾对应的输入修订号，-1 表示不绑定
+         */
         private void finish(JdbcRunStore.Lease l, String state, String settlement, JSONObject result, long inputRevision) {
             if (state.equals("succeeded") && files != null) {
                 try {
@@ -495,8 +539,9 @@ public final class RunCoordinator implements AutoCloseable {
         /**
          * 以 failed/confirmed 加错误码收尾 run。
          *
-         * @param l    run 租约
-         * @param code 错误码
+         * @param l             run 租约
+         * @param code          错误码
+         * @param inputRevision 本次失败对应的输入修订号
          */
         private void fail(JdbcRunStore.Lease l, String code, long inputRevision) {
             finish(l, "failed", "confirmed", new JSONObject().put("errorCode", code), inputRevision);
@@ -517,8 +562,8 @@ public final class RunCoordinator implements AutoCloseable {
          */
         private void tool(JdbcRunStore.Lease l, JSONObject row, boolean expired, boolean terminal)
                 throws Exception {
-            JSONObject call = new JSONObject(row.getString("payload_json")),
-                    result = new JSONObject().put("artifacts", new JSONArray());
+            JSONObject call = new JSONObject(row.getString("payload_json"));
+            JSONObject result = new JSONObject().put("artifacts", new JSONArray());
             try {
                 JSONObject job =
                         broker == null
@@ -527,7 +572,10 @@ public final class RunCoordinator implements AutoCloseable {
                 boolean obsolete = row.optLong("input_revision", 0) < state(l.runId).optLong("inputRevision", 0);
                 if (obsolete && row.optLong("admitted_at", 0) == 0
                         && (job == null || job.getString("status").equals("queued"))) {
-                    if (job != null && job.getInt("actual_finished") == 0) { broker.jobs.cancel(l, job.getString("job_id")); return; }
+                    if (job != null && job.getInt("actual_finished") == 0) {
+                        broker.jobs.cancel(l, job.getString("job_id"));
+                        return;
+                    }
                     confirm(l, "call", row, new JSONObject().put("status", "error").put("errorCode", "TOOL_SUPERSEDED").put("artifacts", new JSONArray()));
                     return;
                 }
@@ -564,15 +612,15 @@ public final class RunCoordinator implements AutoCloseable {
                     return;
                 }
                 if (terminal || expired) {
-                    confirm(l, "call", row, cube.service.harness.store.ToolJobStore.error("TOOL_CANCELLED"));
+                    confirm(l, "call", row, ToolJobStore.error("TOOL_CANCELLED"));
                     return;
                 }
                 JSONObject arguments =
                         StrictJson.object(
-                                call.getString("argumentsJson").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                                call.getString("argumentsJson").getBytes(StandardCharsets.UTF_8));
                 String name = call.getString("tool");
                 if (files != null
-                        && java.util.Arrays.asList("input.read_text", "artifact.write_text").contains(name)) {
+                        && Arrays.asList("input.read_text", "artifact.write_text").contains(name)) {
                     JSONObject definition = null;
                     JSONArray available = resources.tools(identity, l.runId);
                     for (int i = 0; i < available.length(); i++) {
@@ -598,11 +646,11 @@ public final class RunCoordinator implements AutoCloseable {
                     return;
                 }
                 store.admitCall(l, row);
-                JSONObject referenceProblem = resources.referenceProblem(identity,l.runId,name,arguments);
+                JSONObject referenceProblem = resources.referenceProblem(identity, l.runId, name, arguments);
                 if (referenceProblem != null) {
-                    result.put("status","error").put("errorCode","RESOURCE_NOT_FOUND")
-                            .put("dataJson",JdbcRunStore.canonical(referenceProblem));
-                    confirm(l,"call",row,result);
+                    result.put("status", "error").put("errorCode", "RESOURCE_NOT_FOUND")
+                            .put("dataJson", JdbcRunStore.canonical(referenceProblem));
+                    confirm(l, "call", row, result);
                     return;
                 }
                 Object value = resources.invoke(identity, l.runId, name, arguments, l);
@@ -643,8 +691,8 @@ public final class RunCoordinator implements AutoCloseable {
          * @throws Exception 存储访问或状态转换失败时向上传播
          */
         private void step(String run) throws Exception {
-            JSONObject read = store.read(identity.tenant, identity.subject, run),
-                    s = read.getJSONObject("snapshot");
+            JSONObject read = store.read(identity.tenant, identity.subject, run);
+            JSONObject s = read.getJSONObject("snapshot");
             String state = s.getString("state");
             boolean cancelling = state.equals("cancelling");
             boolean terminal =
@@ -654,9 +702,9 @@ public final class RunCoordinator implements AutoCloseable {
                     && read.getString("usageSettlement").equals("settled")) {
                 return;
             }
-            JSONObject pin = catalog.pinned(identity.tenant, identity.subject, run),
-                    task = cube.service.harness.runtime.ExecutionProfiles.execution(pin),
-                    model = pin.getJSONObject("model");
+            JSONObject pin = catalog.pinned(identity.tenant, identity.subject, run);
+            JSONObject task = ExecutionProfiles.execution(pin);
+            JSONObject model = pin.getJSONObject("model");
             JSONObject limits = task.optJSONObject("executionLimits");
             if (limits == null) {
                 limits =
@@ -668,7 +716,7 @@ public final class RunCoordinator implements AutoCloseable {
             }
             boolean expired =
                     jobs.expired(identity.tenant, identity.subject, run, limits.getLong("maxLifetimeMillis"))
-                    || jobs.activeExpired(identity.tenant, identity.subject, run, limits.optLong("maxActiveMillis", limits.getLong("maxLifetimeMillis")));
+                            || jobs.activeExpired(identity.tenant, identity.subject, run, limits.optLong("maxActiveMillis", limits.getLong("maxLifetimeMillis")));
             if (Arrays.asList("waiting_input", "waiting_approval").contains(state) && !expired) {
                 JSONObject wait =
                         controls == null ? null : controls.current(identity.tenant, identity.subject, run);
@@ -701,17 +749,22 @@ public final class RunCoordinator implements AutoCloseable {
                 }
                 return;
             }
-            JSONArray rounds = intents(run, "round"), calls = intents(run, "call");
+            JSONArray rounds = intents(run, "round");
+            JSONArray calls = intents(run, "call");
             JSONArray workflowRepairs = catalog.workflowRepairs(identity.tenant, identity.subject, run);
             int repairs = workflowRepairs.length();
             // 任何新 intent 之前先对账全部历史 round；回调只写证据，从不写状态。
             for (int i = 0; i < rounds.length(); i++) {
-                JSONObject r = rounds.getJSONObject(i), j = jobs.enqueue(l, r, model);
+                JSONObject r = rounds.getJSONObject(i);
+                JSONObject j = jobs.enqueue(l, r, model);
                 boolean obsoleteRound = r.optLong("input_revision", 0) < state(run).optLong("inputRevision", 0);
-                if (obsoleteRound && j.getString("status").equals("queued")) { jobs.cancel(l, j.getString("job_id")); j = jobs.job(run, r.getString("intent_id")); }
+                if (obsoleteRound && j.getString("status").equals("queued")) {
+                    jobs.cancel(l, j.getString("job_id"));
+                    j = jobs.job(run, r.getString("intent_id"));
+                }
                 if (!j.isNull("outcome_json")) {
                     JSONObject o = new JSONObject(j.getString("outcome_json"));
-                    repairs += cube.service.harness.store.InferenceStore.repairs(o);
+                    repairs += InferenceStore.repairs(o);
                 }
                 if (!r.getString("status").equals("confirmed")) {
                     if (j.getInt("actual_finished") == 0) {
@@ -751,8 +804,7 @@ public final class RunCoordinator implements AutoCloseable {
                         return;
                     }
                     confirm(l, "round", r, o.getJSONObject("decision"));
-                    // The confirmation committed. Continue reconciliation in this step instead
-                    // of scanning and re-reading the same run just to settle usage and finish.
+                    // 确认已提交，继续在本步内对账，不必重新扫描并读取同一 run 只为结算用量与收尾。
                     r.put("status", "confirmed").put("result_json", o.getJSONObject("decision").toString());
                 }
                 JSONObject o = new JSONObject(j.getString("outcome_json"));
@@ -794,42 +846,57 @@ public final class RunCoordinator implements AutoCloseable {
                 fail(l, "REPAIR_LIMIT_EXCEEDED", state(run).optLong("inputRevision", 0));
                 return;
             }
-            // Host workflows use persisted input and confirmed facts with normal tool
-            // intents/budgets; they never manufacture a model round or a receipt.
+            // 宿主工作流使用持久输入与已确认事实，走普通工具 intent 与预算，
+            // 绝不伪造模型 round 或回执。
             JSONObject planning = null;
             if (broker != null) {
                 long planningRevision = state(run).optLong("inputRevision", 0);
                 try {
-                    if (!identity.permissions.containsAll(RuntimeSupport.strings(pin.getJSONArray("permissions"))))
+                    if (!identity.permissions.containsAll(RuntimeSupport.strings(pin.getJSONArray("permissions")))) {
                         throw new StoreException("CONTEXT_AUTHORIZATION_CHANGED");
+                    }
                     JSONObject bound = broker.advance(identity, run, pin, catalog.activeSkills(identity.tenant, identity.subject, run));
-                    if (state(run).optLong("inputRevision", 0) != planningRevision) throw new StoreException("INPUT_REVISION_CONFLICT");
+                    if (state(run).optLong("inputRevision", 0) != planningRevision) {
+                        throw new StoreException("INPUT_REVISION_CONFLICT");
+                    }
                     if (state(run).optLong("inputRevision", 0) != state(run).optLong("appliedInputRevision", 0)) {
-                        if (bound != null && bound.optBoolean("adoptsInput", false)) catalog.adoptWorkflowInput(l, version(run), planningRevision);
-                        else bound = null;
+                        if (bound != null && bound.optBoolean("adoptsInput", false)) {
+                            catalog.adoptWorkflowInput(l, version(run), planningRevision);
+                        } else {
+                            bound = null;
+                        }
                     }
                     if (bound != null) {
                         if (bound.getString("kind").equals("planning")) {
                             planning = bound;
                         } else {
                             if (bound.getString("kind").equals("need_input")) {
-                                cube.service.harness.store.MessageStore.validateQuestions(bound);
-                                if (controls == null) throw new StoreException("INTERACTION_NOT_READY");
+                                MessageStore.validateQuestions(bound);
+                                if (controls == null) {
+                                    throw new StoreException("INTERACTION_NOT_READY");
+                                }
                                 controls.waitFor(l, version(run), "input", bound,
                                         Math.min(jobs.created(l) + limits.getLong("maxLifetimeMillis"), controls.now() + Math.min(waitMillis, limits.optLong("maxInteractionWaitMillis", waitMillis))));
-                                store.release(l, version(run)); leases.remove(run); return;
+                                store.release(l, version(run));
+                                leases.remove(run);
+                                return;
                             }
                             if (bound.getString("kind").equals("final")) {
                                 JSONObject checked = broker.completion(identity, run, pin, catalog.activeSkills(identity.tenant, identity.subject, run), bound);
-                                if (!checked.getBoolean("satisfied") || !(checked.has("report") || checked.has("retrieval"))) throw new StoreException("WORKFLOW_REQUIREMENTS_UNMET");
+                                if (!checked.getBoolean("satisfied") || !(checked.has("report") || checked.has("retrieval"))) {
+                                    throw new StoreException("WORKFLOW_REQUIREMENTS_UNMET");
+                                }
                                 String field = checked.has("report") ? "report" : "retrieval";
-                                JSONObject delivery = checked.getJSONObject(field); checked.remove(field);
+                                JSONObject delivery = checked.getJSONObject(field);
+                                checked.remove(field);
                                 finish(l, "succeeded", "confirmed", new JSONObject().put("kind", "final").put("text", JdbcRunStore.canonical(delivery))
                                         .put(field, delivery).put("workflow", checked).put("construction", bound.optString("construction", "fixed-patrol-v1")), planningRevision);
                                 return;
                             }
                             JSONObject call = bound.getJSONObject("call");
-                            if (planningRevision > 0) call.put("proposalId", call.getString("proposalId") + ":r" + planningRevision);
+                            if (planningRevision > 0) {
+                                call.put("proposalId", call.getString("proposalId") + ":r" + planningRevision);
+                            }
                             for (int i = 0; i < calls.length(); i++) {
                                 JSONObject prior = calls.getJSONObject(i);
                                 if (prior.getString("intent_id").equals(call.getString("proposalId"))) {
@@ -837,19 +904,29 @@ public final class RunCoordinator implements AutoCloseable {
                                     throw new StoreException(result.optString("errorCode", "WORKFLOW_NO_PROGRESS"));
                                 }
                             }
-                            if (calls.length() >= limits.getInt("maxTools")) throw new StoreException("TOOL_LIMIT_EXCEEDED");
+                            if (calls.length() >= limits.getInt("maxTools")) {
+                                throw new StoreException("TOOL_LIMIT_EXCEEDED");
+                            }
                             JSONObject definition = null;
                             JSONArray available = resources.tools(identity, run);
-                            for (int t = 0; t < available.length(); t++) if (available.getJSONObject(t).getString("name").equals(call.getString("tool"))) definition = available.getJSONObject(t);
-                            if (definition == null) throw new StoreException("RESOURCE_FORBIDDEN");
-                            JSONObject arguments = StrictJson.object(call.getString("argumentsJson").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                            for (int t = 0; t < available.length(); t++) {
+                                if (available.getJSONObject(t).getString("name").equals(call.getString("tool"))) {
+                                    definition = available.getJSONObject(t);
+                                }
+                            }
+                            if (definition == null) {
+                                throw new StoreException("RESOURCE_FORBIDDEN");
+                            }
+                            JSONObject arguments = StrictJson.object(call.getString("argumentsJson").getBytes(StandardCharsets.UTF_8));
                             Contract.validate(arguments, definition.getJSONObject("parameters"));
                             String binding = "proposal:" + call.getString("proposalId");
                             if (controls != null && approvalTools.contains(call.getString("tool")) && !controls.handled(run, "approval", binding)) {
                                 controls.waitFor(l, version(run), "approval", new JSONObject().put("binding", binding)
                                         .put("tool", call.getString("tool")).put("arguments", arguments).put("argumentsHash", JdbcRunStore.hash(arguments))
                                         .put("configDigest", JdbcRunStore.hash(pin)), Math.min(jobs.created(l) + limits.getLong("maxLifetimeMillis"), controls.now() + Math.min(waitMillis, limits.optLong("maxInteractionWaitMillis", waitMillis))));
-                                store.release(l, version(run)); leases.remove(run); return;
+                                store.release(l, version(run));
+                                leases.remove(run);
+                                return;
                             }
                             catalog.workflowBinding(l, version(run), call);
                             store.intent(l, version(run), "call", call.getString("proposalId"), 1, call, 0, 0);
@@ -857,16 +934,18 @@ public final class RunCoordinator implements AutoCloseable {
                         }
                     }
                 } catch (StoreException error) {
-                    if (error.code.startsWith("STORE_") || Arrays.asList("STALE_OWNER", "VERSION_CONFLICT", "INPUT_REVISION_CONFLICT").contains(error.code)) throw error;
-                    finish(l, "failed", "confirmed", new JSONObject().put("errorCode", error.code), planningRevision); return;
+                    if (error.code.startsWith("STORE_") || Arrays.asList("STALE_OWNER", "VERSION_CONFLICT", "INPUT_REVISION_CONFLICT").contains(error.code)) {
+                        throw error;
+                    }
+                    finish(l, "failed", "confirmed", new JSONObject().put("errorCode", error.code), planningRevision);
+                    return;
                 }
             }
             if (rounds.length() > 0 && rounds.getJSONObject(rounds.length() - 1).optLong("input_revision", 0) == state(run).optLong("inputRevision", 0)) {
                 long decisionRevision = rounds.getJSONObject(rounds.length() - 1).optLong("input_revision", 0);
                 JSONObject last = new JSONObject(rounds.getJSONObject(rounds.length() - 1).getString("result_json"));
                 if (last.getString("kind").equals("final")) {
-                    // No further model input is needed. Keep the authorization check that
-                    // context assembly would perform, without rebuilding/checkpointing it.
+                    // 无需更多模型输入，保留上下文组装本会做的授权校验，但不重建与存档上下文。
                     if (!identity.permissions.containsAll(RuntimeSupport.strings(pin.getJSONArray("permissions")))) {
                         fail(l, "CONTEXT_AUTHORIZATION_CHANGED", decisionRevision);
                         return;
@@ -876,22 +955,27 @@ public final class RunCoordinator implements AutoCloseable {
                         if (broker == null) {
                             JSONArray releases = pin.getJSONArray("releases");
                             for (int i = 0; i < releases.length(); i++) {
-                                if (ToolBroker.hasCompletionRequirements(releases.getJSONObject(i).getJSONObject("manifest")))
+                                if (ToolBroker.hasCompletionRequirements(releases.getJSONObject(i).getJSONObject("manifest"))) {
                                     throw new StoreException("WORKFLOW_GUARD_UNAVAILABLE");
+                                }
                             }
                             assessment = new JSONObject().put("required", false).put("satisfied", true);
                         } else {
                             assessment = broker.completion(identity, run, pin, catalog.activeSkills(identity.tenant, identity.subject, run), last);
                         }
                     } catch (StoreException error) {
-                        if (error.code.startsWith("STORE_") || error.code.equals("INPUT_REVISION_CONFLICT")) throw error;
+                        if (error.code.startsWith("STORE_") || error.code.equals("INPUT_REVISION_CONFLICT")) {
+                            throw error;
+                        }
                         finish(l, "failed", "confirmed", new JSONObject().put("errorCode", error.code), decisionRevision);
                         return;
                     } catch (Exception error) {
                         finish(l, "failed", "confirmed", new JSONObject().put("errorCode", "WORKFLOW_CHECK_INVALID"), decisionRevision);
                         return;
                     }
-                    if (state(run).optLong("inputRevision", 0) != decisionRevision) throw new StoreException("INPUT_REVISION_CONFLICT");
+                    if (state(run).optLong("inputRevision", 0) != decisionRevision) {
+                        throw new StoreException("INPUT_REVISION_CONFLICT");
+                    }
                     if (assessment.getBoolean("satisfied")) {
                         if (assessment.has("report")) {
                             JSONObject report = assessment.getJSONObject("report");
@@ -899,18 +983,22 @@ public final class RunCoordinator implements AutoCloseable {
                             last.put("report", report).put("text", JdbcRunStore.canonical(report));
                         }
                         if (assessment.has("retrieval")) {
-                            JSONObject retrieval = assessment.getJSONObject("retrieval"); assessment.remove("retrieval");
+                            JSONObject retrieval = assessment.getJSONObject("retrieval");
+                            assessment.remove("retrieval");
                             last.put("retrieval", retrieval).put("text", JdbcRunStore.canonical(retrieval));
                         }
-                        if (assessment.getBoolean("required")) last.put("workflow", assessment);
+                        if (assessment.getBoolean("required")) {
+                            last.put("workflow", assessment);
+                        }
                         finish(l, "succeeded", "confirmed", last, decisionRevision);
                         return;
                     }
                     String roundId = rounds.getJSONObject(rounds.length() - 1).getString("intent_id");
                     boolean requested = false;
                     for (int i = 0; i < workflowRepairs.length(); i++) {
-                        if (new JSONObject(workflowRepairs.getJSONObject(i).getString("data_json")).getString("roundId").equals(roundId))
+                        if (new JSONObject(workflowRepairs.getJSONObject(i).getString("data_json")).getString("roundId").equals(roundId)) {
                             requested = true;
+                        }
                     }
                     if (!requested) {
                         if (workflowRepairs.length() >= assessment.getInt("maxRepairs")
@@ -933,8 +1021,9 @@ public final class RunCoordinator implements AutoCloseable {
                         fail(l, "CONTEXT_AUTHORIZATION_CHANGED", rounds.getJSONObject(rounds.length() - 1).optLong("input_revision", 0));
                         return;
                     }
-                    try { cube.service.harness.store.MessageStore.validateQuestions(last); }
-                    catch (StoreException e) {
+                    try {
+                        MessageStore.validateQuestions(last);
+                    } catch (StoreException e) {
                         finish(l, "failed", "confirmed", new JSONObject().put("errorCode", e.code), rounds.getJSONObject(rounds.length() - 1).optLong("input_revision", 0));
                         return;
                     }
@@ -969,7 +1058,9 @@ public final class RunCoordinator implements AutoCloseable {
             try {
                 snapshot = contexts.assemble(identity, run, new JSONArray(), planning);
             } catch (StoreException e) {
-                if (e.code.startsWith("STORE_") || Arrays.asList("STALE_OWNER", "VERSION_CONFLICT", "INPUT_REVISION_CONFLICT").contains(e.code)) throw e;
+                if (e.code.startsWith("STORE_") || Arrays.asList("STALE_OWNER", "VERSION_CONFLICT", "INPUT_REVISION_CONFLICT").contains(e.code)) {
+                    throw e;
+                }
                 fail(l, e.code.split(":")[0], assemblyRevision);
                 return;
             }
@@ -990,7 +1081,7 @@ public final class RunCoordinator implements AutoCloseable {
                         JSONObject args =
                                 StrictJson.object(
                                         call.getString("argumentsJson")
-                                                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                                                .getBytes(StandardCharsets.UTF_8));
                         JSONArray available = resources.tools(identity, run);
                         JSONObject definition = null;
                         for (int t = 0; t < available.length(); t++) {
@@ -1040,7 +1131,7 @@ public final class RunCoordinator implements AutoCloseable {
             }
             JSONObject request = ContextEngine.modelInput(snapshot);
             request.put("maxRepairs", Math.max(0, Math.min(1, limits.getInt("maxRepairs") - repairs)));
-            String round = String.format(java.util.Locale.ROOT, "round-%04d", rounds.length() + 1);
+            String round = String.format(Locale.ROOT, "round-%04d", rounds.length() + 1);
             store.intent(
                     l,
                     version(run),
@@ -1051,8 +1142,7 @@ public final class RunCoordinator implements AutoCloseable {
                             .put("decisionObservation", snapshot.getJSONObject("decisionObservation")).put("request", request),
                     snapshot.getLong("inputTokens"),
                     snapshot.getLong("outputReserve"));
-            // Queue immediately after the intent commits; a crash between the two
-            // transactions is still recovered by the historical-round loop above.
+            // intent 提交后立即入队；两次事务之间若崩溃，仍由上面的历史 round 对账循环恢复。
             JSONArray durableRounds = intents(run, "round");
             jobs.enqueue(l, durableRounds.getJSONObject(durableRounds.length() - 1), model);
         }

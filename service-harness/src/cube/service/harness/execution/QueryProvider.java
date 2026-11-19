@@ -6,7 +6,11 @@
 
 package cube.service.harness.execution;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.util.Collections;
+import java.util.Set;
 
 /**
  * 受信任的、由管理员安装的工具查询提供方扩展，负责对 schema 校验后的工具参数执行实际查询。
@@ -21,63 +25,6 @@ import org.json.JSONObject;
  * </ul>
  */
 public interface QueryProvider extends AutoCloseable {
-    default String effect() { return "read-only"; }
-    /** Includes queueing, preparation and result delivery; >30s requires provider-await-v1. */
-    default int runnerWaitMillis() { return independentExecution() ? 30000 : 10000; }
-    default java.util.Set<String> configurationFiles() { return java.util.Collections.emptySet(); }
-    default void validateConfiguration(String path, JSONObject config) { }
-    default void preflightConfiguration(ProviderInvocationLookup lookup, String path, JSONObject config) { validateConfiguration(path, config); }
-
-    /** Read-only admission services, supplied by the host, never by a model. */
-    interface ProviderInvocationLookup {
-        JSONObject source(String ref);
-        org.json.JSONArray mediaUnits();
-    }
-    /**
-     * 重启或unknown对账期的清理/探测入口，仅供 Broker 恢复窗口调用。
-     *
-     * <p>约定：只允许做清理或探测，严禁重复原始上游操作，也不得宣称未被观察到的执行结果。
-     * 默认实现不做任何事并返回 false。
-     *
-     * @param invocation 本次调用的可信上下文，含取消与授权判定
-     * @return true 表示提供方已确认无需保留的未决效果，可由 Broker 标记对账完成
-     * @throws Exception 清理/探测失败时抛出，由 Broker 记为 unknown 并稍后重试
-     */
-    default boolean reconcile(ProviderInvocation invocation) throws Exception {
-        return false;
-    }
-
-    /**
-     * 返回本提供方登记的 runner 类型，决定作业由通用 tool runner 还是专用 sandbox worker 执行。
-     *
-     * @return runner 类型标识，默认 {@code "tool"}；sandbox 类提供方返回 {@code "sandbox"}
-     */
-    default String runnerType() {
-        return "tool";
-    }
-
-    /**
-     * 返回本提供方的执行是否独立于调用线程（即是否可经恢复队列异步对账）。
-     *
-     * @return true 表示执行独立，Broker 可异步重试清理而不占用查询线程；默认 false
-     */
-    default boolean independentExecution() {
-        return false;
-    }
-
-    /**
-     * 携带可信调用上下文执行查询，默认转交给无上下文的 {@link #query(JSONObject)}。
-     *
-     * <p>需要访问受控输入/产物的提供方应重写本方法，经 invocation 读取文件而非自行拼接路径。
-     *
-     * @param invocation 本次调用的可信上下文
-     * @param arguments  已按 inputSchema 与提供方校验通过的工具参数
-     * @return 符合 resultSchema 的结果对象，由 Broker 再次校验后落库
-     * @throws Exception 上游访问或结果构造失败时抛出
-     */
-    default JSONObject query(ProviderInvocation invocation, JSONObject arguments) throws Exception {
-        return query(arguments);
-    }
 
     /**
      * 返回本提供方的 operation 标识，是部署端注册与作业路由的唯一键。
@@ -115,6 +62,14 @@ public interface QueryProvider extends AutoCloseable {
     void validate(JSONObject arguments);
 
     /**
+     * 对提供方返回的结果执行自定义校验（投影范围、字段一致性等），在 schema 校验之后调用。
+     *
+     * @param arguments 本次调用的工具参数，用于按参数校验结果
+     * @param result    提供方返回、尚未落库的结果对象
+     */
+    void validateResult(JSONObject arguments, JSONObject result);
+
+    /**
      * 无上下文便捷查询入口；需要受控文件访问的提供方应改用
      * {@link #query(ProviderInvocation, JSONObject)}。
      *
@@ -125,16 +80,125 @@ public interface QueryProvider extends AutoCloseable {
     JSONObject query(JSONObject arguments) throws Exception;
 
     /**
-     * 对提供方返回的结果执行自定义校验（投影范围、字段一致性等），在 schema 校验之后调用。
+     * 携带可信调用上下文执行查询，默认转交给无上下文的 {@link #query(JSONObject)}。
      *
-     * @param arguments 本次调用的工具参数，用于按参数校验结果
-     * @param result    提供方返回、尚未落库的结果对象
+     * <p>需要访问受控输入/产物的提供方应重写本方法，经 invocation 读取文件而非自行拼接路径。</p>
+     *
+     * @param invocation 本次调用的可信上下文
+     * @param arguments  已按 inputSchema 与提供方校验通过的工具参数
+     * @return 符合 resultSchema 的结果对象，由 Broker 再次校验后落库
+     * @throws Exception 上游访问或结果构造失败时抛出
      */
-    void validateResult(JSONObject arguments, JSONObject result);
+    default JSONObject query(ProviderInvocation invocation, JSONObject arguments) throws Exception {
+        return query(arguments);
+    }
+
+    /**
+     * 返回本提供方声明的配置文件路径集合，默认空集。
+     *
+     * <p>Broker 在包校验与就绪预检时对这里的每个路径调用配置校验钩子。</p>
+     *
+     * @return 业务包内的配置文件相对路径集合。
+     */
+    default Set<String> configurationFiles() {
+        return Collections.emptySet();
+    }
+
+    /**
+     * 包校验阶段对单个配置文件执行提供方自定义校验，默认不做任何事。
+     *
+     * @param path   配置文件在业务包内的相对路径。
+     * @param config 已解析的配置文件内容。
+     */
+    default void validateConfiguration(String path, JSONObject config) {
+    }
+
+    /**
+     * 就绪预检阶段对单个配置文件执行校验，默认转交给 {@link #validateConfiguration(String, JSONObject)}。
+     *
+     * <p>可访问宿主提供的只读准入服务，且在 run 创建事务之外调用，不得触发网络或数据库递归。</p>
+     *
+     * @param lookup 宿主提供的只读准入服务。
+     * @param path   配置文件在业务包内的相对路径。
+     * @param config 已验证的配置文件内容。
+     */
+    default void preflightConfiguration(ProviderInvocationLookup lookup, String path, JSONObject config) {
+        validateConfiguration(path, config);
+    }
+
+    /**
+     * 返回本提供方的效果类别，用于声明工具是否只读或创建产物，默认 {@code read-only}。
+     *
+     * @return 效果类别标识。
+     */
+    default String effect() {
+        return "read-only";
+    }
+
+    /**
+     * 返回本提供方登记的 runner 类型，决定作业由通用 tool runner 还是专用 sandbox worker 执行。
+     *
+     * @return runner 类型标识，默认 {@code "tool"}；sandbox 类提供方返回 {@code "sandbox"}
+     */
+    default String runnerType() {
+        return "tool";
+    }
+
+    /**
+     * 返回单次查询可等待的最长毫秒数，含排队、准备与结果投递；超过 30 秒需声明 provider-await-v1。
+     *
+     * @return 等待时长上限，独立执行时 30000 毫秒，否则 10000 毫秒。
+     */
+    default int runnerWaitMillis() {
+        return independentExecution() ? 30000 : 10000;
+    }
+
+    /**
+     * 返回本提供方的执行是否独立于调用线程（即是否可经恢复队列异步对账）。
+     *
+     * @return true 表示执行独立，Broker 可异步重试清理而不占用查询线程；默认 false
+     */
+    default boolean independentExecution() {
+        return false;
+    }
+
+    /**
+     * 重启或unknown对账期的清理/探测入口，仅供 Broker 恢复窗口调用。
+     *
+     * <p>约定：只允许做清理或探测，严禁重复原始上游操作，也不得宣称未被观察到的执行结果。
+     * 默认实现不做任何事并返回 false。
+     *
+     * @param invocation 本次调用的可信上下文，含取消与授权判定
+     * @return true 表示提供方已确认无需保留的未决效果，可由 Broker 标记对账完成
+     * @throws Exception 清理/探测失败时抛出，由 Broker 记为 unknown 并稍后重试
+     */
+    default boolean reconcile(ProviderInvocation invocation) throws Exception {
+        return false;
+    }
 
     /**
      * 释放提供方持有的上游连接与资源；重复调用必须安全。
      */
     @Override
     void close();
+
+    /**
+     * 由宿主提供的只读准入服务，供就绪预检使用，绝不来自模型。
+     */
+    interface ProviderInvocationLookup {
+        /**
+         * 授权并读取指定数据源。
+         *
+         * @param ref 数据源引用。
+         * @return 数据源定义。
+         */
+        JSONObject source(String ref);
+
+        /**
+         * 返回只读的媒体单元状态快照。
+         *
+         * @return 媒体单元数组。
+         */
+        JSONArray mediaUnits();
+    }
 }

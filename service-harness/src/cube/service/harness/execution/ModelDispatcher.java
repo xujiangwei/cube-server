@@ -104,7 +104,8 @@ public final class ModelDispatcher {
         if (action.equals("describe")) {
             descriptor = new JSONObject(request.getJSONObject("descriptor").toString());
             String prefix = "worker." + worker + ".";
-            if (!"model".equals(config.getProperty(prefix + "role")) || !descriptor.getString("model").equals(config.getProperty(prefix + "model"))) {
+            if (!"model".equals(config.getProperty(prefix + "role"))
+                    || !descriptor.getString("model").equals(config.getProperty(prefix + "model"))) {
                 throw new IllegalArgumentException("FORBIDDEN");
             }
             String model = descriptor.getString("model");
@@ -124,7 +125,8 @@ public final class ModelDispatcher {
                 throw new IllegalArgumentException("BACKEND_CAPACITY_MISMATCH");
             }
             if (protocol == 2) {
-                if (!backend.equals(descriptor.getString("backendId")) || descriptor.getInt("capacity") != capacity
+                if (!backend.equals(descriptor.getString("backendId"))
+                        || descriptor.getInt("capacity") != capacity
                         || descriptor.getBoolean("nativeTools") != model.equals("Baize2")) {
                     throw new IllegalArgumentException("BACKEND_CAPACITY_MISMATCH");
                 }
@@ -169,7 +171,9 @@ public final class ModelDispatcher {
             JSONObject report = new JSONObject(request.getJSONObject("report").toString());
             if (protocol == 3) {
                 JSONObject bound = jobs.jobById(report.getString("jobId"));
-                if (bound == null || !worker.equals(bound.optString("worker_id")) || !report.getString("instanceId").equals(bound.optString("instance_id"))) {
+                if (bound == null
+                        || !worker.equals(bound.optString("worker_id"))
+                        || !report.getString("instanceId").equals(bound.optString("instance_id"))) {
                     throw new IllegalArgumentException("JOB_EVIDENCE_MISMATCH");
                 }
                 JSONObject outcome = ModelProtocol.outcome(report.getString("outcomeJson"), report.getBoolean("actualFinished"));
@@ -224,7 +228,8 @@ public final class ModelDispatcher {
      */
     private static boolean interactionCompatible(JSONObject model, JSONObject descriptor) {
         JSONObject generation = model.optJSONObject("generation");
-        return generation == null || !generation.optBoolean("structuredInput", false) || descriptor.optBoolean("structuredInput", false);
+        return generation == null || !generation.optBoolean("structuredInput", false) ||
+                descriptor.optBoolean("structuredInput", false);
     }
 
     public synchronized boolean ready(JSONObject model) {
@@ -232,12 +237,16 @@ public final class ModelDispatcher {
         for (int i = 0; i < list.length(); i++) {
             JSONObject worker = list.getJSONObject(i), descriptor = worker.getJSONObject("descriptor");
             if (worker.getBoolean("ready") && descriptor.getString("model").equals(model.getString("id"))
-                    && descriptor.getString("adapter").equals(model.optString("adapter", "scripted-v1")) && interactionCompatible(model, descriptor)) return true;
+                    && descriptor.getString("adapter").equals(model.optString("adapter", "scripted-v1"))
+                    && interactionCompatible(model, descriptor))
+                return true;
         }
         return false;
     }
 
-    /** Per-model capacity; busy healthy nodes remain ready and can accept queued work. */
+    /**
+     * Per-model capacity; busy healthy nodes remain ready and can accept queued work.
+     */
     public synchronized JSONObject availability(JSONObject model) {
         JSONObject ledger = jobs.capacity();
         Set<String> busy = new HashSet<>();
@@ -251,17 +260,23 @@ public final class ModelDispatcher {
         for (int i = 0; i < workers.length(); i++) {
             JSONObject worker = workers.getJSONObject(i), d = worker.getJSONObject("descriptor");
             if (!worker.getBoolean("ready") || !d.getString("model").equals(model.getString("id"))
-                    || !d.getString("adapter").equals(model.optString("adapter", "scripted-v1")) || !interactionCompatible(model, d)) continue;
+                    || !d.getString("adapter").equals(model.optString("adapter", "scripted-v1"))
+                    || !interactionCompatible(model, d))
+                continue;
             ready = true;
             String backend = d.getString("backendId");
             int[] count = counts.computeIfAbsent(backend, k -> new int[2]);
-            count[0]++; if (!busy.contains(worker.getString("workerId"))) count[1]++;
+            count[0]++;
+            if (!busy.contains(worker.getString("workerId"))) count[1]++;
             if (!limits.containsKey(backend)) {
                 JSONObject limit = d.optInt("protocolVersion", 2) == 3 ? inference.capacity(d)
                         : new JSONObject().put("registered", d.getInt("capacity")).put("available", d.getInt("capacity"));
                 limits.put(backend, limit);
                 JSONArray groups = CapacityBudget.entries(limit);
-                if (groups != null) { freeBudget.observe(groups); totalBudget.observe(groups); }
+                if (groups != null) {
+                    freeBudget.observe(groups);
+                    totalBudget.observe(groups);
+                }
             }
         }
         int capacity = 0, available = 0;
@@ -269,7 +284,9 @@ public final class ModelDispatcher {
         for (int i = 0; i < backends.length(); i++) {
             JSONObject backend = backends.getJSONObject(i);
             int[] count = counts.get(backend.getString("backend_id"));
-            if (count == null) continue;
+            if (count == null)  {
+                continue;
+            }
             JSONObject limit = limits.get(backend.getString("backend_id"));
             int total = Math.min(count[0], backend.getInt("capacity"));
             int free = Math.min(count[1], Math.max(0, backend.getInt("capacity") - backend.getInt("occupied")));
@@ -277,7 +294,11 @@ public final class ModelDispatcher {
             capacity += groups == null ? Math.min(total, limit.getInt("registered")) : totalBudget.claim(groups, false, total);
             available += groups == null ? Math.min(free, limit.getInt("available")) : freeBudget.claim(groups, true, free);
         }
-        return new JSONObject().put("ready", ready).put("capacity", capacity).put("available", available).put("reason", ready ? "" : "MODEL_NOT_READY");
+        return new JSONObject()
+                .put("ready", ready)
+                .put("capacity", capacity)
+                .put("available", available)
+                .put("reason", ready ? "" : "MODEL_NOT_READY");
     }
 
     public synchronized boolean ready() {
