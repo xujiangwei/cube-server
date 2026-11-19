@@ -64,9 +64,20 @@ public class ExistsContact extends ContextHandler {
                 ActionDialect dialect = requestPacket.toDialect();
                 dialect.addParam("token", tokenCode);
 
+                // 无可用节点与服务超时语义不同，分开应答，便于调用方定位与重试。
+                if (!this.performer.hasReadyDirector(ContactCellet.NAME, dialect)) {
+                    Logger.w(ExistsContact.class, "#doGet - No ready director for '" + ContactCellet.NAME + "'");
+                    this.respond(response, HttpStatus.SERVICE_UNAVAILABLE_503,
+                            this.makeError(HttpStatus.SERVICE_UNAVAILABLE_503));
+                    this.complete();
+                    return;
+                }
+
                 ActionDialect responseDialect = this.performer.syncTransmit(ContactCellet.NAME, dialect);
                 if (null == responseDialect) {
-                    this.respond(response, HttpStatus.NOT_ACCEPTABLE_406, this.makeError(HttpStatus.NOT_ACCEPTABLE_406));
+                    Logger.w(ExistsContact.class, "#doGet - Backend timeout for '" + ContactCellet.NAME + "'");
+                    this.respond(response, HttpStatus.GATEWAY_TIMEOUT_504,
+                            this.makeError(HttpStatus.GATEWAY_TIMEOUT_504));
                     this.complete();
                     return;
                 }
