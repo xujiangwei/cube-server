@@ -428,6 +428,26 @@ public class Performer implements TalkListener, Tickable {
     }
 
     /**
+     * 判断指定单元当前是否存在可承载请求的就绪节点。
+     *
+     * <p>选路与 {@link #syncTransmit(String, ActionDialect)} 保持一致，供 REST 层在发送前区分
+     * 「无可用节点」与「已发出但无应答」两类失败。能力路由抛出的不可用异常一并视为无节点。</p>
+     *
+     * @param celletName    单元名称。
+     * @param actionDialect 请求方言，用于解析令牌与能力路由键。
+     * @return 存在就绪节点返回 {@code true} ；否则返回 {@code false} 。
+     */
+    public boolean hasReadyDirector(String celletName, ActionDialect actionDialect) {
+        if (null == actionDialect) return false;
+        try {
+            Director director = this.selectDirectorForRequest(requestToken(actionDialect), celletName, actionDialect);
+            return isReady(director, celletName);
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
      * 按请求内容选择调度端点。
      *
      * <p>与 {@code selectDirector} 的区别：AIGC 单元优先做能力路由，按请求所需能力挑选端点；

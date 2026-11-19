@@ -330,6 +330,16 @@ public abstract class HttpHandler extends AbstractHandler {
                 error.put("reason", "REQUEST_TIMEOUT");
                 error.put("state", HttpStatus.REQUEST_TIMEOUT_408);
                 break;
+            case HttpStatus.SERVICE_UNAVAILABLE_503:
+                error.put("message", "Service unavailable");
+                error.put("reason", "SERVICE_UNAVAILABLE");
+                error.put("state", HttpStatus.SERVICE_UNAVAILABLE_503);
+                break;
+            case HttpStatus.GATEWAY_TIMEOUT_504:
+                error.put("message", "Backend timeout");
+                error.put("reason", "GATEWAY_TIMEOUT");
+                error.put("state", HttpStatus.GATEWAY_TIMEOUT_504);
+                break;
             case HttpStatus.INTERNAL_SERVER_ERROR_500:
                 error.put("message", "Program exception");
                 error.put("reason", "EXCEPTION");
