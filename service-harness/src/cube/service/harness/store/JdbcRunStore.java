@@ -6,14 +6,27 @@
 
 package cube.service.harness.store;
 
+import cube.aigc.usage.UsageLedger;
+import cube.monitor.LifecycleMetrics;
+import cube.service.harness.runtime.ExecutionProfiles;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.sql.*;
-import java.util.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.StringJoiner;
+import java.util.UUID;
 
 /**
  * 权威 Harness 账本。每个变更方法都拥有一个短数据库事务；事务内不允许网络发送、
@@ -25,24 +38,44 @@ import java.util.*;
  * 单调 event_seq 分页；终态 run 的最终结果不因迟到证据改写。
  */
 public final class JdbcRunStore {
-    private final cube.monitor.LifecycleMetrics monitoring = new cube.monitor.LifecycleMetrics();
-    private final ThreadLocal<java.util.List<JSONObject>> monitoringEvents = new ThreadLocal<>();
-    public JSONObject monitoringSnapshot() { return monitoring.snapshot(); }
+
+    /**
+     * 生命周期指标采集器。
+     */
+    private final LifecycleMetrics monitoring = new LifecycleMetrics();
+
+    /**
+     * 每个线程待发射的监控事件缓冲。
+     */
+    private final ThreadLocal<List<JSONObject>> monitoringEvents = new ThreadLocal<>();
+
+    /**
+     * 返回当前生命周期指标快照。
+     *
+     * @return 指标快照。
+     */
+    public JSONObject monitoringSnapshot() {
+        return monitoring.snapshot();
+    }
 
 
     /**
      * 存储连接配置：方言、目标专用库与库身份。
      */
     private final StoreConfig config;
-    private cube.aigc.usage.UsageLedger accounting;
-    synchronized cube.aigc.usage.UsageLedger accounting() {
+    private UsageLedger accounting;
+
+    synchronized UsageLedger accounting() {
         if (accounting == null) {
-            accounting = new cube.aigc.usage.UsageLedger(config::connect, "harness_ai_usage_", config.mysql());
+            accounting = new UsageLedger(config::connect, "harness_ai_usage_", config.mysql());
             accounting.initialize();
         }
         return accounting;
     }
-    String accountingIdentity() { return config.identity; }
+
+    String accountingIdentity() {
+        return config.identity;
+    }
 
     /**
      * 事务边界故障钩子；仅隔离测试注入，生产使用无钩子构造器（空实现）。
@@ -204,10 +237,11 @@ public final class JdbcRunStore {
      */
     <T> T tx(Work<T> work) {
         for (int attempt = 0; ; attempt++) {
-            java.util.List<JSONObject> priorEvents = monitoringEvents.get();
-            java.util.List<JSONObject> observed = new java.util.ArrayList<>();
+            List<JSONObject> priorEvents = monitoringEvents.get();
+            List<JSONObject> observed = new ArrayList<>();
             monitoringEvents.set(observed);
-            boolean committed = false, commitAttempted = false;
+            boolean committed = false;
+            boolean commitAttempted = false;
             try (Connection c = config.connectTransaction()) {
                 StoreConfig.begin(c, config.mysql());
                 try {
@@ -218,8 +252,10 @@ public final class JdbcRunStore {
                     committed = true;
                     // Observe only committed states. Monitoring must never change transaction outcomes.
                     for (JSONObject event : observed) {
-                        try { monitoring.observe(event.getString("runId"), event.getString("state"), event.getLong("version")); }
-                        catch (RuntimeException ignored) { }
+                        try {
+                            monitoring.observe(event.getString("runId"), event.getString("state"), event.getLong("version"));
+                        } catch (RuntimeException ignored) {
+                        }
                     }
                     faults.at("afterCommit");
                     return result;
@@ -252,7 +288,10 @@ public final class JdbcRunStore {
                 throw new StoreException(
                         commitAttempted ? "STORE_COMMIT_OUTCOME_UNKNOWN" : "STORE_UNAVAILABLE", e);
             } finally {
-                if (priorEvents == null) monitoringEvents.remove(); else monitoringEvents.set(priorEvents);
+                if (priorEvents == null) {
+                    monitoringEvents.remove();
+                }
+                else monitoringEvents.set(priorEvents);
             }
         }
     }
@@ -388,8 +427,11 @@ public final class JdbcRunStore {
             return s;
         } catch (SQLException | RuntimeException | Error failure) {
             // Ownership transfers only after all parameters bind successfully.
-            try { s.close(); }
-            catch (SQLException | RuntimeException | Error closing) { failure.addSuppressed(closing); }
+            try {
+                s.close();
+            } catch (SQLException | RuntimeException | Error closing) {
+                failure.addSuppressed(closing);
+            }
             throw failure;
         }
     }
@@ -574,7 +616,9 @@ public final class JdbcRunStore {
      */
     JSONObject emit(Connection c, JSONObject r, String type, JSONObject data, String topic)
             throws SQLException {
-        long v = r.getLong("version"), seq = r.getLong("event_seq") + 1, time = now(c);
+        long v = r.getLong("version");
+        long seq = r.getLong("event_seq") + 1;
+        long time = now(c);
         int changed =
                 update(
                         c,
@@ -630,7 +674,9 @@ public final class JdbcRunStore {
                 id(topic),
                 json(event, payloadLimit * 2 + 4096),
                 time);
-        if (type.startsWith("run.") && monitoringEvents.get() != null) monitoringEvents.get().add(snapshot(r));
+        if (type.startsWith("run.") && monitoringEvents.get() != null) {
+            monitoringEvents.get().add(snapshot(r));
+        }
         return snapshot(r);
     }
 
@@ -757,7 +803,7 @@ public final class JdbcRunStore {
          * @return 含 task、releases 等键的冻结配置 JSON
          * @throws Exception 解析失败
          */
-        JSONObject resolve(java.sql.Connection connection) throws Exception;
+        JSONObject resolve(Connection connection) throws Exception;
     }
 
     /**
@@ -812,14 +858,16 @@ public final class JdbcRunStore {
                     long time = now(c);
                     JSONObject pinned = resolver == null ? null : resolver.resolve(c);
                     JSONObject history = pinned == null ? null : pinned.optJSONObject("conversationHistory");
-                    if (pinned != null) pinned.remove("conversationHistory");
+                    if (pinned != null) {
+                        pinned.remove("conversationHistory");
+                    }
                     update(
                             c,
                             "INSERT INTO harness_run (run_id,tenant,subject_id,profile_version,state,version,event_seq,owner_id,fence,lease_until,execution_settlement,usage_settlement,created_at,updated_at) VALUES (?,?,?,?,?,0,0,NULL,0,0,?,?,?,?)",
                             runId,
                             tenant,
                             subject,
-                            pinned == null ? profileVersion : cube.service.harness.runtime.ExecutionProfiles.execution(pinned).getString("version"),
+                            pinned == null ? profileVersion : ExecutionProfiles.execution(pinned).getString("version"),
                             "queued",
                             "pending",
                             "settled",
@@ -854,8 +902,9 @@ public final class JdbcRunStore {
                     }
                     if (history != null) {
                         for (Object file : history.getJSONArray("attachmentIds")) {
-                            if (first(rows(c, "SELECT file_id FROM harness_file_binding WHERE run_id=? AND file_id=?", runId, file)) == null)
+                            if (first(rows(c, "SELECT file_id FROM harness_file_binding WHERE run_id=? AND file_id=?", runId, file)) == null) {
                                 update(c, "INSERT INTO harness_file_binding VALUES (?,?)", runId, file);
+                            }
                         }
                         emit(c, run(c, tenant, subject, runId, true), "conversation.history", history, "coordinator");
                     }
@@ -865,7 +914,7 @@ public final class JdbcRunStore {
                         JSONArray initial = pinned.getJSONArray("initialSkills");
                         for (int i = 0; i < initial.length(); i++) {
                             String release = initial.getString(i);
-                            cube.service.harness.store.CatalogStore.requireRelease(pinned, release);
+                            CatalogStore.requireRelease(pinned, release);
                             update(c, "INSERT INTO harness_run_skill VALUES (?,?)", runId, release);
                             response = emit(c, run(c, tenant, subject, runId, true), "skill.activated", new JSONObject().put("digest", release), "coordinator");
                         }
@@ -942,7 +991,7 @@ public final class JdbcRunStore {
     }
 
     /**
-     * Internal state/version read; mutations still validate owner, fence and version in their transaction.
+     * 内部状态/版本读取；所有变更仍在其事务内校验 owner、fence 与版本。
      */
     public JSONObject readSnapshot(String tenant, String subject, String runId) {
         return tx(c -> snapshot(run(c, tenant, subject, runId, false)));
@@ -1275,9 +1324,12 @@ public final class JdbcRunStore {
                         throw new StoreException("INVALID_STATE_TRANSITION");
                     }
                     if (kind.equals("round")) {
-                        if (payload.has("inputRevision") && payload.getLong("inputRevision") != r.getLong("input_revision"))
+                        if (payload.has("inputRevision") && payload.getLong("inputRevision") != r.getLong("input_revision")) {
                             throw new StoreException("INPUT_REVISION_CONFLICT");
-                    } else MessageStore.requireCurrent(r);
+                        }
+                    } else {
+                        MessageStore.requireCurrent(r);
+                    }
                     // 未对账的早先 attempt 必须先对账，才允许授权任何重试。
                     JSONObject pending =
                             first(
@@ -1430,17 +1482,26 @@ public final class JdbcRunStore {
      */
     boolean admitCall(Connection c, JSONObject r, String call, int attempt) throws Exception {
         JSONObject intent = first(rows(c, "SELECT input_revision,admitted_at FROM harness_tool_call WHERE run_id=? AND intent_id=? AND attempt=?", r.getString("run_id"), call, attempt));
-        if (intent == null) throw new StoreException("INTENT_EVIDENCE_MISMATCH");
-        if (intent.getLong("admitted_at") > 0) return true;
-        if (intent.getLong("input_revision") != r.getLong("input_revision") || !r.getString("state").equals("running")) return false;
+        if (intent == null) {
+            throw new StoreException("INTENT_EVIDENCE_MISMATCH");
+        }
+        if (intent.getLong("admitted_at") > 0) {
+            return true;
+        }
+        if (intent.getLong("input_revision") != r.getLong("input_revision") || !r.getString("state").equals("running")) {
+            return false;
+        }
         update(c, "UPDATE harness_tool_call SET admitted_at=? WHERE run_id=? AND intent_id=? AND attempt=?", now(c), r.getString("run_id"), call, attempt);
         return true;
     }
 
     public void admitCall(Lease lease, JSONObject call) {
         tx(c -> {
-            JSONObject r = run(c, lease.tenant, lease.subject, lease.runId, true); owner(c, r, lease);
-            if (!admitCall(c, r, call.getString("intent_id"), call.getInt("attempt"))) throw new StoreException("INPUT_REVISION_CONFLICT");
+            JSONObject r = run(c, lease.tenant, lease.subject, lease.runId, true);
+            owner(c, r, lease);
+                    if (!admitCall(c, r, call.getString("intent_id"), call.getInt("attempt"))) {
+                        throw new StoreException("INPUT_REVISION_CONFLICT");
+                    }
             return null;
         });
     }
@@ -1531,7 +1592,8 @@ public final class JdbcRunStore {
      * @throws StoreException INVALID_ATTEMPT：attempt 越界
      */
     private boolean usage(Connection c, Lease lease, JSONObject evidence) throws SQLException {
-        String round = id(evidence.getString("roundId")), key = id(evidence.getString("evidenceId"));
+        String round = id(evidence.getString("roundId"));
+        String key = id(evidence.getString("evidenceId"));
         long rawAttempt = whole(evidence, "attempt");
         if (rawAttempt < 1 || rawAttempt > 1000000) {
             throw new StoreException("INVALID_ATTEMPT");
@@ -1663,7 +1725,9 @@ public final class JdbcRunStore {
         return finish(lease, expectedVersion, state, executionSettlement, result, actualUsage, -1);
     }
 
-    /** Atomically reject a terminal decision derived from a superseded input revision. */
+    /**
+     * 原子地拒绝由已过期的输入修订号推导出的终态决策。
+     */
     public JSONObject finish(
             Lease lease, long expectedVersion, String state, String executionSettlement,
             JSONObject result, JSONArray actualUsage, long inputRevision) {
@@ -1692,11 +1756,15 @@ public final class JdbcRunStore {
                         return new JSONObject(old.getString("result_json"));
                     }
                     version(r, expectedVersion);
-                    if (inputRevision >= 0 && r.getLong("input_revision") != inputRevision)
+                    if (inputRevision >= 0 && r.getLong("input_revision") != inputRevision) {
                         throw new StoreException("INPUT_REVISION_CONFLICT");
-                    if ((state.equals("succeeded") || inputRevision >= 0) && r.getString("state").equals("cancelling"))
+                    }
+                    if ((state.equals("succeeded") || inputRevision >= 0) && r.getString("state").equals("cancelling")) {
                         throw new StoreException("VERSION_CONFLICT");
-                    if (state.equals("succeeded")) MessageStore.requireCurrent(r);
+                    }
+                    if (state.equals("succeeded")) {
+                        MessageStore.requireCurrent(r);
+                    }
                     if (executionSettlement.equals("confirmed") && outstanding(c, lease.runId)) {
                         throw new StoreException("EXECUTION_UNSETTLED");
                     }

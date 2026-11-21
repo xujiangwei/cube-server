@@ -74,7 +74,9 @@ public final class ResourceTools {
         return catalog.pinned(identity.tenant, identity.subject, run);
     }
 
-    /** Narrow provider read: name resolved exclusively inside the pinned, active releases. */
+    /**
+     * Narrow provider read: name resolved exclusively inside the pinned, active releases.
+     */
     public JSONObject providerResource(ProfileRegistry.Identity identity, String run, String skill, String path) throws Exception {
         return cube.service.harness.protocol.StrictJson.object(providerResourceBytes(identity, run, skill, path));
     }
@@ -166,16 +168,18 @@ public final class ResourceTools {
         return out;
     }
 
-    /** Pinned, authorized metadata only; inactive skills expose no file paths. */
+    /**
+     * Pinned, authorized metadata only; inactive skills expose no file paths.
+     */
     public JSONArray directory(ProfileRegistry.Identity identity, String run) {
         JSONObject pin = pin(identity, run);
         Set<String> permissions = RuntimeSupport.strings(pin.getJSONArray("permissions"));
         permissions.retainAll(identity.permissions);
         Set<String> active = new HashSet<>();
-        JSONArray activeRows = catalog.activeSkills(identity.tenant,identity.subject,run);
-        for (int i=0;i<activeRows.length();i++) active.add(activeRows.getJSONObject(i).getString("digest"));
+        JSONArray activeRows = catalog.activeSkills(identity.tenant, identity.subject, run);
+        for (int i = 0; i < activeRows.length(); i++) active.add(activeRows.getJSONObject(i).getString("digest"));
         JSONArray out = new JSONArray(), releases = pin.getJSONArray("releases");
-        for (int i=0;i<releases.length();i++) {
+        for (int i = 0; i < releases.length(); i++) {
             JSONObject release = releases.getJSONObject(i), manifest = release.getJSONObject("manifest");
             Set<String> allowed = RuntimeSupport.strings(manifest.getJSONArray("permissions"));
             allowed.retainAll(permissions);
@@ -184,37 +188,42 @@ public final class ResourceTools {
             JSONArray paths = new JSONArray();
             if (activated && allowed.contains("resource.read")) {
                 JSONArray files = manifest.getJSONArray("files");
-                for (int j=0;j<files.length();j++) {
-                    JSONObject file=files.getJSONObject(j);
-                    if (Arrays.asList("skill","resource").contains(file.getString("role"))) paths.put(file.getString("path"));
+                for (int j = 0; j < files.length(); j++) {
+                    JSONObject file = files.getJSONObject(j);
+                    if (Arrays.asList("skill", "resource").contains(file.getString("role")))
+                        paths.put(file.getString("path"));
                 }
             }
-            out.put(new JSONObject().put("skill",manifest.getString("name")).put("release",release.getString("digest"))
-                    .put("active",activated).put("paths",paths));
+            out.put(new JSONObject().put("skill", manifest.getString("name")).put("release", release.getString("digest"))
+                    .put("active", activated).put("paths", paths));
         }
         return out;
     }
 
-    /** Validates the release/path pair before any content read; never silently redirects a call. */
+    /**
+     * Validates the release/path pair before any content read; never silently redirects a call.
+     */
     public JSONObject referenceProblem(ProfileRegistry.Identity identity, String run, String tool, JSONObject arguments) throws Exception {
         if (!tool.equals("resource.read")) return null;
-        RunSelection.requireTool(pin(identity,run),tool);
-        for (Object entry:tools(identity,run)) {
-            JSONObject definition=(JSONObject)entry;
-            if (definition.getString("name").equals(tool)) cube.service.harness.protocol.Contract.validate(arguments,definition.getJSONObject("parameters"));
+        RunSelection.requireTool(pin(identity, run), tool);
+        for (Object entry : tools(identity, run)) {
+            JSONObject definition = (JSONObject) entry;
+            if (definition.getString("name").equals(tool))
+                cube.service.harness.protocol.Contract.validate(arguments, definition.getJSONObject("parameters"));
         }
-        JSONObject m = manifest(identity,run,arguments.getString("release"),"resource.read",true);
-        String path=arguments.getString("path");
-        JSONArray files=m.getJSONArray("files");
-        for (int i=0;i<files.length();i++) if (files.getJSONObject(i).getString("path").equals(path)) return null;
-        JSONArray candidates=new JSONArray(), dir=directory(identity,run);
-        for (int i=0;i<dir.length();i++) {
-            JSONObject item=dir.getJSONObject(i);
-            for (Object p:item.getJSONArray("paths")) if (path.equals(p))
-                candidates.put(new JSONObject().put("release",item.getString("release")).put("skill",item.getString("skill")).put("path",path));
+        JSONObject m = manifest(identity, run, arguments.getString("release"), "resource.read", true);
+        String path = arguments.getString("path");
+        JSONArray files = m.getJSONArray("files");
+        for (int i = 0; i < files.length(); i++) if (files.getJSONObject(i).getString("path").equals(path)) return null;
+        JSONArray candidates = new JSONArray(), dir = directory(identity, run);
+        for (int i = 0; i < dir.length(); i++) {
+            JSONObject item = dir.getJSONObject(i);
+            for (Object p : item.getJSONArray("paths"))
+                if (path.equals(p))
+                    candidates.put(new JSONObject().put("release", item.getString("release")).put("skill", item.getString("skill")).put("path", path));
         }
-        return new JSONObject().put("instruction","Requested path is absent from that release. Use an exact authorized directory pair; do not ask the user to upload an already listed resource.")
-                .put("requested",arguments).put("candidates",candidates);
+        return new JSONObject().put("instruction", "Requested path is absent from that release. Use an exact authorized directory pair; do not ask the user to upload an already listed resource.")
+                .put("requested", arguments).put("candidates", candidates);
     }
 
     /**
@@ -378,26 +387,38 @@ public final class ResourceTools {
                 }
                 String description;
                 switch (name) {
-                    case "skill.list": description = "Discover authorized skills for this task. Returns pinned skill names and release digests. Listing does not activate a skill or execute its tools."; break;
-                    case "skill.activate": description = "Activate an authorized pinned skill before reading its resources or using its tools. Copy its release digest from the directory. Activation grants no new permissions."; break;
-                    case "resource.list": description = "List declared resources of an already activated skill. Returns exact paths; use resource.read for contents. Do not list again when the needed release/path is already known."; break;
-                    case "resource.read": description = "Read one text page from an activated pinned skill. Use the exact release/path pair and follow nextOffset for remaining text. Read configuration or rules when the task needs them; this tool does not execute code or query live business data."; break;
-                    case "resource.search": description = "Search text within an activated pinned skill's immutable resources. Returns matching source locations; read relevant pages for context. This is not web search or live business data retrieval."; break;
-                    default: throw new IllegalStateException("RESOURCE_TOOL_UNSUPPORTED");
+                    case "skill.list":
+                        description = "Discover authorized skills for this task. Returns pinned skill names and release digests. Listing does not activate a skill or execute its tools.";
+                        break;
+                    case "skill.activate":
+                        description = "Activate an authorized pinned skill before reading its resources or using its tools. Copy its release digest from the directory. Activation grants no new permissions.";
+                        break;
+                    case "resource.list":
+                        description = "List declared resources of an already activated skill. Returns exact paths; use resource.read for contents. Do not list again when the needed release/path is already known.";
+                        break;
+                    case "resource.read":
+                        description = "Read one text page from an activated pinned skill. Use the exact release/path pair and follow nextOffset for remaining text. Read configuration or rules when the task needs them; this tool does not execute code or query live business data.";
+                        break;
+                    case "resource.search":
+                        description = "Search text within an activated pinned skill's immutable resources. Returns matching source locations; read relevant pages for context. This is not web search or live business data retrieval.";
+                        break;
+                    default:
+                        throw new IllegalStateException("RESOURCE_TOOL_UNSUPPORTED");
                 }
                 out.put(new JSONObject().put("name", name).put("permission", name).put("description", description)
                         .put("parameters", new JSONObject().put("type", "object")
                                 .put("properties", properties).put("required", required).put("additionalProperties", false)));
             }
         }
-        if (permissions.contains("resource.read")) out.put(new JSONObject().put("name", "context.read_result").put("permission", "resource.read")
-                .put("description", "Read original confirmed evidence without re-executing a tool. Copy intent from task state or history index. Optional selector is an RFC6901 JSON Pointer into decoded dataJson (for example /records/0 or /nextCursor); use offset=0 and limit up to 8192 to retrieve a COMPLETE selected value, otherwise selection fails. Without selector, start offset=0, prefer limit=1024, follow nextOffset and concatenate pages as original tool-result JSON. Active pages remain complete in context and consume its budget.")
-                .put("parameters", new JSONObject().put("type", "object").put("additionalProperties", false)
-                        .put("properties", new JSONObject().put("intent", new JSONObject().put("type", "string").put("minLength", 1).put("maxLength", 256))
-                                .put("offset", new JSONObject().put("type", "integer").put("minimum", 0).put("maximum", Integer.MAX_VALUE))
-                                .put("selector", new JSONObject().put("type", "string").put("maxLength", 1024))
-                                .put("limit", new JSONObject().put("type", "integer").put("minimum", 1).put("maximum", 8192)))
-                        .put("required", new JSONArray().put("intent").put("offset").put("limit"))));
+        if (permissions.contains("resource.read"))
+            out.put(new JSONObject().put("name", "context.read_result").put("permission", "resource.read")
+                    .put("description", "Read original confirmed evidence without re-executing a tool. Copy intent from task state or history index. Optional selector is an RFC6901 JSON Pointer into decoded dataJson (for example /records/0 or /nextCursor); use offset=0 and limit up to 8192 to retrieve a COMPLETE selected value, otherwise selection fails. Without selector, start offset=0, prefer limit=1024, follow nextOffset and concatenate pages as original tool-result JSON. Active pages remain complete in context and consume its budget.")
+                    .put("parameters", new JSONObject().put("type", "object").put("additionalProperties", false)
+                            .put("properties", new JSONObject().put("intent", new JSONObject().put("type", "string").put("minLength", 1).put("maxLength", 256))
+                                    .put("offset", new JSONObject().put("type", "integer").put("minimum", 0).put("maximum", Integer.MAX_VALUE))
+                                    .put("selector", new JSONObject().put("type", "string").put("maxLength", 1024))
+                                    .put("limit", new JSONObject().put("type", "integer").put("minimum", 1).put("maximum", 8192)))
+                            .put("required", new JSONArray().put("intent").put("offset").put("limit"))));
         if (files != null) {
             JSONArray extra = cube.service.harness.files.FileService.tools(permissions);
             for (int i = 0; i < extra.length(); i++) {
@@ -425,8 +446,8 @@ public final class ResourceTools {
                 out.put(new JSONObject().put("name", tool.getString("name")).put("permission", tool.getString("permission"))
                         .put("description", tool.getString("kind").equals("resource")
                                 ? "Read immutable resource " + tool.getString("resourcePath")
-                                  : cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("inputSchema")))
-                                          .optString("description", "Execute the activated SKILL tool through its authorized provider"))
+                                : cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("inputSchema")))
+                                .optString("description", "Execute the activated SKILL tool through its authorized provider"))
                         .put("resultSchema", cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("outputSchema"))))
                         .put("parameters", cube.service.harness.protocol.StrictJson.object(repository.readVerified(manifest, tool.getString("inputSchema")))));
             }
@@ -490,13 +511,15 @@ public final class ResourceTools {
             JSONObject row = catalog.contextResult(identity.tenant, identity.subject, run, arguments.getString("intent"));
             if (!row.getString("status").equals("confirmed")) throw RuntimeSupport.error("CONTEXT_RESULT_PENDING");
             JSONObject result = new JSONObject(row.getString("result_json"));
-            if (!cube.service.harness.store.JdbcRunStore.hash(result).equals(row.getString("result_hash"))) throw RuntimeSupport.error("CONTEXT_LEDGER_MISMATCH");
-            if (arguments.has("selector")) return ContextReadback.select(result, arguments.getString("selector"), arguments.getInt("offset"),
-                    arguments.getInt("limit"), arguments.getString("intent"), row.getString("result_hash"));
+            if (!cube.service.harness.store.JdbcRunStore.hash(result).equals(row.getString("result_hash")))
+                throw RuntimeSupport.error("CONTEXT_LEDGER_MISMATCH");
+            if (arguments.has("selector"))
+                return ContextReadback.select(result, arguments.getString("selector"), arguments.getInt("offset"),
+                        arguments.getInt("limit"), arguments.getString("intent"), row.getString("result_hash"));
             String raw = cube.service.harness.store.JdbcRunStore.canonical(result);
             int total = raw.codePointCount(0, raw.length()), offset = arguments.getInt("offset");
             if (offset > total) throw RuntimeSupport.error("CONTEXT_RESULT_OFFSET_INVALID");
-            int end = (int)Math.min(total, (long)offset + arguments.getInt("limit"));
+            int end = (int) Math.min(total, (long) offset + arguments.getInt("limit"));
             return new JSONObject().put("intent", arguments.getString("intent")).put("resultHash", row.getString("result_hash"))
                     .put("encoding", "tool-result-json-v1").put("totalCodePoints", total)
                     .put("text", raw.substring(raw.offsetByCodePoints(0, offset), raw.offsetByCodePoints(0, end)))

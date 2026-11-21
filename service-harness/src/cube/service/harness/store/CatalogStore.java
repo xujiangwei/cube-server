@@ -6,7 +6,9 @@
 
 package cube.service.harness.store;
 
+import cube.service.harness.runtime.RunSelection;
 import cube.service.harness.runtime.RuntimeSupport;
+import cube.service.harness.runtime.TenantTemplates;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -46,6 +48,17 @@ public final class CatalogStore {
         this.mysql = mysql;
     }
 
+    /**
+     * 从父 run 继承会话历史。
+     *
+     * @param c       事务连接。
+     * @param tenant  租户标识。
+     * @param subject 主体标识。
+     * @param parent  父 run 标识。
+     * @param files   文件服务，可为 null。
+     * @return 继承的会话描述。
+     * @throws Exception 继承失败时抛出。
+     */
     public JSONObject conversation(Connection c, String tenant, String subject, String parent, FileStore files) throws Exception {
         return ConversationStore.inherit(store, c, tenant, subject, parent, files);
     }
@@ -59,22 +72,30 @@ public final class CatalogStore {
         return mysql ? " FOR UPDATE" : "";
     }
 
-    /** Atomically initialize tenant business policy from a validated startup snapshot. */
-    public void ensureTenant(String tenant, cube.service.harness.runtime.TenantTemplates templates) {
+    /**
+     * 从已校验的启动快照原子地初始化租户业务策略。
+     */
+    public void ensureTenant(String tenant, TenantTemplates templates) {
         id(tenant);
         store.tx(c -> {
             JSONObject existing = first(rows(c, "SELECT initialized_at FROM harness_tenant WHERE tenant=?" + lock(), tenant));
-            if (existing != null && existing.getLong("initialized_at") > 0) return null;
+            if (existing != null && existing.getLong("initialized_at") > 0) {
+                return null;
+            }
             update(c, mysql
                     ? "INSERT INTO harness_tenant (tenant,initialized_at,template_digest) VALUES (?,0,NULL) ON DUPLICATE KEY UPDATE tenant=VALUES(tenant)"
                     : "INSERT OR IGNORE INTO harness_tenant (tenant,initialized_at,template_digest) VALUES (?,0,NULL)", tenant);
-            // The unique tenant row serializes first access across requests and JVMs.
+            // 唯一的租户行把跨请求与跨 JVM 的首次访问串行化。
             existing = first(rows(c, "SELECT initialized_at FROM harness_tenant WHERE tenant=?" + lock(), tenant));
-            if (existing.getLong("initialized_at") > 0) return null;
+            if (existing.getLong("initialized_at") > 0) {
+                return null;
+            }
             boolean configured = first(rows(c, "SELECT tenant FROM harness_binding WHERE tenant=? AND binding_kind='policy' AND binding_name='default'", tenant)) != null;
             if (!configured) {
                 for (JSONObject definition : templates.profiles()) {
-                    String kind = definition.getString("kind"), name = definition.getString("id"), version = definition.getString("version");
+                    String kind = definition.getString("kind");
+                    String name = definition.getString("id");
+                    String version = definition.getString("version");
                     update(c, "INSERT INTO harness_profile (tenant,profile_kind,profile_id,profile_version,digest,definition_json) VALUES (?,?,?,?,?,?)",
                             tenant, kind, name, version, hash(definition), canonical(definition));
                     if (kind.equals("policy")) {
@@ -256,40 +277,51 @@ public final class CatalogStore {
     public JSONObject bind(String tenant, String kind, String name, String target, long expected) {
         return store.tx(c -> bind(c, tenant, kind, name, target, expected));
     }
+
     private JSONObject bind(Connection c, String tenant, String kind, String name, String target, long expected) throws Exception {
-        if (!Arrays.asList("skill", "policy").contains(kind)) throw new StoreException("INVALID_BINDING_KIND");
-            if (kind.equals("skill")) {
-                JSONObject release = release(c, tenant, target, true);
-                if (!release.getString("skill_name").equals(name) || !release.getString("state").equals("ready")) {
-                    throw new StoreException("RELEASE_NOT_READY");
-                }
-            } else {
-                String[] ref = target.split("@", -1);
-                if (ref.length != 2 || !ref[0].equals(name)) {
-                    throw new StoreException("INVALID_PROFILE_REF");
-                }
-                if (kind.equals("policy") && !name.equals("default")) throw new StoreException("INVALID_PROFILE_REF");
-                profile(c, tenant, kind, ref[0], ref[1]);
+        if (!Arrays.asList("skill", "policy").contains(kind)) {
+            throw new StoreException("INVALID_BINDING_KIND");
+        }
+        if (kind.equals("skill")) {
+            JSONObject release = release(c, tenant, target, true);
+            if (!release.getString("skill_name").equals(name) || !release.getString("state").equals("ready")) {
+                throw new StoreException("RELEASE_NOT_READY");
             }
-            JSONObject old = first(rows(c, "SELECT * FROM harness_binding WHERE tenant=? AND binding_kind=? AND binding_name=?" + lock(), id(tenant), kind, name));
-            long v = old == null ? 0 : old.getLong("version");
-            if (v != expected) {
-                throw new StoreException("VERSION_CONFLICT");
+        } else {
+            String[] ref = target.split("@", -1);
+            if (ref.length != 2 || !ref[0].equals(name)) {
+                throw new StoreException("INVALID_PROFILE_REF");
             }
-            if (old == null) {
-                update(c, "INSERT INTO harness_binding VALUES (?,?,?,?,1)", tenant, kind, name, target);
-            } else if (update(c, "UPDATE harness_binding SET target_ref=?,version=version+1 WHERE tenant=? AND binding_kind=? AND binding_name=? AND version=?", target, tenant, kind, name, expected) != 1) {
-                throw new StoreException("VERSION_CONFLICT");
+            if (kind.equals("policy") && !name.equals("default")) {
+                throw new StoreException("INVALID_PROFILE_REF");
             }
-            return new JSONObject().put("target", target).put("version", v + 1);
+            profile(c, tenant, kind, ref[0], ref[1]);
+        }
+        JSONObject old = first(rows(c, "SELECT * FROM harness_binding WHERE tenant=? AND binding_kind=? AND binding_name=?" + lock(), id(tenant), kind, name));
+        long v = old == null ? 0 : old.getLong("version");
+        if (v != expected) {
+            throw new StoreException("VERSION_CONFLICT");
+        }
+        if (old == null) {
+            update(c, "INSERT INTO harness_binding VALUES (?,?,?,?,1)", tenant, kind, name, target);
+        } else if (update(c, "UPDATE harness_binding SET target_ref=?,version=version+1 WHERE tenant=? AND binding_kind=? AND binding_name=? AND version=?", target, tenant, kind, name, expected) != 1) {
+            throw new StoreException("VERSION_CONFLICT");
+        }
+        return new JSONObject().put("target", target).put("version", v + 1);
     }
-    /** Binding and idempotency acknowledgement commit atomically, including crash recovery. */
+
+    /**
+     * binding 与幂等回执在同一事务内原子提交，含崩溃恢复。
+     */
     public JSONObject bindRemote(String tenant, String subject, String key, String requestHash, String target, long expected) {
         return store.tx(c -> {
-            if (!lock().isEmpty()) rows(c, "SELECT singleton FROM harness_store_identity WHERE singleton=1 FOR UPDATE");
+            if (!lock().isEmpty()) {
+                rows(c, "SELECT singleton FROM harness_store_identity WHERE singleton=1 FOR UPDATE");
+            }
             JSONObject prior = first(rows(c, "SELECT request_hash,response_json FROM harness_admin_request WHERE tenant=? AND subject_id=? AND request_key=?", tenant, subject, key));
             if (prior != null) {
-                if (!prior.getString("request_hash").equals(requestHash)) throw new StoreException("IDEMPOTENCY_CONFLICT");
+                if (!prior.getString("request_hash").equals(requestHash))
+                    throw new StoreException("IDEMPOTENCY_CONFLICT");
                 return new JSONObject(prior.getString("response_json"));
             }
             JSONObject result = bind(c, tenant, "policy", "default", target, expected);
@@ -327,7 +359,10 @@ public final class CatalogStore {
      */
     public JSONObject putProfile(String tenant, JSONObject definition) {
         RuntimeSupport.validate("tenant-policy", definition);
-        String kind = definition.getString("kind"), name = id(definition.getString("id")), version = id(definition.getString("version")), digest = hash(definition);
+        String kind = definition.getString("kind");
+        String name = id(definition.getString("id"));
+        String version = id(definition.getString("version"));
+        String digest = hash(definition);
         return store.tx(c -> {
             JSONObject old = first(rows(c, "SELECT digest FROM harness_profile WHERE tenant=? AND profile_kind=? AND profile_id=? AND profile_version=?" + lock(), id(tenant), kind, name, version));
             if (old != null) {
@@ -444,19 +479,30 @@ public final class CatalogStore {
         });
     }
 
-    /** Scoped original-result lookup; does not load or mutate the rest of the run history. */
+    /**
+     * 按范围查找原始工具结果，不加载也不改动 run 历史的其余部分。
+     */
     public JSONObject contextResult(String tenant, String subject, String runId, String intent) {
         int split = intent.lastIndexOf('/');
-        if (split < 1) throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND");
+        if (split < 1) {
+            throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND");
+        }
         final int attempt;
-        try { attempt = Integer.parseInt(intent.substring(split + 1)); }
-        catch (NumberFormatException error) { throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND"); }
-        if (!(intent.substring(0, split) + "/" + attempt).equals(intent)) throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND");
+        try {
+            attempt = Integer.parseInt(intent.substring(split + 1));
+        } catch (NumberFormatException error) {
+            throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND");
+        }
+        if (!(intent.substring(0, split) + "/" + attempt).equals(intent)) {
+            throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND");
+        }
         return store.tx(c -> {
             pinned(c, tenant, subject, runId);
             JSONObject row = first(rows(c, "SELECT status,result_json,result_hash FROM harness_tool_call WHERE run_id=? AND intent_id=? AND attempt=?",
                     runId, intent.substring(0, split), attempt));
-            if (row == null) throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND");
+            if (row == null) {
+                throw RuntimeSupport.error("CONTEXT_RESULT_NOT_FOUND");
+            }
             return row;
         });
     }
@@ -504,7 +550,7 @@ public final class CatalogStore {
             }
             JSONObject pin = pinned(c, tenant, subject, runId);
             requireRelease(pin, digest);
-            cube.service.harness.runtime.RunSelection.requireTool(pin, "skill.activate");
+            RunSelection.requireTool(pin, "skill.activate");
             if (!RuntimeSupport.strings(pin.getJSONArray("permissions")).contains("skill.activate")) {
                 throw new StoreException("RESOURCE_FORBIDDEN");
             }
@@ -553,7 +599,8 @@ public final class CatalogStore {
         return store.tx(c -> {
             JSONObject r = store.run(c, lease.tenant, lease.subject, lease.runId, true);
             store.owner(c, r, lease);
-            JSONObject pin = pinned(c, lease.tenant, lease.subject, lease.runId), runtime = pin.getJSONObject("runtime");
+            JSONObject pin = pinned(c, lease.tenant, lease.subject, lease.runId);
+            JSONObject runtime = pin.getJSONObject("runtime");
             long until = Math.min(store.now(c) + duration, r.getLong("lease_until"));
             JSONObject old = first(rows(c, "SELECT * FROM harness_workspace WHERE run_id=?" + lock(), lease.runId));
             String workspace = hash(new JSONArray().put(lease.tenant).put(lease.subject).put(lease.runId));
@@ -663,13 +710,18 @@ public final class CatalogStore {
      */
     public JSONObject contextBasis(String tenant, String subject, String runId) {
         return store.tx(c -> {
-            JSONObject r = store.run(c, tenant, subject, runId, true), pin = pinned(c, tenant, subject, runId);
+            JSONObject r = store.run(c, tenant, subject, runId, true);
+            JSONObject pin = pinned(c, tenant, subject, runId);
             JSONObject latest = first(rows(c, "SELECT snapshot_json,digest FROM harness_context WHERE run_id=? ORDER BY run_version DESC,digest DESC LIMIT 1", runId));
             JSONObject compression = new JSONObject();
             if (latest != null) {
                 JSONObject snapshot = new JSONObject(latest.getString("snapshot_json"));
-                if (!hash(snapshot).equals(latest.getString("digest"))) throw new StoreException("CONTEXT_CORRUPT");
-                if (snapshot.has("compressionState")) compression = snapshot.getJSONObject("compressionState");
+                if (!hash(snapshot).equals(latest.getString("digest"))) {
+                    throw new StoreException("CONTEXT_CORRUPT");
+                }
+                if (snapshot.has("compressionState")) {
+                    compression = snapshot.getJSONObject("compressionState");
+                }
             }
             return new JSONObject().put("version", r.getLong("version")).put("inputRevision", r.getLong("input_revision")).put("pin", pin)
                     .put("compressionState", compression)
@@ -680,6 +732,14 @@ public final class CatalogStore {
         });
     }
 
+    /**
+     * 列出 run 已授权的全部工作流修复事件。
+     *
+     * @param tenant  租户标识。
+     * @param subject 主体标识。
+     * @param runId   run ID。
+     * @return 修复事件数据数组。
+     */
     public JSONArray workflowRepairs(String tenant, String subject, String runId) {
         return store.tx(c -> {
             store.run(c, tenant, subject, runId, true);
@@ -687,29 +747,42 @@ public final class CatalogStore {
         });
     }
 
-    /** Bind current input to a deployment-installed host planner under the same run lease. */
+    /**
+     * 在同一 run 租约下，把当前输入绑定到部署安装的宿主规划器。
+     */
     public void adoptWorkflowInput(JdbcRunStore.Lease lease, long expected, long inputRevision) {
         store.tx(c -> {
             JSONObject run = store.run(c, lease.tenant, lease.subject, lease.runId, true);
-            store.owner(c, run, lease); store.version(run, expected);
-            if (!run.getString("state").equals("running")) throw new StoreException("WORKFLOW_NOT_RUNNING");
-            if (run.getLong("input_revision") != inputRevision) throw new StoreException("INPUT_REVISION_CONFLICT");
-            MessageStore.applied(store, c, run); return null;
+            store.owner(c, run, lease);
+            store.version(run, expected);
+            if (!run.getString("state").equals("running")) {
+                throw new StoreException("WORKFLOW_NOT_RUNNING");
+            }
+            if (run.getLong("input_revision") != inputRevision) {
+                throw new StoreException("INPUT_REVISION_CONFLICT");
+            }
+            MessageStore.applied(store, c, run);
+            return null;
         });
     }
 
-    /** Persist host proposals separately from model rounds; repeated recovery is idempotent. */
+    /**
+     * 宿主提案与模型 round 分开持久化；重复恢复是幂等的。
+     */
     public void workflowBinding(JdbcRunStore.Lease lease, long expected, JSONObject call) {
         store.tx(c -> {
             JSONObject run = store.run(c, lease.tenant, lease.subject, lease.runId, true);
             store.owner(c, run, lease);
-            if (!run.getString("state").equals("running")) throw new StoreException("WORKFLOW_NOT_RUNNING");
+            if (!run.getString("state").equals("running")) {
+                throw new StoreException("WORKFLOW_NOT_RUNNING");
+            }
             JSONArray previous = rows(c, "SELECT data_json FROM harness_event WHERE run_id=? AND event_type='workflow.binding'", lease.runId);
             for (int i = 0; i < previous.length(); i++) {
                 JSONObject saved = new JSONObject(previous.getJSONObject(i).getString("data_json"));
                 saved.remove("inputRevision");
                 if (saved.getString("proposalId").equals(call.getString("proposalId"))) {
-                    if (!canonical(saved).equals(canonical(call))) throw new StoreException("WORKFLOW_BINDING_CONFLICT");
+                    if (!canonical(saved).equals(canonical(call)))
+                        throw new StoreException("WORKFLOW_BINDING_CONFLICT");
                     return null;
                 }
             }
@@ -720,15 +793,21 @@ public final class CatalogStore {
         });
     }
 
-    /** Authorize one bounded repair per final round, atomically and replayably under the run lease. */
+    /**
+     * 在同一 run 租约下原子且可重放地为每个 final round 授权一次有界修复。
+     */
     public void workflowRepair(JdbcRunStore.Lease lease, long expected, String round, JSONObject assessment) {
         store.tx(c -> {
             JSONObject r = store.run(c, lease.tenant, lease.subject, lease.runId, true);
             store.owner(c, r, lease);
-            if (!r.getString("state").equals("running")) throw new StoreException("WORKFLOW_NOT_RUNNING");
+            if (!r.getString("state").equals("running")) {
+                throw new StoreException("WORKFLOW_NOT_RUNNING");
+            }
             JSONArray prior = rows(c, "SELECT data_json FROM harness_event WHERE run_id=? AND event_type='workflow.repair'", lease.runId);
             for (int i = 0; i < prior.length(); i++) {
-                if (new JSONObject(prior.getJSONObject(i).getString("data_json")).getString("roundId").equals(round)) return null;
+                if (new JSONObject(prior.getJSONObject(i).getString("data_json")).getString("roundId").equals(round)) {
+                    return null;
+                }
             }
             store.version(r, expected);
             MessageStore.requireCurrent(r);
@@ -739,7 +818,9 @@ public final class CatalogStore {
                     || !new JSONObject(latest.getString("result_json")).getString("kind").equals("final")) {
                 throw new StoreException("WORKFLOW_REPAIR_STALE");
             }
-            if (prior.length() >= assessment.getInt("maxRepairs")) throw new StoreException("WORKFLOW_REPAIR_LIMIT");
+            if (prior.length() >= assessment.getInt("maxRepairs")) {
+                throw new StoreException("WORKFLOW_REPAIR_LIMIT");
+            }
             store.emit(c, r, "workflow.repair", new JSONObject().put("roundId", round).put("assessment", assessment), "coordinator");
             return null;
         });
@@ -793,10 +874,21 @@ public final class CatalogStore {
         });
     }
 
-    /** Read the current skill or business-policy binding. */
+    /**
+     * 读取当前生效的 skill 或业务策略绑定。
+     */
     public JSONObject active(String tenant, String kind, String name) {
         return store.tx(c -> active(c, tenant, kind, name));
     }
+
+    /**
+     * 读取绑定目标与版本，未绑定时返回空目标与版本 0。
+     *
+     * @param tenant 租户标识。
+     * @param kind   绑定类型。
+     * @param name   绑定名称。
+     * @return 目标与版本。
+     */
     public JSONObject binding(String tenant, String kind, String name) {
         return store.tx(c -> {
             JSONObject row = first(rows(c, "SELECT target_ref AS target,version FROM harness_binding WHERE tenant=? AND binding_kind=? AND binding_name=?", tenant, kind, name));
@@ -804,16 +896,32 @@ public final class CatalogStore {
         });
     }
 
+    /**
+     * 在独立事务中读取租户默认业务策略。
+     *
+     * @param tenant 租户标识。
+     * @return 默认策略定义。
+     */
     public JSONObject tenantPolicy(String tenant) {
         return store.tx(c -> tenantPolicy(c, tenant));
     }
 
+    /**
+     * 在给定连接上读取租户默认业务策略。
+     *
+     * @param c      事务连接。
+     * @param tenant 租户标识。
+     * @return 默认策略定义。
+     * @throws SQLException 查询失败时抛出。
+     */
     public JSONObject tenantPolicy(Connection c, String tenant) throws SQLException {
         String[] ref = active(c, tenant, "policy", "default").getString("target_ref").split("@", -1);
         return profile(c, tenant, "policy", ref[0], ref[1]);
     }
 
-    /** Called inside the serialized run-creation transaction, after idempotent replay. */
+    /**
+     * 在串行化的 run 创建事务内、幂等重放之后调用。
+     */
     public void checkAdmission(Connection c, String tenant, int maximum) throws SQLException {
         if (first(rows(c, "SELECT COUNT(*) AS n FROM harness_run WHERE tenant=? AND state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling')", tenant)).getLong("n") >= maximum) {
             throw new StoreException("HARNESS_BUSY");

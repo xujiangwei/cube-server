@@ -12,7 +12,11 @@ import org.json.JSONObject;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Properties;
 
 /**
@@ -134,19 +138,31 @@ public final class StoreConfig implements AutoCloseable {
     }
 
     /**
-     * Borrow a manual-commit connection for a ledger transaction, retaining the pool defaults.
+     * 为账本事务借用手动提交的连接，保留连接池的其余默认设置。
+     *
+     * @return 手动提交模式的连接；调用方负责关闭归还
+     * @throws SQLException 连接失败时抛出
      */
     public Connection connectTransaction() throws SQLException {
         return connect(true);
     }
 
+    /**
+     * 按事务标志建立连接并执行方言校验。
+     *
+     * @param transaction 是否为账本事务借用手动提交连接。
+     * @return 已校验的连接。
+     * @throws SQLException 连接或校验失败。
+     */
     private Connection connect(boolean transaction) throws SQLException {
         Connection c = mysql() ? mysqlStorage.borrowConnection() : DriverManager.getConnection(url);
         try {
             if (mysql()) {
-                // Maintenance/bootstrap callers keep the existing autocommit contract.
-                // Ledger transactions avoid switching it on and off for each operation.
-                if (!transaction) c.setAutoCommit(true);
+                // 维护/bootstrap 调用方保留既有自动提交契约。
+                // 账本事务避免逐次操作来回切换自动提交。
+                if (!transaction) {
+                    c.setAutoCommit(true);
+                }
                 c.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
                 try (Statement s = c.createStatement(); ResultSet r = s.executeQuery("SELECT DATABASE()")) {
                     if (!r.next() || !database.equals(r.getString(1))) {
@@ -176,7 +192,9 @@ public final class StoreConfig implements AutoCloseable {
      */
     @Override
     public void close() {
-        if (mysqlStorage != null) mysqlStorage.close();
+        if (mysqlStorage != null) {
+            mysqlStorage.close();
+        }
     }
 
     /**

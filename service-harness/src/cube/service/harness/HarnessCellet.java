@@ -136,13 +136,16 @@ public final class HarnessCellet extends AbstractCellet {
             execute(() -> {
                 metrics.start(sample);
                 try {
-                if (current != null && context.isValid()) {
-                    reply(context, current.process(primitive.getStuff(0).getValue(), context.getSessionId(), context::isValid));
-                } else {
-                    HarnessService.logWorkerRejection(current == null ? "HARNESS_NOT_READY" : "STALE_SESSION", context.getSessionId());
+                    if (current != null && context.isValid()) {
+                        reply(context, current.process(primitive.getStuff(0).getValue(), context.getSessionId(), context::isValid));
+                    } else {
+                        HarnessService.logWorkerRejection(current == null ? "HARNESS_NOT_READY" : "STALE_SESSION", context.getSessionId());
+                    }
+                    metrics.complete(sample, context.isValid() ? "unknown" : "failed");
+                } catch (RuntimeException | Error failure) {
+                    metrics.complete(sample, "failed");
+                    throw failure;
                 }
-                metrics.complete(sample, context.isValid() ? "unknown" : "failed");
-                } catch (RuntimeException | Error failure) { metrics.complete(sample, "failed"); throw failure; }
             });
         } catch (RejectedExecutionException e) {
             metrics.complete(sample, "rejected");
@@ -194,7 +197,8 @@ public final class HarnessCellet extends AbstractCellet {
         cube.monitor.ServiceMetrics.Sample sample = metrics.submit(HarnessService.NAME,
                 HarnessAction.fromName(request.getName()) == null ? "Unmatched" : request.getName(), false);
         if (primitive.length() > HarnessAction.MAX_BODY_BYTES + 65536) {
-            metrics.start(sample); metrics.complete(sample, "failed");
+            metrics.start(sample);
+            metrics.complete(sample, "failed");
             replyBusiness(context, request, HarnessBusiness.error(413, "PAYLOAD_TOO_LARGE"));
             return;
         }
@@ -212,7 +216,10 @@ public final class HarnessCellet extends AbstractCellet {
                         replyBusiness(context, request, result);
                         metrics.complete(sample, status == 202 ? "accepted" : status >= 400 ? "failed" : "succeeded");
                     } else metrics.complete(sample, "failed");
-                } catch (RuntimeException | Error failure) { metrics.complete(sample, "failed"); throw failure; }
+                } catch (RuntimeException | Error failure) {
+                    metrics.complete(sample, "failed");
+                    throw failure;
+                }
             });
         } catch (RejectedExecutionException e) {
             metrics.complete(sample, "rejected");

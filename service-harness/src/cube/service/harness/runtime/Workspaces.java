@@ -1,4 +1,8 @@
-
+/*
+ * This source file is part of Cube.
+ *
+ * Copyright (c) 2023-2026 Ambrose Xu.
+ */
 
 package cube.service.harness.runtime;
 
@@ -61,8 +65,12 @@ public final class Workspaces {
             Path dir = RuntimeSupport.resolve(files.root, row.getString("workspace_id") + "/marker", true).getParent();
             return dir;
         });
-        return new JSONObject().put("workspaceId", row.getString("workspace_id")).put("fence", lease.fence).put("expiresAt", row.getLong("expires_at"))
-                .put("maxBytes", row.getLong("max_bytes")).put("maxFiles", row.getInt("max_files"));
+        return new JSONObject()
+                .put("workspaceId", row.getString("workspace_id"))
+                .put("fence", lease.fence)
+                .put("expiresAt", row.getLong("expires_at"))
+                .put("maxBytes", row.getLong("max_bytes"))
+                .put("maxFiles", row.getInt("max_files"));
     }
 
     /**

@@ -7,8 +7,15 @@
 package cube.service.harness.store;
 
 import cube.service.harness.execution.ToolProtocol;
+import cube.service.harness.protocol.StrictJson;
+import cube.service.harness.runtime.ExecutionProfiles;
+import cube.service.harness.runtime.RunSelection;
+import cube.service.harness.runtime.RuntimeSupport;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
 
 import static cube.service.harness.store.JdbcRunStore.*;
 
@@ -129,21 +136,24 @@ public final class ToolJobStore {
                     }
                     JSONObject call = new JSONObject(authoritative.getString("payload_json"));
                     String toolName = call.getString("tool");
-                    cube.service.harness.runtime.RunSelection.requireTool(pinned, toolName);
+                    RunSelection.requireTool(pinned, toolName);
                     JSONObject release = CatalogStore.requireRelease(pinned, definition.getString("release"));
-                    JSONObject manifest = release.getJSONObject("manifest"), tool = definition.getJSONObject("tool");
+                    JSONObject manifest = release.getJSONObject("manifest");
+                    JSONObject tool = definition.getJSONObject("tool");
                     boolean matched = false;
                     JSONArray declared = manifest.getJSONArray("tools");
                     for (int i = 0; i < declared.length(); i++) {
                         JSONObject candidate = declared.getJSONObject(i);
                         if (candidate.getString("name").equals(toolName) && candidate.getString("kind").equals("executable")
-                                && canonical(candidate).equals(canonical(tool))) matched = true;
+                                && canonical(candidate).equals(canonical(tool))) {
+                            matched = true;
+                        }
                     }
                     if (!matched || !canonical(pinned.getJSONObject("runtime")).equals(canonical(definition.getJSONObject("runtime")))) {
                         throw new StoreException("TOOL_DEFINITION_MISMATCH");
                     }
-                    if (!cube.service.harness.runtime.RuntimeSupport.strings(pinned.getJSONArray("permissions")).contains(tool.getString("permission"))
-                            || !cube.service.harness.runtime.RuntimeSupport.strings(manifest.getJSONArray("permissions")).contains(tool.getString("permission"))
+                    if (!RuntimeSupport.strings(pinned.getJSONArray("permissions")).contains(tool.getString("permission"))
+                            || !RuntimeSupport.strings(manifest.getJSONArray("permissions")).contains(tool.getString("permission"))
                             || first(rows(c, "SELECT run_id FROM harness_run_skill WHERE run_id=? AND digest=?", lease.runId, release.getString("digest"))) == null) {
                         throw new StoreException("RESOURCE_FORBIDDEN");
                     }
@@ -167,9 +177,9 @@ public final class ToolJobStore {
                         throw new StoreException("TOOL_QUEUE_FULL");
                     }
                     JSONObject arguments =
-                            cube.service.harness.protocol.StrictJson.object(
+                            StrictJson.object(
                                     call.getString("argumentsJson")
-                                            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                                            .getBytes(StandardCharsets.UTF_8));
                     update(
                             c,
                             "INSERT INTO harness_tool_job (job_id,run_id,tenant,subject_id,call_id,attempt,origin_fence,intent_hash,release_digest,tool_name,definition_json,arguments_json,arguments_hash,broker_protocol,status,actual_finished,cancel_requested,effect_status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'queued',0,0,'none',?)",
@@ -299,22 +309,32 @@ public final class ToolJobStore {
                         return null;
                     }
                     JSONArray candidates = rows(
-                                            c,
-                                            "SELECT * FROM harness_tool_job WHERE status='queued' AND broker_protocol=?"
-                                                    + " AND cancel_requested=0 AND EXISTS (SELECT run_id FROM harness_run r WHERE r.run_id=harness_tool_job.run_id AND r.state='running') ORDER BY created_at,job_id LIMIT 256"
-                                                    + lock,
-                                            runnerCode);
-                    JSONObject job = null, wire = null;
+                            c,
+                            "SELECT * FROM harness_tool_job WHERE status='queued' AND broker_protocol=?"
+                                    + " AND cancel_requested=0 AND EXISTS (SELECT run_id FROM harness_run r WHERE r.run_id=harness_tool_job.run_id AND r.state='running') ORDER BY created_at,job_id LIMIT 256"
+                                    + lock,
+                            runnerCode);
+                    JSONObject job = null;
+                    JSONObject wire = null;
                     for (int i = 0; i < candidates.length(); i++) {
                         JSONObject candidate = candidates.getJSONObject(i);
                         requireSelected(c, candidate);
                         candidate.put("task_remaining_millis", remainingMillis(c, candidate));
                         JSONObject possible = factory.create(candidate, worker, runtime, instance);
-                        if (possible != null) { job = candidate; wire = possible; break; }
+                        if (possible != null) {
+                            job = candidate;
+                            wire = possible;
+                            break;
+                        }
                     }
-                    if (job == null) return null;
+                    if (job == null) {
+                        return null;
+                    }
                     JSONObject current = store.run(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"), true);
-                    if (!store.admitCall(c, current, job.getString("call_id"), job.getInt("attempt"))) return null; // This worker cannot honor the pinned wait contract.
+                    if (!store.admitCall(c, current, job.getString("call_id"), job.getInt("attempt"))) {
+                        // 该 worker 无法满足固定的等待契约。
+                        return null;
+                    }
                     if (update(
                             c,
                             "UPDATE harness_tool_job SET worker_id=?,runtime_id=?,instance_id=?,job_hash=?,wire_json=?,status='assigned' WHERE job_id=? AND status='queued'",
@@ -582,9 +602,11 @@ public final class ToolJobStore {
      * @param j harness_tool_job 行
      * @return 存在对应撤销记录时返回 true
      */
-    private boolean revoked(java.sql.Connection c, JSONObject j) throws Exception {
+    private boolean revoked(Connection c, JSONObject j) throws Exception {
         JSONObject pin = new CatalogStore(store, !lock.isEmpty()).pinned(c, j.getString("tenant"), j.getString("subject_id"), j.getString("run_id"));
-        if (!cube.service.harness.runtime.RunSelection.allowed(pin, j.getString("tool_name"))) return true;
+        if (!RunSelection.allowed(pin, j.getString("tool_name"))) {
+            return true;
+        }
         return first(
                 rows(
                         c,
@@ -595,9 +617,9 @@ public final class ToolJobStore {
                 != null;
     }
 
-    private void requireSelected(java.sql.Connection c, JSONObject job) throws Exception {
+    private void requireSelected(Connection c, JSONObject job) throws Exception {
         JSONObject pin = new CatalogStore(store, !lock.isEmpty()).pinned(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"));
-        cube.service.harness.runtime.RunSelection.requireTool(pin, job.getString("tool_name"));
+        RunSelection.requireTool(pin, job.getString("tool_name"));
     }
 
     /**
@@ -620,11 +642,22 @@ public final class ToolJobStore {
         return store.read(j.getString("tenant"), j.getString("subject_id"), j.getString("run_id"));
     }
 
-    /** Remaining task lifetime uses the database clock and pinned limits, never worker/model input. */
+    /**
+     * 剩余任务寿命取数据库时钟与固定配置上限，绝不使用 worker/模型输入。
+     *
+     * @param job 工具作业行。
+     * @return 剩余寿命（毫秒）。
+     */
     public long remainingMillis(JSONObject job) {
         return store.tx(c -> remainingMillis(c, job));
     }
-    /** Provider preparation, queueing and execution share the signed Runner deadline. */
+
+    /**
+     * 提供方准备、排队与执行共用带签名的 Runner 截止时间。
+     *
+     * @param job 工具作业行。
+     * @return 剩余寿命（毫秒）。
+     */
     public long providerRemainingMillis(JSONObject job) {
         return store.tx(c -> {
             long remaining = remainingMillis(c, job);
@@ -636,12 +669,13 @@ public final class ToolJobStore {
             return remaining;
         });
     }
-    private long remainingMillis(java.sql.Connection c, JSONObject job) throws Exception {
-            JSONObject run = store.run(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"), true);
-            JSONObject pin = new CatalogStore(store, !lock.isEmpty()).pinned(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"));
-            JSONObject task = cube.service.harness.runtime.ExecutionProfiles.execution(pin);
-            long lifetime = task.optJSONObject("executionLimits") == null ? 300000 : task.getJSONObject("executionLimits").getLong("maxLifetimeMillis");
-            return Math.max(0, run.getLong("created_at") + lifetime - store.now(c));
+
+    private long remainingMillis(Connection c, JSONObject job) throws Exception {
+        JSONObject run = store.run(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"), true);
+        JSONObject pin = new CatalogStore(store, !lock.isEmpty()).pinned(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"));
+        JSONObject task = ExecutionProfiles.execution(pin);
+        long lifetime = task.optJSONObject("executionLimits") == null ? 300000 : task.getJSONObject("executionLimits").getLong("maxLifetimeMillis");
+        return Math.max(0, run.getLong("created_at") + lifetime - store.now(c));
     }
 
     /**

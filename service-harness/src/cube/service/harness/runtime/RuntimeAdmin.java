@@ -111,7 +111,8 @@ public final class RuntimeAdmin {
             // 发布租户技能、权限和业务配额策略。
             case "profile":
                 JSONObject policy = StrictJson.object(Files.readAllBytes(Paths.get(args[2])));
-                if (!policy.getString("kind").equals("policy")) throw new IllegalArgumentException("Only tenant business policies can be published; configure models and runtimes on the server");
+                if (!policy.getString("kind").equals("policy"))
+                    throw new IllegalArgumentException("Only tenant business policies can be published; configure models and runtimes on the server");
                 result = new ProfileRegistry(catalog).publish(tenant, policy);
                 break;
             // 原子 CAS 绑定 skill/policy 指针；expectedVersion 为首版 0。
@@ -119,7 +120,8 @@ public final class RuntimeAdmin {
                 if (args.length != 6) {
                     throw new IllegalArgumentException("bind <skill|policy> <name> <target> <expectedVersion>");
                 }
-                if (!java.util.Arrays.asList("skill", "policy").contains(args[2])) throw new IllegalArgumentException("Only skill and policy bindings belong to tenants");
+                if (!java.util.Arrays.asList("skill", "policy").contains(args[2]))
+                    throw new IllegalArgumentException("Only skill and policy bindings belong to tenants");
                 result = catalog.bind(tenant, args[2], args[3], args[4], Long.parseLong(args[5]));
                 break;
             // 生命周期流转：ready/draining/retired，带期望版本 CAS。

@@ -6,14 +6,18 @@
 
 package cube.service.harness.store;
 
-import cube.service.harness.runtime.RuntimeSupport;
-
 import cube.service.harness.files.FileConfig;
+import cube.service.harness.runtime.RunSelection;
+import cube.service.harness.runtime.RuntimeSupport;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.sql.Connection;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 
 import static cube.service.harness.store.JdbcRunStore.*;
 
@@ -192,7 +196,14 @@ public final class FileStore {
         return store.tx(c -> file(c, tenant, subject, id, false));
     }
 
-    /** Resolve only the artifact allocated to this exact authorized durable job. */
+    /**
+     * 只解析分配给这个确切已授权持久作业的产物。
+     *
+     * @param lease 调用方租约，用于属主/fence 校验。
+     * @param jobId 作业标识。
+     * @return 产物文件行。
+     * @throws StoreException FILE_NOT_FOUND、STALE_OWNER 或授权失败。
+     */
     public JSONObject providerArtifact(Lease lease, String jobId) {
         String call = requireProvider(lease, jobId);
         String request = hash(new JSONArray().put(lease.tenant).put(lease.subject)
@@ -200,7 +211,9 @@ public final class FileStore {
         return store.tx(c -> {
             store.owner(c, store.run(c, lease.tenant, lease.subject, lease.runId, true), lease);
             JSONObject row = first(rows(c, "SELECT file_id FROM harness_file_request WHERE request_id=?", request));
-            if (row == null) throw new StoreException("FILE_NOT_FOUND");
+            if (row == null) {
+                throw new StoreException("FILE_NOT_FOUND");
+            }
             return file(c, lease.tenant, lease.subject, row.getString("file_id"), false);
         });
     }
@@ -342,7 +355,8 @@ public final class FileStore {
                     if (size > config.maxBytes - reserved) {
                         throw new StoreException("FILE_QUOTA_EXCEEDED");
                     }
-                    String name = request.getString("fileName"), media = request.getString("mediaType");
+                    String name = request.getString("fileName");
+                    String media = request.getString("mediaType");
                     if (!name.matches("[^\\\\/\\p{Cntrl}]{1,256}")
                             || name.equals(".")
                             || name.equals("..")
@@ -898,44 +912,72 @@ public final class FileStore {
                 });
     }
 
-    /** Direct file-tool calls and recovery obey the run's immutable tool subset. */
+    /**
+     * 直接文件工具调用与恢复都遵守 run 不可变的工具子集。
+     *
+     * @param lease 调用方租约，用于属主/fence 校验。
+     * @param name  工具名。
+     * @throws StoreException 工具未被授权或租约失效时抛出。
+     */
     public void requireTool(Lease lease, String name) {
         store.tx(c -> {
             store.owner(c, store.run(c, lease.tenant, lease.subject, lease.runId, true), lease);
             JSONObject config = first(rows(c, "SELECT config_json FROM harness_run_config WHERE run_id=? AND tenant=? AND subject_id=?", lease.runId, lease.tenant, lease.subject));
             if (config != null) {
                 JSONObject pin = new CatalogStore(store, false).pinned(c, lease.tenant, lease.subject, lease.runId);
-                cube.service.harness.runtime.RunSelection.requireTool(pin, name);
-                if (!RuntimeSupport.strings(pin.getJSONArray("permissions")).contains(name)) throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+                RunSelection.requireTool(pin, name);
+                if (!RuntimeSupport.strings(pin.getJSONArray("permissions")).contains(name)) {
+                    throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+                }
             }
             return null;
         });
     }
 
-    /** A provider's result artifact belongs to its authorized durable tool call. */
+    /**
+     * 提供方的结果产物归属于其已授权的持久工具调用。
+     *
+     * @param lease 调用方租约，用于属主/fence 校验。
+     * @param jobId 作业标识。
+     * @return 作业对应的 call_id。
+     * @throws StoreException 作业未授权、已撤销或租约失效时抛出。
+     */
     public String requireProvider(Lease lease, String jobId) {
         return store.tx(c -> {
             store.owner(c, store.run(c, lease.tenant, lease.subject, lease.runId, true), lease);
             JSONObject job = first(rows(c, "SELECT * FROM harness_tool_job WHERE job_id=? AND run_id=? AND tenant=? AND subject_id=?", jobId, lease.runId, lease.tenant, lease.subject));
             if (job == null || job.getInt("cancel_requested") != 0 || job.getLong("origin_fence") != lease.fence
-                    || first(rows(c, "SELECT run_id FROM harness_tool_revocation WHERE run_id=?", lease.runId)) != null) throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+                    || first(rows(c, "SELECT run_id FROM harness_tool_revocation WHERE run_id=?", lease.runId)) != null) {
+                throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+            }
             JSONObject pin = new CatalogStore(store, false).pinned(c, lease.tenant, lease.subject, lease.runId);
-            cube.service.harness.runtime.RunSelection.requireTool(pin, job.getString("tool_name"));
+            RunSelection.requireTool(pin, job.getString("tool_name"));
             String permission = new JSONObject(job.getString("definition_json")).getJSONObject("tool").getString("permission");
-            if (!RuntimeSupport.strings(pin.getJSONArray("permissions")).contains(permission)) throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+            if (!RuntimeSupport.strings(pin.getJSONArray("permissions")).contains(permission)) {
+                throw RuntimeSupport.error("RESOURCE_FORBIDDEN");
+            }
             return job.getString("call_id");
         });
     }
 
-    /** Server-derived origin. A model-written file name or JSON body cannot impersonate a provider. */
+    /**
+     * 来源由服务端推导：模型写出的文件名或 JSON 正文无法伪装成提供方。
+     *
+     * @param file 产物文件行。
+     * @return 提供方来源描述；非产物文件返回 null。
+     */
     public JSONObject providerOrigin(JSONObject file) {
-        if (!file.getString("kind").equals("artifact") || file.isNull("run_id")) return null;
+        if (!file.getString("kind").equals("artifact") || file.isNull("run_id")) {
+            return null;
+        }
         return store.tx(c -> {
             JSONArray jobs = rows(c, "SELECT j.job_id,j.call_id,j.definition_json,t.status,t.result_json FROM harness_tool_job j JOIN harness_tool_call t ON t.run_id=j.run_id AND t.intent_id=j.call_id AND t.attempt=j.attempt WHERE j.run_id=? AND j.tenant=? AND j.subject_id=?", file.getString("run_id"), file.getString("tenant"), file.getString("subject_id"));
             for (int i = 0; i < jobs.length(); i++) {
                 JSONObject job = jobs.getJSONObject(i);
                 String request = hash(new JSONArray().put(file.getString("tenant")).put(file.getString("subject_id")).put("artifact").put(file.getString("run_id")).put(job.getString("call_id")));
-                if (first(rows(c, "SELECT file_id FROM harness_file_request WHERE request_id=? AND file_id=?", request, file.getString("file_id"))) == null) continue;
+                if (first(rows(c, "SELECT file_id FROM harness_file_request WHERE request_id=? AND file_id=?", request, file.getString("file_id"))) == null) {
+                    continue;
+                }
                 boolean confirmed = job.getString("status").equals("confirmed") && !job.isNull("result_json") && new JSONObject(job.getString("result_json")).optString("status").equals("success");
                 return new JSONObject().put("kind", "provider").put("operation", new JSONObject(job.getString("definition_json")).getJSONObject("tool").getString("brokerOperation"))
                         .put("jobId", job.getString("job_id")).put("confirmed", confirmed);

@@ -10,6 +10,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.Arrays;
+import java.util.Properties;
 
 import static cube.service.harness.store.JdbcRunStore.*;
 
@@ -38,15 +39,27 @@ public final class ControlStore {
     private FileStore files;
 
     /**
-     * 注入文件存储（resume 的附件绑定需要）。
-     *
-     * @param files FileStore 实例
-     * @return 本实例，便于链式调用
+     * 消息存储，与控制操作共享同一事务边界。
      */
     public final MessageStore messages;
 
-    public ControlStore configure(java.util.Properties p) { messages.configure(p); return this; }
+    /**
+     * 配置消息子存储。
+     *
+     * @param p 部署私有配置。
+     * @return 本实例，便于链式调用。
+     */
+    public ControlStore configure(Properties p) {
+        messages.configure(p);
+        return this;
+    }
 
+    /**
+     * 注入文件服务并下发给消息子存储。
+     *
+     * @param files 文件服务，可为 null 表示关闭文件能力。
+     * @return 本实例，便于链式调用。
+     */
     public ControlStore files(FileStore files) {
         this.files = files;
         messages.files(files);
@@ -245,9 +258,15 @@ public final class ControlStore {
         if (!Arrays.asList("resume", "approval", "cancel").contains(operation)) {
             throw new StoreException("INVALID_CONTROL");
         }
-        String
-                receipt = hash(new JSONArray().put(tenant).put(actor).put(run).put(operation).put(id(key))),
-                digest = hash(new JSONObject().put("waitId", waitId).put("payload", payload));
+        String receipt = hash(new JSONArray()
+                .put(tenant)
+                .put(actor)
+                .put(run)
+                .put(operation)
+                .put(id(key)));
+        String digest = hash(new JSONObject()
+                .put("waitId", waitId)
+                .put("payload", payload));
         return store.tx(
                 c -> {
                     JSONObject r = store.run(c, tenant, subject, run, true);
@@ -333,7 +352,8 @@ public final class ControlStore {
                             }
                         }
                         MessageStore.endWait(store, c, r);
-                        if (operation.equals("resume")) acceptedMessage = MessageStore.record(store, c, r, "answer", effectivePayload.getJSONObject("input"));
+                        if (operation.equals("resume"))
+                            acceptedMessage = MessageStore.record(store, c, r, "answer", effectivePayload.getJSONObject("input"));
                         String status =
                                 operation.equals("resume")
                                         ? "resumed"
@@ -347,8 +367,11 @@ public final class ControlStore {
                         update(c, "UPDATE harness_run SET state=? WHERE run_id=?", state, run);
                         r.put("state", state);
                     }
-                    if (acceptedMessage != null) store.emit(c, r, "interaction.answered", new JSONObject()
-                            .put("waitId", waitId).put("messageId", acceptedMessage.getString("messageId")), "control");
+                    if (acceptedMessage != null) {
+                        store.emit(c, r, "interaction.answered", new JSONObject()
+                                .put("waitId", waitId)
+                                .put("messageId", acceptedMessage.getString("messageId")), "control");
+                    }
                     JSONObject response =
                             store.emit(
                                     c,

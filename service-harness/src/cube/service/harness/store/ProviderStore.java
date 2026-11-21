@@ -6,9 +6,13 @@
 
 package cube.service.harness.store;
 
+import cell.util.Utils;
+import cube.aigc.SpecializedDetectionCapabilities;
 import cube.service.harness.runtime.RuntimeSupport;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.sql.Connection;
 
 import static cube.service.harness.store.JdbcRunStore.*;
 
@@ -30,13 +34,17 @@ public final class ProviderStore {
         return store.tx(c -> {
             JSONObject r = store.run(c, tenant, subject, run, true);
             JSONArray events = rows(c, "SELECT event_type,data_json,occurred_at FROM harness_event WHERE run_id=? AND event_type IN ('conversation.history','run.created','control.resume','message.accepted') ORDER BY event_seq", run);
-            JSONArray inputs = new JSONArray(), messages = new JSONArray();
+            JSONArray inputs = new JSONArray();
+            JSONArray messages = new JSONArray();
             for (Object entry : events) {
-                JSONObject e = (JSONObject) entry, data = new JSONObject(e.getString("data_json"));
+                JSONObject e = (JSONObject) entry;
+                JSONObject data = new JSONObject(e.getString("data_json"));
                 if (e.getString("event_type").equals("conversation.history")) {
                     for (Object item : data.getJSONArray("messages")) {
-                        JSONObject m = (JSONObject)item;
-                        if (m.getString("role").equals("user")) inputs.put(m.getJSONObject("content"));
+                        JSONObject m = (JSONObject) item;
+                        if (m.getString("role").equals("user")) {
+                            inputs.put(m.getJSONObject("content"));
+                        }
                     }
                     continue;
                 }
@@ -51,7 +59,9 @@ public final class ProviderStore {
                         message.put("request", request).put("kind", request.getString("kind"));
                         if ("answer".equals(request.getString("kind")) && request.has("waitId")) {
                             JSONObject wait = first(rows(c, "SELECT payload_json FROM harness_wait WHERE run_id=? AND wait_id=?", run, request.getString("waitId")));
-                            if (wait != null) message.put("questionContext", new JSONObject(wait.getString("payload_json")));
+                            if (wait != null) {
+                                message.put("questionContext", new JSONObject(wait.getString("payload_json")));
+                            }
                         }
                     }
                 }
@@ -62,28 +72,39 @@ public final class ProviderStore {
         });
     }
 
-    /** Confirmed successful facts for one authenticated run, never model-authored output. */
+    /**
+     * 读取一次已认证 run 的已确认成功事实，绝不使用模型自行撰写的输出。
+     *
+     * @param tenant  租户标识。
+     * @param subject 主体标识。
+     * @param run     run ID。
+     * @return 已确认事实数组。
+     */
     public JSONArray completionEvidence(String tenant, String subject, String run) {
         return store.tx(c -> {
             store.run(c, tenant, subject, run, true);
             JSONArray found = rows(c, "SELECT f.fact_kind,f.fact_id,f.value_json,j.definition_json,j.arguments_json,t.result_json,t.input_revision FROM harness_provider_fact f "
-                    + "JOIN harness_tool_job j ON f.run_id=j.run_id AND f.job_id=j.job_id "
-                    + "JOIN harness_tool_call t ON t.run_id=j.run_id AND t.intent_id=j.call_id AND t.attempt=j.attempt "
-                    + "WHERE f.run_id=? AND j.tenant=? AND j.subject_id=? AND j.actual_finished=1 "
-                    + "AND j.effect_status='completed' AND t.status='confirmed' "
-                    + "AND f.fact_kind IN ('data-page','data-set','analysis','retrieval-plan','retrieval-page') ORDER BY f.fact_kind,f.fact_id",
+                            + "JOIN harness_tool_job j ON f.run_id=j.run_id AND f.job_id=j.job_id "
+                            + "JOIN harness_tool_call t ON t.run_id=j.run_id AND t.intent_id=j.call_id AND t.attempt=j.attempt "
+                            + "WHERE f.run_id=? AND j.tenant=? AND j.subject_id=? AND j.actual_finished=1 "
+                            + "AND j.effect_status='completed' AND t.status='confirmed' "
+                            + "AND f.fact_kind IN ('data-page','data-set','analysis','retrieval-plan','retrieval-page') ORDER BY f.fact_kind,f.fact_id",
                     run, tenant, subject);
             JSONArray out = new JSONArray();
             for (int i = 0; i < found.length(); i++) {
                 JSONObject row = found.getJSONObject(i);
-                // Also inspect normalized call status: confirmed errors cannot establish a fact.
-                if (!new JSONObject(row.getString("result_json")).optString("status").equals("success")) continue;
+                // 同时检查规范化调用状态：已确认的错误不能确立事实。
+                if (!new JSONObject(row.getString("result_json")).optString("status").equals("success")) {
+                    continue;
+                }
                 JSONObject fact = new JSONObject().put("kind", row.getString("fact_kind")).put("id", row.getString("fact_id"))
                         .put("operation", new JSONObject(row.getString("definition_json")).getJSONObject("tool").getString("brokerOperation"))
                         .put("value", new JSONObject(row.getString("value_json")))
                         .put("arguments", new JSONObject(row.getString("arguments_json")))
                         .put("inputRevision", row.getLong("input_revision"));
-                if (row.getString("fact_kind").equals("analysis")) fact.put("result", new JSONObject(new JSONObject(row.getString("result_json")).getString("dataJson")));
+                if (row.getString("fact_kind").equals("analysis")) {
+                    fact.put("result", new JSONObject(new JSONObject(row.getString("result_json")).getString("dataJson")));
+                }
                 out.put(fact);
             }
             return out;
@@ -122,7 +143,7 @@ public final class ProviderStore {
      * @param c 事务内连接。
      * @throws Exception SQL 执行失败。
      */
-    private void serial(java.sql.Connection c) throws Exception {
+    private void serial(Connection c) throws Exception {
         if (mysql) {
             rows(c, "SELECT singleton FROM harness_store_identity WHERE singleton=1 FOR UPDATE");
         }
@@ -135,7 +156,7 @@ public final class ProviderStore {
      * 对象，调用方修改返回值不会影响库内内容。</p>
      *
      * @param tenant 租户标识。
-     * @param ref 数据源引用，形如 {@code id@version}。
+     * @param ref    数据源引用，形如 {@code id@version}。
      * @return 数据源配置对象。
      * @throws StoreException CONNECTOR_CONFIG_INVALID：引用格式不合法；
      *                        DATA_SOURCE_FORBIDDEN：租户下不存在该版本的数据源。
@@ -160,9 +181,9 @@ public final class ProviderStore {
      * <p>以 tenant、subject 和完整 sourceRef 查授权行，只有 {@code allowed=1}
      * 才放行；无授权行与显式拒绝按同一错误处理。</p>
      *
-     * @param tenant 租户标识。
+     * @param tenant  租户标识。
      * @param subject 主体标识。
-     * @param ref 数据源引用，形如 {@code id@version}。
+     * @param ref     数据源引用，形如 {@code id@version}。
      * @throws StoreException DATA_SOURCE_FORBIDDEN：未授权或显式拒绝。
      */
     public void authorize(String tenant, String subject, String ref) {
@@ -182,10 +203,10 @@ public final class ProviderStore {
      * 重放，直接返回既有引用和摘要；摘要不同则冲突，不覆盖旧配置。摘要按
      * {@code canonical} 规范化后计算，键序与数字写法不影响身份。</p>
      *
-     * @param tenant 租户标识。
-     * @param id 数据源标识。
+     * @param tenant  租户标识。
+     * @param id      数据源标识。
      * @param version 配置版本。
-     * @param value 数据源配置对象。
+     * @param value   数据源配置对象。
      * @return 含 sourceRef 与 digest 的结果。
      * @throws StoreException IMMUTABLE_SOURCE_CONFLICT：同版本已存在不同内容。
      */
@@ -212,9 +233,9 @@ public final class ProviderStore {
      * <p>先校验数据源在租户下存在，再在写事务内以「先删后插」整行替换，
      * 便于在同一把锁下重复执行。</p>
      *
-     * @param tenant 租户标识。
+     * @param tenant  租户标识。
      * @param subject 主体标识。
-     * @param ref 数据源引用，形如 {@code id@version}。
+     * @param ref     数据源引用，形如 {@code id@version}。
      * @param allowed 是否放行。
      * @return 含 sourceRef、subject 与 allowed 的授权结果。
      * @throws StoreException DATA_SOURCE_FORBIDDEN：数据源不存在。
@@ -237,13 +258,13 @@ public final class ProviderStore {
      * 响应，不重复写授权；摘要不一致说明同一幂等键复用于不同请求，直接冲突。
      * 调用方需事先完成管理身份鉴别。</p>
      *
-     * @param tenant 租户标识。
-     * @param actor 发起请求的管理主体。
-     * @param key 管理请求幂等键。
+     * @param tenant      租户标识。
+     * @param actor       发起请求的管理主体。
+     * @param key         管理请求幂等键。
      * @param requestHash 请求内容的语义摘要。
-     * @param subject 被授权主体。
-     * @param ref 数据源引用，形如 {@code id@version}。
-     * @param allowed 是否放行。
+     * @param subject     被授权主体。
+     * @param ref         数据源引用，形如 {@code id@version}。
+     * @param allowed     是否放行。
      * @return 含 sourceRef、subject 与 allowed 的授权结果。
      * @throws StoreException IDEMPOTENCY_CONFLICT：同一幂等键对应不同请求；
      *                        DATA_SOURCE_FORBIDDEN：数据源不存在。
@@ -275,11 +296,11 @@ public final class ProviderStore {
      * 且摘要一致则回放响应，返回 null 表示首次请求；摘要不一致视为幂等冲突。
      * {@code result} 非 null 时在确认首次执行后登记结果并返回该结果。</p>
      *
-     * @param tenant 租户标识。
-     * @param subject 发起请求的管理主体。
-     * @param key 管理请求幂等键。
+     * @param tenant      租户标识。
+     * @param subject     发起请求的管理主体。
+     * @param key         管理请求幂等键。
      * @param requestHash 请求内容的语义摘要。
-     * @param result 本次执行结果，null 表示只查询不登记。
+     * @param result      本次执行结果，null 表示只查询不登记。
      * @return 已登记的响应、本次结果，或 null（首次请求且只查询）。
      * @throws StoreException IDEMPOTENCY_CONFLICT：同一幂等键对应不同请求。
      */
@@ -307,13 +328,13 @@ public final class ProviderStore {
      * <p>作业已请求取消、run 已被撤销、owner/fence 与租约不匹配，或 run 不处于
      * running 状态时，均不允许继续写入事实或预留容量。</p>
      *
-     * @param c 事务内连接。
+     * @param c   事务内连接。
      * @param job 持久化的工具作业行。
-     * @throws Exception 校验失败或 SQL 执行失败。
+     * @throws Exception      校验失败或 SQL 执行失败。
      * @throws StoreException TOOL_CANCELLED：作业已取消或 run 已非运行状态；
      *                        STALE_OWNER：owner/fence 不匹配或租约已过期。
      */
-    private void owner(java.sql.Connection c, JSONObject job) throws Exception {
+    private void owner(Connection c, JSONObject job) throws Exception {
         JSONObject fresh = first(rows(c, "SELECT cancel_requested FROM harness_tool_job WHERE job_id=?", job.getString("job_id")));
         if (fresh == null || fresh.getInt("cancel_requested") != 0 || first(rows(c, "SELECT run_id FROM harness_tool_revocation WHERE run_id=?", job.getString("run_id"))) != null) {
             throw new StoreException("TOOL_CANCELLED");
@@ -333,10 +354,10 @@ public final class ProviderStore {
      * 要求事实已存在；{@code confirmed} 为真时还要求对应工具调用已确认、且结果
      * 状态为 success，防止引用未经确认的媒体产物。</p>
      *
-     * @param job 持久化的工具作业行。
-     * @param kind 事实类别。
-     * @param id 事实标识。
-     * @param value 待写入的事实对象，null 表示只读取。
+     * @param job       持久化的工具作业行。
+     * @param kind      事实类别。
+     * @param id        事实标识。
+     * @param value     待写入的事实对象，null 表示只读取。
      * @param confirmed 读取时是否要求工具调用已确认成功。
      * @return 写入或读取到的事实对象。
      * @throws StoreException PROVIDER_FACT_CONFLICT：同标识已存在不同内容；
@@ -380,9 +401,9 @@ public final class ProviderStore {
      * <p>物理结果未知的执行不会释放槽位，直到收到实际完成回执，避免自动重发
      * 造成超发。</p>
      *
-     * @param job 持久化的工具作业行。
-     * @param units 可用的媒体提供方实例列表。
-     * @param unit 目标 Unit 名称。
+     * @param job     持久化的工具作业行。
+     * @param units   可用的媒体提供方实例列表。
+     * @param unit    目标 Unit 名称。
      * @param request 原始调用请求，会复制后写入 execution 事实。
      * @return 含 instanceId、requestId、serviceSn 的执行意图。
      * @throws StoreException CAPABILITY_EXECUTION_ALREADY_STARTED：同一作业已开始执行；
@@ -407,12 +428,14 @@ public final class ProviderStore {
                 }
                 if ("SpecializedDetection".equals(unit)) {
                     JSONObject option = request.getJSONObject("option");
-                    if (!cube.aigc.SpecializedDetectionCapabilities.ready(candidate) || !cube.aigc.SpecializedDetectionCapabilities.supports(candidate, option.getString("profile"), option.optBoolean("sliced"))) {
+                    if (!SpecializedDetectionCapabilities.ready(candidate) || !SpecializedDetectionCapabilities.supports(candidate, option.getString("profile"), option.optBoolean("sliced"))) {
                         continue;
                     }
                 }
                 compatible = true;
-                if ("SpecializedDetection".equals(unit) && candidate.optInt("availableImages") <= 0) continue;
+                if ("SpecializedDetection".equals(unit) && candidate.optInt("availableImages") <= 0) {
+                    continue;
+                }
                 JSONArray active = rows(c, "SELECT a.value_json FROM harness_provider_fact a LEFT JOIN harness_provider_fact b ON a.run_id=b.run_id AND a.fact_id=b.fact_id AND b.fact_kind='receipt' WHERE a.fact_kind='execution' AND b.fact_id IS NULL");
                 int count = 0;
                 for (int j = 0; j < active.length(); j++) {
@@ -431,7 +454,7 @@ public final class ProviderStore {
             if (selected == null) {
                 throw new StoreException(compatible ? "CAPABILITY_CAPACITY_UNAVAILABLE" : "CAPABILITY_NOT_READY");
             }
-            JSONObject execution = new JSONObject(request.toString()).put("unit", unit).put("instanceId", selected.getString("instanceId")).put("requestId", job.getString("job_id")).put("serviceSn", cell.util.Utils.generateSerialNumber());
+            JSONObject execution = new JSONObject(request.toString()).put("unit", unit).put("instanceId", selected.getString("instanceId")).put("requestId", job.getString("job_id")).put("serviceSn", Utils.generateSerialNumber());
             update(c, "INSERT INTO harness_provider_fact VALUES (?,?,'execution',?,?)", job.getString("run_id"), job.getString("job_id"), job.getString("job_id"), canonical(execution));
             return execution;
         });
@@ -446,7 +469,7 @@ public final class ProviderStore {
      *
      * <p>取消或租约丢失后到达的回执仍可登记，但不会改变已确定的执行答案。</p>
      *
-     * @param job 持久化的工具作业行。
+     * @param job     持久化的工具作业行。
      * @param receipt 物理回执对象。
      * @throws StoreException CAPABILITY_RECEIPT_FORBIDDEN：无对应意图或标识不匹配；
      *                        CAPABILITY_RECEIPT_CONFLICT：重复回执内容不一致。
@@ -478,18 +501,30 @@ public final class ProviderStore {
         });
     }
 
-    /** Trusted bridge callback before physical send. A storage failure prevents dispatch. */
+    /**
+     * 物理发送前的受信桥接回调：存储失败即阻止派发。
+     *
+     * @param job      媒体作业。
+     * @param progress 物理进度回执。
+     */
     public void mediaDispatch(JSONObject job, JSONObject progress) {
         store.tx(c -> {
             serial(c);
             JSONObject row = first(rows(c, "SELECT value_json FROM harness_provider_fact WHERE run_id=? AND fact_kind='execution' AND fact_id=?", job.getString("run_id"), job.getString("job_id")));
-            if (row == null) throw new StoreException("CAPABILITY_RECEIPT_FORBIDDEN");
+            if (row == null) {
+                throw new StoreException("CAPABILITY_RECEIPT_FORBIDDEN");
+            }
             JSONObject intent = new JSONObject(row.getString("value_json"));
-            if (!intent.getString("requestId").equals(progress.getString("requestId")) || !intent.getString("instanceId").equals(progress.getString("instanceId"))) throw new StoreException("CAPABILITY_RECEIPT_FORBIDDEN");
+            if (!intent.getString("requestId").equals(progress.getString("requestId")) || !intent.getString("instanceId").equals(progress.getString("instanceId"))) {
+                throw new StoreException("CAPABILITY_RECEIPT_FORBIDDEN");
+            }
             String id = job.getString("job_id") + ":physical-dispatch";
             JSONObject previous = first(rows(c, "SELECT value_json FROM harness_provider_fact WHERE run_id=? AND fact_kind='media-phase' AND fact_id=?", job.getString("run_id"), id));
-            if (previous == null) update(c, "INSERT INTO harness_provider_fact VALUES (?,?,'media-phase',?,?)", job.getString("run_id"), job.getString("job_id"), id, canonical(progress));
-            else if (!canonical(progress).equals(previous.getString("value_json"))) throw new StoreException("CAPABILITY_RECEIPT_CONFLICT");
+            if (previous == null) {
+                update(c, "INSERT INTO harness_provider_fact VALUES (?,?,'media-phase',?,?)", job.getString("run_id"), job.getString("job_id"), id, canonical(progress));
+            } else if (!canonical(progress).equals(previous.getString("value_json"))) {
+                throw new StoreException("CAPABILITY_RECEIPT_CONFLICT");
+            }
             return null;
         });
     }

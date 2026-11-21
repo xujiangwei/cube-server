@@ -224,6 +224,7 @@ public final class PackageRepository {
         public byte[] resource(String path) {
             return contents.get(file(manifest, path).getString("sha256")).clone();
         }
+
         /**
          * release digest：规范化 manifest 的 SHA256（64 位小写十六进制）。
          */

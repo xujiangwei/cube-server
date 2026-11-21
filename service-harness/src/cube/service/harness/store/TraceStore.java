@@ -6,6 +6,8 @@
 
 package cube.service.harness.store;
 
+import cube.service.harness.protocol.StrictJson;
+import cube.service.harness.runtime.DecisionObservation;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -95,7 +97,8 @@ public final class TraceStore {
         if (!(rating.equals("positive") || rating.equals("negative")) || body.optString("reason").length() > 4096) {
             throw new StoreException("INVALID_FEEDBACK");
         }
-        String digest = hash(body), fid = hash(new JSONArray().put(id(tenant)).put(id(subject)).put(id(run)).put(id(key)));
+        String digest = hash(body);
+        String fid = hash(new JSONArray().put(id(tenant)).put(id(subject)).put(id(run)).put(id(key)));
         return store.tx(c -> {
             store.run(c, tenant, subject, run, true);
             JSONObject old = first(rows(c, "SELECT payload_hash FROM harness_feedback WHERE feedback_id=?", fid));
@@ -120,14 +123,16 @@ public final class TraceStore {
      */
     private static Object redact(Object v) {
         if (v instanceof JSONObject) {
-            JSONObject out = new JSONObject(), o = (JSONObject) v;
+            JSONObject out = new JSONObject();
+            JSONObject o = (JSONObject) v;
             for (String k : o.keySet()) {
                 out.put("keySha256:" + hash(k), redact(o.get(k)));
             }
             return out;
         }
         if (v instanceof JSONArray) {
-            JSONArray out = new JSONArray(), a = (JSONArray) v;
+            JSONArray out = new JSONArray();
+            JSONArray a = (JSONArray) v;
             for (int i = 0; i < a.length(); i++) {
                 out.put(redact(a.get(i)));
             }
@@ -160,7 +165,7 @@ public final class TraceStore {
                 if (k.equals("payload_json")) {
                     JSONObject payload = new JSONObject(raw);
                     if (payload.has("argumentsJson")) {
-                        row.put("argumentsHash", hash(cube.service.harness.protocol.StrictJson.object(payload.getString("argumentsJson").getBytes(StandardCharsets.UTF_8))));
+                        row.put("argumentsHash", hash(StrictJson.object(payload.getString("argumentsJson").getBytes(StandardCharsets.UTF_8))));
                     }
                     if (payload.has("tool")) {
                         row.put("tool", payload.getString("tool"));
@@ -214,13 +219,17 @@ public final class TraceStore {
             JSONArray rawRounds = rows(c, "SELECT intent_id,attempt,intent_hash,origin_fence,status,payload_json,result_json,result_hash FROM harness_round WHERE run_id=? ORDER BY intent_id,attempt LIMIT 257", run);
             JSONArray observations = new JSONArray();
             for (Object entry : rawRounds) {
-                JSONObject row = (JSONObject)entry, payload = new JSONObject(row.getString("payload_json"));
+                JSONObject row = (JSONObject) entry;
+                JSONObject payload = new JSONObject(row.getString("payload_json"));
                 JSONObject context = payload.optJSONObject("decisionObservation");
-                if (context == null) continue; // Missing legacy instrumentation is not zero adjustments.
+                // 缺失的旧版埋点不代表零次调整。
+                if (context == null) {
+                    continue;
+                }
                 JSONObject observed = new JSONObject().put("roundId", row.getString("intent_id")).put("attempt", row.getInt("attempt"))
                         .put("executor", "model").put("context", context);
                 if (!row.isNull("result_json")) observed.put("decision",
-                        cube.service.harness.runtime.DecisionObservation.action(new JSONObject(row.getString("result_json"))));
+                        DecisionObservation.action(new JSONObject(row.getString("result_json"))));
                 observations.put(observed);
             }
             JSONArray rounds = contentRows(rawRounds);
@@ -252,11 +261,16 @@ public final class TraceStore {
                     .put("adjustmentControlDigest", adjustmentControlDigest == null ? JSONObject.NULL : adjustmentControlDigest)
                     .put("adjustmentEnabled", adjustmentEnabled);
             int hostWorkflowSteps = 0;
-            for (Object entry : events) if (((JSONObject)entry).getString("event_type").equals("workflow.binding")) hostWorkflowSteps++;
+            for (Object entry : events)
+                if (((JSONObject) entry).getString("event_type").equals("workflow.binding")) {
+                    hostWorkflowSteps++;
+                }
             metrics.put("hostWorkflowSteps", hostWorkflowSteps);
             for (String kind : new String[]{"modelJobs", "toolJobs", "inferences"}) {
-                JSONArray list = out.getJSONArray(kind), timings = new JSONArray();
-                int active = 0, queued = 0;
+                JSONArray list = out.getJSONArray(kind);
+                JSONArray timings = new JSONArray();
+                int active = 0;
+                int queued = 0;
                 for (int i = 0; i < list.length(); i++) {
                     JSONObject j = list.getJSONObject(i);
                     if (j.getInt("actual_finished") == 0) {

@@ -7,11 +7,18 @@
 package cube.service.harness.store;
 
 import cube.aigc.usage.UsageContext;
+import cube.aigc.usage.UsageLedger;
+import cube.aigc.usage.UsageTokens;
 import cube.aigc.usage.UsageWriter;
+import cube.service.harness.execution.ModelBudgets;
+import cube.service.harness.runtime.ContextSummary;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
+import java.sql.Connection;
+import java.util.Arrays;
 
 import static cube.service.harness.store.JdbcRunStore.*;
 
@@ -29,17 +36,36 @@ public final class InferenceStore {
      */
     private final JdbcRunStore store;
 
+    /**
+     * 用量记账写出器，独立于推理事务持久化用量。
+     */
     private final UsageWriter accounting;
-    private final cube.service.harness.execution.ModelBudgets budgets;
 
+    /**
+     * token 预算计量器，用于派发前的 wire 准入校验。
+     */
+    private final ModelBudgets budgets;
+
+    /**
+     * 读取推理所属 run 的用量记账上下文。
+     *
+     * @param inference 推理 ID。
+     * @return 用量上下文。
+     * @throws StoreException INFERENCE_NOT_FOUND（推理记录不存在）。
+     */
     public UsageContext accountingContext(String inference) {
         return store.tx(c -> {
             JSONObject r = first(rows(c, "SELECT r.tenant,r.subject_id,r.run_id FROM harness_inference i JOIN harness_model_job j ON j.job_id=i.job_id JOIN harness_run r ON r.run_id=j.run_id WHERE i.inference_id=?", inference));
-            if (r == null) throw new StoreException("INFERENCE_NOT_FOUND");
+            if (r == null) {
+                throw new StoreException("INFERENCE_NOT_FOUND");
+            }
             return UsageContext.run(r.getString("tenant"), Long.parseLong(r.getString("subject_id")), r.getString("run_id"), inference);
         });
     }
 
+    /**
+     * 关闭用量记账写出器。
+     */
     public void closeAccounting() {
         accounting.close();
     }
@@ -56,15 +82,22 @@ public final class InferenceStore {
      * @param mysql 是否 MySQL 数据库；决定读关键行是否追加 FOR UPDATE 行锁
      */
     public InferenceStore(JdbcRunStore store, boolean mysql) {
-        this(store, mysql, new cube.service.harness.execution.ModelBudgets());
+        this(store, mysql, new ModelBudgets());
     }
 
-    public InferenceStore(JdbcRunStore store, boolean mysql, cube.service.harness.execution.ModelBudgets budgets) {
+    /**
+     * 完整构造器，可注入自定义 token 预算计量器。
+     *
+     * @param store   共享的 JdbcRunStore 事务入口。
+     * @param mysql   是否 MySQL 数据库。
+     * @param budgets token 预算计量器。
+     */
+    public InferenceStore(JdbcRunStore store, boolean mysql, ModelBudgets budgets) {
         this.budgets = budgets;
         this.store = store;
         this.lock = mysql ? " FOR UPDATE" : "";
-        this.accounting = new cube.aigc.usage.UsageWriter(store.accounting(),
-                java.nio.file.Paths.get("storage", "ai-usage-outbox", store.accountingIdentity()));
+        this.accounting = new UsageWriter(store.accounting(),
+                Paths.get("storage", "ai-usage-outbox", store.accountingIdentity()));
     }
 
     /**
@@ -77,7 +110,7 @@ public final class InferenceStore {
      * @return 匹配的 harness_model_job 行
      * @throws StoreException JOB_EVIDENCE_MISMATCH：作业不存在、worker/实例不匹配或协议版本不是 3
      */
-    private JSONObject job(java.sql.Connection c, String job, String worker, String instance)
+    private JSONObject job(Connection c, String job, String worker, String instance)
             throws Exception {
         JSONObject j = first(rows(c, "SELECT * FROM harness_model_job WHERE job_id=?" + lock, job));
         if (j == null
@@ -155,15 +188,21 @@ public final class InferenceStore {
                                                     : input.getJSONObject("generation").optInt("maxRepairs", 0)));
                     int budgetRetries = Math.min(2, Math.max(0, input.optInt("contextBudgetRetries", 0)));
                     JSONObject summarySpec = input.optJSONObject("contextSummaryRequest");
-                    String summaryHash = summarySpec == null ? null : hash(cube.service.harness.runtime.ContextSummary.wire(summarySpec));
+                    String summaryHash = summarySpec == null ? null : hash(ContextSummary.wire(summarySpec));
                     boolean submittingSummary = summaryHash != null && attempt == 1 && summaryHash.equals(requestHash);
                     JSONArray prior = rows(c, "SELECT * FROM harness_inference WHERE job_id=? ORDER BY wire_attempt", job);
-                    int completedRequests = 0, rejectedRequests = 0;
+                    int completedRequests = 0;
+                    int rejectedRequests = 0;
                     for (int n = 0; n < prior.length(); n++) {
                         JSONObject previous = prior.getJSONObject(n);
-                        if (n == 0 && summaryHash != null && summaryHash.equals(previous.getString("request_hash"))) continue;
-                        if (!previous.isNull("response_json")) completedRequests++;
-                        else if (budgetRejected(previous)) rejectedRequests++;
+                        if (n == 0 && summaryHash != null && summaryHash.equals(previous.getString("request_hash"))) {
+                            continue;
+                        }
+                        if (!previous.isNull("response_json")) {
+                            completedRequests++;
+                        } else if (budgetRejected(previous)) {
+                            rejectedRequests++;
+                        }
                     }
                     if (attempt < 1
                             || attempt > 1 + repairs + budgetRetries + (summarySpec == null ? 0 : 1)
@@ -191,14 +230,21 @@ public final class InferenceStore {
                         }
                     }
                     JSONObject config = first(rows(c, "SELECT config_json,digest FROM harness_run_config WHERE run_id=?", j.getString("run_id")));
-                    if (config == null) throw new StoreException("RUN_CONFIG_NOT_PINNED");
+                    if (config == null) {
+                        throw new StoreException("RUN_CONFIG_NOT_PINNED");
+                    }
                     JSONObject pin = new JSONObject(config.getString("config_json"));
-                    if (!hash(pin).equals(config.getString("digest"))) throw new StoreException("RUN_CONFIG_CORRUPT");
+                    if (!hash(pin).equals(config.getString("digest"))) {
+                        throw new StoreException("RUN_CONFIG_CORRUPT");
+                    }
                     String rejected = null;
-                    try { budgets.admitWire(pin, request); }
-                    catch (StoreException error) {
-                        if (!java.util.Arrays.asList("INFERENCE_CONTEXT_BUDGET_EXCEEDED", "MODEL_COUNTER_UNAVAILABLE",
-                                "MODEL_COUNTER_AMBIGUOUS", "MODEL_COUNTER_INVALID").contains(error.code)) throw error;
+                    try {
+                        budgets.admitWire(pin, request);
+                    } catch (StoreException error) {
+                        if (!Arrays.asList("INFERENCE_CONTEXT_BUDGET_EXCEEDED", "MODEL_COUNTER_UNAVAILABLE",
+                                "MODEL_COUNTER_AMBIGUOUS", "MODEL_COUNTER_INVALID").contains(error.code)) {
+                            throw error;
+                        }
                         rejected = error.code;
                     }
                     String inference = hash(new JSONArray().put(job).put(attempt));
@@ -292,9 +338,11 @@ public final class InferenceStore {
                                 inference);
                         return false;
                     }
-                    if (!accounting.healthy()) throw new StoreException("AI_USAGE_TEMPORARILY_UNAVAILABLE");
+                    if (!accounting.healthy()) {
+                        throw new StoreException("AI_USAGE_TEMPORARILY_UNAVAILABLE");
+                    }
                     JSONObject subject = first(rows(c, "SELECT r.tenant,r.subject_id,r.run_id,j.worker_id,j.model_id FROM harness_model_job j JOIN harness_run r ON r.run_id=j.run_id WHERE j.job_id=?", i.getString("job_id")));
-                    cube.aigc.usage.UsageContext identity = cube.aigc.usage.UsageContext.run(subject.getString("tenant"), Long.parseLong(subject.getString("subject_id")), subject.getString("run_id"), inference);
+                    UsageContext identity = UsageContext.run(subject.getString("tenant"), Long.parseLong(subject.getString("subject_id")), subject.getString("run_id"), inference);
                     accounting.ledger.begin(c, identity, inference, subject.getString("model_id"), subject.optString("worker_id", ""), store.now(c));
                     return update(
                             c,
@@ -388,10 +436,21 @@ public final class InferenceStore {
         finish(inference, response, error, actualFinished, unit, response);
     }
 
+    /**
+     * 记录最终响应/错误，并以给定的用量证据结算记账。
+     *
+     * @param inference      推理 ID。
+     * @param response       最终响应 JSON，可为 null。
+     * @param error          错误码，可为 null。
+     * @param actualFinished 是否构成物理结束证据。
+     * @param unit           执行推理的 Unit ID。
+     * @param usageEvidence  用量证据，可为 null。
+     * @throws StoreException INFERENCE_NOT_FOUND（推理记录不存在）。
+     */
     public void finish(String inference, JSONObject response, String error, boolean actualFinished, String unit, JSONObject usageEvidence) {
-        long[] tokens = cube.aigc.usage.UsageTokens.read(usageEvidence);
+        long[] tokens = UsageTokens.read(usageEvidence);
         String status = "MODEL_NOT_DISPATCHED".equals(error) ? "not_dispatched" : error == null ? "succeeded" : actualFinished ? "failed" : "unknown";
-        JSONObject accountingEvidence = cube.aigc.usage.UsageLedger.evidence(inference, tokens == null ? 1 : actualFinished ? 3 : 2, status,
+        JSONObject accountingEvidence = UsageLedger.evidence(inference, tokens == null ? 1 : actualFinished ? 3 : 2, status,
                 tokens == null ? "unknown" : "actual", tokens == null ? null : tokens[0], tokens == null ? null : tokens[1], System.currentTimeMillis());
         JSONObject invocation;
         try {
@@ -400,13 +459,16 @@ public final class InferenceStore {
             accounting.finish(accountingEvidence);
             throw unavailable;
         }
-        if (invocation != null) accounting.finish(accountingEvidence);
+        if (invocation != null) {
+            accounting.finish(accountingEvidence);
+        }
         String raw = response == null ? null : canonical(response);
         if (raw != null && raw.getBytes(StandardCharsets.UTF_8).length > 65536) {
             raw = null;
             error = "MODEL_OUTPUT_TOO_LARGE";
         }
-        final String result = raw, code = error;
+        final String result = raw;
+        final String code = error;
         store.tx(
                 c -> {
                     JSONObject old =
@@ -554,14 +616,17 @@ public final class InferenceStore {
                             rows(c, "SELECT * FROM harness_inference WHERE job_id=? ORDER BY wire_attempt", job);
                     JSONObject jobRow = first(rows(c, "SELECT request_json FROM harness_model_job WHERE job_id=?", job));
                     JSONObject summarySpec = jobRow == null ? null : new JSONObject(jobRow.getString("request_json")).optJSONObject("contextSummaryRequest");
-                    String summaryHash = summarySpec == null ? null : hash(cube.service.harness.runtime.ContextSummary.wire(summarySpec));
+                    String summaryHash = summarySpec == null ? null : hash(ContextSummary.wire(summarySpec));
                     JSONObject summary = null;
                     if (attempts.length() == 0 && outcome.getString("status").equals("success")) {
                         throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
                     }
                     if (attempts.length() == 1 && summaryHash != null && summaryHash.equals(attempts.getJSONObject(0).getString("request_hash"))
-                            && outcome.getString("status").equals("success")) throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
-                    long input = 0, output = 0;
+                            && outcome.getString("status").equals("success")) {
+                        throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
+                    }
+                    long input = 0;
+                    long output = 0;
                     boolean known = attempts.length() > 0;
                     String rejectedCode = null;
                     JSONArray audit = new JSONArray();
@@ -582,8 +647,10 @@ public final class InferenceStore {
                         if (!i.isNull("response_json")) {
                             JSONObject response = new JSONObject(i.getString("response_json"));
                             if (summaryAttempt) {
-                                summary = cube.service.harness.runtime.ContextSummary.validate(summarySpec, response);
-                                if (summary == null) record.put("errorCode", "CONTEXT_SUMMARY_INVALID");
+                                summary = ContextSummary.validate(summarySpec, response);
+                                if (summary == null) {
+                                    record.put("errorCode", "CONTEXT_SUMMARY_INVALID");
+                                }
                             }
                             record
                                     .put("responseHash", hash(response))
@@ -604,24 +671,31 @@ public final class InferenceStore {
                             }
                         } else {
                             boolean rejectedBeforeDispatch = i.isNull("node_id") && i.isNull("owner_id")
-                                    && java.util.Arrays.asList("INFERENCE_CONTEXT_BUDGET_EXCEEDED", "MODEL_COUNTER_UNAVAILABLE",
+                                    && Arrays.asList("INFERENCE_CONTEXT_BUDGET_EXCEEDED", "MODEL_COUNTER_UNAVAILABLE",
                                     "MODEL_COUNTER_AMBIGUOUS", "MODEL_COUNTER_INVALID").contains(i.optString("error_code"));
                             if (rejectedBeforeDispatch) {
-                                if (n == attempts.length() - 1) rejectedCode = i.getString("error_code");
+                                if (n == attempts.length() - 1) {
+                                    rejectedCode = i.getString("error_code");
+                                }
                                 record.put("usage", new JSONObject().put("input", 0).put("output", 0))
                                         .put("finishReason", "not-dispatched").put("errorCode", i.getString("error_code")).put("phase", "budget-retry");
+                            } else {
+                                known = false;
                             }
-                            else known = false;
                             if (outcome.getString("status").equals("success") && !summaryAttempt && (!budgetRejected(i) || n == attempts.length() - 1)) {
                                 throw new StoreException("INFERENCE_EVIDENCE_REQUIRED");
                             }
                         }
-                        if (summaryAttempt) record.put("phase", "summary");
+                        if (summaryAttempt) {
+                            record.put("phase", "summary");
+                        }
                         audit.put(record);
                     }
                     JSONObject result = new JSONObject(outcome.toString()).put("audit", audit);
                     result.remove("contextSummary"); // Never trust worker-provided provenance or summary claims.
-                    if (summary != null) result.put("contextSummary", summary);
+                    if (summary != null) {
+                        result.put("contextSummary", summary);
+                    }
                     if (rejectedCode != null) {
                         result.put("status", "error").put("errorCode", rejectedCode);
                         result.remove("decision");
@@ -634,17 +708,31 @@ public final class InferenceStore {
                 });
     }
 
+    /**
+     * 判断记录是否为派发前的上下文预算拒绝。
+     *
+     * @param row 推理记录行。
+     * @return 是预算拒绝返回 true。
+     */
     private static boolean budgetRejected(JSONObject row) {
         return row.getInt("actual_finished") == 1 && row.isNull("response_json") && row.isNull("node_id")
                 && row.isNull("owner_id") && row.optString("error_code").equals("INFERENCE_CONTEXT_BUDGET_EXCEEDED");
     }
 
-    /** Budget rejections and optional summary calls are not format repairs. */
+    /**
+     * 预算拒绝与可选摘要调用不计入格式修复次数。
+     *
+     * @param outcome 模型结果对象，含 audit 数组。
+     * @return 可归因于格式修复的次数，最小为 0。
+     */
     public static int repairs(JSONObject outcome) {
-        JSONArray audit = outcome.getJSONArray("audit"); int calls = 0;
+        JSONArray audit = outcome.getJSONArray("audit");
+        int calls = 0;
         for (int i = 0; i < audit.length(); i++) {
             JSONObject item = audit.getJSONObject(i);
-            if (!java.util.Arrays.asList("budget-retry", "summary").contains(item.optString("phase"))) calls++;
+            if (!Arrays.asList("budget-retry", "summary").contains(item.optString("phase"))) {
+                calls++;
+            }
         }
         return Math.max(0, calls - 1);
     }
