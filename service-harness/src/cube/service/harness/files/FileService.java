@@ -7,6 +7,7 @@
 package cube.service.harness.files;
 
 import com.sun.net.httpserver.HttpExchange;
+import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.runtime.AssetFiles;
 import cube.service.harness.runtime.ProfileRegistry;
 import cube.service.harness.runtime.RuntimeSupport;
@@ -20,9 +21,13 @@ import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
+import java.io.Reader;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -335,6 +340,9 @@ public final class FileService implements AutoCloseable {
                                         TimeUnit.MILLISECONDS);
                         try {
                             MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                            long expectedSize = row.getLong("size_bytes");
+                            long expiresAt = row.getLong("expires_at");
+                            long nextExpiryCheck = System.nanoTime();
                             long size = 0;
                             try (FileChannel out =
                                          FileChannel.open(
@@ -349,10 +357,15 @@ public final class FileService implements AutoCloseable {
                                     if (!valid.getAsBoolean()) {
                                         throw new StoreException("FILE_TRANSFER_ABORTED");
                                     }
-                                    if (size > row.getLong("size_bytes")
-                                            || size > config.maxFile
-                                            || ledger.now() >= row.getLong("expires_at")) {
+                                    if (size > expectedSize || size > config.maxFile) {
                                         throw new StoreException("FILE_SIZE_OR_DEADLINE_EXCEEDED");
+                                    }
+                                    // 数据库时钟检查按秒进行，传输有效性仍逐块检查。
+                                    if (System.nanoTime() - nextExpiryCheck >= 0) {
+                                        if (ledger.now() >= expiresAt) {
+                                            throw new StoreException("FILE_SIZE_OR_DEADLINE_EXCEEDED");
+                                        }
+                                        nextExpiryCheck = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
                                     }
                                     digest.update(buffer, 0, n);
                                     ByteBuffer b = ByteBuffer.wrap(buffer, 0, n);
@@ -365,15 +378,18 @@ public final class FileService implements AutoCloseable {
                             if (!valid.getAsBoolean()) {
                                 throw new StoreException("FILE_TRANSFER_ABORTED");
                             }
+                            if (ledger.now() >= expiresAt) {
+                                throw new StoreException("FILE_SIZE_OR_DEADLINE_EXCEEDED");
+                            }
                             String actual = hex(digest.digest());
-                            if (size != row.getLong("size_bytes") || !actual.equals(row.getString("sha256"))) {
+                            if (size != expectedSize || !actual.equals(row.getString("sha256"))) {
                                 throw new StoreException("FILE_DIGEST_MISMATCH");
                             }
                             if (disk.usage(disk.root)[0] > config.maxBytes) {
                                 throw new StoreException("FILE_QUOTA_EXCEEDED");
                             }
                             if (Files.exists(dest)) {
-                                if (!RuntimeSupport.sha(Files.readAllBytes(dest)).equals(actual)) {
+                                if (!sha256(dest).equals(actual)) {
                                     throw new StoreException("FILE_DIGEST_MISMATCH");
                                 }
                                 Files.delete(part);
@@ -491,9 +507,10 @@ public final class FileService implements AutoCloseable {
                         throw new StoreException("FILE_EXPIRED");
                     }
                     Path content = path(row, ".data");
+                    long size = row.getLong("size_bytes");
                     if (!Files.isRegularFile(content, LinkOption.NOFOLLOW_LINKS)
-                            || Files.size(content) != row.getLong("size_bytes")
-                            || !RuntimeSupport.sha(Files.readAllBytes(content)).equals(sha)) {
+                            || Files.size(content) != size
+                            || !sha256(content).equals(sha)) {
                         throw new StoreException("FILE_UPLOAD_INCOMPLETE");
                     }
                     String type = row.getString("media_type");
@@ -507,20 +524,18 @@ public final class FileService implements AutoCloseable {
                         throw new StoreException("FILE_TYPE_UNSUPPORTED");
                     }
                     if (type.equals("application/pdf")) {
+                        validatePdf(content, size);
+                    } else if (type.equals("application/json")) {
+                        if (size > StrictJson.MAX_BYTES) {
+                            throw new IllegalArgumentException("INVALID_JSON");
+                        }
                         byte[] bytes = Files.readAllBytes(content);
-                        String head = new String(bytes, 0, Math.min(bytes.length, 8), StandardCharsets.US_ASCII);
-                        String tail = new String(bytes, Math.max(0, bytes.length - 1024), Math.min(bytes.length, 1024), StandardCharsets.US_ASCII);
-                        if (!head.matches("%PDF-[12]\\.[0-9].*") || !tail.contains("%%EOF"))
-                            throw new StoreException("FILE_TYPE_MISMATCH");
-                    } else if (type.startsWith("text/") || type.equals("application/json")) {
-                        byte[] bytes = Files.readAllBytes(content);
-                        String text = decode(bytes);
-                        if (text.indexOf('\0') >= 0) {
+                        if (decode(bytes).indexOf('\0') >= 0) {
                             throw new StoreException("FILE_TYPE_MISMATCH");
                         }
-                        if (type.equals("application/json")) {
-                            cube.service.harness.protocol.StrictJson.object(bytes);
-                        }
+                        StrictJson.object(bytes);
+                    } else if (type.startsWith("text/")) {
+                        validateText(content);
                     } else if (!type.equals("application/octet-stream")) {
                         try (InputStream stream = Files.newInputStream(content)) {
                             byte[] head = new byte[12];
@@ -534,6 +549,42 @@ public final class FileService implements AutoCloseable {
                 });
     }
 
+    private static void validatePdf(Path content, long size) throws IOException {
+        byte[] head = new byte[(int) Math.min(size, 8)];
+        byte[] tail = new byte[(int) Math.min(size, 1024)];
+        try (RandomAccessFile file = new RandomAccessFile(content.toFile(), "r")) {
+            file.readFully(head);
+            file.seek(size - tail.length);
+            file.readFully(tail);
+        }
+        if (!new String(head, StandardCharsets.US_ASCII).matches("%PDF-[12]\\.[0-9].*")
+                || !new String(tail, StandardCharsets.US_ASCII).contains("%%EOF")) {
+            throw new StoreException("FILE_TYPE_MISMATCH");
+        }
+    }
+
+    private static void validateText(Path content) throws IOException {
+        boolean hasNul = false;
+        try (Reader reader = new InputStreamReader(Files.newInputStream(content), utf8Decoder())) {
+            char[] buffer = new char[8192];
+            int count;
+            while ((count = reader.read(buffer)) != -1) {
+                for (int i = 0; i < count; i++) {
+                    hasNul |= buffer[i] == '\0';
+                }
+            }
+        }
+        if (hasNul) {
+            throw new StoreException("FILE_TYPE_MISMATCH");
+        }
+    }
+
+    private static CharsetDecoder utf8Decoder() {
+        return StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+    }
+
     /**
      * 严格 UTF-8 解码；畸形或不可映射字符直接报错而不是替换。
      *
@@ -542,12 +593,19 @@ public final class FileService implements AutoCloseable {
      * @throws Exception 字节不是合法 UTF-8
      */
     private static String decode(byte[] bytes) throws Exception {
-        return StandardCharsets.UTF_8
-                .newDecoder()
-                .onMalformedInput(CodingErrorAction.REPORT)
-                .onUnmappableCharacter(CodingErrorAction.REPORT)
-                .decode(ByteBuffer.wrap(bytes))
-                .toString();
+        return utf8Decoder().decode(ByteBuffer.wrap(bytes)).toString();
+    }
+
+    private static String sha256(Path content) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (InputStream input = Files.newInputStream(content)) {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                digest.update(buffer, 0, count);
+            }
+        }
+        return hex(digest.digest());
     }
 
     private static boolean binarySignature(String type, byte[] b, int count) {
@@ -648,7 +706,7 @@ public final class FileService implements AutoCloseable {
                         Path content = path(row, ".data");
                         if (!Files.isRegularFile(content, LinkOption.NOFOLLOW_LINKS)
                                 || Files.size(content) != row.getLong("size_bytes")
-                                || !RuntimeSupport.sha(Files.readAllBytes(content)).equals(row.getString("sha256"))) {
+                                || !sha256(content).equals(row.getString("sha256"))) {
                             throw new StoreException("FILE_DELIVERY_INVALID");
                         }
                     }
@@ -796,15 +854,7 @@ public final class FileService implements AutoCloseable {
                         throw new StoreException("FILE_NOT_FOUND");
                     }
                     Path content = path(row, ".data");
-                    MessageDigest digest = MessageDigest.getInstance("SHA-256");
-                    try (InputStream check = Files.newInputStream(content)) {
-                        byte[] buffer = new byte[8192];
-                        int n;
-                        while ((n = check.read(buffer)) != -1) {
-                            digest.update(buffer, 0, n);
-                        }
-                    }
-                    if (!hex(digest.digest()).equals(row.getString("sha256"))) {
+                    if (!sha256(content).equals(row.getString("sha256"))) {
                         throw new StoreException("FILE_DIGEST_MISMATCH");
                     }
                     input = Files.newInputStream(content);
@@ -996,7 +1046,7 @@ public final class FileService implements AutoCloseable {
             Path data = path(row, ".data");
             long size = row.getLong("size_bytes");
             if (offset > size || Files.size(data) != size) throw new StoreException("FILE_OFFSET_INVALID");
-            if (offset == 0 && !RuntimeSupport.sha(Files.readAllBytes(data)).equals(row.getString("sha256")))
+            if (offset == 0 && !sha256(data).equals(row.getString("sha256")))
                 throw new StoreException("FILE_DIGEST_MISMATCH");
             ByteBuffer buffer = ByteBuffer.allocate((int) Math.min(16384, size - offset));
             try (FileChannel in = FileChannel.open(data, StandardOpenOption.READ)) {
@@ -1057,7 +1107,7 @@ public final class FileService implements AutoCloseable {
             if (row.getString("status").equals("uploading")) {
                 Path source = Files.exists(data) ? data : part;
                 if (!Files.exists(source) || Files.size(source) != row.getLong("size_bytes")
-                        || !RuntimeSupport.sha(Files.readAllBytes(source)).equals(row.getString("sha256")))
+                        || !sha256(source).equals(row.getString("sha256")))
                     throw new StoreException("FILE_DIGEST_MISMATCH");
                 if (source.equals(part)) Files.move(part, data, StandardCopyOption.ATOMIC_MOVE);
                 ledger.uploaded(identity.tenant, identity.subject, row.getString("file_id"), row.getString("sha256"));

@@ -126,8 +126,8 @@ files.enabled=false
 # files.root.id=harness-files-1
 # 下载句柄签名密钥，至少 32 个私有字符，仅保存在服务端私有配置中。
 # files.download.key=REPLACE_WITH_AT_LEAST_32_PRIVATE_CHARACTERS
-# 单文件大小上限，单位为字节；10485760 = 10 MiB。
-# files.max.file.bytes=10485760
+# 单文件大小上限，单位为字节；默认及可配置上限均为 524288000（500 MiB）。
+# files.max.file.bytes=524288000
 # 文件根总配额，单位为字节；1073741824 = 1 GiB。
 # files.max.bytes=1073741824
 

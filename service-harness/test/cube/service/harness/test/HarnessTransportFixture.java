@@ -15,7 +15,7 @@ import static cube.service.harness.test.RuntimeTest.*;
  *
  * <p>在 ExecutionTest 准备好的一次性存储之上，开启 files/trace/feedback
  * 配置并创建 FileService，然后生成两类数据写入 {@code fixture.json}：
- * 一个达到 files.max.file.bytes 上限的大文本产物、一个空文本产物及其
+ * 一个最大 1 MiB 的文本产物、一个空文本产物及其
  * 所在 run 的终态回执；再为 input/approval 两类控制各建一个等待中的
  * run 与等待记录。实际配置（含 files.root 等绝对路径）回写
  * {@code store.local.properties}，供传输测试进程复用。
@@ -48,10 +48,10 @@ public final class HarnessTransportFixture {
         p.setProperty("feedback.enabled", "true");
         JSONObject fixture = new JSONObject(new String(Files.readAllBytes(root.resolve("fixture.json")), "UTF-8"));
         try (FileService files = new FileService(store, p, identity)) {
-            // 先落一个 succeeded 的 run：大产物写满上限字节，空产物写空文本。
+            // 成功 run 提供下载夹具，上传上限由传输测试独立覆盖。
             String run = store.create(T, S, key(), "fixture", new JSONObject()).getString("runId");
             JdbcRunStore.Lease lease = running(run, 60000);
-            int size = Integer.parseInt(p.getProperty("files.max.file.bytes"));
+            int size = (int) Math.min(files.config.maxFile, 1024 * 1024);
             String text = new String(new char[size]).replace('\0', 'x');
             fixture.put("artifact", files.writeText(lease, "large", new JSONObject().put("fileName", "文件.txt").put("text", text)));
             fixture.put("emptyArtifact", files.writeText(lease, "empty", new JSONObject().put("fileName", "empty.txt").put("text", "")));

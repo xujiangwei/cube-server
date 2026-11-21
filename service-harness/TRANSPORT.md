@@ -46,4 +46,4 @@ service 每次返回有限事件页，limit 为 1～100，并验证游标及连�
 
 一次传输固定到选定 Director 和会话，不中途切换节点。transferId 绑定连接、身份、文件及截止时间；未知或跨会话流直接关闭。每个 gateway 和 service 传输层各最多两个活动文件传输，使用独立有界文件线程池；service 最多保留 64 条传输记录。
 
-下载租约使用 `file.download.lease.seconds`；单文件默认 10 MiB，可配置至 64 MiB。超时、断连、客户端退出或停机时关闭流并释放 pin/会话；HTTP 头已提交后的错误中止连接。客户端需要重新发起被中断的传输。文件接口及生命周期见 [CONTROL-FILES.md](CONTROL-FILES.md)。
+下载租约使用 `file.download.lease.seconds`。单文件默认上限为 500 MiB（524288000 字节）。超时、断连、客户端退出或停机时关闭流并释放 pin/会话。HTTP 头已提交后的错误中止连接。客户端需要重新发起被中断的传输。文件接口及生命周期见 [CONTROL-FILES.md](CONTROL-FILES.md)。

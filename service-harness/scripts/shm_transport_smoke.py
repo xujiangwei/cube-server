@@ -138,13 +138,16 @@ backend.transport-readiness.capacity=1
     def no_pins():
         with sqlite3.connect(root / "data/harness_execution.db", timeout=5) as db:
             return db.execute("SELECT COUNT(*) FROM harness_file_pin WHERE kind IN ('download','upload')").fetchone()[0] == 0
-    def upload(data, sha=None, token=None):
+    def upload(data, *, size=None, sha=None, token=None, media_type="application/octet-stream", expected=200):
+        size = len(data) if size is None else size
         sha = sha or hashlib.sha256(data).hexdigest()
-        metadata = dict(fileName="测试.bin", mediaType="application/octet-stream", size=len(data), sha256=sha)
+        metadata = dict(fileName="测试.bin", mediaType=media_type, size=size, sha256=sha)
         value = request("/harness/v1/inputs", metadata, token=token, expected=201)
         base = "/harness/v1/inputs/" + value["inputId"]
-        result = request(base + "/content", data, token=token, method="PUT", headers={"Content-Type": "application/octet-stream"}, expected=200 if sha == hashlib.sha256(data).hexdigest() else 400)
-        if "errorCode" not in result:
+        result = request(base + "/content", data, token=token, method="PUT",
+                         headers={"Content-Type": "application/octet-stream", "Content-Length": str(size)},
+                         expected=expected)
+        if expected == 200:
             request(base + "/complete", dict(sha256=sha), token=token)
             assert request(base, token=token)["state"] == "ready"
         return result
@@ -260,8 +263,20 @@ backend.transport-readiness.capacity=1
         request("/harness/v1/inputs/" + other_input, expected=404)
         upload(b"")
         upload("中文\n".encode())
-        upload(b"x" * args.max_file_bytes)
-        assert upload(b"broken", "0" * 64)["errorCode"] == "FILE_DIGEST_MISMATCH"
+        def max_file_chunks():
+            block = b"x" * 65536
+            for offset in range(0, args.max_file_bytes, len(block)):
+                yield block[:args.max_file_bytes - offset]
+
+        digest = hashlib.sha256()
+        for block in max_file_chunks():
+            digest.update(block)
+        sha = digest.hexdigest()
+        oversized = dict(fileName="oversized.txt", mediaType="text/plain", size=args.max_file_bytes + 1, sha256=sha)
+        assert request("/harness/v1/inputs", oversized, expected=400)["errorCode"] == "FILE_TOO_LARGE"
+        upload(max_file_chunks(), size=args.max_file_bytes, sha=sha, media_type="text/plain")
+        record("file-at-configured-limit-is-ready-and-one-byte-over-is-rejected")
+        assert upload(b"broken", sha="0" * 64, expected=400)["errorCode"] == "FILE_DIGEST_MISMATCH"
         for name in ("artifact", "emptyArtifact"):
             artifact = fixture[name]
             path = "/harness/v1/artifacts/" + artifact["artifactId"]
@@ -276,7 +291,7 @@ backend.transport-readiness.capacity=1
         record("shm-stream-empty-unicode-maximum-file-digest-download-handle-and-pin-release")
 
         # A client that closes mid-upload must not leave an upload pin or exhaust admission.
-        payload = b"y" * max(65536, args.max_file_bytes)
+        payload = b"y" * min(65536, args.max_file_bytes)
         value = request("/harness/v1/inputs", dict(fileName="abort.bin", mediaType="application/octet-stream", size=len(payload), sha256=hashlib.sha256(payload).hexdigest()), expected=201)
         sock = socket.create_connection(("127.0.0.1", gateway.port))
         sock.sendall(("PUT /harness/v1/inputs/" + value["inputId"] + "/content HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer " + api + "\r\nIdempotency-Key: aborted-upload\r\nContent-Type: application/octet-stream\r\nContent-Length: " + str(len(payload)) + "\r\n\r\n").encode() + payload[:100])

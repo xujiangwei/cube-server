@@ -779,7 +779,7 @@
  * @apiGroup Harness
  * @apiVersion 1.0.0
  * @apiDescription 为任务附件创建上传会话。先声明文件名、媒体类型、字节数和 SHA-256，再上传内容并确认就绪。
- *                 <p>支持 text/plain、text/csv、application/json、application/pdf、application/octet-stream、image/jpeg、image/png、application/zip、application/vnd.openxmlformats-officedocument.spreadsheetml.sheet、application/vnd.openxmlformats-officedocument.wordprocessingml.document、audio/wav 和 audio/mpeg。默认上限 10 MiB，由服务提供方配置，最大 64 MiB；工具可另设上限。文本使用 UTF-8，JSON 顶层必须为对象且不能含重复键。文件完成上传时核对摘要及声明类型，具体工具再检查文件结构和可执行参数。</p>
+ *                 <p>支持 text/plain、text/csv、application/json、application/pdf、application/octet-stream、image/jpeg、image/png、application/zip、application/vnd.openxmlformats-officedocument.spreadsheetml.sheet、application/vnd.openxmlformats-officedocument.wordprocessingml.document、audio/wav 和 audio/mpeg。默认上限为 500 MiB（524288000 字节），部署配置和具体工具可采用更低限额。文本使用 UTF-8。结构化 JSON 限 256 KiB，顶层必须为对象且不能含重复键。文件完成上传时核对摘要及声明类型，具体工具再检查文件结构和可执行参数。</p>
  *                 <p>HTTP <code>201</code> 返回 <code>inputId</code>，此时状态为 <code>uploading</code>，还不能用于任务。依次调用“上传输入文件内容”和“确认输入文件就绪”，再将该 ID 填入任务的 <code>input.attachmentIds</code>。SHA-256 和大小均按实际上传的文件字节计算，注意换行和编码造成的差异。</p>
  * @apiUse HarnessAuth
  * @apiUse HarnessIdempotency

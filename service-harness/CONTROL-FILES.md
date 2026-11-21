@@ -31,7 +31,7 @@
 6. `GET /runs/{runId}/artifacts`、`GET /inputs/{inputId}`、`GET /artifacts/{artifactId}` 查询元数据；`GET /artifacts/{artifactId}/content` 下载。
 7. `GET /artifacts/{artifactId}/download-handle` 返回短期签名相对 URL；打开仍需 API 认证，句柄有效期不超过文件有效期。
 
-支持 text/plain、text/csv、application/json（顶层 object）、application/octet-stream、application/pdf、image/jpeg、image/png、application/zip、XLSX 与 DOCX 的标准 MIME、audio/wav、audio/mpeg。文本严格 UTF-8、拒绝 NUL；JSON 拒绝重复字段。文件大小默认 10 MiB、根配额默认 1 GiB，具体工具可设更低上限。每个文件身份使用独立随机 storageKey，**不共享或去重 blob**；同内容文件分别计额、分别到期，避免一个引用的删除影响另一个身份。上传意图与可信工具调用分账，失败仅补传/complete，不重做业务工具。
+支持 text/plain、text/csv、application/json（顶层 object）、application/octet-stream、application/pdf、image/jpeg、image/png、application/zip、XLSX 与 DOCX 的标准 MIME、audio/wav、audio/mpeg。文本严格 UTF-8，拒绝 NUL。结构化 JSON 限 256 KiB，拒绝重复字段。`files.max.file.bytes` 的默认值和可配置上限均为 524288000 字节（500 MiB），文件根总配额默认 1 GiB。需要将已有部署提升到 500 MiB 时，更新私有配置中显式设置的旧值，并为共享同一文件根的 JVM 使用一致配置。具体工具按各自的输入限制验收。每个文件身份使用独立随机 storageKey 和独立 blob。同内容文件分别计额、分别到期，一个身份删除后其他身份仍可按各自有效期访问。上传意图与可信工具调用分账，上传失败可单独补传或重试 complete。
 
 `harness.properties` 参数、单位与范围见 [主配置模板](config/harness.properties.template)。默认 Input 7 天、Artifact 30 天、未完成上传 24 小时；重启应用新配置，不追溯重算已保存 expiresAt。活跃多 JVM 的同根策略不同会拒绝启动，需先 drain 全部旧策略节点再改。
 

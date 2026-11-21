@@ -22,6 +22,8 @@ import java.util.*;
  */
 public final class FileConfig {
 
+    private static final long MAX_FILE_BYTES = 500L * 1024 * 1024;
+
     /**
      * 清理扫描总开关；false 只暂停物理删除，不改变到期语义。
      */
@@ -73,7 +75,7 @@ public final class FileConfig {
     public final long retryMax;
 
     /**
-     * 单文件最大字节数（默认 10 MiB，上限 64 MiB）。
+     * 单文件最大字节数（默认及可配置上限均为 500 MiB）。
      */
     public final long maxFile;
 
@@ -131,7 +133,7 @@ public final class FileConfig {
         claim = seconds("cleanup.claim.lease.seconds", 120, 30, 3600);
         retry = seconds("cleanup.retry.initial.seconds", 30, 1, 3600);
         retryMax = seconds("cleanup.retry.max.seconds", 3600, 1, 86400);
-        maxFile = number("files.max.file.bytes", 10485760, 1, 67108864);
+        maxFile = number("files.max.file.bytes", MAX_FILE_BYTES, 1, MAX_FILE_BYTES);
         maxBytes = number("files.max.bytes", 1073741824, 1, 1099511627776L);
         rootId = p.getProperty("files.root.id", "");
         if (!rootId.matches("[A-Za-z0-9_.:-]{1,128}") || retry > retryMax || maxFile > maxBytes) {
