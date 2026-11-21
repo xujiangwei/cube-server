@@ -131,7 +131,10 @@ public final class WorkflowGuard implements CompletionGuard {
     public void validate(Resources resources) throws Exception {
         try {
             JSONObject requirements = resources.json(FILE);
-            if (RetrievalWorkflow.active(resources)) { RetrievalWorkflow.validate(resources); return; }
+            if (RetrievalWorkflow.active(resources)) {
+                RetrievalWorkflow.validate(resources);
+                return;
+            }
             ConnectorConfig.keys(requirements, "version,maxRepairs,pipelines", "execution");
             require("1".equals(requirements.getString("version")));
             int repairs = requirements.getInt("maxRepairs");

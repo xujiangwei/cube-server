@@ -1,7 +1,7 @@
 /*
  * This source file is part of Cube.
  *
- * Copyright (c) 2023-2025 Ambrose Xu.
+ * Copyright (c) 2023-2026 Ambrose Xu.
  */
 
 package cube.service.harness.skill;
@@ -15,11 +15,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 文本附件读取技能：只接受纯文本类附件，并按字节预算截断。

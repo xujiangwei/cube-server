@@ -1,7 +1,7 @@
 /*
  * This source file is part of Cube.
  *
- * Copyright (c) 2023-2025 Ambrose Xu.
+ * Copyright (c) 2023-2026 Ambrose Xu.
  */
 
 package cube.service.harness.skill;
@@ -16,11 +16,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 数据查询技能：一次有界的分页拉取，或一次绑定的快照。
@@ -31,7 +27,7 @@ public final class DataQueryProvider extends AbstractProvider {
     /**
      * 输入文件与上游响应体的字节上限：1 MiB。
      */
-    private static final int MAX_PAYLOAD_BYTES = 1048576;
+    private static final int MAX_PAYLOAD_BYTES = 1048576 * 500;
 
     /**
      * 单页允许返回的最大记录数。

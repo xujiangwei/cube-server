@@ -6,6 +6,7 @@
 
 package cube.service.harness.skill;
 
+import cube.aigc.SpecializedDetectionCapabilities;
 import cube.service.harness.execution.ProviderInvocation;
 import cube.service.harness.execution.QueryProvider;
 import cube.service.harness.runtime.RuntimeSupport;
@@ -16,9 +17,16 @@ import org.json.JSONObject;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
+import java.awt.Dimension;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -33,7 +41,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
     /**
      * 图片与输入文件的字节上限：1 MiB。
      */
-    private static final int MAX_IMAGE_BYTES = 1048576;
+    private static final int MAX_IMAGE_BYTES = 1048576 * 500;
 
     /**
      * 二进制输入的媒体类型集合。
@@ -43,7 +51,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
     /**
      * 等待物理回执时单次轮询的间隔上限，单位毫秒。
      */
-    private static final int POLL_INTERVAL_MILLIS = 100;
+    private static final int POLL_INTERVAL_MILLIS = 3000;
 
     /**
      * 外部数据源访问器，用于按需拉取原始图片。
@@ -59,6 +67,10 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
      * 单次调用的超时时间，单位毫秒。
      */
     private final int timeout;
+
+    /**
+     * 排队等待 Unit 容量的超时时间，单位毫秒。
+     */
     private final int queueTimeout;
 
     /**
@@ -90,7 +102,15 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         return true;
     }
 
-    @Override public int runnerWaitMillis() { return Math.max(30000, timeout + queueTimeout + 5000); }
+    /**
+     * 返回 Broker 等待物理回执的最长毫秒数。
+     *
+     * @return 等待上限。
+     */
+    @Override
+    public int runnerWaitMillis() {
+        return Math.max(30000, timeout + queueTimeout + 5000);
+    }
 
     /**
      * 返回技能需要读取的配置文件清单。
@@ -136,8 +156,8 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
                         && instance.getBoolean("ready")
                         && instance.getInt("capacity") > 0
                         && (!"SpecializedDetection".equals(name)
-                        || (cube.aigc.SpecializedDetectionCapabilities.ready(instance)
-                        && cube.aigc.SpecializedDetectionCapabilities.supports(instance,
+                        || (SpecializedDetectionCapabilities.ready(instance)
+                        && SpecializedDetectionCapabilities.supports(instance,
                         option.getString("profile"), option.optBoolean("sliced"))))) {
                     ready = true;
                 }
@@ -225,14 +245,20 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         JSONObject execution;
         while (true) {
             check(context);
-            if (context.remainingMillis() == 0) throw new StoreException("TOOL_CANCELLED");
+            if (context.remainingMillis() == 0) {
+                throw new StoreException("TOOL_CANCELLED");
+            }
             try {
                 request.put("deadlineAt", System.currentTimeMillis() + Math.min(context.remainingMillis(), this.timeout));
                 execution = context.reserveMedia(profile.getString("unit"), request);
                 break;
             } catch (StoreException unavailable) {
-                if (!"CAPABILITY_CAPACITY_UNAVAILABLE".equals(unavailable.code)) throw unavailable;
-                if (System.nanoTime() >= queueDeadline) throw new StoreException("CAPABILITY_QUEUE_TIMEOUT");
+                if (!"CAPABILITY_CAPACITY_UNAVAILABLE".equals(unavailable.code)) {
+                    throw unavailable;
+                }
+                if (System.nanoTime() >= queueDeadline) {
+                    throw new StoreException("CAPABILITY_QUEUE_TIMEOUT");
+                }
                 TimeUnit.MILLISECONDS.sleep(POLL_INTERVAL_MILLIS);
             }
         }
@@ -310,6 +336,9 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
 
     /**
      * 把 Harness 分析档案的选项转换为目标 Unit 的请求契约。
+     *
+     * @param profile 分析档案。
+     * @return Unit 请求选项。
      */
     static JSONObject unitOptions(JSONObject profile) {
         JSONObject options = ConnectorConfig.arguments(profile.getString("optionsJson"));
@@ -335,7 +364,16 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         inspectDimensions(bytes, mediaType, maxPixels);
     }
 
-    static java.awt.Dimension inspectDimensions(byte[] bytes, String mediaType, int maxPixels) throws Exception {
+    /**
+     * 解码图片并返回其像素尺寸。
+     *
+     * @param bytes     图片字节。
+     * @param mediaType 声明的媒体类型。
+     * @param maxPixels 允许的最大像素数。
+     * @return 图片尺寸。
+     * @throws Exception 图片非法或解码失败。
+     */
+    static Dimension inspectDimensions(byte[] bytes, String mediaType, int maxPixels) throws Exception {
         if (bytes.length < 8 || bytes.length > MAX_IMAGE_BYTES) {
             throw new StoreException("MEDIA_IMAGE_INVALID");
         }
@@ -360,7 +398,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
                 if (reader.read(0) == null) {
                     throw new StoreException("MEDIA_IMAGE_INVALID");
                 }
-                return new java.awt.Dimension((int) width, (int) height);
+                return new Dimension((int) width, (int) height);
             } finally {
                 reader.dispose();
             }
