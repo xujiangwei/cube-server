@@ -62,9 +62,9 @@ def generate(python_root):
     files["adapter-profiles.json"] = raw(profiles)
     files["canonical-vectors.json"] = raw({"value": {"temperature": 1.0, "tiny": 1e-7, "message": "</script>\u2028\u0085"},
         "canonical": '{"message":"<\\/script>\\u2028\\u0085","temperature":1,"tiny":0.0000001}'})
-    # Checked reading/rendering fixtures are shared by Java and Python regression tests.
+    # Match Git's LF checkout bytes before hashing the shared fixtures.
     for name in ("wire-vectors.json", "summary-vectors.json"):
-        files[name] = (ROOT / "contracts/inference" / name).read_bytes()
+        files[name] = (ROOT / "contracts/inference" / name).read_bytes().replace(b"\r\n", b"\n")
     files["manifest.json"] = raw({key: hashlib.sha256(value).hexdigest() for key, value in files.items()})
     for root in (ROOT / "contracts/inference", python_root / "harness/contracts/inference"):
         for key, value in files.items():
