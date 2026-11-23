@@ -22,8 +22,20 @@ CREATE TABLE harness_run (
     input_revision BIGINT NOT NULL DEFAULT 0,
     applied_input_revision BIGINT NOT NULL DEFAULT 0,
     wait_started_at BIGINT NOT NULL DEFAULT 0,
-    wait_accumulated_millis BIGINT NOT NULL DEFAULT 0
+    wait_accumulated_millis BIGINT NOT NULL DEFAULT 0,
+    conversation_id VARCHAR(128),
+    conversation_seq BIGINT
 );
+
+CREATE TABLE harness_conversation (
+    conversation_id VARCHAR(128) NOT NULL PRIMARY KEY,
+    tenant VARCHAR(128) NOT NULL,
+    subject_id VARCHAR(128) NOT NULL,
+    sequence_no BIGINT NOT NULL,
+    instructions TEXT NOT NULL
+);
+
+CREATE INDEX harness_conversation_history ON harness_run(conversation_id,conversation_seq);
 
 CREATE TABLE harness_lease (
     run_id VARCHAR(128) NOT NULL,

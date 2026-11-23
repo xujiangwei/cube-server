@@ -285,6 +285,9 @@
  * @apiUse HarnessIdempotency
  * @apiUse HarnessJson
  * @apiBody {String} [parentRunId] 同租户、同用户的已终态且执行已确认的父任务；继承受控用户输入和答复，重新检查附件，不继承执行权限。历史有界，超限返回 CONVERSATION_LIMIT。
+ * @apiBody {Boolean} [newConversation] 设置为 true 时建立持久会话，返回 conversationId 和从 1 开始的 conversationSequence。
+ * @apiBody {String} [conversationId] 在同租户、同用户的会话中创建下一任务。最新任务须进入终态，结算可仍为 unknown。与 newConversation 和 parentRunId 互斥。
+ * @apiBody {String} [conversationInstructions] 建立或续接会话时设置长期要求，最多 4096 字符。省略沿用，空字符串清除。
  * @apiBody {String} [model] 模型名称或名称@版本，例如 Baize、Baize@1，以任务能力目录返回的名称和版本为准。
  * @apiBody {String} [runtime] 执行器名称或名称@版本，例如 resources、trusted-python，以任务能力目录返回的名称和版本为准。
  * @apiBody {String[]} [skills] 本次可用技能名称，采用命名空间/名称形式，使用任务能力目录返回的实际值；省略为全部获授权且兼容的技能，[] 为禁用。
@@ -1279,7 +1282,7 @@
  * @apiName HarnessAppendMessage
  * @apiGroup Harness
  * @apiVersion 1.0.0
- * @apiDescription interaction.enabled 开启时可在 queued、running 或等待期间补充。202 只表示持久化受理，message.applied 才表示已绑定后续上下文。模型正在执行时在下一执行边界生效，已经准入的动作可能继续完成。普通 instruction 使旧问题或审批失效，不构成批准。终态返回 RUN_TERMINAL，可使用 parentRunId 创建后续任务。重试必须保持原键和正文。
+ * @apiDescription interaction.enabled 开启时可在 queued、running 或等待期间补充。202 只表示持久化受理，message.applied 才表示已绑定后续上下文。模型正在执行时在下一执行边界生效，已经准入的动作可能继续完成。普通 instruction 使旧问题或审批失效，不构成批准。终态返回 RUN_TERMINAL，可使用 conversationId 或 parentRunId 创建后续任务。重试必须保持原键和正文。
  * @apiUse HarnessAuth
  * @apiUse HarnessIdempotency
  * @apiUse HarnessJson

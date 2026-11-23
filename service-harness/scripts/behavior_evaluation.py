@@ -86,6 +86,17 @@ def reviewed_behavior(review, trace, evidence_ids, required=False):
             column = {"helpful": "helpfulAdjustments", "harmful": "harmfulAdjustments"}.get(effect)
             if column:
                 counts[column] += 1
+    if "finals" in behavior:
+        finals = {o["roundId"] + "/" + str(o["attempt"]) for o in observed
+                  if o.get("decision", {}).get("kind") == "final"}
+        counts.update(reviewedFinals=len(finals), prematureFinals=0, limitedFinals=0, uncertainFinals=0)
+        for item in entries("finals", finals, "round"):
+            label = item.get("classification")
+            require(label in ("complete", "premature", "justified_limited", "uncertain"),
+                    "BEHAVIOR_FINAL_CLASS_INVALID")
+            if label != "complete":
+                counts[{"premature": "prematureFinals", "justified_limited": "limitedFinals",
+                        "uncertain": "uncertainFinals"}[label]] += 1
     return dict(counts, controlDigest=control, enabled=metrics["adjustmentEnabled"],
                 hostWorkflowSteps=metrics.get("hostWorkflowSteps", 0))
 
@@ -95,7 +106,14 @@ def summarize(attempts):
     totals = Counter()
     for row in complete:
         totals.update({k: v for k, v in row.items() if type(v) is int})
-    return dict(reviewedAttempts=len(complete), missingAttempts=len(attempts) - len(complete),
+    final_reviews = [row for row in complete if "reviewedFinals" in row]
+    finals = sum(row["reviewedFinals"] for row in final_reviews)
+    premature = sum(row["prematureFinals"] for row in final_reviews)
+    final_timing = dict(reviewedAttempts=len(final_reviews), missingAttempts=len(attempts) - len(final_reviews),
+                        reviewedFinals=finals, prematureFinals=premature,
+                        prematureRate=premature / finals if finals and not any(row["uncertainFinals"] for row in final_reviews)
+                        and len(final_reviews) == len(attempts) else None)
+    return dict(reviewedAttempts=len(complete), missingAttempts=len(attempts) - len(complete), finalTiming=final_timing,
                 totals=dict(totals) if len(complete) == len(attempts) and complete else None)
 
 

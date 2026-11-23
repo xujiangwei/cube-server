@@ -306,7 +306,7 @@ final class HarnessBusiness implements AutoCloseable {
             int status = code.endsWith("NOT_FOUND") ? 404 : code.endsWith("FORBIDDEN") ? 403
                     : code.equals("FILE_EXPIRED") || code.equals("WAIT_EXPIRED") ? 410
                     : code.equals("HARNESS_BUSY") || code.equals("FILE_BUSY") || code.equals("FILE_QUOTA_EXCEEDED") || code.equals("MESSAGE_QUEUE_FULL") ? 429
-                    : code.contains("CONFLICT") || code.equals("EVENT_GAP") || code.equals("RUN_TERMINAL") || code.startsWith("PARENT_RUN_") || code.equals("APPROVAL_ARGUMENTS_CHANGED") ? 409
+                    : code.contains("CONFLICT") || code.equals("EVENT_GAP") || code.equals("RUN_TERMINAL") || code.equals("CONVERSATION_ACTIVE_RUN") || code.startsWith("PARENT_RUN_") || code.equals("APPROVAL_ARGUMENTS_CHANGED") ? 409
                     : code.equals("UNSUPPORTED_MEDIA_TYPE") ? 415
                     : code.startsWith("STORE_") || code.equals("HARNESS_DRAINING") || code.endsWith("_NOT_READY") ? 503 : 400;
             return error(status, code);

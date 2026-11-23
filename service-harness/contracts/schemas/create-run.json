@@ -53,6 +53,22 @@
       "minLength": 1,
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "newConversation": {
+      "type": "boolean",
+      "enum": [
+        true
+      ]
+    },
+    "conversationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "conversationInstructions": {
+      "type": "string",
+      "maxLength": 4096
     }
   },
   "required": [

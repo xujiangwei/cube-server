@@ -9,6 +9,7 @@ package cube.service.harness.skill;
 import cube.aigc.SpecializedDetectionCapabilities;
 import cube.service.harness.execution.ProviderInvocation;
 import cube.service.harness.execution.QueryProvider;
+import cube.service.harness.files.FileService;
 import cube.service.harness.runtime.RuntimeSupport;
 import cube.service.harness.store.StoreException;
 import org.json.JSONArray;
@@ -39,9 +40,9 @@ import java.util.concurrent.TimeoutException;
  */
 public final class CapabilityInvokeProvider extends AbstractProvider {
     /**
-     * 图片与输入文件的字节上限：1 MiB。
+     * HTTP 来源图片的字节上限。
      */
-    private static final int MAX_IMAGE_BYTES = 1048576 * 500;
+    private static final int MAX_HTTP_IMAGE_BYTES = 500 * 1024 * 1024;
 
     /**
      * 二进制输入的媒体类型集合。
@@ -210,7 +211,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
         // 图片可能来自受控输入，也可能需要按连接器定义回源拉取。
         byte[] bytes;
         if (media.has("inputId")) {
-            bytes = context.input(media.getString("inputId"), MAX_IMAGE_BYTES, OCTET_STREAM);
+            bytes = context.input(media.getString("inputId"), FileService.MAX_BOUND_INPUT_BYTES, OCTET_STREAM);
         } else {
             if (!media.getString("sourceRef").equals(connector.getString("sourceRef"))) {
                 throw new StoreException("MEDIA_REF_FORBIDDEN");
@@ -220,7 +221,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
                     .put("version", media.getString("mediaVersion"));
             NetClient.Response raw = this.network.get(context, media.getString("sourceRef"),
                     connector.getJSONObject("media").getJSONObject("request"),
-                    selector, "media", new JSONObject(), MAX_IMAGE_BYTES);
+                    selector, "media", new JSONObject(), MAX_HTTP_IMAGE_BYTES);
             if (!raw.media().equals(media.getString("mediaType"))) {
                 throw new StoreException("MEDIA_VERSION_CHANGED");
             }
@@ -374,7 +375,7 @@ public final class CapabilityInvokeProvider extends AbstractProvider {
      * @throws Exception 图片非法或解码失败。
      */
     static Dimension inspectDimensions(byte[] bytes, String mediaType, int maxPixels) throws Exception {
-        if (bytes.length < 8 || bytes.length > MAX_IMAGE_BYTES) {
+        if (bytes.length < 8 || bytes.length > MAX_HTTP_IMAGE_BYTES) {
             throw new StoreException("MEDIA_IMAGE_INVALID");
         }
         try (ImageInputStream in = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {

@@ -78,6 +78,24 @@
     "expected": "OK"
   },
   {
+    "name": "new-conversation",
+    "schema": "create-run",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"newConversation\":true,\"conversationInstructions\":\"Keep the response concise\"}",
+    "expected": "OK"
+  },
+  {
+    "name": "continue-conversation",
+    "schema": "create-run",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"conversationId\":\"conversation-1\",\"conversationInstructions\":\"\"}",
+    "expected": "OK"
+  },
+  {
+    "name": "invalid-new-conversation",
+    "schema": "create-run",
+    "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"newConversation\":false}",
+    "expected": "SCHEMA_INVALID"
+  },
+  {
     "name": "client-profile-selector",
     "schema": "create-run",
     "raw": "{\"input\":{\"instruction\":\"检查服务器\",\"attachmentIds\":[]},\"taskProfileId\":\"resources-Baize2\"}",

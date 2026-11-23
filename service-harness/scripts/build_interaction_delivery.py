@@ -101,7 +101,8 @@ def build(python_root, output):
     for family, pattern in (("contracts", "*.json"), ("resources/store", "*.sql")):
         for path in sorted((MODULE / family).rglob(pattern)):
             module_copy(path.relative_to(MODULE))
-    for name in ("run.ps1", "run.sh", "init_dev.py", "evaluate_traces.py", "quality_evaluation.py", "replay_trace.py"):
+    for name in ("run.ps1", "run.sh", "init_dev.py", "evaluate_traces.py", "quality_evaluation.py", "replay_trace.py",
+                 "behavior_evaluation.py", "prepare_adjustment_evaluation.py"):
         module_copy(Path("scripts") / name)
     skill = SERVER / "service-harness-skill"
     for path in sorted((skill / "config").iterdir()):

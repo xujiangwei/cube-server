@@ -57,6 +57,8 @@ Coordinator 使用数据库租约、fence 和 checkpoint 推进 run：持久化 
 
 round intent 提交后在同一步立即入队模型作业，不等待下一次扫描；两次提交之间崩溃仍由历史 intent 恢复。模型完成后，同一步确认轮次、结算用量并处理最终答案；final 不再重建没有后续推理用途的上下文或 checkpoint。内部只取状态/版本时不查询完整结果和用量汇总，所有修改仍在各自事务内校验 owner、fence 和 version。
 
+run 受理、补充输入、恢复、审批、取消及主要模型和工具回执提交后，协调器在本 JVM 合并相同 run 的唤醒请求，串行推进受影响的 run。唤醒队列最多容纳 1024 个待处理 run，每次处理最多 32 个。兜底查询每批结束后等待 `execution.coordinator.scan.millis` 再扫描，默认 1000 ms（可设 100～10000 ms）。它负责启动恢复、等待到期、跨 JVM 变更及遗漏的本地唤醒。候选查询使用读连接，推进事务仍验证租约、围栏和输入版本。
+
 run 租约为十秒；正在执行的步骤由独立线程每两秒续租，覆盖远程数据库访问、上下文组装和工具执行期间的等待。续租仍验证数据库时间、owner 和 fence，已过期或被其他 JVM 接管的租约不能复活。未执行步骤时不持续续租；扫描推进失败会记录限频的 runId/errorCode 诊断日志。此租约独立于 Python worker 的 `lease.millis`。
 
 Cell v3 的 `inference_submit/poll/cancel` 绑定 job、原 worker 实例、wireAttempt 和请求摘要。同 attempt 同摘要复用已有记录，异摘要冲突；增量事件按 cursor 分页，追平后读取最终结果。此通道不提供独立推理 HTTP 接口。

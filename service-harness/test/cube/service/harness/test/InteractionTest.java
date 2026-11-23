@@ -116,6 +116,78 @@ public final class InteractionTest {
         expect("PARENT_RUN_ACTIVE",()->profiles.createRun(identity,key(),"task",request("continue").put("parentRunId",active)));
         controls.apply(T,S,S,active,key(),"cancel","",new JSONObject().put("expectedVersion",version(active)),false);advance(active);
     }
+    static void persistentConversation() throws Exception {
+        JSONObject initial = request("original conversation").put("newConversation", true)
+                .put("conversationInstructions", "mention provenance");
+        String receipt = key();
+        JSONObject first = profiles.createRun(identity, receipt, "task", initial);
+        String id = first.getString("conversationId");
+        JSONObject replay = profiles.createRun(identity, receipt, "task", initial);
+        check(first.getLong("conversationSequence") == 1
+                && replay.getLong("conversationSequence") == 1
+                && replay.getString("conversationId").equals(id)
+                && replay.getString("runId").equals(first.getString("runId")), "conversation receipt");
+        JSONObject next = request("continue").put("conversationId", id);
+        String run = first.getString("runId");
+        ProfileRegistry.Identity other = new ProfileRegistry.Identity(T, "someone-else", identity.permissions);
+        expect("CONVERSATION_NOT_FOUND", () -> profiles.createRun(other, key(), "task", next));
+        expect("CONVERSATION_ACTIVE_RUN", () -> profiles.createRun(identity, key(), "task", next));
+        expect("CONVERSATION_SELECTION_INVALID",
+                () -> profiles.createRun(identity, key(), "task", new JSONObject(next.toString()).put("parentRunId", run)));
+        store.finish(running(run, 60000), version(run), "timed_out", "unknown",
+                finalAnswer("unverified effects must stay private to the previous run"), new JSONArray());
+        JSONObject second = profiles.createRun(identity, key(), "task", next);
+        String successor = second.getString("runId");
+        JSONObject job = dispatch(successor, false);
+        String wire = job.getString("requestJson");
+        check(wire.contains("original conversation") && wire.contains("mention provenance")
+                && wire.contains("unconfirmed execution") && !wire.contains("unverified effects"), "conversation projection");
+        complete(job, finalAnswer("current confirmed answer"));
+        advance(successor);
+        for (int i = 3; i <= 35; i++) {
+            JSONObject created = profiles.createRun(identity, key(), "task",
+                    request("turn " + i).put("conversationId", id));
+            check(created.getLong("conversationSequence") == i, "conversation sequence");
+            String turn = created.getString("runId");
+            store.finish(running(turn, 60000), version(turn), "succeeded", "confirmed", finalAnswer("reply " + i), new JSONArray());
+        }
+        JSONObject last = profiles.createRun(identity, key(), "task",
+                request("another turn").put("conversationId", id).put("conversationInstructions", ""));
+        String lastRun = last.getString("runId");
+        JdbcRunStore restarted = new JdbcRunStore(config);
+        check(restarted.read(T, S, lastRun).getJSONObject("snapshot").getString("conversationId").equals(id),
+                "restart lost conversation identity");
+        job = dispatch(lastRun, true);
+        wire = job.getString("requestJson");
+        check(wire.contains("reply 35") && wire.contains("recent messages")
+                && !wire.contains("mention provenance") && !wire.contains("original conversation"), "bounded, editable history");
+        complete(job, finalAnswer("done"));
+        advance(lastRun);
+    }
+
+    static void committedWakeups() throws Exception {
+        Properties timing = new Properties();
+        timing.setProperty("execution.coordinator.scan.millis", "10000");
+        ExecutionTest.coordinator.controls(controls, null, timing);
+        ExecutionTest.coordinator.start();
+        awaitCondition(() -> ExecutionTest.coordinator.metrics().getLong("fallbackScans") == 1);
+        String run = ExecutionTest.create("wake on create");
+        awaitCondition(() -> ExecutionTest.jobs.job(run, "round-0001") != null);
+        append(run, "wake on newer input");
+        awaitCondition(() -> ExecutionTest.jobs.job(run, "round-0002") != null);
+        check(store.read(T, S, run).getJSONObject("snapshot").getLong("appliedInputRevision") == 1,
+                "message was not applied by its local wakeup");
+        check(ExecutionTest.coordinator.metrics().getLong("fallbackScans") == 1, "advance used a fallback scan");
+    }
+
+    static void awaitCondition(Callable<Boolean> condition) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+        while (!condition.call()) {
+            check(System.nanoTime() < deadline, "coordinator wakeup timed out");
+            Thread.sleep(15);
+        }
+    }
+
     static void finalAcceptanceRace() throws Exception {
         ExecutorService pool=Executors.newFixedThreadPool(2);
         try { for(int i=0;i<8;i++) {
@@ -272,7 +344,7 @@ public final class InteractionTest {
         ExecutionTest.dispatcher=new ModelDispatcher(ExecutionTest.jobs,p,60000);
         sessionA=ExecutionTest.dispatcher.apply(ExecutionTest.envelope("a","ia","describe").put("descriptor",ExecutionTest.descriptor("shared")),1,()->true).getString("sessionId");
         sessionB=ExecutionTest.dispatcher.apply(ExecutionTest.envelope("b","ib","describe").put("descriptor",ExecutionTest.descriptor("shared")),2,()->true).getString("sessionId");
-        try { legacyWaitAndExpiry();resumeLimits();invalidQuestions();boundedPages();largeModelDecisions();cancelWinsLateFinal();messagesAndLateFinal();obsoleteTools();questions();queuedAndRace();conversation();finalAcceptanceRace();admissionAndBudgets();switchesAndLimits(); }
+        try { legacyWaitAndExpiry();resumeLimits();invalidQuestions();boundedPages();largeModelDecisions();cancelWinsLateFinal();messagesAndLateFinal();obsoleteTools();questions();queuedAndRace();conversation();persistentConversation();finalAcceptanceRace();admissionAndBudgets();switchesAndLimits();committedWakeups(); }
         finally {ExecutionTest.coordinator.close();}
         System.out.println("PASS: durable ordered messages, cross-worker continuation, stale finals/tools, structured answers, restart, concurrent acceptance and terminal replay");
     }

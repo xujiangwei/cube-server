@@ -126,8 +126,26 @@ def prepare(profiles, destination):
         dict(id="task", dimension="task", description="The requested scope/value is correct or the unresolved question/conflict is stated correctly"),
         dict(id="grounding", dimension="grounding", description="Each conclusion is supported by actually read, matching source records and supplied precedence rules"),
         dict(id="limitations", dimension="limitations", description="Missing facts, incomplete coverage and unresolved contradictions are not fabricated away")])
-    write(destination / "suite.template.json", dict(schemaVersion=2, status="TEMPLATE_NOT_FROZEN", deployments=[],
-        behaviorEvaluation="evidence-adjustment-v1", rubric=rubric, scenarios=scenarios))
+    suite = dict(schemaVersion=2, status="TEMPLATE_NOT_FROZEN", deployments=[],
+                 behaviorEvaluation="evidence-adjustment-v1", rubric=rubric, scenarios=scenarios)
+    write(destination / "suite.template.json", suite)
+    continuity = [scene for scene in scenarios if scene["category"] in ("information_gap", "evidence_conflict", "clarification")]
+    for scene in scenarios:
+        if scene["category"] != "clarification":
+            continue
+        correction = copy.deepcopy(scene)
+        base_id = scene["id"]
+        identifier = base_id.replace("clarification", "goal_correction")
+        correction.update(id=identifier, category="goal_correction", referencePath="references/" + identifier + ".json",
+                          faults=["user-updates-location-during-execution"])
+        correction["input"]["instruction"] = ("从 evaluation/evidence-adjustment 读取 cases/" + base_id
+                                              + "/brief.json，暂定报告库位甲的数量、单位与来源。")
+        correction["interactionScript"] = dict(
+            afterEvent="round.intent",
+            input=dict(instruction="更正为库位乙。仅报告库位乙的数量、单位与来源。", attachmentIds=[]))
+        references[identifier] = references[base_id]
+        continuity.append(correction)
+    write(destination / "continuity.suite.template.json", dict(suite, scenarios=continuity))
     for identity, reference in references.items():
         write(destination / "references" / (identity + ".json"), reference)
     write(destination / "package-receipt.json", dict(manifestSha256=hashlib.sha256(entries["manifest.json"]).hexdigest(),
@@ -200,7 +218,10 @@ def review_template(fixture_path, trace_path, scenario, evidence_root, request, 
         behavior=dict(version="evidence-adjustment-v1",
             calls=[entry(intent=c["intent_id"] + "/" + str(c["attempt"]), classification="uncertain") for c in trace["calls"]],
             requests=requests, interventions=interventions,
-            adjustments=[entry(round=r["intent_id"] + "/" + str(r["attempt"]), trigger="none", effect="unassessable") for r in trace["rounds"]]))
+            adjustments=[entry(round=r["intent_id"] + "/" + str(r["attempt"]), trigger="none", effect="unassessable") for r in trace["rounds"]],
+            finals=[entry(round=o["roundId"] + "/" + str(o["attempt"]), classification="uncertain")
+                    for o in trace["metrics"].get("decisionObservations", [])
+                    if o.get("decision", {}).get("kind") == "final"]))
     write(destination, review)
 
 

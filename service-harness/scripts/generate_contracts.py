@@ -20,7 +20,8 @@ schemas['worker-response'] = obj(dict(protocolVersion=dict(type='integer',enum=[
 selector=dict(type='string',minLength=1,maxLength=257,pattern=r'^[A-Za-z0-9_.:-]+(@[A-Za-z0-9_.:-]+)?$')
 skill_name=dict(type='string',minLength=1,maxLength=128,pattern=r'^[a-z][a-z0-9_.-]*/[a-z][a-z0-9_.-]*$')
 schemas['create-run'] = obj(dict(input=obj(dict(instruction=text(32768),attachmentIds=array(identity,16))),model=selector,runtime=selector,skills=array(skill_name)),['input'])
-schemas['create-run']['properties']['parentRunId'] = identity
+schemas['create-run']['properties'].update(parentRunId=identity, newConversation=dict(type='boolean',enum=[True]),
+    conversationId=identity, conversationInstructions=dict(type='string',maxLength=4096))
 option = obj(dict(id=identity,label=text(256),description=dict(type='string',maxLength=1024)),['id','label'])
 question = obj(dict(questionId=identity,prompt=text(4096),options=dict(type='array',items=option,maxItems=8),allowFreeText=dict(type='boolean')))
 questions = dict(type='array',items=question,minItems=1,maxItems=3)
@@ -42,7 +43,8 @@ schemas['feedback'] = obj(dict(rating=dict(type='string',enum=['positive','negat
 schemas['error'] = obj(dict(errorCode=text(128),requestId=identity,retryable=dict(type='boolean')))
 schemas['model-decision'] = obj(dict(kind=dict(type='string',enum=['final','tool_calls','need_input']),text=dict(type='string',maxLength=65536),calls=array(obj(dict(proposalId=identity,tool=identity,argumentsJson=text(65536))),16),question=dict(type='string',maxLength=4096)),['kind'])
 schemas['run-snapshot'] = obj(dict(runId=identity,version=integer,eventSeq=integer,state=dict(type='string',enum=['queued','running','waiting_input','waiting_approval','cancelling','reconciling','succeeded','failed','cancelled','timed_out']),executionSettlement=dict(type='string',enum=['pending','confirmed','unknown']),executionProfileVersion=identity))
-schemas['run-snapshot']['properties'].update(inputRevision=integer,appliedInputRevision=integer)
+schemas['run-snapshot']['properties'].update(inputRevision=integer,appliedInputRevision=integer,
+    conversationId=identity,conversationSequence=integer)
 profile_ref=obj(dict(id=identity,version=identity))
 selected_skill=obj(dict(name=skill_name,version=identity,digest=dict(type='string',pattern='^[a-f0-9]{64}$')))
 schemas['selection']=obj(dict(model=profile_ref,runtime=profile_ref,skills=array(selected_skill),tools=array(identity,4096)))
@@ -164,6 +166,9 @@ fixture('unknown-field','worker-request',dict(worker,grant='arbitrary'),'SCHEMA_
 for key in worker:fixture('missing-'+key,'worker-request',{k:v for k,v in worker.items() if k!=key},'SCHEMA_INVALID')
 run=dict(input=dict(instruction='检查服务器',attachmentIds=[]))
 fixture('new-run','create-run',run,'OK')
+fixture('new-conversation','create-run',dict(run,newConversation=True,conversationInstructions='Keep the response concise'),'OK')
+fixture('continue-conversation','create-run',dict(run,conversationId='conversation-1',conversationInstructions=''),'OK')
+fixture('invalid-new-conversation','create-run',dict(run,newConversation=False),'SCHEMA_INVALID')
 fixture('client-profile-selector','create-run',dict(run,taskProfileId='resources-Baize2'),'SCHEMA_INVALID')
 fixture('client-model-selector','create-run',dict(run,model='Baize'),'OK')
 fixture('explicit-selection','create-run',dict(run,model='Baize@1',runtime='resources',skills=[]),'OK')

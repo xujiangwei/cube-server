@@ -40,6 +40,10 @@ public final class ProviderStore {
                 JSONObject e = (JSONObject) entry;
                 JSONObject data = new JSONObject(e.getString("data_json"));
                 if (e.getString("event_type").equals("conversation.history")) {
+                    // Persistent chat history is context. Fixed workflows use the current run's business inputs.
+                    if (data.has("conversationId")) {
+                        continue;
+                    }
                     for (Object item : data.getJSONArray("messages")) {
                         JSONObject m = (JSONObject) item;
                         if (m.getString("role").equals("user")) {

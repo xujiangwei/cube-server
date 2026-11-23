@@ -15,7 +15,7 @@ Harness 提供执行中补充要求、改变任务方向、系统主动提问并
 | 等待审批 | 普通补充使旧提案失效；补充或问答不构成审批，后续动作仍须独立审批 |
 | 消息与 final 并发 | 对同一 run 加锁串行提交：消息先提交则旧 final 被拒绝；final 先提交则消息返回 RUN_TERMINAL |
 | cancelling 或终态 | 拒绝新的执行输入；相同幂等键仍回放已受理回执 |
-| 完成后继续 | 创建带 parentRunId 的新 run，继承受控对话历史，不重开原终态任务 |
+| 完成后继续 | 使用 conversationId 创建会话中的下一 run，或通过 parentRunId 继承旧式父链历史 |
 
 自然语言冲突由最新明确更正指导模型；平台权限、技能允许名单、固定业务要求和预算不由用户补充扩大。模型/运行时/技能选择在创建时固定，需要修改配置时创建新 run。当前问答为阻塞等待，不包含询问期间继续执行独立分支的调度。
 
@@ -106,7 +106,15 @@ CompletionGuard.Resources.taskInput 提供统一输入版本、输入集合及�
 
 客户端在运行和等待时保持输入框可用，显示问题卡片、页面标题提醒和截止时间。页面刷新恢复聊天 ID、runId、游标与未确认的请求；身份过期后更新原身份令牌续读。请求结果不确定时保留原 key/body 供重试，避免重复创建或追加。客户端本地保留当前聊天正文，不保存令牌。审批保持独立；离线系统通知、逐 token 流、会话列表和上传界面不在此客户端内。
 
-## 后续任务历史
+## 持久会话
+
+使用 `POST /harness/v1/runs` 创建首个任务时设置 `newConversation: true`。受理快照和后续读取返回 `conversationId` 与从 1 开始的 `conversationSequence`。最新任务进入终态后，用同一 `conversationId` 创建下一任务；终态但执行结算仍为 unknown 时也可续接。历史对该任务只提示执行未确认。活跃任务中的新要求使用消息接口。
+
+可在新建或续接时传 `conversationInstructions` 保存长期要求，最多 4096 字符。省略时沿用，空字符串清除。会话仅对同租户同主体可见，并在创建事务内串行分配序号，同键同请求重放原回执。`newConversation`、`conversationId` 和 `parentRunId` 互斥。
+
+每个新 run 固定使用最近最多 32 个 run、64 条消息、24 KiB 的历史及当前长期要求。裁剪会在上下文中明示，原文和证据仍可按原 run 读取。历史中的附件 ID 不进入新上下文。续接需要的附件应在本次 `input.attachmentIds` 明确传入，由本次授权校验。业务固定流程按当前 run 的输入和证据完成检查。
+
+## 通过父 run 接续
 
 create-run 可选 parentRunId。父任务须属同一租户与主体、已终态且 executionSettlement=confirmed；活动父任务返回 PARENT_RUN_ACTIVE，未确认执行返回 PARENT_RUN_UNSETTLED。创建事务在幂等回放之后检查条件，将历史快照保存为 conversation.history，并按当前策略重新选择和授权新任务。
 

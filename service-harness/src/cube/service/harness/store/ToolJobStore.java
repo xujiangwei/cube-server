@@ -590,6 +590,9 @@ public final class ToolJobStore {
                                 store.now(c),
                                 j.getString("job_id"));
                     }
+                    if (ended || !j.getString("status").equals("unknown")) {
+                        store.signalCoordinator(j.getString("run_id"));
+                    }
                     return first(
                             rows(c, "SELECT * FROM harness_tool_job WHERE job_id=?", j.getString("job_id")));
                 });

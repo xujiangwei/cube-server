@@ -15,7 +15,7 @@ Harness 通过业务包中的固定配置查询资料、加工记录、调用已
 
 ## 查询与分页覆盖
 
-HTTP 连接器使用部署方批准的 source、origin、路径和身份映射，查询及取图均检查实际用户授权。data 与 capability 私有配置中的 `secret.forest-source` 与业务系统验签器共享，不放入业务包。上传模式使用已 complete 且绑定本 run 的 JSON 与图片 Input，只能覆盖上传资料；拍摄时间默认标记为 `provider-declared`。
+HTTP 连接器使用部署方批准的 source、origin、路径和身份映射，查询及取图均检查实际用户授权。data 与 capability 私有配置中的 `secret.forest-source` 与业务系统验签器共享，不放入业务包。上传模式使用已 complete 且绑定本 run 的 JSON 与图片 Input。JSON 快照最多 256 KiB，图片每张最多 10 MiB。上传模式仅覆盖上传资料，拍摄时间默认标记为 `provider-declared`。
 
 每个 `pageRef` 代表当前 run 内已确认成功的查询页。沿 `nextCursor` 读取后续页，再按遍历顺序把 pageRefs 交给加工工具。所有页须来自同一业务 skill、connector、查询和 snapshot。缺起始页、末页、跳页或顺序错误时 `coverage.queryComplete=false`，并返回 `QUERY_PAGES_INCOMPLETE`；混合查询或快照直接拒绝。
 

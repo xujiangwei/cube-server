@@ -50,7 +50,7 @@ python -I -S scripts/evaluate_traces.py <fixture.json> <observations.jsonl> --tr
 
 ### 证据调整的独立行为复核
 
-fixture 增加 `behaviorEvaluation:"evidence-adjustment-v1"`，每份现有独立人工 review 增加 behavior，version 同值，并完整标注四个数组。每条都须有具体 rationale 和本 review 中的 evidenceIds；不允许只写总体计数或模型自评：
+fixture 增加 `behaviorEvaluation:"evidence-adjustment-v1"`，每份现有独立人工 review 增加 behavior，version 同值，并完整标注四个基础数组。每条都须有具体 rationale 和本 review 中的 evidenceIds；不允许只写总体计数或模型自评：
 
 | 数组 | 绑定与分类 |
 | --- | --- |
@@ -58,8 +58,11 @@ fixture 增加 `behaviorEvaluation:"evidence-adjustment-v1"`，每份现有独�
 | requests | 覆盖全部 run.waiting_input/run.waiting_approval 的 event_seq，字段 eventSeq；分类为 necessary_clarification、required_approval、avoidable 或 uncertain |
 | interventions | 覆盖全部 message.accepted/control.resume/control.approval；分类同上，另允许 goal_change；可填有证据的 elapsedMillis，缺测另列 |
 | adjustments | 覆盖全部模型 `intent_id/attempt`，字段 round；trigger 为 confirmed_error、information_gap、evidence_conflict 或 none；effect 为 helpful、harmful、neutral 或 unassessable |
+| finals | 新模板覆盖全部模型 final，字段 round，逐项引用该轮原始上下文。分类为 complete、premature、justified_limited 或 uncertain |
 
 interaction.requested/answered 是上述操作的伴随事件，不重复计数。既定审批必须标为 required_approval，不能计为可避免救援；改变用户目标另列。首次探索失败、合理回读、必要分页和冲突交叉核对不自动算浪费；已有可用证据却重复读取、收到明确反馈仍重复错误参数等，须结合当轮实际可见内容判定。评审工作本身不是运行中的人工介入。没有行为复核时统计缺测，不报告零救援/零浪费；存在 uncertain、unassessable 或目标变化时不宣称完整目标达成。
+
+提前收尾按人工复核统计：有可获得的必需证据或用户信息、仍可继续推进却直接收尾，标为 premature。证据确实不可用且答复明确交代已覆盖范围和缺口，标为 justified_limited。旧复核缺少 finals 或存在 uncertain 时，报告覆盖情况，提前收尾率留空。
 
 baseline 比较同时输出 behaviorComparison：按同一任务和 repetition 配对，保留全部尝试，先在任务内平均三次重复，再按独立任务做固定种子的 4000 次聚类 bootstrap，报告正确率、无需救援正确率、可避免请求/介入、无效调用与总调用量差的 95% 区间。重复运行不扩大独立样本数。基线开关必须关闭、候选开启，固定配置约束摘要一致、Trace 不复用、观测与复核完整才可比较。旧式 nonRegressing 仍仅表示现有条件下未退化。
 
@@ -71,6 +74,8 @@ goalAchieved 还要求非诊断、原有正式认证通过、至少 50 个独立
 python -I -S scripts/prepare_adjustment_evaluation.py prepare <实际harness-execution目录> <全新实验目录>
 python -I -S scripts/prepare_adjustment_evaluation.py freeze <实验目录>/suite.template.json <实验目录>/baseline.fixture.json --model <逻辑模型> --profile <共同逻辑profile> --config-digest <基线真实run的config.digest>
 ```
+
+同一包还生成 `continuity.suite.template.json`，用于诊断多轮交互，覆盖补充资料、冲突来源、必要追问和执行中更正。更正场景订阅事件，看到首个 `round.intent` 后按 interactionScript 追加 instruction，保留受理和采纳证据；如果消息受理前任务已终态，该次计作场景未跑通。该场景集用于诊断续接和收尾，与自动决策的基线开关比较使用各自的结果。
 
 候选另用其真实 config.digest 冻结同一模板，两份 fixture 的 suiteDigest 应一致。必须使用同一套新二进制，仅更换开关和执行修订；不能拿升级前旧流程作唯一因果基线。包按标准发布、审核、ready、授权后显式选择 `skills:["evaluation/evidence-adjustment"]`，runtime=resources@1，模型选择真实网关配置。两组每任务三次，每次独立 run；澄清任务按 interactionScript 使用同一固定答案和延迟，保留原问题及全部交互。对照所用配置在独立目录中，不把两份 execution JSON 放进同一加载目录。
 

@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.StringJoiner;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * 权威 Harness 账本。每个变更方法都拥有一个短数据库事务；事务内不允许网络发送、
@@ -48,6 +49,29 @@ public final class JdbcRunStore {
      * 每个线程待发射的监控事件缓冲。
      */
     private final ThreadLocal<List<JSONObject>> monitoringEvents = new ThreadLocal<>();
+    private volatile Consumer<String> coordinatorWakeup;
+    private final ThreadLocal<List<String>> coordinatorSignals = new ThreadLocal<>();
+
+    public void coordinatorWakeup(Consumer<String> wakeup) {
+        coordinatorWakeup = wakeup;
+    }
+
+    void signalCoordinator(String run) {
+        List<String> signals = coordinatorSignals.get();
+        if (signals != null && !signals.contains(run)) {
+            signals.add(run);
+        }
+    }
+
+    <T> T readOnly(Work<T> work) {
+        try (Connection c = config.connect()) {
+            return work.run(c);
+        } catch (StoreException error) {
+            throw error;
+        } catch (Exception error) {
+            throw new StoreException("STORE_UNAVAILABLE", error);
+        }
+    }
 
     /**
      * 返回当前生命周期指标快照。
@@ -240,6 +264,10 @@ public final class JdbcRunStore {
             List<JSONObject> priorEvents = monitoringEvents.get();
             List<JSONObject> observed = new ArrayList<>();
             monitoringEvents.set(observed);
+            List<String> priorSignals = coordinatorSignals.get();
+            Consumer<String> wakeup = coordinatorWakeup;
+            List<String> signals = wakeup == null ? null : new ArrayList<>();
+            coordinatorSignals.set(signals);
             boolean committed = false;
             boolean commitAttempted = false;
             try (Connection c = config.connectTransaction()) {
@@ -255,6 +283,15 @@ public final class JdbcRunStore {
                         try {
                             monitoring.observe(event.getString("runId"), event.getString("state"), event.getLong("version"));
                         } catch (RuntimeException ignored) {
+                        }
+                    }
+                    if (signals != null) {
+                        for (String run : signals) {
+                            try {
+                                wakeup.accept(run);
+                            } catch (RuntimeException ignored) {
+                                // The periodic scan can recover a missed notification.
+                            }
                         }
                     }
                     faults.at("afterCommit");
@@ -292,6 +329,11 @@ public final class JdbcRunStore {
                     monitoringEvents.remove();
                 }
                 else monitoringEvents.set(priorEvents);
+                if (priorSignals == null) {
+                    coordinatorSignals.remove();
+                } else {
+                    coordinatorSignals.set(priorSignals);
+                }
             }
         }
     }
@@ -594,6 +636,8 @@ public final class JdbcRunStore {
                 .put("executionSettlement", row.getString("execution_settlement"))
                 .put("inputRevision", row.optLong("input_revision", 0))
                 .put("appliedInputRevision", row.optLong("applied_input_revision", 0))
+                .put("conversationId", row.optString("conversation_id", null))
+                .put("conversationSequence", row.isNull("conversation_seq") ? null : row.getLong("conversation_seq"))
                 .put("executionProfileVersion", row.getString("profile_version"))
                 .put("selection", row.optJSONObject("selection"));
     }
@@ -674,6 +718,20 @@ public final class JdbcRunStore {
                 id(topic),
                 json(event, payloadLimit * 2 + 4096),
                 time);
+        switch (type) {
+            case "run.created":
+            case "message.accepted":
+            case "control.resume":
+            case "control.approval":
+            case "control.cancel":
+            case "round.confirmed":
+            case "call.intent":
+            case "call.confirmed":
+                signalCoordinator(r.getString("run_id"));
+                break;
+            default:
+                break;
+        }
         if (type.startsWith("run.") && monitoringEvents.get() != null) {
             monitoringEvents.get().add(snapshot(r));
         }
@@ -856,8 +914,13 @@ public final class JdbcRunStore {
                     }
                     String runId = UUID.randomUUID().toString();
                     long time = now(c);
+                    ConversationStore.validateSelection(request);
                     JSONObject pinned = resolver == null ? null : resolver.resolve(c);
+                    JSONObject session = pinned == null ? null : ConversationStore.session(c, config.mysql(), tenant, subject, request);
                     JSONObject history = pinned == null ? null : pinned.optJSONObject("conversationHistory");
+                    if (session != null) {
+                        history = session.getJSONObject("history");
+                    }
                     if (pinned != null) {
                         pinned.remove("conversationHistory");
                     }
@@ -873,6 +936,11 @@ public final class JdbcRunStore {
                             "settled",
                             time,
                             time);
+                    if (session != null) {
+                        update(c, "UPDATE harness_run SET conversation_id=?,conversation_seq=? WHERE run_id=?",
+                                session.getString("id"), session.getLong("sequence"), runId);
+                        ConversationStore.advanceSession(c, tenant, subject, session);
+                    }
                     if (pinned != null) {
                         update(
                                 c,

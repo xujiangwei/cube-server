@@ -8,6 +8,7 @@ package cube.service.harness.skill;
 
 import cube.service.harness.execution.ProviderInvocation;
 import cube.service.harness.execution.QueryProvider;
+import cube.service.harness.files.FileService;
 import cube.service.harness.protocol.Contract;
 import cube.service.harness.protocol.StrictJson;
 import cube.service.harness.runtime.RuntimeSupport;
@@ -25,9 +26,9 @@ import java.util.*;
  */
 public final class DataQueryProvider extends AbstractProvider {
     /**
-     * 输入文件与上游响应体的字节上限：1 MiB。
+     * 上游 HTTP 响应体的字节上限。
      */
-    private static final int MAX_PAYLOAD_BYTES = 1048576 * 500;
+    private static final int MAX_HTTP_RESPONSE_BYTES = 500 * 1024 * 1024;
 
     /**
      * 单页允许返回的最大记录数。
@@ -156,7 +157,7 @@ public final class DataQueryProvider extends AbstractProvider {
         JSONObject response;
         if (snapshot) {
             String inputId = input.getString(connector.getString("inputArgument"));
-            byte[] raw = context.input(inputId, MAX_PAYLOAD_BYTES, Collections.singleton("application/json"));
+            byte[] raw = context.input(inputId, StrictJson.MAX_BYTES, Collections.singleton("application/json"));
             response = StrictJson.object(raw);
         } else {
             JSONObject page = connector.getJSONObject("pagination");
@@ -166,7 +167,7 @@ public final class DataQueryProvider extends AbstractProvider {
                         .put(page.getString("snapshotParameter"), previous.getString("snapshot"));
             }
             NetClient.Response raw = this.network.get(context, connector.getString("sourceRef"),
-                    connector.getJSONObject("request"), input, "args", extra, MAX_PAYLOAD_BYTES);
+                    connector.getJSONObject("request"), input, "args", extra, MAX_HTTP_RESPONSE_BYTES);
             if (!raw.media().equals("application/json")) {
                 throw new StoreException("DATA_QUERY_INCOMPLETE");
             }
@@ -218,7 +219,7 @@ public final class DataQueryProvider extends AbstractProvider {
                     .put("timeTrust", snapshot ? "provider-declared" : "authorized-source");
             if (snapshot) {
                 String inputId = ConnectorConfig.scalar(ConnectorConfig.pointer(item, media.getString("inputId")));
-                context.input(inputId, MAX_PAYLOAD_BYTES, Collections.singleton("application/octet-stream"));
+                context.input(inputId, FileService.MAX_BOUND_INPUT_BYTES, Collections.singleton("application/octet-stream"));
                 fact.put("inputId", inputId);
             } else {
                 fact.put("sourceRef", connector.getString("sourceRef"));

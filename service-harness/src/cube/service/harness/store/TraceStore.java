@@ -266,6 +266,43 @@ public final class TraceStore {
                     hostWorkflowSteps++;
                 }
             metrics.put("hostWorkflowSteps", hostWorkflowSteps);
+            JSONArray inputTimings = new JSONArray();
+            int nextInput = 0;
+            JSONArray accepted = new JSONArray();
+            for (Object entry : events) {
+                JSONObject event = (JSONObject) entry;
+                JSONObject projection = event.optJSONObject("projection");
+                if (projection == null) {
+                    continue;
+                }
+                String type = event.getString("event_type");
+                if (type.equals("message.accepted") || type.equals("control.resume")) {
+                    long revision = projection.optLong("inputRevision");
+                    if (revision > 0 && (accepted.length() == 0
+                            || revision > accepted.getJSONObject(accepted.length() - 1).getLong("inputRevision"))) {
+                        accepted.put(new JSONObject().put("inputRevision", revision)
+                                .put("acceptedAt", event.getLong("occurred_at")));
+                    }
+                } else if (type.equals("message.applied")) {
+                    long applied = projection.optLong("appliedInputRevision");
+                    while (nextInput < accepted.length()) {
+                        JSONObject timing = accepted.getJSONObject(nextInput);
+                        if (timing.getLong("inputRevision") > applied) {
+                            break;
+                        }
+                        long latency = event.getLong("occurred_at") - timing.getLong("acceptedAt");
+                        if (latency >= 0) {
+                            timing.put("acceptedToAppliedMillis", latency);
+                        }
+                        inputTimings.put(timing);
+                        nextInput++;
+                    }
+                }
+            }
+            for (int i = nextInput; i < accepted.length(); i++) {
+                inputTimings.put(accepted.getJSONObject(i));
+            }
+            metrics.put("inputTimings", inputTimings);
             for (String kind : new String[]{"modelJobs", "toolJobs", "inferences"}) {
                 JSONArray list = out.getJSONArray(kind);
                 JSONArray timings = new JSONArray();

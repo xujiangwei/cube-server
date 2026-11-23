@@ -48,6 +48,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class FileService implements AutoCloseable {
 
+    /** 工具一次读取已绑定 Input 的最大字节数。 */
+    public static final int MAX_BOUND_INPUT_BYTES = 10 * 1024 * 1024;
+
     /**
      * 文件账本：身份、pin、claim 与指标的持久化视图，自身不做文件系统 I/O。
      */
@@ -1209,7 +1212,7 @@ public final class FileService implements AutoCloseable {
      * @param lease      执行租约
      * @param call       工具调用标识（参与 pin 命名）
      * @param id         input 文件 ID
-     * @param maxBytes   允许的最大字节数（1..1048576）
+     * @param maxBytes   允许的最大字节数，范围为 1 至 {@link #MAX_BOUND_INPUT_BYTES}
      * @param mediaTypes 允许的媒体类型集合
      * @return 内容字节
      * @throws Exception "INPUT_LIMIT_INVALID"（maxBytes 越界）、"INPUT_TYPE_OR_SIZE_FORBIDDEN"
@@ -1217,7 +1220,7 @@ public final class FileService implements AutoCloseable {
      */
     public byte[] readBound(JdbcRunStore.Lease lease, String call, String id, int maxBytes, Set<String> mediaTypes) throws Exception {
         ProfileRegistry.Identity identity = owner(lease);
-        if (maxBytes < 1 || maxBytes > 10485760) {
+        if (maxBytes < 1 || maxBytes > MAX_BOUND_INPUT_BYTES) {
             throw new StoreException("INPUT_LIMIT_INVALID");
         }
         return disk.tryLocked(() -> {

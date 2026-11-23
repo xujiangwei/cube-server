@@ -423,6 +423,24 @@ public final class WorkflowGuard implements CompletionGuard {
                 gaps.add("QUERY_PAGE_CONFLICT", detail(pipeline, first));
                 continue;
             }
+            JSONArray chain = new JSONArray();
+            Set<String> seen = new HashSet<>();
+            String cursor = "";
+            String continuation = "";
+            while (byCursor.containsKey(cursor) && seen.add(cursor) && chain.length() < 64) {
+                JSONObject page = byCursor.get(cursor);
+                chain.put(page.getString("pageRef"));
+                continuation = page.getString("nextCursor");
+                cursor = nextPosition(page);
+                if (cursor.isEmpty()) {
+                    break;
+                }
+            }
+            boolean complete = chain.length() > 0 && cursor.isEmpty() && seen.containsAll(byCursor.keySet());
+            if (!complete) {
+                gaps.add("QUERY_INCOMPLETE", detail(pipeline, first).put("cursor", continuation));
+                continue;
+            }
             JSONObject profile = ConnectorConfig.select(processing, "profiles", pipeline.getString("processingProfileId"));
             String profileHash = RuntimeSupport.sha(RuntimeSupport.bytes(profile));
             JSONObject chosen = null;
@@ -458,29 +476,9 @@ public final class WorkflowGuard implements CompletionGuard {
                 }
             }
             if (chosen == null) {
-                // 只给出真实的续传/引用列表，绝不伪造工具执行结果。
-                JSONArray refs = new JSONArray();
-                Set<String> seen = new HashSet<>();
-                String cursor = "";
-                String continuation = "";
-                while (byCursor.containsKey(cursor) && seen.add(cursor) && refs.length() < 64) {
-                    JSONObject page = byCursor.get(cursor);
-                    refs.put(page.getString("pageRef"));
-                    continuation = page.getString("nextCursor");
-                    cursor = nextPosition(page);
-                    if (cursor.isEmpty()) {
-                        break;
-                    }
-                }
-                boolean complete = refs.length() > 0 && cursor.isEmpty() && seen.containsAll(byCursor.keySet());
-                if (!complete) {
-                    gaps.add("QUERY_INCOMPLETE", detail(pipeline, first)
-                            .put("cursor", continuation));
-                } else {
-                    gaps.add("PROCESS_REQUIRED", detail(pipeline, first)
-                            .put("profileId", pipeline.getString("processingProfileId"))
-                            .put("pageRefs", refs));
-                }
+                gaps.add("PROCESS_REQUIRED", detail(pipeline, first)
+                        .put("profileId", pipeline.getString("processingProfileId"))
+                        .put("pageRefs", chain));
                 continue;
             }
             datasetRefs.put(chosen.getString("datasetRef"));

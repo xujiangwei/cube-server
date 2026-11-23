@@ -56,4 +56,6 @@ unknown 不能通过取消、删除账本或清空 journal 强制归零。未确
 
 模型 worker 处理槽、物理推理容量、Runner 槽以及活跃任务限额分别计数。扩容后应通过 capabilities 检查实际容量，并核对共享 backend 没有重复计额。文件空间由配额、TTL、pin 和清理进度共同决定，unknown 文件/工作区保留到证据收敛。
 
+协调器监控视图 `jobs.coordinator` 提供兜底扫描次数、最近与最长耗时、已处理及待处理唤醒数、队列溢出数。以固定负载采集多个 run 的 Trace，按 `metrics.inputTimings[].acceptedToAppliedMillis` 计算补充消息受理到采纳的 p95，按作业 created_at/dispatched_at 计算派发等待。分别测空闲、并行模型/Runner 以及有大量等待任务的负载，未采纳和未派发的样本另计。
+
 合部署共享 JVM 的 CPU、堆和 GC；多 Java 节点还必须满足数据库协调及文件共享规则。SQLite 用于单实例开发，文件根当前只支持同机共享真实目录；跨主机部署的具体边界见 [STORE.md](STORE.md) 和 [CONTROL-FILES.md](CONTROL-FILES.md)。

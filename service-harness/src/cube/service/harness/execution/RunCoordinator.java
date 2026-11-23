@@ -32,6 +32,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.LinkedHashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -40,6 +42,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * run 的持久步进状态机：以租约/围栏/checkpoint 推进资源循环。
@@ -116,7 +119,7 @@ public final class RunCoordinator implements AutoCloseable {
     private final Map<String, JdbcRunStore.Lease> leases = new HashMap<>();
 
     /**
-     * 单线程守护调度器，以 100ms 固定周期驱动 scan。
+     * 单线程守护调度器，串行处理提交后的唤醒及定时兜底扫描。
      */
     private final ScheduledExecutorService executor;
 
@@ -149,6 +152,14 @@ public final class RunCoordinator implements AutoCloseable {
      * 多租户扫描页偏移；本批不满一页时归零，防止等待中的任务占满首批。
      */
     private long scanOffset;
+    private long scanMillis = 1000;
+    private final Set<String> pendingWakeups = new LinkedHashSet<>();
+    private boolean wakeupScheduled;
+    private final AtomicLong scanCount = new AtomicLong();
+    private final AtomicLong wakeupCount = new AtomicLong();
+    private final AtomicLong wakeupOverflow = new AtomicLong();
+    private volatile long lastScanMillis;
+    private volatile long maxScanMillis;
 
     /**
      * 控制面存储（等待输入、审批、取消时间），可后置注入。
@@ -196,6 +207,10 @@ public final class RunCoordinator implements AutoCloseable {
                         Arrays.asList(p.getProperty("control.approval.tools", "").split(",")));
         waitMillis = Long.parseLong(p.getProperty("control.wait.millis", "300000"));
         cancelGrace = Long.parseLong(p.getProperty("control.cancel.grace.millis", "10000"));
+        scanMillis = Long.parseLong(p.getProperty("execution.coordinator.scan.millis", "1000"));
+        if (scanMillis < 100 || scanMillis > 10000) {
+            throw new IllegalArgumentException("INVALID_COORDINATOR_SCAN_INTERVAL");
+        }
         if (waitMillis < 1000 || waitMillis > 86400000 || cancelGrace < 1000 || cancelGrace > 60000) {
             throw new IllegalArgumentException("INVALID_CONTROL_CONFIG");
         }
@@ -340,10 +355,68 @@ public final class RunCoordinator implements AutoCloseable {
     }
 
     /**
-     * 启动扫描循环：立即执行一次，之后每 100ms 一轮。
+     * 本 JVM 的账本提交优先唤醒对应 run，定时扫描负责恢复、到期和跨 JVM 变更。
      */
     public void start() {
-        executor.scheduleWithFixedDelay(this::scan, 0, 100, TimeUnit.MILLISECONDS);
+        store.coordinatorWakeup(this::wake);
+        executor.scheduleWithFixedDelay(this::scan, 0, scanMillis, TimeUnit.MILLISECONDS);
+    }
+
+    private void wake(String run) {
+        synchronized (pendingWakeups) {
+            if (executor.isShutdown() || pendingWakeups.contains(run)) {
+                return;
+            }
+            if (pendingWakeups.size() >= 1024) {
+                wakeupOverflow.incrementAndGet();
+                return;
+            }
+            pendingWakeups.add(run);
+            if (!wakeupScheduled) {
+                wakeupScheduled = true;
+                executor.execute(this::drainWakeups);
+            }
+        }
+    }
+
+    private void drainWakeups() {
+        for (int i = 0; i < 32; i++) {
+            String run;
+            synchronized (pendingWakeups) {
+                Iterator<String> iterator = pendingWakeups.iterator();
+                if (!iterator.hasNext()) {
+                    wakeupScheduled = false;
+                    return;
+                }
+                run = iterator.next();
+                iterator.remove();
+            }
+            try {
+                JSONObject row = jobs.coordinatorCandidate(run);
+                if (row != null) {
+                    wakeupCount.incrementAndGet();
+                    advanceCandidate(row);
+                }
+            } catch (Exception e) {
+                recordFailure(run, "COORDINATOR_STORE_UNAVAILABLE");
+            }
+        }
+        synchronized (pendingWakeups) {
+            if (!executor.isShutdown()) {
+                executor.execute(this::drainWakeups);
+            }
+        }
+    }
+
+    public JSONObject metrics() {
+        final int pending;
+        synchronized (pendingWakeups) {
+            pending = pendingWakeups.size();
+        }
+        return new JSONObject().put("fallbackIntervalMillis", scanMillis)
+                .put("fallbackScans", scanCount.get()).put("lastScanMillis", lastScanMillis)
+                .put("maxScanMillis", maxScanMillis).put("processedWakeups", wakeupCount.get())
+                .put("pendingWakeups", pending).put("wakeupsDropped", wakeupOverflow.get());
     }
 
     /**
@@ -363,29 +436,39 @@ public final class RunCoordinator implements AutoCloseable {
      * 存储不可用记 COORDINATOR_STORE_UNAVAILABLE。
      */
     private void scan() {
+        long started = System.nanoTime();
         try {
             // 多租户总任务数可超过单租户接单上限，轮换扫描页以免等待中的任务占满首批。
             JSONArray batch = identity == null ? jobs.runnable(256, scanOffset) : jobs.runnable(identity.tenant, 256);
             scanOffset = batch.length() < 256 ? 0 : scanOffset + batch.length();
             for (int i = 0; i < batch.length(); i++) {
-                JSONObject row = batch.getJSONObject(i);
-                if (identity != null && !identity.subject.equals(row.getString("subject_id"))) {
-                    continue;
-                }
-                try {
-                    step(identity == null ? new ProfileRegistry.Identity(row.getString("tenant"),
-                            row.getString("subject_id"), permissions) : identity, row.getString("run_id"));
-                } catch (StoreException e) {
-                    recordFailure(row.getString("run_id"), e.code);
-                    if (Arrays.asList("STALE_OWNER", "LEASE_BUSY", "VERSION_CONFLICT", "INPUT_REVISION_CONFLICT").contains(e.code)) {
-                        leases.remove(row.getString("run_id"));
-                    }
-                } catch (Exception e) {
-                    recordFailure(row.getString("run_id"), "COORDINATOR_STEP_FAILED");
-                }
+                advanceCandidate(batch.getJSONObject(i));
             }
         } catch (Exception e) {
             recordFailure("scan", "COORDINATOR_STORE_UNAVAILABLE");
+        } finally {
+            lastScanMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+            maxScanMillis = Math.max(maxScanMillis, lastScanMillis);
+            scanCount.incrementAndGet();
+        }
+    }
+
+    private void advanceCandidate(JSONObject row) {
+        String tenant = row.getString("tenant");
+        String subject = row.getString("subject_id");
+        if (identity != null && (!identity.tenant.equals(tenant) || !identity.subject.equals(subject))) {
+            return;
+        }
+        String run = row.getString("run_id");
+        try {
+            step(identity == null ? new ProfileRegistry.Identity(tenant, subject, permissions) : identity, run);
+        } catch (StoreException e) {
+            recordFailure(run, e.code);
+            if (Arrays.asList("STALE_OWNER", "LEASE_BUSY", "VERSION_CONFLICT", "INPUT_REVISION_CONFLICT").contains(e.code)) {
+                leases.remove(run);
+            }
+        } catch (Exception e) {
+            recordFailure(run, "COORDINATOR_STEP_FAILED");
         }
     }
 
@@ -1176,7 +1259,11 @@ public final class RunCoordinator implements AutoCloseable {
      */
     @Override
     public void close() {
-        executor.shutdownNow();
+        store.coordinatorWakeup(null);
+        synchronized (pendingWakeups) {
+            executor.shutdownNow();
+            pendingWakeups.clear();
+        }
         activeLease = null;
         leaseExecutor.shutdownNow();
         try {

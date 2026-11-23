@@ -337,6 +337,10 @@ public final class ModelJobStore {
                         }
                         return null;
                     }
+                    if (j.getString("status").equals("unknown") && !report.getBoolean("actualFinished")
+                            && result.equals(j.optString("outcome_json"))) {
+                        return null;
+                    }
                     // unknown 被隔离：后续持久 completed 可以结算；重复 unknown 必须一致。
                     if (j.getString("status").equals("unknown")
                             && !report.getBoolean("actualFinished")
@@ -360,6 +364,7 @@ public final class ModelJobStore {
                                 store.now(c),
                                 j.getString("job_id"));
                     }
+                    store.signalCoordinator(j.getString("run_id"));
                     return null;
                 });
     }
@@ -512,13 +517,18 @@ public final class ModelJobStore {
      * @return harness_run 的 run_id/tenant/subject_id 行数组
      */
     private JSONArray runnable(String tenant, int limit, long offset) {
-        return store.tx(
+        return store.readOnly(
                 c ->
                         rows(
                                 c,
                                 "SELECT r.run_id,r.tenant,r.subject_id FROM harness_run r WHERE " + (tenant == null ? "" : "r.tenant=? AND ") + "(r.state IN ('queued','running','reconciling','waiting_input','waiting_approval','cancelling') OR EXISTS (SELECT j.job_id FROM harness_model_job j JOIN harness_round q ON q.run_id=j.run_id AND q.intent_id=j.round_id AND q.attempt=j.attempt JOIN harness_usage u ON u.run_id=q.run_id AND u.round_id=q.intent_id AND u.attempt=q.attempt WHERE j.run_id=r.run_id AND j.actual_finished=1 AND (q.status<>'confirmed' OR (u.actual_input IS NULL AND j.outcome_json LIKE '%\"usage\":%'))) OR EXISTS (SELECT j.job_id FROM harness_tool_job j JOIN harness_tool_call q ON q.run_id=j.run_id AND q.intent_id=j.call_id AND q.attempt=j.attempt WHERE j.run_id=r.run_id AND j.actual_finished=1 AND q.status<>'confirmed')) ORDER BY r.created_at,r.run_id LIMIT "
                                         + Math.max(1, Math.min(256, limit)) + " OFFSET " + Math.max(0, offset),
                                 tenant == null ? new Object[0] : new Object[]{id(tenant)}));
+    }
+
+    public JSONObject coordinatorCandidate(String run) {
+        return store.readOnly(c -> first(rows(c,
+                "SELECT run_id,tenant,subject_id FROM harness_run WHERE run_id=?", run)));
     }
 
     /**

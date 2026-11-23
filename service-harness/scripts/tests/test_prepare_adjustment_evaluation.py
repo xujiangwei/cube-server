@@ -35,6 +35,10 @@ class PreparationTest(unittest.TestCase):
                     self.assertEqual(hashlib.sha256(package.read(file["path"])).hexdigest(), file["sha256"])
             suite = json.loads((destination / "suite.template.json").read_bytes())
             self.assertEqual(len(suite["scenarios"]), 24)
+            continuity = json.loads((destination / "continuity.suite.template.json").read_bytes())
+            corrections = [scene for scene in continuity["scenarios"] if scene["category"] == "goal_correction"]
+            self.assertEqual(len(corrections), 4)
+            self.assertTrue(all(scene["interactionScript"]["afterEvent"] == "round.intent" for scene in corrections))
             self.assertEqual(len({digest(s["input"]) for s in suite["scenarios"]}), 24)
             self.assertEqual({s["split"] for s in suite["scenarios"]}, {"development"})
             frozen = destination / "baseline.fixture.json"

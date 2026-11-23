@@ -209,9 +209,13 @@ def reviewed_dimensions(fixture, scene, row, trace, reviews, evidence_root):
         dimensions[rubric[criterion["id"]]["dimension"]] &= criterion["verdict"] == "pass"
     if review.get("behavior") is not None or fixture.get("behaviorEvaluation"):
         require(context_rounds == set(round_payloads), "BEHAVIOR_ROUND_CONTEXT_REQUIRED")
-        for section in ("calls", "requests", "interventions", "adjustments"):
+        for section in ("calls", "requests", "interventions", "adjustments", "finals"):
             for item in review.get("behavior", {}).get(section, []):
                 require(not round_payloads or bool(set(item.get("evidenceIds", [])) & context_ids), "BEHAVIOR_VISIBLE_CONTEXT_EVIDENCE_REQUIRED")
+        context_round_by_id = {item["id"]: item["round"] for item in review["evidence"] if item["id"] in context_ids}
+        for item in review.get("behavior", {}).get("finals", []):
+            require(any(context_round_by_id.get(ref) == item.get("round") for ref in item.get("evidenceIds", [])),
+                    "BEHAVIOR_FINAL_CONTEXT_REQUIRED")
     behavior = reviewed_behavior(review, trace, evidence_ids, bool(fixture.get("behaviorEvaluation")))
     return dimensions, behavior
 

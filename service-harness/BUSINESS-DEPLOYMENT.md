@@ -2,6 +2,12 @@
 
 本文统一说明数据查询、加工、单图分析、必需步骤检查与结构化报告的安装和人工运行顺序。基础服务与 dispatcher 配置见 [服务部署](README.md)，能力契约见 [业务数据](BUSINESS-DATA.md)和[执行检查与报告](WORKFLOW-REPORTS.md)，业务资源跨环境晋级见 [发布与回退](RELEASE-MANAGEMENT.md)。
 
+## 交互调度与持久会话
+
+按既有 drain、备份、替换和重启流程更新 `cube-service-harness-3.0.jar`。使用巡检报告完成门禁时同时替换 `cube-service-harness-skill-3.0.jar`，离线评测同步更新 `behavior_evaluation.py`、`quality_evaluation.py` 和 `prepare_adjustment_evaluation.py`。部署模板可设置 `execution.coordinator.scan.millis=1000`。首启会补建会话表、run 会话字段及索引。MySQL 服务账号需要本库 CREATE、ALTER 和索引权限。升级期间按同一版本启动所有写入该库的服务，回退时使用升级前的库备份。
+
+人工跑通时先打开 `interaction.enabled` 并接入已有模型单元。创建 run 时设置 `newConversation: true`，处理中补充一次要求，确认事件从受理进入采纳。任务终态后携原 `conversationId` 接续，核对同一会话 ID 与递增序号。使用多个同角色单元时检查实际容量和 Trace 中的作业时间，再核对一次服务重启后的续接。能力与字段见[持续互动](INTERACTION.md)，指标解释见[恢复与运维](RESILIENCE.md)。
+
 ## 可配置资源检索部署
 
 此能力可独立部署，契约见 [任务结构化与业务资源检索](RETRIEVAL.md)。更新匹配的 `cube-service-harness-3.0.jar` 和 `cube-service-harness-skill-3.0.jar`，安装位置分别为原 `cellets/` 与宿主扩展 `libs/`；先 drain、保留在途账本，再成套替换。检索复用现有账本与普通 tool Runner，不新增 Python 协议或视觉 Unit 要求，一个 JVM 可接多个独立 Runner。旧环境尚未完成持续互动账本升级时，先遵循下面的互动升级步骤。
@@ -124,7 +130,7 @@ admin.sources.allowedPaths=/api/patrol/records,/api/media/content
 admin.sources.secretRefs=forest-source
 ```
 
-HTTP 模式分别登记不可变 source 与对话用户 source-grant，在 data/capability 私有配置中设置与业务系统验签器一致的 secret；详见 [接口约定](../../forest/ForestHanressEngineeringAPIRef.md)。仅上传模式无需 HTTP source，但须绑定 JSON 与全部图片 Input。
+HTTP 模式分别登记不可变 source 与对话用户 source-grant，在 data/capability 私有配置中设置与业务系统验签器一致的 secret；详见 [接口约定](../../forest/ForestHanressEngineeringAPIRef.md)。仅上传模式无需 HTTP source，但须绑定 JSON 与全部图片 Input。附件读取修复可独立更新技能扩展 JAR。按下方人工运行顺序，使用一份 JSON 快照和一张已绑定图片验证查询、加工和分析。
 
 真实视觉 Unit 上线并预热、隔离算力后，在 AIGC 私有 aigc.properties 中设置 `harness.media.dedicated=true` 与实际 `harness.media.units`，capability 的允许路由须一致。只声明已就绪的 connector 和分析 profile；任务创建会预检包内全部声明，调用时仍重查授权与容量。
 

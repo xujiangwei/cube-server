@@ -28,6 +28,10 @@ import java.util.Set;
  */
 public final class StoreBootstrap {
     // 精确的旧版 mysql.sql 摘要：仅表引擎/字符集/排序规则默认值有变化。
+    private static final String MYSQL_SCHEMA_BEFORE_CONVERSATIONS =
+            "f5715e1ce3857e3e88a4dd90075f0d31948fa137ee3a5aa127e6e8afa37468ee";
+    private static final String SQLITE_SCHEMA_BEFORE_CONVERSATIONS =
+            "f32696b17e0e0d039772df63f61773cb788c909f1cbc4f539fcac6b3dd4f6e78";
     private static final String MYSQL_SCHEMA_BEFORE_EXPLICIT_COLLATIONS =
             "e5693c212ea5adaf520264157f04485669498167c201827a616fa6e646d83317";
 
@@ -166,11 +170,13 @@ public final class StoreBootstrap {
                 throw new StoreException("STORE_IDENTITY_MISMATCH");
             }
             String hash = r.getString(3);
-            boolean previous = allowPreviousMysqlSchema && (config.mysql()
+            boolean previous = allowPreviousMysqlSchema && ((config.mysql()
+                    ? MYSQL_SCHEMA_BEFORE_CONVERSATIONS : SQLITE_SCHEMA_BEFORE_CONVERSATIONS).equals(hash)
+                    || (config.mysql()
                     ? "4756a216e50c7b534ae81d97a7f1706e14fc0da80b195224b51c2ad63041e6f7".equals(hash) || MYSQL_SCHEMA_BEFORE_EXPLICIT_COLLATIONS.equals(hash) || "dcda116b812ddb9ecc491e81e5614e72ce8b2e2ca134a39ef2ba3bf3424ce61b".equals(hash)
                     || "23708b9e87686f3c0cc9d42afbff6add4a0b508a7ac73aecfb343f201a49e3d8".equals(hash)
                     : "f85520430e33210547b3a4b99e2d73f2ee1730e9978a71c91e3fa98d65055c21".equals(hash) || "e722e01d82aeaff998fc45783308f8c2cb6ef923b48f04b32f402ce3cd9ee021".equals(hash)
-                    || "5369b969ed2bd18fb85d223df7ef2aa29e0f8d1299648795efc875a828afb838".equals(hash));
+                    || "5369b969ed2bd18fb85d223df7ef2aa29e0f8d1299648795efc875a828afb838".equals(hash)));
             if ((!digest(config).equals(hash) && !previous) || r.next()) {
                 throw new StoreException("STORE_IDENTITY_MISMATCH");
             }

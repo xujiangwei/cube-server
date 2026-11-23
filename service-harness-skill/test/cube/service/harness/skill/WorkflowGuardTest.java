@@ -73,6 +73,9 @@ public final class WorkflowGuardTest {
         gap("QUERY_REQUIRED");
         JSONObject first = page("p1", "", "c1", 1), last = page("p2", "c1", "", 1, 2);
         gap("QUERY_INCOMPLETE", first);
+        JSONObject falselyComplete = dataset("falsely-complete", first);
+        falselyComplete.getJSONObject("value").getJSONObject("coverage").put("queryComplete", true);
+        gap("QUERY_INCOMPLETE", first, falselyComplete, analysis("p1-media-1"));
         check(assess(first).getJSONArray("missing").getJSONObject(0).getString("cursor").equals("c1"), "real continuation");
         gap("PROCESS_REQUIRED", first, last);
         gap("PROCESS_REQUIRED", first, last, dataset("partial", first));

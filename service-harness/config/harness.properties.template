@@ -56,6 +56,9 @@ execution.tenant.templates=./config/harness-tenant
 execution.permissions=skill.list,skill.activate,resource.list,resource.read,resource.search
 # 同一租户的活跃任务接单上限，范围 1～256；达到上限后拒绝新任务。
 execution.max.active=128
+# Coordinator fallback scan after each batch. Local committed changes wake the affected run.
+# Range 100..10000 ms; default 1000 ms.
+execution.coordinator.scan.millis=1000
 # 资源包私有仓库目录及归属命名空间；首次初始化要求独立空目录，之后保持归属一致。
 execution.repository=C:/private/harness/resources
 execution.repository.namespace=harness-resources

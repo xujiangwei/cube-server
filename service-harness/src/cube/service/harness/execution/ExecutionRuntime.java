@@ -229,7 +229,7 @@ public final class ExecutionRuntime implements AutoCloseable {
     }
 
     public JSONObject monitoringSnapshot() {
-        return store.monitoringSnapshot();
+        return store.monitoringSnapshot().put("coordinator", coordinator.metrics());
     }
 
     /**

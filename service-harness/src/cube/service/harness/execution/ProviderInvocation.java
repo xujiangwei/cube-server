@@ -327,7 +327,7 @@ public final class ProviderInvocation {
      * 读取本次调用绑定的受控输入文件内容。
      *
      * @param id         输入文件标识，须与 call 的参数引用一致
-     * @param maxBytes   允许的最大字节数，超出即拒绝
+     * @param maxBytes   允许的最大字节数，范围为 1 至 {@link FileService#MAX_BOUND_INPUT_BYTES}
      * @param mediaTypes 允许的媒体类型集合，用于绑定校验
      * @return 文件内容字节；仅在授权与配额校验通过后返回
      * @throws StoreException 文件服务未启用时抛出，错误码为 {@code FILES_DISABLED}

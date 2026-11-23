@@ -194,6 +194,49 @@ public final class StoreBootstrapTest {
         System.out.println("PASS: known previous schema upgraded with retained runs and no historical backfill");
     }
 
+    private static void conversationMigration() throws Exception {
+        if (config.mysql()) {
+            sql("DROP INDEX harness_conversation_history ON harness_run");
+            sql("DROP TABLE harness_conversation");
+            sql("ALTER TABLE harness_run DROP COLUMN conversation_seq");
+            sql("ALTER TABLE harness_run DROP COLUMN conversation_id");
+            sql("UPDATE harness_store_identity SET schema_hash='f5715e1ce3857e3e88a4dd90075f0d31948fa137ee3a5aa127e6e8afa37468ee' WHERE singleton=1");
+            long before = count("harness_run", "retained");
+            StoreBootstrap.selfCheck(config);
+            check(count("harness_run", "retained") == before, "Conversation migration lost existing runs");
+        } else {
+            Properties prior = new Properties();
+            prior.putAll(properties);
+            prior.setProperty("store.database", "harness_preconversation");
+            prior.setProperty("store.sqlite.file", root.resolve("harness_preconversation.db").toString());
+            StoreConfig legacy = new StoreConfig(prior);
+            try (Connection c = legacy.connect(); Statement ddl = c.createStatement();
+                 InputStream in = StoreBootstrapTest.class.getResourceAsStream("/store/sqlite.sql")) {
+                String schema = new String(RuntimeSupport.read(in, 262144), "UTF-8");
+                for (String statement : schema.split(";")) {
+                    String sql = statement.trim();
+                    if (!sql.isEmpty() && !sql.startsWith("CREATE TABLE harness_conversation ")
+                            && !sql.startsWith("CREATE INDEX harness_conversation_history ")) {
+                        ddl.execute(sql.replace("\r\n", "\n").replace(",\n    conversation_id VARCHAR(128),\n    conversation_seq BIGINT", ""));
+                    }
+                }
+                try (PreparedStatement insert = c.prepareStatement("INSERT INTO harness_store_identity VALUES(1,?,?)")) {
+                    insert.setString(1, legacy.identity);
+                    insert.setString(2, "f32696b17e0e0d039772df63f61773cb788c909f1cbc4f539fcac6b3dd4f6e78");
+                    insert.executeUpdate();
+                }
+                ddl.execute("INSERT INTO harness_run (run_id,tenant,subject_id,profile_version,state,version,event_seq,fence,lease_until,"
+                        + "execution_settlement,usage_settlement,created_at,updated_at)"
+                        + " VALUES('legacy','retained','user','profile','queued',0,0,0,0,'pending','settled',0,0)");
+            }
+            StoreBootstrap.selfCheck(legacy);
+            JSONObject snapshot = new JdbcRunStore(legacy).read("retained", "user", "legacy").getJSONObject("snapshot");
+            check(snapshot.getString("state").equals("queued") && !snapshot.has("conversationId"),
+                    "Conversation migration lost the legacy run or assigned it a conversation");
+        }
+        System.out.println("PASS: conversation schema upgrade preserves preexisting run data");
+    }
+
     private static void providerMigration() throws Exception {
         for (String table : Arrays.asList("data_source", "source_grant", "provider_fact", "admin_request")) sql("DROP TABLE harness_" + table);
         String previous = config.mysql() ? "23708b9e87686f3c0cc9d42afbff6add4a0b508a7ac73aecfb343f201a49e3d8" : "5369b969ed2bd18fb85d223df7ef2aa29e0f8d1299648795efc875a828afb838";
@@ -226,7 +269,7 @@ public final class StoreBootstrapTest {
         properties.setProperty("http.port", "0");
         properties.setProperty("worker.credential", "private-bootstrap-test-worker-1234");
         config = new StoreConfig(properties);
-        startup(); usageMigration(); providerMigration(); tenantInitialization(); invalidTemplates();
+        startup(); usageMigration(); providerMigration(); conversationMigration(); tenantInitialization(); invalidTemplates();
         System.out.println("PASS: automatic store and tenant initialization on " + config.dialect);
     }
 }

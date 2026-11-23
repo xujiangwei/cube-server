@@ -28,6 +28,17 @@ class BehaviorReviewTest(unittest.TestCase):
         self.assertEqual((scored["humanRequests"], scored["humanInterventions"], scored["explorationCalls"], scored["wastefulCalls"]), (1, 1, 1, 0))
         self.assertEqual(summarize([dict(behavior=scored), dict(behavior=None)])["totals"], None)
 
+    def test_premature_finals_are_bound_to_the_observed_round(self):
+        self.trace["metrics"]["decisionObservations"][0]["decision"] = dict(kind="final")
+        self.review["behavior"]["finals"] = [dict(round="round-1/1", classification="premature",
+                                                rationale="The last required page was never read", evidenceIds=["source"])]
+        scored = reviewed_behavior(self.review, self.trace, {"source"}, True)
+        self.assertEqual(summarize([dict(behavior=scored)])["finalTiming"]["prematureRate"], 1)
+        self.assertIsNone(summarize([dict(behavior=scored), dict(behavior=None)])["finalTiming"]["prematureRate"])
+        self.review["behavior"]["finals"][0]["round"] = "absent/1"
+        with self.assertRaisesRegex(ValueError, "COVERAGE"):
+            reviewed_behavior(self.review, self.trace, {"source"}, True)
+
     def test_missing_entries_and_fake_zeroes_are_rejected(self):
         self.review["behavior"]["calls"] = []
         with self.assertRaisesRegex(ValueError, "COVERAGE"):
