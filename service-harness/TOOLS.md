@@ -36,6 +36,8 @@ Python 使用 `harness/config/runner-cpu.template.json`，`runner.type=tool`、r
 
 ## 技能包与 provider 部署
 
+核心维护技能包、获准工具、执行边界与结果账本。业务技能定义何时调用、参数与结果 schema、数据来源及解释规则。部署方审核并登记可信 Provider，配置私有地址、凭据及调用范围。受信 Provider 在 JVM 权限下运行，按业务契约访问数据并投影结果。
+
 manifest 使用 `schemaVersion=6`，工具名处于技能命名空间，普通工具声明 `runnerType: "tool"`、固定 brokerOperation/权限、输入输出 schema 及审核后的 `.py` entrypoint。包固定文件摘要、空 dependencies lock，总大小不超过 64 KiB。模型输出代码不能通过普通工具入口运行。
 
 发布端设置 `runtime.allowTrustedExecutables=true`，使用 [RUNTIME.md](RUNTIME.md) 的签名发布流程。在服务器 `harness-execution/` 配置 `mode=trusted-python-v1`、`toolSetVersion=broker-tools`、`capabilities` 包含 `tool.execute` 的执行器；`execution.json.requiredCapabilities` 定义通用能力要求。租户 policy 仅发布技能 release 与业务权限。客户端可在每次请求中选择该执行器，兼容技能无需重新发布。显式选择的技能立即激活；其余技能由模型按需激活。POST `/runs` 不支持指定工具，服务端计算并固定有效工具名单，调用及恢复执行均校验此范围。

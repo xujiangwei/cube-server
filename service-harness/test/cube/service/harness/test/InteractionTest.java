@@ -5,6 +5,8 @@ import cube.service.harness.runtime.*;
 import cube.service.harness.store.*;
 import org.json.*;
 import java.nio.file.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.*;
 import java.util.concurrent.*;
 import static cube.service.harness.test.RuntimeTest.*;
@@ -159,10 +161,106 @@ public final class InteractionTest {
                 "restart lost conversation identity");
         job = dispatch(lastRun, true);
         wire = job.getString("requestJson");
-        check(wire.contains("reply 35") && wire.contains("recent messages")
+        check(wire.contains("reply 35") && wire.contains("earlier conversation messages are unavailable")
                 && !wire.contains("mention provenance") && !wire.contains("original conversation"), "bounded, editable history");
         complete(job, finalAnswer("done"));
         advance(lastRun);
+    }
+
+    static String repeat(char value, int count) {
+        char[] chars = new char[count];
+        Arrays.fill(chars, value);
+        return new String(chars);
+    }
+
+    static void conversationBudget() throws Exception {
+        JSONObject initial = request("Retain this user request").put("newConversation", true)
+                .put("conversationInstructions", "Always mention provenance");
+        JSONObject first = profiles.createRun(identity, key(), "task", initial);
+        String run = first.getString("runId");
+        String tooLarge = "Oversized answer " + repeat('x', 24600);
+        store.finish(running(run, 60000), version(run), "succeeded", "confirmed", finalAnswer(tooLarge), new JSONArray());
+        String conversation = first.getString("conversationId");
+        String next = profiles.createRun(identity, key(), "task", request("Continue the request").put("conversationId", conversation))
+                .getString("runId");
+        JSONObject job = dispatch(next, false);
+        String wire = job.getString("requestJson");
+        check(wire.contains("Retain this user request") && wire.contains("Always mention provenance")
+                        && wire.contains("earlier conversation messages are unavailable") && !wire.contains("Oversized answer"),
+                "An oversized answer hid the previous user request");
+        complete(job, finalAnswer("In-window answer " + repeat('y', 12000)));
+        advance(next);
+
+        String currentInput = "Latest task " + repeat('z', 11000);
+        String resumed = profiles.createRun(identity, key(), "task", request(currentInput).put("conversationId", conversation))
+                .getString("runId");
+        job = dispatch(resumed, true);
+        wire = job.getString("requestJson");
+        check(wire.contains(currentInput) && wire.contains("Always mention provenance") && wire.contains("Continue the request")
+                        && wire.contains("Retain this user request") && !wire.contains("In-window answer"),
+                "Model budget should retire old answers before user instructions");
+        complete(job, finalAnswer("continued within budget"));
+        advance(resumed);
+
+        first = profiles.createRun(identity, key(), "task", request("Old user message " + repeat('a', 10000))
+                .put("newConversation", true));
+        run = first.getString("runId");
+        store.finish(running(run, 60000), version(run), "succeeded", "confirmed", finalAnswer("old short answer"), new JSONArray());
+        resumed = profiles.createRun(identity, key(), "task", request(currentInput).put("conversationId", first.getString("conversationId")))
+                .getString("runId");
+        job = dispatch(resumed, false);
+        wire = job.getString("requestJson");
+        check(wire.contains(currentInput) && wire.contains("earlier conversation messages are unavailable")
+                        && !wire.contains("Old user message") && !wire.contains("old short answer"),
+                "Required current input could not displace over-budget conversation history");
+        complete(job, finalAnswer("latest instruction handled"));
+        advance(resumed);
+    }
+
+    static void mixedWorkerQueue() throws Exception {
+        ModelJobStore jobs = new ModelJobStore(store, config.mysql());
+        JSONObject legacy = ExecutionTest.descriptor("mixed-queue").put("model", "mixed-model");
+        jobs.backend("mixed-queue", legacy, 2);
+        String digest = ModelProfiles.adapterDigest(legacy.getString("adapter"));
+        try (Connection connection = config.connect();
+             PreparedStatement run = connection.prepareStatement(
+                     "INSERT INTO harness_run (run_id,tenant,subject_id,profile_version,state,version,event_seq,fence,"
+                             + "lease_until,execution_settlement,usage_settlement,created_at,updated_at)"
+                             + " VALUES (?,?,'queue-user','queue-profile','running',1,1,0,0,'pending','settled',0,0)");
+             PreparedStatement round = connection.prepareStatement(
+                     "INSERT INTO harness_round (run_id,intent_id,attempt,tenant,intent_hash,payload_json,origin_fence,status)"
+                             + " VALUES (?,'round-0001',1,?,'intent','{}',0,'pending')");
+             PreparedStatement job = connection.prepareStatement(
+                     "INSERT INTO harness_model_job (job_id,run_id,tenant,subject_id,round_id,attempt,origin_fence,"
+                             + "intent_hash,model_id,profile_digest,request_hash,request_json,status,actual_finished,cancel_requested,created_at)"
+                             + " VALUES (?,?,?,'queue-user','round-0001',1,0,'intent','mixed-model',?,'request',?,'queued',0,0,?)")) {
+            connection.setAutoCommit(false);
+            for (int i = 1; i <= 257; i++) {
+                String id = "mixed-queue-" + i;
+                String tenant = "queue-tenant-" + (i % 3);
+                run.setString(1, id);
+                run.setString(2, tenant);
+                run.executeUpdate();
+                round.setString(1, id);
+                round.setString(2, tenant);
+                round.executeUpdate();
+                job.setString(1, id);
+                job.setString(2, id);
+                job.setString(3, tenant);
+                job.setString(4, digest);
+                job.setString(5, i <= 256 ? "{\"generation\":{\"structuredInput\":true}}" : "{}");
+                job.setInt(6, i);
+                job.executeUpdate();
+            }
+            connection.commit();
+        }
+        JSONObject oldJob = jobs.poll("legacy-worker", "instance-legacy", "session-legacy", legacy, 1, true);
+        check(oldJob != null && oldJob.getString("jobId").equals("mixed-queue-257"),
+                "Legacy worker could not claim a compatible job behind 256 incompatible jobs");
+        JSONObject structured = new JSONObject(legacy.toString()).put("structuredInput", true);
+        JSONObject newJob = jobs.poll("structured-worker", "instance-new", "session-new", structured, 1, true);
+        check(newJob != null && newJob.getString("jobId").equals("mixed-queue-1"),
+                "The structured worker should still claim the earliest compatible job");
     }
 
     static void committedWakeups() throws Exception {
@@ -344,8 +442,9 @@ public final class InteractionTest {
         ExecutionTest.dispatcher=new ModelDispatcher(ExecutionTest.jobs,p,60000);
         sessionA=ExecutionTest.dispatcher.apply(ExecutionTest.envelope("a","ia","describe").put("descriptor",ExecutionTest.descriptor("shared")),1,()->true).getString("sessionId");
         sessionB=ExecutionTest.dispatcher.apply(ExecutionTest.envelope("b","ib","describe").put("descriptor",ExecutionTest.descriptor("shared")),2,()->true).getString("sessionId");
-        try { legacyWaitAndExpiry();resumeLimits();invalidQuestions();boundedPages();largeModelDecisions();cancelWinsLateFinal();messagesAndLateFinal();obsoleteTools();questions();queuedAndRace();conversation();persistentConversation();finalAcceptanceRace();admissionAndBudgets();switchesAndLimits();committedWakeups(); }
+        try { legacyWaitAndExpiry();resumeLimits();invalidQuestions();boundedPages();largeModelDecisions();cancelWinsLateFinal();messagesAndLateFinal();obsoleteTools();questions();queuedAndRace();conversation();persistentConversation();conversationBudget();finalAcceptanceRace();admissionAndBudgets();switchesAndLimits();committedWakeups(); }
         finally {ExecutionTest.coordinator.close();}
-        System.out.println("PASS: durable ordered messages, cross-worker continuation, stale finals/tools, structured answers, restart, concurrent acceptance and terminal replay");
+        mixedWorkerQueue();
+        System.out.println("PASS: conversation budget, mixed worker queue across tenants, durable input, restart and terminal replay");
     }
 }

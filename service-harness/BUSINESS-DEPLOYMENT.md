@@ -2,63 +2,31 @@
 
 本文统一说明数据查询、加工、单图分析、必需步骤检查与结构化报告的安装和人工运行顺序。基础服务与 dispatcher 配置见 [服务部署](README.md)，能力契约见 [业务数据](BUSINESS-DATA.md)和[执行检查与报告](WORKFLOW-REPORTS.md)，业务资源跨环境晋级见 [发布与回退](RELEASE-MANAGEMENT.md)。
 
-## 交互调度与持久会话
+## 持续互动与会话
 
-按既有 drain、备份、替换和重启流程更新 `cube-service-harness-3.0.jar`。使用巡检报告完成门禁时同时替换 `cube-service-harness-skill-3.0.jar`，离线评测同步更新 `behavior_evaluation.py`、`quality_evaluation.py` 和 `prepare_adjustment_evaluation.py`。部署模板可设置 `execution.coordinator.scan.millis=1000`。首启会补建会话表、run 会话字段及索引。MySQL 服务账号需要本库 CREATE、ALTER 和索引权限。升级期间按同一版本启动所有写入该库的服务，回退时使用升级前的库备份。
+1. 按[构建与安装](#构建与安装)部署匹配的 Java 组件和 Python Harness 节点。选择具备结构化输入能力的工作单元处理 `generation.structuredInput=true` 的任务。按[存储配置](STORE.md)让启动自检创建或升级消息、会话字段及索引。共享一个库的写入节点使用同一版本。
+2. 在私有 `harness.properties` 中启用 `interaction.enabled=true`，重启后核对 capabilities 的 interaction 和各 worker 的就绪状态。部署可按[执行配置](config/harness-execution/README.md)配置执行、等待和总期限。自定义 CompletionGuard 按 `taskInput/supportsInteraction` 接收输入变更。协调器兜底扫描默认每批后等待 1000 ms。
+3. 使用获准 Cube 用户发起带 `newConversation: true` 的 run。执行中补充要求并核对受理与采纳事件。出现问题时刷新并按当前等待身份回答，再验证改要求使旧问题失效和取消后的物理对账。终态后用同一 `conversationId` 创建后续任务并核对递增序号。部署多个同角色单元时，按[监控指标](RESILIENCE.md#运行边界)核对共享容量和派发等待。
 
-人工跑通时先打开 `interaction.enabled` 并接入已有模型单元。创建 run 时设置 `newConversation: true`，处理中补充一次要求，确认事件从受理进入采纳。任务终态后携原 `conversationId` 接续，核对同一会话 ID 与递增序号。使用多个同角色单元时检查实际容量和 Trace 中的作业时间，再核对一次服务重启后的续接。能力与字段见[持续互动](INTERACTION.md)，指标解释见[恢复与运维](RESILIENCE.md)。
+业务客户端接入见[持续互动契约](INTERACTION.md)。本机对话客户端的启动命令见[客户端说明](../../harness/client/README.md)。
+
+## 上下文预算与证据评测
+
+将进程实际使用的 `execution.profiles` 指向配置目录下的 `harness-execution`，按[执行配置](config/harness-execution/README.md)合并任务状态、历史压缩、证据调整、模型预算和语义摘要选项。模型的 `nativeTools` 与 Java adapter 及 Python 节点能力须匹配。使用精确计数时安装匹配模型、模板和 tokenizer 的可信计数器。回读工具要求 `resource.read` 授权。
+
+人工运行一个多轮任务，确认完整链接、引用、已采纳输入和缺失证据的处理。需要评估真实模型时，按[Trace 与评测](TRACE.md)冻结相同任务、模型和授权配置，收集 Trace 和独立复核。只读能力发现可按[业务数据能力](BUSINESS-DATA.md)部署，实际任务就绪状态可通过 `task-profiles` 查看。
 
 ## 可配置资源检索部署
 
-此能力可独立部署，契约见 [任务结构化与业务资源检索](RETRIEVAL.md)。更新匹配的 `cube-service-harness-3.0.jar` 和 `cube-service-harness-skill-3.0.jar`，安装位置分别为原 `cellets/` 与宿主扩展 `libs/`；先 drain、保留在途账本，再成套替换。检索复用现有账本与普通 tool Runner，不新增 Python 协议或视觉 Unit 要求，一个 JVM 可接多个独立 Runner。旧环境尚未完成持续互动账本升级时，先遵循下面的互动升级步骤。
+此能力可独立部署，契约见 [任务结构化与业务资源检索](RETRIEVAL.md)。更新匹配的 `cube-service-harness-3.0.jar` 和 `cube-service-harness-skill-3.0.jar`，安装位置分别为原 `cellets/` 与宿主扩展 `libs/`；先 drain、保留在途账本，再成套替换。检索复用现有账本与普通 tool Runner，不新增 Python 协议或视觉 Unit 要求，一个 JVM 可接多个独立 Runner。持续互动和问答的配置见[持续互动与会话](#持续互动与会话)。
 
-1. JDK 8 下执行 `ant -f service-harness/build.xml build` 和 `ant -f service-harness-skill/build.xml build packages`，生成核心/扩展 JAR 与 `service-harness-skill/build/packages/retrieval-v1.zip`。阶段目录用两个模块现有 stage 目标合并；交付时同时包含本文、RETRIEVAL.md 和配置模板，不能只沿用旧交付 ZIP 内的 JAR。
+1. JDK 8 下执行 `ant -f service-harness/build.xml build` 和 `ant -f service-harness-skill/build.xml build packages`，生成核心/扩展 JAR 与 `service-harness-skill/build/packages/retrieval-v1.zip`。用两个模块的 stage 目标组装核心、扩展、检索契约和配置模板。
 2. 私有目录安装 `service-harness-skill/config/retrieval.properties.example`，按已登记 source 的 secretRef 设置 `secret.<secretRef>`。broker.providers 追加 retrieval，登记 `broker.provider.retrieval.class=cube.service.harness.skill.RetrievalProvider` 和实际 `broker.provider.retrieval.config` 绝对路径。保留其他 Provider；配置 WorkflowGuard 类及其私有 workflow.properties，启用 `interaction.enabled=true`。部署权限上限、身份和租户 policy 均加入 `resource.retrieve` 及业务资源读取权限。
 3. 发布可信 `common/retrieval` 工具 ZIP，取得 ready digest。登记业务查询及可选区域目录的 source，合并 admin.sources.allowedOrigins/allowedPaths/secretRefs，给实际对话用户 source-grant；每次请求的 HMAC 与业务用户 ACL 沿用已有契约。业务配置不授予访问权限。
 4. 使用 [教程检索资源](../../tutorials/examples/retrieval-package/) 编写纯资源业务包：SKILL.md、retrieval-profiles.json、workflow-requirements.json，依赖锁只需 common/retrieval。`execution.version=resource-retrieval-v1`，按真实 digest 构包、签名发布、合并 policy 并 CAS 切换。工具、来源和业务配置共同预检；不需要巡检分析的 processing/analysis/report 文件。maxTools 要覆盖1次规划、各页和预计输入修订，仍受总期限与预算限制。
 5. 启动 Java 及多个独立 tool Runner，核对 task-profiles 的业务技能与 common.retrieval.query 就绪。人工依次运行固定日期的录像、图片、已发布文档查询；确认时间/区域/类型；缺区域时选择真实选项；执行中补充“改成图片”；刷新待答页面后继续；测试授权撤销、完整空结果及游标分页。读取 `result.result.retrieval` 的完整覆盖与固定版本引用，再由业务系统重新鉴权取内容。
 
-教程的独立可运行业务接口、构包与客户端命令见 [资料检索接入](../../tutorials/src/content/docs/reference/resource-retrieval.md)。先部署人工跑通，再检查真实数据检索效果、目标数据库和容量。回退先收尾/隔离已固定新检索工具与工作流的任务，保留 unknown 证据，再恢复匹配的 JAR/config/policy/binding；旧 guard 不承接新检索包。
-
-## 持续输入与问答部署
-
-配套交付为 `cube-server/build/harness-file-processing-delivery/` 及同名 ZIP，包含 common、dispatcher、Harness 核心、WorkflowGuard 扩展、Python 节点 ZIP、本地聊天客户端、配置模板和文档。它不包含用户令牌、生产数据库或私有配置。实现契约见 [持续输入与主动问答](INTERACTION.md)。
-
-构建完成后，在 `cube-server/` 执行 `python -B service-harness/scripts/build_interaction_delivery.py --python-root ../../apexnova-wisdom` 组装交付；若配套 Python 工程不在该相对位置，请传实际绝对路径。输出目录和同名 ZIP 必须尚不存在，可用 `--output` 指定新的发布目录。交付入口 README 说明四个 JAR 的安装位置，`checksums.json` 提供逐文件 SHA-256；配置文档保留工作区相对目录，便于交叉阅读。
-
-1. 使用实际 JDK 8 构建 common、dispatcher、service-harness 和 service-harness-skill；Python 3.11 在配套 Python 工程执行 `python -B harness/scripts/build_bundle.py --output <发布目录>/python-harness-node.zip`。关闭新任务准入，drain 并保留在途/unknown 的 journal 和物理对账记录，备份原数据库、JAR 与私有配置。
-2. 成套更新 common、dispatcher 和 Harness 核心；使用固定业务流程时同步更新技能扩展 JAR。安装位置沿用原部署，不保留重复版本。启动会补建 harness_message 及输入版本、工具准入和累计等待字段；MySQL 服务账号需要本库 ALTER/CREATE 权限，不能由旧服务与新服务同时写新账本。结构升级前的备份用于整套回退。
-3. 更新全部可能接收模型作业的 Python 单元完整运行包及 contracts，保留每个 workerId、实例运行目录和 journal 的独立性。无需新增角色或改为 Java/Python 一对一。旧 worker 可以保留处理旧模型格式，但只有声明 structuredInput=true 的新单元可承接开启结构化格式的模型。
-4. 私有配置先保持 interaction.enabled=false。按 [互动配置](config/harness-execution/README.md)发布新模型和执行配置版本：按需启用 generation.structuredInput，配置累计执行、单次等待和总期限，核对租户总期限上限。基础补充不依赖结构化模型格式；自定义旧 CompletionGuard 必须先适配 taskInput/supportsInteraction 才能调整固定流程。
-5. 启动 Java 和多个独立 Python 单元，检查 task-profiles 的就绪信息、capabilities 的 interaction 及各 worker 描述。确认后将 interaction.enabled=true 并重启配置所在 JVM；开放新任务。关闭消息开关只停止新 messages 受理，不清除已持久化消息和在途执行。
-6. 在客户端目录启动 `python server.py --dispatcher http://211.157.179.37:7010 --port 8787`，打开 `http://127.0.0.1:8787`，使用已有 Cube 用户令牌。代理只在本机监听；业务系统也可直接接入同一 REST 契约。客户端说明见 [README](../../harness/client/README.md)。
-
-部署后的人工运行依次为：发起耗时任务；连续补充两条范围限制并核对“已收到/已纳入处理”；让模型发起选项问题，选择后核对结果；问题出现后刷新并继续回答；用 `/调整 新要求` 使旧问题失效；停止在途任务并观察物理对账；任务完成后继续输入，核对新 run 继承旧要求与答复。最后切换可用 Python 单元，检查共享后端容量不重复计算。真实模型质量、目标 MySQL 与现场延迟在部署后运行验证，不作为后续开发前置条件。
-
-回退需先收尾或隔离新任务、保留 unknown，再恢复成套旧代码、配置和升级前数据库备份；不能只替换旧 JAR 继续写新账本。客户端可独立移除。基础消息、结构化问题、固定流程和本地客户端可分别启用，事件页轮询不要求另部署 WebSocket 或通知服务。
-
-## 任务推进与上下文能力升级
-
-配套交付目录 `cube-server/build/harness-agent-delivery/` 及同名 ZIP 包含两个 Java JAR、Python 节点 ZIP、执行/Provider 模板、通用工具包和离线评测脚本；`checksums.json` 记录 SHA-256。它不包含生产凭据、数据库或已验证的远端 tokenizer。安装和首次运行按以下顺序操作：
-
-1. 关闭新准入，drain 并对账现有任务；备份两个 JAR、全部私有配置、Python 节点目录和原 journal，保留原 release/policy/binding。两个 JAR 配套替换，Python 节点更新完整运行包，保留各 workerId/runtimeDir/journal。一个 JVM 接多个 Python 单元的部署方式不变。
-2. 更新全部可能接到任务的 Python 模型单元，完整安装 model_adapter.py、context_compaction.py、context_summary.py 和 contracts；不能只替换单文件。再合并 `execution.json` 修订 3：taskState=true、adaptiveHistory=true、compressionTriggerPercent=80、compressionTargetPercent=60、repairReserveTokens=1024、repairReserveBytes=2048、skillWindow=6、finalWireGuard=true、maxRepeatedCalls=3。semanticSummary 默认关闭。保留私有模型/执行器引用和总预算；移除旧 historyWindow 或保留作旧策略配置，新 run 使用新版本。旧 worker 无法保证新 wire 校验和语义摘要，升级完成后再开放新准入。
-3. 启动 Java 和各 Python 单元。基础状态、预算选择、完整链接/游标保护及回读由核心 JAR 与模型 worker 独立提供，不需要新增 Provider、业务包或模型服务。回读要求 resource.read 且固定工具集合提供 context.read_result。先运行“查询后计算并解释来源”的多轮任务，检查答案、完整 URL/Ref、resource.read 的可见 nextOffset，以及内部 snapshot 的 taskState/historySelection/compressionState；业务 REST 的 run-snapshot 不返回这些内部字段。运行连续分页查询，确认已消费页可以归档；再回读超过三页的历史结果，在两页之间穿插一次其他查询后继续回读，检查 visibleComplete 与原文拼接。也可使用 selector=/records/0 读完整记录；建议分页 limit=1024，放不下时明确拒绝。连续重复不可变读取达到阈值时返回 TASK_NO_PROGRESS；同参数刷新与新用户输入不按此规则停止。
-4. 按需启用只读能力发现：在已有 broker.providers 后追加 capabilities，登记 `cube.service.harness.skill.CapabilityInspectProvider`，其 config 指向与 capability 调用一致的私有允许名单。发布 `harness-skill/packages/capabilities-v1.zip`，将实际 ready release 加入租户 policy，并在身份、部署上限及 policy 中授予 capability.read。Runner、业务包和此工具均须按正常流程授权/激活；示例参数为 `{"skill":"fhe/patrol"}`。返回逻辑档案和就绪状态，查询不触发视觉推理；ready 不保证即时容量。业务包原有依赖无需重发，只有希望默认选中该工具时才调整业务选择。此工具用于允许它的模型工具循环；fixed-patrol-v1 的规划视图仍只提供 common.data.query，默认业务接入通过 task-profiles 的 ready/reason 检查状态。
-5. 模型单元配置显式 nativeTools，Java adapter 必须一致。先以原字节预算启动，检查 budgetMeasurement.accuracy=estimated。若有已验证 tokenizer/聊天模板及可信计数器，再安装对应计数器类、注册 model.token.counter.classes 并发布独立配置版本；没有匹配计数器会拒绝执行。无需为当前升级安装 tokenizer 依赖。实际模型质量与目标环境计数一致性在部署后验证。
-6. 需要模型语义交接摘要时，另发布新 execution version，将 semanticSummary.enabled=true，保留 maxCalls=1、outputReserve=512、maxSummaryBytes=4096。运行足以触发历史归档的多轮任务，检查 model outcome 的 summary audit、contextSummary 的用户/来源摘要、intent/resultHash 和后续快照恢复。摘要按现有模型计费及排队，失败可回退，unknown 保留容量并停止；不需要新增 Python 角色或一对一实例。确定性压缩可保持摘要关闭独立部署。
-
-回退时再次关闭新准入、drain 并对账，再恢复成套 JAR、Python 运行代码、旧配置与 policy/binding。已固定新回读工具或新计数模式的任务先收尾，不能交给不认识这些配置的旧运行时；unknown 与未决 journal 保留，不通过清空账本恢复容量。此上下文配置升级本身不需要数据库 schema 迁移；持续互动的账本升级与回退要求见上节。
-
-## 证据调整策略的安装与运行
-
-本工作区整个 service 进程使用 `cube-server/service/config`；核心模板位于 `service-harness/config`。默认 execution.json 已同步为修订 4，启用 taskState、adaptiveHistory、evidenceAdjustment，语义摘要保持关闭，仍为 8 轮、32 次工具、2 次修复、5 分钟。目标机若已有私有模型引用、activeVersions 或预算，应逐字段合并，保留其环境值；确认私有 harness.properties 的 execution.profiles 实际指向该进程配置目录下的 harness-execution。不要在同一目录保留第二份 execution JSON。
-
-1. 构建并安装新核心 `cube-service-harness-3.0.jar`，同步执行配置和离线脚本。纯资源证据调整不需要新增 Provider、Runner 类型或 Python 模型决策协议；已有模型单元仍可按原能力参与调度，一个 JVM 支持多个 model/runner 单元。
-2. 重启后创建新任务，确认实际 selection/configDigest；旧 run 保持固定配置。先检查一次原文回读、参数纠正和冲突保留，核对原限额没有重置，unknown 没有被重发。业务完成门禁保持原要求。
-3. 使用[评测方案](TRACE.md)的 prepare 命令生成对照目录和只读测试 ZIP；按正常资源发布流程安装该包，在隔离测试租户授权最小资源读取能力。先部署并跑通，再执行真实模型诊断。24 个开发案例不作为正式认证，也不要求先完成现场验收才能继续本地开发。
-4. 基线与候选均用本次二进制及共同观测层，仅切换 evidenceAdjustment 和 execution 修订号；每次独立运行均保存实际配置与原始证据。用现有独立人工 review 补全行为标签，再运行 evaluate_traces.py --diagnostic；保留失败、缺测与所有重试。
-5. 回退策略时发布新的执行修订，将 evidenceAdjustment=false，重启后仅影响新 run；错误投影、观测及原执行边界继续工作。本次功能不增加数据库迁移。保留未决账本、journal 和物理容量，不能通过删记录回退。
+教程的独立可运行业务接口、构包与客户端命令见 [资料检索接入](../../tutorials/src/content/docs/reference/resource-retrieval.md)。回退时按[恢复与运维](RESILIENCE.md#部署升级与停止顺序)保留在途账本并恢复匹配的 JAR、配置、policy 和 binding。
 
 ## 部署组成
 
@@ -89,7 +57,7 @@ ant -f service-harness/build.xml stage "-Dstage.dir=C:/releases/harness-business
 ant -f service-harness-skill/build.xml stage "-Dstage.dir=C:/releases/harness-business"
 ```
 
-staging 合并核心与技能扩展，不自动启动或发布。升级前关闭新准入、drain 并对账未决任务，保留原 JAR、配置、release/policy/binding；同时安装两个 JAR，移除重复旧副本，合并配置后重启。模板不覆盖私有值。在途任务固定旧 schema 或旧能力时须先收尾，再升级 Provider 与工具。
+两个 stage 目标合并核心和技能扩展。需要含 common、dispatcher、Python 节点、本机对话客户端和离线评测脚本的完整分发包时，从 `cube-server/` 运行 `python -B service-harness/scripts/build_interaction_delivery.py --python-root ../../apexnova-wisdom --output <新发布目录>`。构建前准备匹配的四个 JAR。`checksums.json` 用于逐文件校验。升级前关闭新准入、drain 并对账未决任务，保留原 JAR、配置、release/policy/binding；同时安装两个 JAR，移除重复旧副本，合并配置后重启。模板不覆盖私有值。在途任务固定旧 schema 或旧能力时须先收尾，再升级 Provider 与工具。
 
 ## Provider 与交付检查
 
@@ -130,7 +98,7 @@ admin.sources.allowedPaths=/api/patrol/records,/api/media/content
 admin.sources.secretRefs=forest-source
 ```
 
-HTTP 模式分别登记不可变 source 与对话用户 source-grant，在 data/capability 私有配置中设置与业务系统验签器一致的 secret；详见 [接口约定](../../forest/ForestHanressEngineeringAPIRef.md)。仅上传模式无需 HTTP source，但须绑定 JSON 与全部图片 Input。附件读取修复可独立更新技能扩展 JAR。按下方人工运行顺序，使用一份 JSON 快照和一张已绑定图片验证查询、加工和分析。
+HTTP 模式分别登记不可变 source 与对话用户 source-grant，在 data/capability 私有配置中设置与业务系统验签器一致的 secret；详见 [接口约定](../../forest/ForestHanressEngineeringAPIRef.md)。仅上传模式无需 HTTP source，但须绑定 JSON 与全部图片 Input。附件查询和视觉读取随技能扩展 JAR 部署。按下方人工运行顺序，使用一份 JSON 快照和一张已绑定图片验证查询、加工和分析。
 
 真实视觉 Unit 上线并预热、隔离算力后，在 AIGC 私有 aigc.properties 中设置 `harness.media.dedicated=true` 与实际 `harness.media.units`，capability 的允许路由须一致。只声明已就绪的 connector 和分析 profile；任务创建会预检包内全部声明，调用时仍重查授权与容量。
 
@@ -155,13 +123,7 @@ python -B scripts/build_package.py --dependency common/data=<获准digest> --dep
 
 在普通 tool Runner 的 `runner` 配置中显式设置 `"providerAwait": true`，它才会协商 `provider-await-v1`。然后可将 capability 私有配置设为 `capability.timeout.millis=60000`、`capability.queue.timeout.millis=20000`。默认仍为 20000/0；执行范围为 100..240000，槽等待为 0..40000 毫秒。Runner 等待上限为 `max(30000, 执行+排队+5000)`，最多 290000，并受任务剩余期限约束；准备、排队、派发和收尾共享签名 wire 期限，Provider 预留 1 秒交付时间。sandbox 保持 30 秒上限且拒绝此开关。旧 Runner 不领取超 30 秒作业；不能靠延长 Provider 单独升级。
 
-工具作者包仍为 `*-v2.zip`，新版一般巡检资源包为 `general-patrol-v5.zip`，林业作者包默认 `fhe-patrol-v6.zip`（已有历史 v5 保留）。新版报告要求为 version=2，默认空 assessmentPolicy，只交付观察和需复核判断；明确业务条件后按 [证据策略](WORKFLOW-REPORTS.md) 配置、升版本构包。重新验证并以实际作者密钥签名发布，更新依赖 digest、policy.skillReleases 与 CAS binding；本地作者 ZIP 和评估签名不是生产作者签名。保留原业务包和历史评测，不能用当前源码覆盖旧版本 ZIP。
-
-升级顺序：先关闭新准入、drain/对账，安装配套核心/技能 JAR；逐节点升级全部 JSON/原生工具 model worker，保留各自 workerId、实例目录与 journal；使用原默认名称模式跑通已有任务后，再签名发布 v2 报告要求的新业务 release/policy。若要试用可读工具名，最后发布新的 ModelProfile 版本，添加 generation.toolNameStyle=readable-v1；所有可接单 worker 必须已升级，不能在混合版本下开启。现有 profile 省略此项仍使用 hashed-v1，配置见 [模型与执行器](config/harness-execution/README.md)。
-
-这三项能力可分别使用：离线评测独立运行；工具描述和通用提示随核心/模型适配器更新；证据条件由新版技能 JAR 加业务包 v2 显式启用。没有新增外部 judge 服务、凭据、数据库迁移或预算放宽。旧业务要求 v1 兼容运行，但仅规则引用仍会标记需复核。
-
-回退时关闭新准入，先 drain/对账；先切回获准旧业务 release 与旧 ModelProfile，再回退配套二进制及配置。旧技能 JAR 不能读取报告要求 v2，因此必须先收尾所有固定新版 release 的任务。保留原在途任务与 unknown 预留，不删除账本或更换 runtimeDir 释放未知槽。历史评测不回写；部署跑通后再按冻结任务集开展真实基线/候选对比。
+报告判断按[证据策略](WORKFLOW-REPORTS.md)配置。更新规则时重新签名业务 release 并切换 policy binding。启用 `generation.toolNameStyle=readable-v1` 时，参与派发的模型单元须支持该格式。回退与在途作业保留见[恢复与运维](RESILIENCE.md)。
 
 固定流程由业务包的 `workflow-requirements.json` 显式启用，旧包继续使用原模型循环。例如：
 

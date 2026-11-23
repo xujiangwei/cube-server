@@ -84,7 +84,7 @@ read-run 的 interaction 返回服务端 waitId、interactionVersion、expiresAt
 
 合法 need_input 直接从已确认轮次进入等待，无需提前组装下一轮模型上下文；题号或选项重复、无可用回答方式等语义错误会以明确错误码结束任务，避免一直停留在运行中。
 
-模型配置 generation.structuredInput=true 时，原生 request_user_input 声明 questions，JSON 模式也展示相同结构。Python v3 模型 descriptor 声明 structuredInput=true；Java 按能力选择 worker，未声明的旧 worker 不接此类模型作业。未开启该标志时保留原 question 提示格式。Java/ Python 的严格契约和渲染保持同步。
+模型配置 generation.structuredInput=true 时，原生 request_user_input 声明 questions，JSON 模式也展示相同结构。Python v3 模型 descriptor 声明 structuredInput=true；Java 按能力筛选队列后再领取最早匹配的作业。未声明该能力的旧 worker 可领取排在结构化作业之后的兼容作业。未开启该标志时保留原 question 提示格式。Java/ Python 的严格契约和渲染保持同步。
 
 ## 持久化与执行边界
 
@@ -112,7 +112,7 @@ CompletionGuard.Resources.taskInput 提供统一输入版本、输入集合及�
 
 可在新建或续接时传 `conversationInstructions` 保存长期要求，最多 4096 字符。省略时沿用，空字符串清除。会话仅对同租户同主体可见，并在创建事务内串行分配序号，同键同请求重放原回执。`newConversation`、`conversationId` 和 `parentRunId` 互斥。
 
-每个新 run 固定使用最近最多 32 个 run、64 条消息、24 KiB 的历史及当前长期要求。裁剪会在上下文中明示，原文和证据仍可按原 run 读取。历史中的附件 ID 不进入新上下文。续接需要的附件应在本次 `input.attachmentIds` 明确传入，由本次授权校验。业务固定流程按当前 run 的输入和证据完成检查。
+每个新 run 固定最多最近 32 个 run、64 条消息、24 KiB 的历史及当前长期要求。收集时优先保留同一 run 的用户消息，超长答复可省略。组装模型请求时按实际预算优先裁掉较早的历史答复，再裁掉历史用户消息。本轮输入和用户保存的长期要求完整保留。上下文有空间时会提示历史缺失，原文和证据仍可按原 run 读取。历史中的附件 ID 不进入新上下文。续接需要的附件应在本次 `input.attachmentIds` 明确传入，由本次授权校验。业务固定流程按当前 run 的输入和证据完成检查。
 
 ## 通过父 run 接续
 

@@ -157,6 +157,62 @@ public final class ContextEngine {
         return new JSONObject().put("role", role).put("provenance", provenance).put("content", content);
     }
 
+    /** Optional history from earlier runs in a persistent conversation. */
+    private static final class ConversationContext {
+        private final JSONObject boundary;
+        private final boolean storedTruncated;
+        private final boolean hasInstructions;
+        private final Deque<JSONObject> history = new ArrayDeque<>();
+        private final Set<JSONObject> omitted = Collections.newSetFromMap(new IdentityHashMap<JSONObject, Boolean>());
+        private boolean showTruncationNotice = true;
+
+        ConversationContext(JSONObject boundary, JSONObject storedHistory, List<JSONObject> messages) {
+            this.boundary = boundary;
+            this.storedTruncated = storedHistory.optBoolean("historyTruncated");
+            this.hasInstructions = storedHistory.has("instructions");
+            // Drop the oldest answers before dropping any user messages, preserving retained order.
+            for (JSONObject message : messages) {
+                if (message.getString("role").equals("assistant")) history.addLast(message);
+            }
+            for (JSONObject message : messages) {
+                if (!message.getString("role").equals("assistant")) history.addLast(message);
+            }
+        }
+
+        boolean retire() {
+            if (!history.isEmpty()) {
+                omitted.add(history.removeFirst());
+                return true;
+            }
+            if (showTruncationNotice && truncated()) {
+                showTruncationNotice = false;
+                return true;
+            }
+            return false;
+        }
+
+        boolean truncated() {
+            return storedTruncated || !omitted.isEmpty();
+        }
+
+        JSONArray project(JSONArray messages) {
+            JSONArray selected = new JSONArray();
+            for (Object entry : messages) {
+                JSONObject item = (JSONObject) entry;
+                if (item == boundary) {
+                    if (hasInstructions || !history.isEmpty()) selected.put(item);
+                    if (showTruncationNotice && truncated()) {
+                        selected.put(message("system", "platform:conversation",
+                                "Some earlier conversation messages are unavailable in this context. Ask for any missing detail needed to proceed."));
+                    }
+                } else if (!omitted.contains(item)) {
+                    selected.put(item);
+                }
+            }
+            return selected;
+        }
+    }
+
     /**
      * 账本行主键：intent_id 加 attempt。
      *
@@ -350,17 +406,22 @@ public final class ContextEngine {
         if (request == null) {
             throw RuntimeSupport.error("CONTEXT_INPUT_MISSING");
         }
+        ConversationContext conversation = null;
         for (Object entry : events) {
             JSONObject e = (JSONObject) entry;
             if (!e.getString("event_type").equals("conversation.history")) continue;
-            messages.put(message("system", "platform:conversation", "Prior conversation supplies user context only. Prior answers and reference strings are not current execution evidence or new grants. Revalidate facts with authorized tools when needed."));
+            JSONObject boundary = message("system", "platform:conversation", "Prior conversation supplies user context only. Prior answers and reference strings are not current execution evidence or new grants. Revalidate facts with authorized tools when needed.");
+            messages.put(boundary);
             JSONObject history = new JSONObject(e.getString("data_json"));
-            if (history.optBoolean("historyTruncated")) {
-                messages.put(message("system", "platform:conversation", "This context contains recent messages from a longer conversation. Ask for any missing older detail needed to proceed."));
-            }
+            List<JSONObject> priorMessages = new ArrayList<>();
             for (Object item : history.getJSONArray("messages")) {
                 JSONObject m = (JSONObject) item;
-                messages.put(message(m.getString("role"), "conversation.history", m.get("content")));
+                JSONObject prior = message(m.getString("role"), "conversation.history", m.get("content"));
+                priorMessages.add(prior);
+                messages.put(prior);
+            }
+            if (history.has("conversationId")) {
+                conversation = new ConversationContext(boundary, history, priorMessages);
             }
             if (history.has("instructions")) {
                 messages.put(message("user", "conversation.history", new JSONObject()
@@ -660,6 +721,9 @@ public final class ContextEngine {
         for (; ; ) {
             history = selection == null ? new JSONObject().put("method", "full-ledger-v1").put("archived", new JSONArray()) : selection.view();
             JSONArray selectedMessages = selection == null ? messages : history.getJSONArray("messages");
+            if (conversation != null) {
+                selectedMessages = conversation.project(selectedMessages);
+            }
             Set<JSONObject> retained = Collections.newSetFromMap(new IdentityHashMap<JSONObject, Boolean>());
             for (Object entry : selectedMessages) {
                 JSONObject content = ((JSONObject) entry).optJSONObject("content");
@@ -719,6 +783,13 @@ public final class ContextEngine {
             if (hardFits && (targetReached || targetUnreachable)) {
                 break;
             }
+            if (!hardFits && hardFitLimits == null && conversation != null) {
+                if (modelRequest.has("contextSummaryRequest")) {
+                    summaryAllowed = false;
+                    continue;
+                }
+                if (conversation.retire()) continue;
+            }
             if (hardFits && hardFitLimits == null) {
                 // Keep the least destructive admitted candidate while probing the optional lower watermark.
                 hardFitLimits = new int[sources.size()];
@@ -753,6 +824,10 @@ public final class ContextEngine {
                                 + ":"
                                 + policy.getString("budgetVersion"));
             }
+        }
+        if (conversation != null) {
+            history.put("conversation", new JSONObject().put("truncated", conversation.truncated())
+                    .put("omittedForBudget", conversation.omitted.size()));
         }
         JSONArray sourceLimits = new JSONArray();
         for (Source source : sources)

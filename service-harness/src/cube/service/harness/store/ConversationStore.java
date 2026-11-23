@@ -105,14 +105,8 @@ final class ConversationStore {
         for (Object entry : runs) {
             JSONObject run = (JSONObject) entry;
             String runId = run.getString("run_id");
-            JSONObject assistant = sessionAnswer(c, run);
-            int bytes = canonical(assistant).getBytes(StandardCharsets.UTF_8).length + 1;
-            if (bytes > remaining || latest.size() == MAX_HISTORY_MESSAGES) {
-                truncated = true;
-                break;
-            }
-            remaining -= bytes;
-            latest.add(assistant);
+            // Reserve space for the user's messages from this run before considering its answer.
+            int answerPosition = latest.size();
             JSONArray inputs = rows(c, "SELECT event_type,data_json FROM harness_event WHERE run_id=?"
                             + " AND event_type IN ('run.created','control.resume','message.accepted')"
                             + " ORDER BY event_seq DESC LIMIT " + (MAX_HISTORY_MESSAGES + 1), runId);
@@ -124,13 +118,26 @@ final class ConversationStore {
                 JSONObject content = new JSONObject().put("instruction", input.getString("instruction"))
                         .put("attachmentIds", new JSONArray());
                 JSONObject message = new JSONObject().put("role", "user").put("content", content);
-                bytes = canonical(message).getBytes(StandardCharsets.UTF_8).length + 1;
-                if (bytes > remaining || latest.size() == MAX_HISTORY_MESSAGES) {
+                if (latest.size() == MAX_HISTORY_MESSAGES) {
                     truncated = true;
                     break history;
                 }
+                int bytes = canonical(message).getBytes(StandardCharsets.UTF_8).length + 1;
+                if (bytes > remaining) {
+                    truncated = true;
+                    continue;
+                }
                 remaining -= bytes;
                 latest.add(message);
+            }
+            truncated |= inputs.length() > MAX_HISTORY_MESSAGES;
+            JSONObject assistant = sessionAnswer(c, run);
+            int answerBytes = canonical(assistant).getBytes(StandardCharsets.UTF_8).length + 1;
+            if (latest.size() == MAX_HISTORY_MESSAGES || answerBytes > remaining) {
+                truncated = true;
+            } else {
+                remaining -= answerBytes;
+                latest.add(answerPosition, assistant);
             }
         }
         Collections.reverse(latest);

@@ -34,6 +34,9 @@ public final class ModelJobStore {
      */
     private final String lock;
 
+    /** Predicate for workers without structured input, evaluated before selecting the first job. */
+    private final String legacyFormatFilter;
+
     /**
      * 构造模型作业存储。
      *
@@ -43,6 +46,12 @@ public final class ModelJobStore {
     public ModelJobStore(JdbcRunStore store, boolean mysql) {
         this.store = store;
         this.lock = mysql ? " FOR UPDATE" : "";
+        String value = "JSON_EXTRACT(j.request_json, '$.generation.structuredInput')";
+        // SQLite extracts a JSON boolean as 0/1. Use its JSON type to distinguish true from numeric 1.
+        String structured = mysql
+                ? "LOWER(JSON_UNQUOTE(" + value + "))='true'"
+                : "JSON_TYPE(j.request_json, '$.generation.structuredInput')='true' OR LOWER(" + value + ")='true'";
+        this.legacyFormatFilter = " AND NOT COALESCE((" + structured + "), 0)";
     }
 
     /**
@@ -224,30 +233,23 @@ public final class ModelJobStore {
                             || own >= workerCapacity) {
                         return null;
                     }
-                    JSONArray candidates = rows(
-                            c,
-                            "SELECT * FROM harness_model_job WHERE status='queued' AND cancel_requested=0 AND model_id=? AND profile_digest=? AND run_id IN (SELECT r.run_id FROM harness_run r JOIN harness_round q ON q.run_id=r.run_id WHERE r.state='running' AND q.intent_id=harness_model_job.round_id AND q.attempt=harness_model_job.attempt AND q.input_revision=r.input_revision) ORDER BY created_at,job_id LIMIT 256"
-                                    + lock,
-                            descriptor.getString("model"),
-                            ModelProfiles.adapterDigest(
-                                    descriptor.getString("adapter")));
-                    JSONObject job = null;
-                    for (Object entry : candidates) {
-                        JSONObject candidate = (JSONObject) entry;
-                        JSONObject generation = new JSONObject(candidate.getString("request_json")).optJSONObject("generation");
-                        if (generation != null && generation.optBoolean("structuredInput", false)
-                                && !descriptor.optBoolean("structuredInput", false)) {
-                            continue;
-                        }
-                        job = candidate;
-                        break;
-                    }
+                    String formatFilter = descriptor.optBoolean("structuredInput", false) ? "" : legacyFormatFilter;
+                    JSONObject job = first(rows(c,
+                            "SELECT j.* FROM harness_model_job j"
+                                    + " WHERE j.status='queued' AND j.cancel_requested=0 AND j.model_id=? AND j.profile_digest=?"
+                                    + formatFilter
+                                    + " AND EXISTS (SELECT 1 FROM harness_run r JOIN harness_round q ON q.run_id=r.run_id"
+                                    + " WHERE r.run_id=j.run_id AND r.state='running' AND q.intent_id=j.round_id"
+                                    + " AND q.attempt=j.attempt AND q.input_revision=r.input_revision)"
+                                    + " ORDER BY j.created_at,j.job_id LIMIT 1" + lock,
+                            descriptor.getString("model"), ModelProfiles.adapterDigest(descriptor.getString("adapter"))));
                     if (job == null) {
                         return null;
                     }
                     JSONObject current = store.run(c, job.getString("tenant"), job.getString("subject_id"), job.getString("run_id"), true);
                     JSONObject roundInput = first(rows(c, "SELECT input_revision FROM harness_round WHERE run_id=? AND intent_id=? AND attempt=?", job.getString("run_id"), job.getString("round_id"), job.getInt("attempt")));
-                    if (roundInput.getLong("input_revision") != current.getLong("input_revision")) {
+                    if (!current.getString("state").equals("running")
+                            || roundInput.getLong("input_revision") != current.getLong("input_revision")) {
                         return null;
                     }
                     if (update(
