@@ -108,7 +108,7 @@ public class UnitScheduler {
     }
 
     public synchronized List<AIGCUnit> setup(Contact contact, List<AICapability> capabilities, TalkContext context,
-                                              String processId) {
+                                             String processId) {
         List<AIGCUnit> result = new ArrayList<>(capabilities.size());
 
         Set<String> reported = new HashSet<>();

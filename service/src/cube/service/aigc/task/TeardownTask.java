@@ -29,7 +29,9 @@ import java.util.List;
  */
 public class TeardownTask extends ServiceTask {
 
-    /** 构造任务实例，参数由单元统一注入。 */
+    /**
+     * 构造任务实例，参数由单元统一注入。
+     */
     public TeardownTask(Cellet cellet, TalkContext talkContext, Primitive primitive, ResponseTime responseTime) {
         super(cellet, talkContext, primitive, responseTime);
     }

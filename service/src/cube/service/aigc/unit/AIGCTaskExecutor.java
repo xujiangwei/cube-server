@@ -11,18 +11,8 @@ import cell.util.log.Logger;
 import cube.aigc.SpecializedDetectionDefaults;
 import cube.common.state.AIGCStateCode;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -46,19 +36,33 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class AIGCTaskExecutor {
 
-    /** 检测数据线程池。 */
-    private java.util.concurrent.ThreadPoolExecutor detectionData;
-    /** 检测控制线程池。 */
-    private java.util.concurrent.ThreadPoolExecutor detectionControl;
-    /** 检测数据线程数。 */
+    /**
+     * 检测数据线程池。
+     */
+    private ThreadPoolExecutor detectionData;
+    /**
+     * 检测控制线程池。
+     */
+    private ThreadPoolExecutor detectionControl;
+    /**
+     * 检测数据线程数。
+     */
     private int detectionDataThreads = SpecializedDetectionDefaults.DATA_THREADS;
-    /** 检测数据队列容量。 */
+    /**
+     * 检测数据队列容量。
+     */
     private int detectionDataQueue = SpecializedDetectionDefaults.DATA_QUEUE;
-    /** 检测控制线程数。 */
+    /**
+     * 检测控制线程数。
+     */
     private int detectionControlThreads = SpecializedDetectionDefaults.CONTROL_THREADS;
-    /** 检测控制队列容量。 */
+    /**
+     * 检测控制队列容量。
+     */
     private int detectionControlQueue = SpecializedDetectionDefaults.CONTROL_QUEUE;
-    /** 检测线程池是否已关闭。 */
+    /**
+     * 检测线程池是否已关闭。
+     */
     private boolean detectionClosed;
 
     private final ThreadPoolExecutor multimodalStreams = boundedPool(8, 32, "multimodal-stream");
@@ -105,10 +109,12 @@ public class AIGCTaskExecutor {
      * @return 线程池
      */
     private static ThreadPoolExecutor boundedPool(int threads, int queue, String name) {
-        return new java.util.concurrent.ThreadPoolExecutor(threads, threads, 30, java.util.concurrent.TimeUnit.SECONDS,
-                new java.util.concurrent.ArrayBlockingQueue<Runnable>(queue), job -> {
-                    Thread t = new Thread(job, name); t.setDaemon(true); return t;
-                }, new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
+        return new ThreadPoolExecutor(threads, threads, 30, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(queue), job -> {
+            Thread t = new Thread(job, name);
+            t.setDaemon(true);
+            return t;
+        }, new ThreadPoolExecutor.AbortPolicy());
     }
 
     /**
@@ -131,7 +137,7 @@ public class AIGCTaskExecutor {
         try {
             (control ? detectionControl : detectionData).execute(job);
             return true;
-        } catch (java.util.concurrent.RejectedExecutionException busy) {
+        } catch (RejectedExecutionException busy) {
             return false;
         }
     }
@@ -140,7 +146,9 @@ public class AIGCTaskExecutor {
      * 检测任务包装，执行期间把单元标记为运行中，并在结束时复位。
      */
     private final class DetectionJob implements Runnable {
-        /** 请求元数据。 */
+        /**
+         * 请求元数据。
+         */
         final SpecializedDetectionUnitMeta meta;
 
         /**
@@ -148,15 +156,23 @@ public class AIGCTaskExecutor {
          *
          * @param meta 请求元数据
          */
-        DetectionJob(SpecializedDetectionUnitMeta meta) { this.meta = meta; }
+        DetectionJob(SpecializedDetectionUnitMeta meta) {
+            this.meta = meta;
+        }
 
-        @Override public void run() {
-            synchronized (runningMetas) { runningMetas.add(meta); }
+        @Override
+        public void run() {
+            synchronized (runningMetas) {
+                runningMetas.add(meta);
+            }
             meta.unit.setRunning(true);
-            try { meta.process(); }
-            finally {
+            try {
+                meta.process();
+            } finally {
                 meta.unit.setRunning(false);
-                synchronized (runningMetas) { runningMetas.remove(meta); }
+                synchronized (runningMetas) {
+                    runningMetas.remove(meta);
+                }
             }
         }
     }
@@ -179,7 +195,9 @@ public class AIGCTaskExecutor {
      * @param job 任务
      * @return 接受返回 true
      */
-    public boolean submitDetectionControl(Runnable job) { return submitDetection(job, true); }
+    public boolean submitDetectionControl(Runnable job) {
+        return submitDetection(job, true);
+    }
 
     /**
      * 后台线程池的缺省大小。配置文件缺失或未变更时按该值补建，避免线程池恒为空
@@ -288,8 +306,7 @@ public class AIGCTaskExecutor {
         if (type.equalsIgnoreCase("cached")) {
             this.backgroundExecutor = CachedQueueExecutor.newCachedQueueThreadPool(size);
             Logger.i(this.getClass(), "AI Service - Thread pool type: cached - max: " + size);
-        }
-        else {
+        } else {
             this.backgroundExecutor = Executors.newFixedThreadPool(size);
             Logger.i(this.getClass(), "AI Service - Thread pool type: fixed - max: " + size);
         }
@@ -344,7 +361,9 @@ public class AIGCTaskExecutor {
      */
     public void removeQueuedGenerateText(UnitMeta meta) {
         Queue<UnitMeta> queue = this.generateTextQueueMap.get(meta.unit.getQueryKey());
-        if (queue != null) synchronized (queue) { queue.remove(meta); }
+        if (queue != null) synchronized (queue) {
+            queue.remove(meta);
+        }
     }
 
     /**
@@ -514,7 +533,7 @@ public class AIGCTaskExecutor {
         }
         synchronized (this) {
             detectionClosed = true;
-            for (java.util.concurrent.ThreadPoolExecutor pool : new java.util.concurrent.ThreadPoolExecutor[]{detectionData, detectionControl}) {
+            for (ThreadPoolExecutor pool : new ThreadPoolExecutor[]{detectionData, detectionControl}) {
                 if (pool != null) {
                     for (Runnable job : pool.shutdownNow()) {
                         if (job instanceof DetectionJob) {

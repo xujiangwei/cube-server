@@ -13,6 +13,7 @@ import cell.util.Utils;
 import cell.util.log.Logger;
 import cube.aigc.*;
 import cube.aigc.app.ConfigInfo;
+import cube.aigc.spi.PluginCallException;
 import cube.aigc.complex.widget.Event;
 import cube.aigc.psychology.Attribute;
 import cube.aigc.psychology.PaintingReport;
@@ -53,23 +54,50 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 接口管理器。
+ *
+ * <p>作为 AIGC 动作的中央入口：持有执行机与令牌缓存，注册各业务 HTTP 端点，
+ * 并把请求映射为异步句柄后转交服务单元处理。</p>
  */
 public class Manager implements Tickable, PerformerListener {
 
+    /**
+     * 全局唯一实例。
+     */
     private final static Manager instance = new Manager();
 
+    /**
+     * 当前绑定的执行机。
+     */
     private volatile Performer performer;
 
+    /**
+     * 管理器是否处于运行态。
+     */
     private volatile boolean running;
 
+    /**
+     * OpenAI 兼容完成请求的网关。
+     */
     private final CompletionGateway completions = new CompletionGateway();
 
+    /**
+     * 生命周期代次，用于让跨代的在途应答失效。
+     */
     private long generation;
 
+    /**
+     * 联系人令牌的本地缓存有效期，单位毫秒。
+     */
     private static final long TOKEN_CACHE_TTL = 24L * 60 * 60 * 1000;
 
+    /**
+     * 异步句柄的缓存有效期，单位毫秒。
+     */
     private static final long FUTURE_CACHE_TTL = 60L * 60 * 1000;
 
+    /**
+     * 已注册过端点的 HTTP 服务集合，弱引用持有以避免阻塞回收。
+     */
     private final Set<HttpServer> initializedHttpServers =
             Collections.newSetFromMap(new WeakHashMap<HttpServer, Boolean>());
 
@@ -78,7 +106,9 @@ public class Manager implements Tickable, PerformerListener {
      */
     private final Map<Long, PendingRequest> pendingRequests = new ConcurrentHashMap<>();
 
-    // 仅在生命周期锁内访问；完成、替换及过期时同步移除两个索引。
+    /**
+     * 按异步句柄反查请求，仅在生命周期锁内访问；完成、替换及过期时同步移除两个索引。
+     */
     private final Map<JSONable, PendingRequest> pendingFutures = new IdentityHashMap<>();
 
     /**
@@ -86,6 +116,9 @@ public class Manager implements Tickable, PerformerListener {
      */
     private List<DispatcherExtension> dispatcherExtensions;
 
+    /**
+     * 上次执行周期清理的时间戳，单位毫秒。
+     */
     private long lastTickTime;
 
     /**
@@ -203,6 +236,13 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 获取运行态下可用的执行机。
+     *
+     * <p>管理器停止后返回 {@code null} ，调用方据此跳过投递。</p>
+     *
+     * @return 当前执行机；未运行返回 {@code null} 。
+     */
     private synchronized Performer activePerformer() {
         return this.running ? this.performer : null;
     }
@@ -232,6 +272,14 @@ public class Manager implements Tickable, PerformerListener {
         return current.syncTransmit(cellet, request);
     }
 
+    /**
+     * 不持有生命周期锁等待网络，按指定超时进行同步请求。
+     *
+     * @param cellet  目标单元名称。
+     * @param request 请求报文。
+     * @param timeout 超时时长，单位毫秒。
+     * @return 单元应答；未运行或超时返回 {@code null} 。
+     */
     private ActionDialect syncTransmit(String cellet, ActionDialect request, long timeout) {
         Performer current;
         synchronized (this) {
@@ -305,11 +353,22 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 从序号与句柄两个索引中同步移除待处理请求。
+     *
+     * @param pending 待移除的请求。
+     */
     private void removePending(PendingRequest pending) {
         this.pendingRequests.remove(pending.sn, pending);
         this.pendingFutures.remove(pending.future);
     }
 
+    /**
+     * 使句柄关联的待处理请求失败并解除索引。
+     *
+     * @param future 异步句柄。
+     * @param state  失败状态。
+     */
     private void detachFuture(JSONable future, AIGCStateCode state) {
         PendingRequest pending = this.pendingFutures.get(future);
         if (null != pending) {
@@ -318,6 +377,12 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 读取异步句柄的时间戳。
+     *
+     * @param future 异步句柄，须为已知的句柄类型。
+     * @return 句柄创建时间戳，单位毫秒。
+     */
     private static long futureTimestamp(JSONable future) {
         if (future instanceof TextToFileFuture) {
             return ((TextToFileFuture) future).timestamp;
@@ -334,6 +399,14 @@ public class Manager implements Tickable, PerformerListener {
         return ((FacialExpressionRecognitionFuture) future).timestamp;
     }
 
+    /**
+     * 将仍处于处理中的句柄置为指定失败状态。
+     *
+     * <p>已完成的句柄不受影响，避免覆盖最终结果。</p>
+     *
+     * @param future 异步句柄。
+     * @param state  失败状态。
+     */
     private static void failFuture(JSONable future, AIGCStateCode state) {
         synchronized (future) {
             if (future instanceof TextToFileFuture) {
@@ -390,6 +463,14 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 按上下文路径去重注册 HTTP 处理器。
+     *
+     * <p>路径已被占用时直接跳过，先注册者优先。</p>
+     *
+     * @param server  HTTP 服务。
+     * @param handler 待注册的处理器。
+     */
     private void registerHandler(HttpServer server, ContextHandler handler) {
         for (ContextHandler existing : server.getContextHandlers()) {
             if (Objects.equals(existing.getContextPath(), handler.getContextPath())) {
@@ -399,12 +480,18 @@ public class Manager implements Tickable, PerformerListener {
         server.addContextHandler(handler);
     }
 
+    /**
+     * 注册全部 HTTP 端点：宿主内联端点、模块兜底通道与插件扩展端点。
+     *
+     * <p>兼容层端点受配置开关控制，重复路径由 {@link #registerHandler(HttpServer, ContextHandler)} 去重。</p>
+     */
     private void setupHandler() {
         HttpServer httpServer = this.performer.getHttpServer();
 
         CompletionConfig completionConfig = new CompletionConfig(this.performer.getProperties());
-        if (completionConfig.enabled)
+        if (completionConfig.enabled) {
             this.registerHandler(httpServer, new CompletionHandler(this.completions, completionConfig));
+        }
 
         this.registerHandler(httpServer, new Static());
         this.registerHandler(httpServer, new InterfaceDocument());
@@ -556,21 +643,24 @@ public class Manager implements Tickable, PerformerListener {
     }
 
     /**
-     * Module-owned actions need no central enum; preserve the full response code.
+     * 同步调用模块自有动作。
+     *
+     * <p>模块动作无需中央枚举登记，响应码原样透传。</p>
      */
     public Packet syncModuleRequest(String token, String module, String action, String requiredUnit,
                                     JSONObject data, long timeoutMs) {
         if (module == null || !module.matches("[a-z][a-z0-9-]{0,63}")
                 || action == null || !action.matches("[A-Za-z][A-Za-z0-9]{0,95}")
-                || timeoutMs <= 0 || timeoutMs > 3600000)
+                || timeoutMs <= 0 || timeoutMs > 3600000) {
             throw new IllegalArgumentException("Invalid module request");
+        }
         ActionDialect request = new Packet(action, data).toDialect();
         request.addParam("token", token);
         request.addParam("moduleName", module);
         request.addParam("moduleUnit", requiredUnit == null ? "" : requiredUnit);
         ActionDialect response = this.syncTransmit(AIGCCellet.NAME, request, timeoutMs);
         if (response == null) {
-            throw new cube.aigc.spi.PluginCallException(AIGCStateCode.UnitError, 504, "Module request timed out");
+            throw new PluginCallException(AIGCStateCode.UnitError, 504, "Module request timed out");
         }
         return new Packet(response);
     }
@@ -589,6 +679,16 @@ public class Manager implements Tickable, PerformerListener {
         return null == contactToken ? null : contactToken.authToken.getCode();
     }
 
+    /**
+     * 校验访问令牌并换取联系人令牌。
+     *
+     * <p>先查本地缓存，未命中或设备不匹配时向服务单元请求校验；校验通过后按新代次缓存。
+     * 令牌为空、设备无效、管理器未运行或应答异常时返回 {@code null} 。</p>
+     *
+     * @param token  访问令牌。
+     * @param device 设备信息。
+     * @return 联系人令牌；校验失败返回 {@code null} 。
+     */
     private ContactToken resolveContactToken(String token, Device device) {
         if (isBlank(token) || null == device || isBlank(device.getName())) {
             return null;
@@ -677,10 +777,23 @@ public class Manager implements Tickable, PerformerListener {
         }
     }
 
+    /**
+     * 判断字符串是否为空白。
+     *
+     * @param value 待判断字符串。
+     * @return 为 {@code null} 或去掉首尾空白后为空返回 {@code true} 。
+     */
     private static boolean isBlank(String value) {
         return null == value || value.trim().isEmpty();
     }
 
+    /**
+     * 判断联系人令牌的本地缓存是否已过期。
+     *
+     * @param token 联系人令牌。
+     * @param now   当前时间戳，单位毫秒。
+     * @return 缓存超时或鉴权令牌本身失效返回 {@code true} 。
+     */
     private static boolean isTokenExpired(ContactToken token, long now) {
         return now - token.timestamp >= TOKEN_CACHE_TTL || token.authToken.getExpiry() <= now;
     }
@@ -2404,8 +2517,8 @@ public class Manager implements Tickable, PerformerListener {
         request.addParam("token", token);
         String key = "specialized.detection." + (input.isControl() ? "control" : "data") + ".timeout.ms";
         Properties config = performer.getProperties();
-        String fallback = Integer.toString(input.isControl() ? cube.aigc.SpecializedDetectionDefaults.GATEWAY_CONTROL_TIMEOUT_MS
-                : cube.aigc.SpecializedDetectionDefaults.GATEWAY_DATA_TIMEOUT_MS);
+        String fallback = Integer.toString(input.isControl() ? SpecializedDetectionDefaults.GATEWAY_CONTROL_TIMEOUT_MS
+                : SpecializedDetectionDefaults.GATEWAY_DATA_TIMEOUT_MS);
         long timeout = Long.parseLong(config == null ? fallback : config.getProperty(key, fallback));
         if (timeout < 1 || timeout > 3610000) {
             throw new IllegalArgumentException("Invalid detection gateway timeout");
@@ -4354,6 +4467,14 @@ public class Manager implements Tickable, PerformerListener {
         App.getInstance().onTick(now);
     }
 
+    /**
+     * 清理缓存中过期的异步句柄，并使其关联的待处理请求失败。
+     *
+     * @param cache 句柄缓存。
+     * @param now   当前时间戳，单位毫秒。
+     * @param <K>   缓存键类型。
+     * @param <F>   句柄类型。
+     */
     private <K, F extends JSONable> void clearExpiredFutures(Map<K, F> cache, long now) {
         for (Map.Entry<K, F> entry : cache.entrySet()) {
             F future = entry.getValue();

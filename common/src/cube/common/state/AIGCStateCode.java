@@ -137,7 +137,9 @@ public enum AIGCStateCode {
      */
     UsageUnavailable(34),
 
-    /** 请求超过流操作的处理时限。 */
+    /**
+     * 请求超过流操作的处理时限。
+     */
     Timeout(35),
 
     /**

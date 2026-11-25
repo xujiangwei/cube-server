@@ -22,35 +22,79 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * AIGC 分配给用户的通道。
+ *
+ * <p>承载一次会话的鉴权、语言、历史记录与运行状态，供用户跨端续接同一对话。</p>
  */
 public class AIGCChannel extends Entity {
 
-    private int historyLengthLimit = 2 * 1024;
+    /**
+     * 单条历史记录纳入上下文的最大字数。
+     */
+    private int historyLengthLimit = 4 * 1024;
 
+    /**
+     * 通道绑定的鉴权令牌。
+     */
     private AuthToken authToken;
 
+    /**
+     * 通道使用的语言。
+     */
     private Language language;
 
+    /**
+     * 通道参与者标识。
+     */
     private String participant;
 
+    /**
+     * 通道创建时间，单位毫秒。
+     */
     private long creationTime;
 
+    /**
+     * 通道码，用于跨端识别同一会话通道。
+     */
     private String code;
 
+    /**
+     * 最近一次活动时间，单位毫秒。
+     */
     private long activeTimestamp;
 
-    // 倒序存储历史记录
+    /**
+     * 生成记录列表，倒序存储，队首为最新记录。
+     */
     private final LinkedList<GeneratingRecord> history;
 
+    /**
+     * 通道是否正在处理任务。
+     */
     private final AtomicBoolean processing;
 
+    /**
+     * 进入处理中状态的时间，单位毫秒。
+     */
     private long processingTimestamp;
 
+    /**
+     * 累计提问字数。
+     */
     private int totalQueryWords = 0;
 
+    /**
+     * 累计回答字数。
+     */
     private int totalAnswerWords = 0;
 
+    /**
+     * HTTP 服务端点。
+     */
     private Endpoint httpEndpoint;
+
+    /**
+     * HTTPS 服务端点。
+     */
     private Endpoint httpsEndpoint;
 
     /**
@@ -63,10 +107,26 @@ public class AIGCChannel extends Entity {
      */
     private long lastUnitMetaSn;
 
+    /**
+     * 创建通道。
+     *
+     * <p>使用随机通道码与中文语言，鉴权令牌所属域作为通道域。</p>
+     *
+     * @param authToken   创建通道时绑定的鉴权令牌。
+     * @param participant 通道参与者标识。
+     */
     public AIGCChannel(AuthToken authToken, String participant) {
         this(authToken, participant, Utils.randomString(16), Language.Chinese);
     }
 
+    /**
+     * 创建通道。
+     *
+     * @param authToken   创建通道时绑定的鉴权令牌。
+     * @param participant 通道参与者标识。
+     * @param channelCode 通道码，用于跨端识别同一会话通道。
+     * @param language    通道使用的语言。
+     */
     public AIGCChannel(AuthToken authToken, String participant, String channelCode, Language language) {
         this.domain = new Domain(authToken.getDomain());
         this.authToken = authToken;
@@ -80,6 +140,13 @@ public class AIGCChannel extends Entity {
         this.rounds = new AtomicInteger(0);
     }
 
+    /**
+     * 由 JSON 重建通道。
+     *
+     * <p>读取通道状态与鉴权信息；历史记录仅恢复最近一条，其余字段缺失时取默认值。</p>
+     *
+     * @param json 通道 JSON 对象。
+     */
     public AIGCChannel(JSONObject json) {
         this.code = json.getString("code");
         this.creationTime = json.getLong("creationTime");
@@ -92,15 +159,14 @@ public class AIGCChannel extends Entity {
 
         if (json.has("language")) {
             this.language = Language.parse(json.getString("language"));
-        }
-        else {
+        } else {
             this.language = Language.Chinese;
         }
 
         this.history = new LinkedList<>();
 
         this.processing = new AtomicBoolean(json.has("processing") && json.getBoolean("processing"));
-        this.activeTimestamp = json.has("activeTimestamp") ? json.getLong("activeTimestamp") :  this.creationTime;
+        this.activeTimestamp = json.has("activeTimestamp") ? json.getLong("activeTimestamp") : this.creationTime;
         this.rounds = new AtomicInteger(json.has("rounds") ? json.getInt("rounds") : 0);
         this.totalQueryWords = json.has("totalQueryWords") ? json.getInt("totalQueryWords") : 0;
         this.totalAnswerWords = json.has("totalAnswerWords") ? json.getInt("totalAnswerWords") : 0;
@@ -221,6 +287,13 @@ public class AIGCChannel extends Entity {
         this.processing.set(value);
     }
 
+    /**
+     * 尝试将通道切换为处理中。
+     *
+     * <p>仅当通道当前空闲时置位成功并记录时间戳；重复置位不会改动时间戳。</p>
+     *
+     * @return 成功置位返回 {@code true} ，通道已在处理中返回 {@code false} 。
+     */
     public boolean tryStartProcessing() {
         if (!this.processing.compareAndSet(false, true)) {
             return false;
@@ -455,7 +528,8 @@ public class AIGCChannel extends Entity {
 
     /**
      * 统计向 AI 提问的总字数。
-     * @return 计算结果。
+     *
+     * @return 累计提问字数。
      */
     public int totalQueryWords() {
         return this.totalQueryWords;
@@ -463,7 +537,8 @@ public class AIGCChannel extends Entity {
 
     /**
      * 统计 AI 回答的总字数。
-     * @return 计算结果。
+     *
+     * @return 累计回答字数。
      */
     public int totalAnswerWords() {
         return this.totalAnswerWords;
@@ -516,7 +591,7 @@ public class AIGCChannel extends Entity {
     /**
      * 序列化为精简 JSON 。
      *
-     * <p>当前实现与 {@link #toJSON()} 输出一致。</p>
+     * <p>在 {@link #toJSON()} 基础上移除鉴权令牌，供对外下发场景使用。</p>
      *
      * @return 通道 JSON 对象。
      */

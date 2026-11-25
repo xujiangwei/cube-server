@@ -838,7 +838,7 @@ public class AIGCService extends AbstractModule implements Generatable, Completi
     }
 
     public List<AIGCUnit> setupUnit(Contact contact, List<AICapability> capabilities, TalkContext context,
-                                   String processId) {
+                                    String processId) {
         synchronized (this.pluginUnits) {
             List<AIGCUnit> units = this.unitScheduler.setup(contact, capabilities, context, processId);
             this.specializedDetections.onSetup(units);
@@ -2315,7 +2315,7 @@ public class AIGCService extends AbstractModule implements Generatable, Completi
     }
 
     public AIGCStateCode submitMultimodal(String tokenCode, String channelCode, MultimodalInput input,
-                                        long deadline, String reservedStreamId, MultimodalListener listener) {
+                                          long deadline, String reservedStreamId, MultimodalListener listener) {
         if (!this.isStarted()) {
             Logger.w(AIGCService.class, "#executeMultimodal - Service is NOT ready");
             return AIGCStateCode.UnitNoReady;

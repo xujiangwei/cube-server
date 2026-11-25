@@ -13,8 +13,8 @@ import cell.core.talk.dialect.ActionDialect;
 import cell.util.log.Logger;
 import cube.benchmark.ResponseTime;
 import cube.common.Packet;
-import cube.common.entity.AIGCUnit;
 import cube.common.entity.AICapability;
+import cube.common.entity.AIGCUnit;
 import cube.common.entity.Contact;
 import cube.common.state.AIGCStateCode;
 import cube.service.ServiceTask;
@@ -31,7 +31,9 @@ import java.util.List;
  */
 public class SetupTask extends ServiceTask {
 
-    /** 构造任务实例，参数由单元统一注入。 */
+    /**
+     * 构造任务实例，参数由单元统一注入。
+     */
     public SetupTask(Cellet cellet, TalkContext talkContext, Primitive primitive, ResponseTime responseTime) {
         super(cellet, talkContext, primitive, responseTime);
     }
