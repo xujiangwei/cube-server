@@ -6,6 +6,7 @@
 
 package cube.service.aigc.unit;
 
+import cell.core.talk.TalkContext;
 import cell.core.talk.dialect.ActionDialect;
 import cell.util.Utils;
 import cell.util.log.Logger;
@@ -30,7 +31,7 @@ import java.util.List;
  *
  * <p>把文本与图像等混合输入交给多模态单元处理，结果按通道回写。</p>
  */
-public class MultimodalUnitMeta extends UnitMeta {
+public class MultimodalUnitMeta extends UnitMeta implements Runnable {
 
     /**
      * 任务序列号。
@@ -42,6 +43,10 @@ public class MultimodalUnitMeta extends UnitMeta {
     private final MultimodalInput input;
 
     private final MultimodalListener listener;
+    private final boolean ownsChannel;
+    private final long streamDeadline;
+    private final String reservedStreamId;
+    private volatile boolean streamConfirmed;
 
     private MultimodalOutput output;
     private final String streamMeterId = java.util.UUID.randomUUID().toString();
@@ -52,6 +57,7 @@ public class MultimodalUnitMeta extends UnitMeta {
     public JSONObject beginSegment(JSONObject payload) {
         long sequence = payload.getLong("sequence");
         if (sequence < 0) throw new IllegalArgumentException("INVALID_SEGMENT_SEQUENCE");
+        this.confirmStream();
         String id = streamMeterId + ":" + sequence;
         cube.aigc.usage.UsageWriter writer = service.getStorage().getUsageWriter();
         writer.begin(usageContext, id, unit.getCapability().getName(), unit.getQueryKey(), System.currentTimeMillis());
@@ -61,11 +67,38 @@ public class MultimodalUnitMeta extends UnitMeta {
 
     public MultimodalUnitMeta(AIGCService service, AIGCUnit unit, AIGCChannel channel,
                               MultimodalInput input, MultimodalListener listener) {
+        this(service, unit, channel, input, listener, true, 0, null);
+    }
+
+    public MultimodalUnitMeta(AIGCService service, AIGCUnit unit, AIGCChannel channel,
+                              MultimodalInput input, MultimodalListener listener,
+                              boolean ownsChannel, long streamDeadline, String reservedStreamId) {
         super(service, unit);
         this.sn = Utils.generateSerialNumber();
         this.channel = channel;
         this.input = input;
         this.listener = listener;
+        this.ownsChannel = ownsChannel;
+        this.streamDeadline = streamDeadline;
+        this.reservedStreamId = reservedStreamId;
+    }
+
+    public void confirmStream() {
+        this.streamConfirmed = true;
+    }
+
+    public boolean reservationExpired(long now) {
+        return this.reservedStreamId != null && !this.streamConfirmed
+                && now - this.streamDeadline >= 5 * 60 * 1000;
+    }
+
+    public void reject(AIGCStateCode code) {
+        this.listener.onFailed(this.channel, code);
+    }
+
+    @Override
+    public void run() {
+        this.process();
     }
 
     /**
@@ -85,8 +118,12 @@ public class MultimodalUnitMeta extends UnitMeta {
     @Override
     public void process() {
         try {
-            boolean processingReleased = false;
+            boolean processingReleased = !this.ownsChannel;
             try {
+                if (this.streamDeadline != 0 && this.streamDeadline <= System.currentTimeMillis()) {
+                    this.reject(AIGCStateCode.Timeout);
+                    return;
+                }
                 Logger.d(this.getClass(), "#process - Model: " + this.unit.getCapability().getName());
 
                 // Omni 的 content 是提示词；旧插件的超链接内容仍先下载。
@@ -154,28 +191,46 @@ public class MultimodalUnitMeta extends UnitMeta {
                 this.input.fileLabels = fileLabelList;
 
                 Packet request = new Packet(AIGCAction.Multimodal.name, this.input.toUnitJson());
-                String operation = input.option == null ? "" : input.option.optString("operation", "").trim();
-                boolean streamControl = "status".equalsIgnoreCase(operation) || "update".equalsIgnoreCase(operation) || "stop".equalsIgnoreCase(operation);
-                boolean streamStart = false;
-                for (String source : input.fileCodes)
-                    if (source.toLowerCase(java.util.Locale.ROOT).startsWith("rtsp://") || source.toLowerCase(java.util.Locale.ROOT).startsWith("rtsps://"))
-                        streamStart = true;
+                boolean streamControl = this.input.isStreamControl();
+                boolean streamStart = this.input.hasRtspSource() && !streamControl;
                 if (streamStart && "OmniVL".equals(unit.getCapability().getName())) {
                     if (unit.getCapability().getUsageProtocol() < 1)
                         throw new IllegalStateException("AI_USAGE_UNIT_UPGRADE_REQUIRED");
                     service.getStorage().getUsageWriter().checkAvailable();
                 } else if (!streamControl) meterBegin();
-                ActionDialect dialect = this.service.getCellet().transmit(this.unit.getContext(), request.toDialect(),
-                        3 * 60 * 1000, this.sn);
+                TalkContext context = this.unit.getContext();
+                if (this.streamDeadline != 0 && (context == null || !context.isValid() || this.unit.isRetired())) {
+                    this.reject(AIGCStateCode.UnitNoReady);
+                    return;
+                }
+                ActionDialect outgoing = request.toDialect();
+                long timeout = 3 * 60 * 1000;
+                if (this.streamDeadline != 0) {
+                    long remaining = this.streamDeadline - System.currentTimeMillis();
+                    if (remaining <= 0) {
+                        this.reject(AIGCStateCode.Timeout);
+                        return;
+                    }
+                    timeout = remaining + 1000;
+                    outgoing.addParam("streamDeadline", this.streamDeadline);
+                    if (this.reservedStreamId != null) {
+                        EventCenter.getInstance().putUnitMeta(this.reservedStreamId, this);
+                        outgoing.addParam("reservedStreamId", this.reservedStreamId);
+                    }
+                }
+                ActionDialect dialect = this.service.getCellet().transmit(context, outgoing, timeout, this.sn);
                 // 处理单元返回
                 if (null == dialect) {
                     Logger.w(this.getClass(), "#process - return null: " + this.unit.getCapability().getName());
-                    this.listener.onFailed(this.channel, AIGCStateCode.UnitError);
+                    this.reject(this.streamDeadline != 0 ? AIGCStateCode.Timeout : AIGCStateCode.UnitError);
                     return;
                 }
 
                 Packet response = new Packet(dialect);
                 if (Packet.extractCode(response) != AIGCStateCode.Ok.code) {
+                    if (this.reservedStreamId != null) {
+                        EventCenter.getInstance().removeUnitMeta(this.reservedStreamId);
+                    }
                     Logger.w(this.getClass(), "#process - unit failed: " + Packet.extractCode(response));
                     meterFinish(Packet.extractDataPayload(response), "failed");
                     // 回调错误
@@ -188,6 +243,12 @@ public class MultimodalUnitMeta extends UnitMeta {
                 String responseText = payload.getString("response");
                 String thoughtText = payload.has("thought") ? payload.getString("thought") : "";
                 JSONObject resultPayload = payload.has("resultPayload") ? payload.getJSONObject("resultPayload") : null;
+                if (this.reservedStreamId != null && (resultPayload == null
+                        || !this.reservedStreamId.equals(resultPayload.optString("streamId")))) {
+                    EventCenter.getInstance().removeUnitMeta(this.reservedStreamId);
+                    this.reject(AIGCStateCode.UnitError);
+                    return;
+                }
                 Usage usage = null;
                 if (payload.has("performance")) {
                     usage = new Usage(payload.getJSONObject("performance"));
@@ -203,14 +264,20 @@ public class MultimodalUnitMeta extends UnitMeta {
                     String streamId = resultPayload.getString("streamId");
                     EventCenter center = EventCenter.getInstance();
                     center.putUnitMeta(streamId, this);
+                    UnitMeta owner = center.getUnitMeta(streamId);
+                    if (owner instanceof MultimodalUnitMeta) {
+                        ((MultimodalUnitMeta) owner).confirmStream();
+                    }
                     String status = resultPayload.optString("status", "");
                     if ("stopped".equalsIgnoreCase(status) || "failed".equalsIgnoreCase(status)) {
                         center.markStreamStopped(streamId);
                     }
                 }
                 // 客户端收到应答即可提交下一次控制请求。
-                this.channel.setProcessing(false);
-                processingReleased = true;
+                if (!processingReleased) {
+                    this.channel.setProcessing(false);
+                    processingReleased = true;
+                }
                 this.listener.onResponse(this.channel, this.output);
 
                 // 更新用量

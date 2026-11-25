@@ -38,7 +38,10 @@ public class MultimodalHandler implements EventListener {
     public void onEvent(EventCenter center, Event event) {
         try {
             if (Events.StreamStarted.equalsIgnoreCase(event.name)) {
-                // Nothing
+                UnitMeta meta = center.getUnitMeta(event.payload.getString("streamId"));
+                if (meta instanceof MultimodalUnitMeta) {
+                    ((MultimodalUnitMeta) meta).confirmStream();
+                }
             }
             else if (Events.StreamStopped.equalsIgnoreCase(event.name)) {
                 JSONObject payload = event.payload;

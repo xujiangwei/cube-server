@@ -2430,15 +2430,37 @@ public class Manager implements Tickable, PerformerListener {
      * 发起多模态对话，失败返回 {@code null}。
      */
     public MultimodalOutput executeMultimodal(String token, String channelCode, MultimodalInput input) {
+        Packet response = this.transmitMultimodal(token, channelCode, input, null, 0);
+        if (response == null || Packet.extractCode(response) != AIGCStateCode.Ok.code) {
+            return null;
+        }
+        return new MultimodalOutput(Packet.extractDataPayload(response));
+    }
+
+    public Packet executeMultimodalStream(String token, String channelCode, MultimodalInput input,
+                                          String reservedStreamId) {
+        long deadline = input.isStreamRequest() ? System.currentTimeMillis() + 18000 : 0;
+        return this.transmitMultimodal(token, channelCode, input, reservedStreamId, deadline);
+    }
+
+    private Packet transmitMultimodal(String token, String channelCode, MultimodalInput input,
+                                      String reservedStreamId, long deadline) {
         JSONObject data = new JSONObject();
         data.put("token", token);
         data.put("channel", channelCode);
         data.put("input", input.toJSON());
+        if (deadline != 0) {
+            data.put("streamDeadline", deadline);
+            if (reservedStreamId != null) {
+                data.put("reservedStreamId", reservedStreamId);
+            }
+        }
 
         Packet packet = new Packet(AIGCAction.Multimodal.name, data);
         ActionDialect request = packet.toDialect();
         request.addParam("token", token);
-        ActionDialect response = this.syncTransmit(AIGCCellet.NAME, request, 3 * 60 * 1000);
+        long timeout = deadline == 0 ? 3 * 60 * 1000 : Math.max(1, deadline + 2000 - System.currentTimeMillis());
+        ActionDialect response = this.syncTransmit(AIGCCellet.NAME, request, timeout);
         if (null == response) {
             Logger.w(Manager.class, "#executeMultimodal - Response is null - " + channelCode);
             return null;
@@ -2448,11 +2470,8 @@ public class Manager implements Tickable, PerformerListener {
         if (Packet.extractCode(responsePacket) != AIGCStateCode.Ok.code) {
             Logger.w(Manager.class, "#executeMultimodal - Response state code is NOT Ok - " + channelCode +
                     " - " + Packet.extractCode(responsePacket));
-            return null;
         }
-
-        JSONObject responseData = Packet.extractDataPayload(responsePacket);
-        return new MultimodalOutput(responseData);
+        return responsePacket;
     }
 
     /**

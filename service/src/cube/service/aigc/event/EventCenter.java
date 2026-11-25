@@ -94,6 +94,9 @@ public class EventCenter {
      * @param unitMeta 单元元数据。
      */
     public synchronized void putUnitMeta(String id, UnitMeta unitMeta) {
+        if (unitMeta.unit.isRetired()) {
+            return;
+        }
         if (this.stoppedUnitMetaMap.containsKey(id)) {
             if (null == this.stoppedUnitMetaMap.get(id)) {
                 this.stoppedUnitMetaMap.put(id, unitMeta);
@@ -124,15 +127,16 @@ public class EventCenter {
      * @param unit 单元实例。
      */
     public synchronized void removeUnitMeta(AIGCUnit unit) {
+        unit.retire();
         for (Map.Entry<String, UnitMeta> item : this.unitMetaMap.entrySet()) {
-            if (item.getValue().unit.getQueryKey().equalsIgnoreCase(unit.getQueryKey())) {
+            if (item.getValue().unit == unit) {
                 this.unitMetaMap.remove(item.getKey());
             }
         }
         Iterator<UnitMeta> iter = this.stoppedUnitMetaMap.values().iterator();
         while (iter.hasNext()) {
             UnitMeta item = iter.next();
-            if (null != item && item.unit.getQueryKey().equalsIgnoreCase(unit.getQueryKey())) {
+            if (null != item && item.unit == unit) {
                 iter.remove();
             }
         }
@@ -146,7 +150,16 @@ public class EventCenter {
      */
     public synchronized UnitMeta getUnitMeta(String id) {
         UnitMeta meta = this.unitMetaMap.get(id);
+        if (meta instanceof MultimodalUnitMeta && ((MultimodalUnitMeta) meta).reservationExpired(System.currentTimeMillis())) {
+            this.unitMetaMap.remove(id);
+            return null;
+        }
         return (null != meta) ? meta : this.stoppedUnitMetaMap.get(id);
+    }
+
+    public synchronized void expireStreamReservations(long now) {
+        this.unitMetaMap.values().removeIf(meta -> meta instanceof MultimodalUnitMeta
+                && ((MultimodalUnitMeta) meta).reservationExpired(now));
     }
 
     /**

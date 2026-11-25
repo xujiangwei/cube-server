@@ -25,7 +25,10 @@ public class AIGCUnit extends Entity {
 
     private AICapability capability;
 
-    private TalkContext context;
+    private volatile TalkContext context;
+
+    private final String processId;
+    private volatile boolean retired;
 
     private double weight;
 
@@ -36,11 +39,16 @@ public class AIGCUnit extends Entity {
     private ConcurrentLinkedQueue<Failure> failures;
 
     public AIGCUnit(Contact contact, AICapability capability, TalkContext context) {
+        this(contact, capability, context, "");
+    }
+
+    public AIGCUnit(Contact contact, AICapability capability, TalkContext context, String processId) {
         super(contact.id, contact.domain.getName());
         this.key = AIGCUnit.makeQueryKey(contact, capability);
         this.contact = contact;
         this.capability = capability;
         this.context = context;
+        this.processId = processId;
         this.weight = 5.0;
         this.runningCounter = new AtomicInteger(0);
         this.failures = new ConcurrentLinkedQueue<>();
@@ -48,6 +56,7 @@ public class AIGCUnit extends Entity {
 
     public AIGCUnit(JSONObject json) {
         super(json);
+        this.processId = "";
         this.capability = new AICapability(json.getJSONObject("capability"));
         this.weight = json.has("weight") ? json.getDouble("weight") : 5.0;
         this.runningCounter = new AtomicInteger(json.getInt("runningCounter"));
@@ -83,6 +92,18 @@ public class AIGCUnit extends Entity {
     /** 获取单元的会话上下文。 */
     public TalkContext getContext() {
         return this.context;
+    }
+
+    public String getProcessId() {
+        return this.processId;
+    }
+
+    public boolean isRetired() {
+        return this.retired;
+    }
+
+    public void retire() {
+        this.retired = true;
     }
 
     /** 设置单元的会话上下文。 */

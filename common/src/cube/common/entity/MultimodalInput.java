@@ -13,6 +13,7 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 多模态输入。
@@ -82,6 +83,24 @@ public class MultimodalInput implements JSONable {
     public boolean isOmniUnit() {
         return "OmniGround".equals(this.unit) || "OmniPerception".equals(this.unit)
                 || "OmniVL".equals(this.unit) || "OmniMultimodal".equals(this.unit);
+    }
+
+    public String operation() {
+        return this.option == null ? "" : this.option.optString("operation", "").trim().toLowerCase(Locale.ROOT);
+    }
+
+    public boolean isStreamControl() {
+        String operation = this.operation();
+        return "status".equals(operation) || "update".equals(operation) || "stop".equals(operation);
+    }
+
+    public boolean hasRtspSource() {
+        return this.fileCodes.stream().anyMatch(source -> source.regionMatches(true, 0, "rtsp://", 0, 7)
+                || source.regionMatches(true, 0, "rtsps://", 0, 8));
+    }
+
+    public boolean isStreamRequest() {
+        return this.isStreamControl() || "start".equals(this.operation()) || this.hasRtspSource();
     }
 
     /**

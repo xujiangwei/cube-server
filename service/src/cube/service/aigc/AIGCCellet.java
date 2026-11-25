@@ -261,6 +261,7 @@ public class AIGCCellet extends AbstractCellet {
             return context.owner.transmit(context, dialect, timeout);
         }
         Responder responder = AIGCAction.SpecializedDetection.name.equals(dialect.getName())
+                || (AIGCAction.Multimodal.name.equals(dialect.getName()) && dialect.containsParam("streamDeadline"))
                 ? new Responder(sn, dialect, talkContext) : new Responder(sn, dialect);
         this.responderList.add(responder);
 

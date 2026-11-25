@@ -1641,7 +1641,17 @@
  *             for box in ref.get("boxes", []):
  *                 print(ref["content"], box["x1"], box["y1"], box["x2"], box["y2"])
  *
- * @apiError 400 请求执行失败。启动时检查频道、视频源与结果接收地址是否可用；控制时检查 streamId、创建会话的用户身份及参数限制。响应体可能为空，先判断 HTTP 状态码；持续失败时联系服务提供方。
+ * @apiError 400 请求格式、操作参数或输入无效。
+ * @apiError 401 访问令牌缺失或无效。
+ * @apiError 404 找不到当前用户可访问的会话，或会话的终态已回收。
+ * @apiError 502 上游单元执行失败。
+ * @apiError 503 流请求繁忙、原单元暂时离线、模型未就绪或用量服务不可用。
+ * @apiError 504 流操作在约 20 秒内未应答。OmniVL 启动超时应答带有 error.streamId。用该值查询 status，确认会话是否已创建，再决定是否发起新的 start。
+ * @apiError {Object} error 错误详情。
+ * @apiError {Number} error.state HTTP 状态码。
+ * @apiError {Number} error.code Cube 状态码。
+ * @apiError {String} error.message Cube 状态名称。
+ * @apiError {String} [error.streamId] OmniVL 启动超时的查询标识。若请求已被接收，可以查询或停止该会话。
  * @apiError 401 令牌无效或设备信息不匹配；检查令牌及关联的设备请求头。
  * @apiError 403 请求体格式错误或缺少必填字段；检查 channel、input 及字符串类型的 input.content。
  *

@@ -7,15 +7,20 @@
 package cube.dispatcher.aigc.handler;
 
 import cell.util.log.Logger;
+import cube.common.Packet;
 import cube.common.entity.MultimodalInput;
 import cube.common.entity.MultimodalOutput;
+import cube.common.state.AIGCStateCode;
+import cube.dispatcher.aigc.CapabilityUnavailableException;
 import cube.dispatcher.aigc.Manager;
 import org.eclipse.jetty.http.HttpStatus;
+import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.ContextHandler;
 import org.json.JSONObject;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.UUID;
 
 /**
  * 多模态流式调用。
@@ -35,10 +40,10 @@ public class MultimodalStream extends ContextHandler {
 
         @Override
         public void doPost(HttpServletRequest request, HttpServletResponse response) {
+            Request.getBaseRequest(request).setHandled(true);
             String token = this.getApiToken(request);
             if (!Manager.getInstance().checkToken(token, this.getDevice(request))) {
-                this.respond(response, HttpStatus.UNAUTHORIZED_401);
-                this.complete();
+                this.respondError(response, AIGCStateCode.NoToken, null);
                 return;
             }
 
@@ -49,40 +54,68 @@ public class MultimodalStream extends ContextHandler {
                 channelCode = json.getString("channel");
                 multimodalInput = new MultimodalInput(json.getJSONObject("input"));
             } catch (Exception e) {
-                Logger.e(Chat.class, "#doPost - Read body failed", e);
-                this.respond(response, HttpStatus.FORBIDDEN_403);
-                this.complete();
+                Logger.w(MultimodalStream.class, "#doPost - Invalid request body");
+                this.respondError(response, AIGCStateCode.InvalidParameter, null);
                 return;
             }
 
-            if (null == channelCode) {
-                // 参数错误
-                this.respond(response, HttpStatus.NOT_FOUND_404);
-                this.complete();
+            if (channelCode.trim().isEmpty()) {
+                this.respondError(response, AIGCStateCode.InvalidParameter, null);
                 return;
             }
 
-            // Multimodal
-            MultimodalOutput result = Manager.getInstance().executeMultimodal(token, channelCode, multimodalInput);
-            if (null == result) {
-                // 发生错误
-                this.respond(response, HttpStatus.BAD_REQUEST_400);
-                this.complete();
-                return;
+            String reservedStreamId = "OmniVL".equals(multimodalInput.unit) && multimodalInput.hasRtspSource()
+                    && !multimodalInput.isStreamControl() ? UUID.randomUUID().toString() : null;
+            try {
+                Packet reply = Manager.getInstance().executeMultimodalStream(token, channelCode, multimodalInput,
+                        reservedStreamId);
+                AIGCStateCode code = reply == null ? AIGCStateCode.Timeout
+                        : AIGCStateCode.parse(Packet.extractCode(reply));
+                if (code != AIGCStateCode.Ok) {
+                    this.respondError(response, code, reservedStreamId);
+                    return;
+                }
+                this.respondOk(response, new MultimodalOutput(Packet.extractDataPayload(reply)).toCompactJSON());
+            } catch (CapabilityUnavailableException unavailable) {
+                this.respondError(response, AIGCStateCode.UnitNoReady, null);
+            } catch (org.json.JSONException invalidReply) {
+                Logger.w(MultimodalStream.class, "#doPost - Invalid upstream response");
+                this.respondError(response, AIGCStateCode.UnitError, null);
             }
+        }
 
-            // Response
-            JSONObject responseData = result.toCompactJSON();
-            this.respondOk(response, responseData);
-            this.complete();
+        private void respondError(HttpServletResponse response, AIGCStateCode code, String reservedStreamId) {
+            int status;
+            switch (code) {
+                case NoToken: status = HttpStatus.UNAUTHORIZED_401; break;
+                case InconsistentToken: status = HttpStatus.FORBIDDEN_403; break;
+                case NotFound: status = HttpStatus.NOT_FOUND_404; break;
+                case Processing:
+                case Busy:
+                case UnitNoReady:
+                case UsageUnavailable: status = HttpStatus.SERVICE_UNAVAILABLE_503; break;
+                case Timeout: status = HttpStatus.GATEWAY_TIMEOUT_504; break;
+                case InvalidParameter:
+                case DataStructureError:
+                case InvalidData:
+                case FileError:
+                case IllegalOperation: status = HttpStatus.BAD_REQUEST_400; break;
+                default: status = HttpStatus.BAD_GATEWAY_502;
+            }
+            JSONObject error = new JSONObject().put("state", status).put("code", code.code)
+                    .put("message", code.name());
+            if (code == AIGCStateCode.Timeout && reservedStreamId != null) {
+                error.put("streamId", reservedStreamId);
+            }
+            this.respond(response, status, new JSONObject().put("error", error));
         }
 
         @Override
         public void doGet(HttpServletRequest request, HttpServletResponse response) {
+            Request.getBaseRequest(request).setHandled(true);
             String token = this.getApiToken(request);
             if (!Manager.getInstance().checkToken(token, this.getDevice(request))) {
                 this.respond(response, HttpStatus.UNAUTHORIZED_401);
-                this.complete();
                 return;
             }
 
@@ -94,15 +127,12 @@ public class MultimodalStream extends ContextHandler {
                 MultimodalOutput multimodalOutput = Manager.getInstance().queryMultimodal(token, channel, sn);
                 if (null == multimodalOutput) {
                     this.respond(response, HttpStatus.NOT_FOUND_404);
-                    this.complete();
                     return;
                 }
 
                 this.respondOk(response, multimodalOutput.toCompactJSON());
-                this.complete();
             } catch (Exception e) {
                 this.respond(response, HttpStatus.BAD_REQUEST_400);
-                this.complete();
             }
         }
     }

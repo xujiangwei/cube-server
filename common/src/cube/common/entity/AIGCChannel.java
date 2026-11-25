@@ -221,6 +221,14 @@ public class AIGCChannel extends Entity {
         this.processing.set(value);
     }
 
+    public boolean tryStartProcessing() {
+        if (!this.processing.compareAndSet(false, true)) {
+            return false;
+        }
+        this.processingTimestamp = System.currentTimeMillis();
+        return true;
+    }
+
     /**
      * 判断通道是否正在处理任务。
      *

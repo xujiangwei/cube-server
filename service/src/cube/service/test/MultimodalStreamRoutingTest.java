@@ -25,6 +25,7 @@ import cube.service.aigc.event.MultimodalHandler;
 import cube.service.aigc.listener.MultimodalListener;
 import cube.service.aigc.unit.AIGCTaskExecutor;
 import cube.service.aigc.unit.MultimodalUnitMeta;
+import cube.service.aigc.unit.UnitScheduler;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -32,6 +33,7 @@ import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,6 +56,8 @@ public class MultimodalStreamRoutingTest {
             testImmediateFollowup(service, cellet);
             testResponseRegistration(service, cellet);
             testRetentionAndCleanup(service);
+            testUnitReconnect(service, cellet);
+            testStreamDeadlineAndRecovery(service, cellet);
             System.out.println("MultimodalStreamRoutingTest: " + assertions + " assertions passed");
         }
         finally {
@@ -287,6 +291,105 @@ public class MultimodalStreamRoutingTest {
                 .put("files", new JSONArray()).put("option", option));
     }
 
+    private static void testUnitReconnect(FakeService service, FakeCellet cellet) throws Exception {
+        CENTER.stop();
+        UnitScheduler scheduler = new UnitScheduler();
+        Contact contact = new Contact(100008L, "domain");
+        AICapability capability = unit(100008L).getCapability();
+        String processId = UUID.randomUUID().toString();
+        FakeContext previous = new FakeContext();
+        AIGCUnit unit = scheduler.setup(contact, Collections.singletonList(capability), previous, processId).get(0);
+        MultimodalUnitMeta route = meta(service, unit, new Reply());
+        CENTER.putUnitMeta("reconnect", route);
+        previous.valid = false;
+        long now = System.currentTimeMillis();
+        scheduler.onTick(now);
+        check(scheduler.select("OmniGround") == null, "offline unit is excluded from scheduling");
+        check(CENTER.getUnitMeta("reconnect") == route, "temporary disconnect retains active route");
+        check(service.submitMultimodal("token", "channel", input("status", "reconnect"), 0, null, new Reply())
+                == AIGCStateCode.UnitNoReady, "offline route maps to unavailable");
+        FakeContext replacement = new FakeContext();
+        check(scheduler.setup(contact, Collections.singletonList(capability), replacement, processId).get(0) == unit,
+                "same process reconnects to the original Unit object");
+        cellet.reset("reconnect", "running");
+        Reply status = new Reply();
+        check(service.executeMultimodal("token", "channel", input("status", "reconnect"), status),
+                "status can use restored route");
+        status.await();
+        check(cellet.context == replacement && CENTER.getUnitMeta("reconnect") == route,
+                "control uses new SHM connection with original route metadata");
+        check(scheduler.setup(contact, Collections.singletonList(capability), new FakeContext(),
+                UUID.randomUUID().toString()).get(0) != unit, "different process gets a new Unit object");
+        CENTER.putUnitMeta("late-old-response", route);
+        check(CENTER.getUnitMeta("reconnect") == null && CENTER.getUnitMeta("late-old-response") == null,
+                "new process and late old response cannot inherit old routes");
+    }
+
+    private static void testStreamDeadlineAndRecovery(FakeService service, FakeCellet cellet) throws Exception {
+        CENTER.stop();
+        AICapability capability = new AICapability("OmniVL", "Multimodal", "1.0",
+                Collections.singletonList("Understanding"), "test");
+        capability.setUsageProtocol(1);
+        AIGCUnit owner = new AIGCUnit(new Contact(100009L, "domain"), capability, new FakeContext(),
+                UUID.randomUUID().toString());
+        service.selected = owner;
+        MultimodalInput start = new MultimodalInput(new JSONObject().put("unit", "OmniVL")
+                .put("files", new JSONArray().put("rtsp://camera/live")));
+        long now = System.currentTimeMillis();
+        int sent = cellet.calls.get();
+        check(service.submitMultimodal("token", "channel", start, now - 1, UUID.randomUUID().toString(),
+                new Reply()) == AIGCStateCode.Timeout, "expired request is rejected without SHM send");
+        Reply expiredInQueue = expecting(AIGCStateCode.Timeout);
+        new MultimodalUnitMeta(service, owner, service.channel, start, expiredInQueue, false, now - 1, null).run();
+        expiredInQueue.await();
+        check(cellet.calls.get() == sent, "expired queued request never reaches Python");
+
+        String streamId = UUID.randomUUID().toString();
+        cellet.reset(streamId, "starting");
+        cellet.dropResponse = true;
+        Reply timeout = expecting(AIGCStateCode.Timeout);
+        long deadline = System.currentTimeMillis() + 5000;
+        // An ordinary request may occupy the same channel during stream admission and control.
+        service.channel.setProcessing(true);
+        try {
+            check(service.submitMultimodal("token", "channel", start, deadline, streamId, timeout)
+                    == AIGCStateCode.Ok, "stream start bypasses the ordinary channel gate");
+            timeout.await();
+            check(CENTER.getUnitMeta(streamId) != null && cellet.reservationAtSend,
+                    "the reserved route exists before SHM and survives loss of the reply");
+            check(cellet.deadline == deadline && cellet.waitMillis <= 6000,
+                    "remaining absolute deadline is propagated and caps the unit wait");
+            cellet.reset(streamId, "running");
+            Reply recovery = new Reply();
+            check(service.submitMultimodal("token", "channel", input("status", streamId),
+                    deadline, null, recovery) == AIGCStateCode.Ok, "status recovers a stream whose start reply was lost");
+            recovery.await();
+            check(service.channel.isProcessing(), "stream calls preserve unrelated work on the same channel");
+            CENTER.expireStreamReservations(deadline + 10 * 60 * 1000);
+            check(CENTER.getUnitMeta(streamId) != null, "successful status confirms the reserved route");
+        } finally {
+            service.channel.setProcessing(false);
+        }
+    }
+
+    private static Reply expecting(AIGCStateCode expected) {
+        return new Reply() {
+            @Override
+            public void onFailed(AIGCChannel channel, AIGCStateCode actual) {
+                if (actual != expected) {
+                    error = new AssertionError("expected " + expected + ", got " + actual);
+                }
+                done.countDown();
+            }
+
+            @Override
+            public void onResponse(AIGCChannel channel, MultimodalOutput response) {
+                error = new AssertionError("expected " + expected + ", got a successful response");
+                done.countDown();
+            }
+        };
+    }
+
     private static AIGCUnit unit(long id) {
         return new AIGCUnit(new Contact(id, "domain"), new AICapability("OmniGround", "Multimodal", "1.0",
                 Collections.singletonList("Grounding"), "test"), new FakeContext());
@@ -352,6 +455,10 @@ public class MultimodalStreamRoutingTest {
         boolean stopBeforeResponse;
         boolean omitPayload;
         boolean withUsage;
+        boolean dropResponse;
+        boolean reservationAtSend;
+        long deadline;
+        long waitMillis;
         int responseCode;
         volatile TalkContext context;
         volatile JSONObject request;
@@ -360,7 +467,7 @@ public class MultimodalStreamRoutingTest {
         void reset(String id, String state) {
             streamId = id;
             status = state;
-            stopBeforeResponse = omitPayload = withUsage = false;
+            stopBeforeResponse = omitPayload = withUsage = dropResponse = reservationAtSend = false;
             responseCode = 0;
         }
 
@@ -369,6 +476,16 @@ public class MultimodalStreamRoutingTest {
             this.context = context;
             this.request = new Packet(request).data;
             calls.incrementAndGet();
+            if (request.containsParam("streamDeadline")) {
+                this.deadline = request.getParamAsLong("streamDeadline");
+                this.waitMillis = timeout;
+            }
+            if (request.containsParam("reservedStreamId")) {
+                reservationAtSend = CENTER.getUnitMeta(request.getParamAsString("reservedStreamId")) != null;
+            }
+            if (dropResponse) {
+                return null;
+            }
             if (stopBeforeResponse) {
                 CENTER.markStreamStopped(streamId);
             }

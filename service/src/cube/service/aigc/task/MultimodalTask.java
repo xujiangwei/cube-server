@@ -67,7 +67,10 @@ public class MultimodalTask extends ServiceTask {
             return;
         }
 
-        boolean success = service.executeMultimodal(token, channelCode, input, new MultimodalListener() {
+        long deadline = packet.data.optLong("streamDeadline");
+        String reservedStreamId = packet.data.optString("reservedStreamId", null);
+        AIGCStateCode status = service.submitMultimodal(token, channelCode, input, deadline, reservedStreamId,
+                new MultimodalListener() {
             @Override
             public void onResponse(AIGCChannel channel, MultimodalOutput response) {
                 cellet.speak(talkContext,
@@ -83,9 +86,9 @@ public class MultimodalTask extends ServiceTask {
             }
         });
 
-        if (!success) {
+        if (status != AIGCStateCode.Ok) {
             this.cellet.speak(this.talkContext,
-                    this.makeResponse(dialect, packet, AIGCStateCode.Failure.code, new JSONObject()));
+                    this.makeResponse(dialect, packet, status.code, new JSONObject()));
             markResponseTime();
         }
     }

@@ -58,7 +58,18 @@ public class SetupTask extends ServiceTask {
 
         AIGCService service = ((AIGCCellet) this.cellet).getService();
 
-        List<AIGCUnit> units = service.setupUnit(contact, capabilities, this.talkContext);
+        String processId = packet.data.optString("processId", "");
+        try {
+            if (!processId.isEmpty()) {
+                processId = java.util.UUID.fromString(processId).toString();
+            }
+        } catch (IllegalArgumentException invalid) {
+            this.cellet.speak(this.talkContext,
+                    this.makeResponse(dialect, packet, AIGCStateCode.InvalidParameter.code, new JSONObject()));
+            markResponseTime();
+            return;
+        }
+        List<AIGCUnit> units = service.setupUnit(contact, capabilities, this.talkContext, processId);
         Logger.i(SetupTask.class, "AIGC unit " + contact.getName() + " setup : " + units.size());
 
         JSONArray unitArray = new JSONArray();

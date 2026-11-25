@@ -601,6 +601,7 @@ public class AIGCService extends AbstractModule implements Generatable, Completi
 
         // 单元维护：清理通信上下文失效的单元，并按周期复位单元运行标志
         this.unitScheduler.onTick(now);
+        EventCenter.getInstance().expireStreamReservations(now);
         this.harnessMedia.reconcile();
 
         // 频道维护：复位未变化的处理标志，并回收空闲超时的频道
@@ -833,8 +834,13 @@ public class AIGCService extends AbstractModule implements Generatable, Completi
      * @return 返回本次涉及的单元列表。
      */
     public List<AIGCUnit> setupUnit(Contact contact, List<AICapability> capabilities, TalkContext context) {
+        return this.setupUnit(contact, capabilities, context, "");
+    }
+
+    public List<AIGCUnit> setupUnit(Contact contact, List<AICapability> capabilities, TalkContext context,
+                                   String processId) {
         synchronized (this.pluginUnits) {
-            List<AIGCUnit> units = this.unitScheduler.setup(contact, capabilities, context);
+            List<AIGCUnit> units = this.unitScheduler.setup(contact, capabilities, context, processId);
             this.specializedDetections.onSetup(units);
             this.pluginUnits.onSetup(units);
             return units;
@@ -849,6 +855,10 @@ public class AIGCService extends AbstractModule implements Generatable, Completi
      */
     public List<AIGCUnit> teardownUnit(Contact contact) {
         return this.unitScheduler.teardown(contact);
+    }
+
+    public List<AIGCUnit> teardownUnit(Contact contact, TalkContext context) {
+        return this.unitScheduler.teardown(contact, context);
     }
 
     /**
@@ -2290,22 +2300,46 @@ public class AIGCService extends AbstractModule implements Generatable, Completi
     /**
      * 执行多模态任务。
      *
-     * <p>频道不存在时按频道码自动创建；流控制按 streamId 定位原单元，
-     * 其他请求按能力名调度。频道正在处理、流未登记或单元不可用时拒绝。</p>
+     * <p>频道不存在时按频道码自动创建。流控制按 streamId 定位原单元；
+     * 其他请求按能力名调度。</p>
      *
      * @param tokenCode   访问令牌码。
      * @param channelCode 频道码。
      * @param input       多模态输入。
      * @param listener    监听器。
-     * @return 任务受理返回 {@code true}；服务未就绪、频道正在处理、流未登记或无可用单元
-     * 返回 {@code false}。
+     * @return 任务是否被受理。
      */
     public boolean executeMultimodal(String tokenCode, String channelCode,
                                      MultimodalInput input, MultimodalListener listener) {
-        UsageContext visitor = UsageContext.visitor(this.getToken(tokenCode), "AIGC", "");
+        return this.submitMultimodal(tokenCode, channelCode, input, 0L, null, listener) == AIGCStateCode.Ok;
+    }
+
+    public AIGCStateCode submitMultimodal(String tokenCode, String channelCode, MultimodalInput input,
+                                        long deadline, String reservedStreamId, MultimodalListener listener) {
         if (!this.isStarted()) {
             Logger.w(AIGCService.class, "#executeMultimodal - Service is NOT ready");
-            return false;
+            return AIGCStateCode.UnitNoReady;
+        }
+        if (deadline != 0 && deadline <= System.currentTimeMillis()) {
+            return AIGCStateCode.Timeout;
+        }
+        if (channelCode.trim().isEmpty()) {
+            return AIGCStateCode.InvalidParameter;
+        }
+        if (deadline != 0 && input.isStreamRequest()) {
+            if (input.isStreamControl()) {
+                if (!input.fileCodes.isEmpty() || (input.history != null && !input.history.isEmpty())) {
+                    return AIGCStateCode.InvalidParameter;
+                }
+            } else if (input.isOmniUnit() && (input.fileCodes.size() != 1 || !input.hasRtspSource())) {
+                return AIGCStateCode.InvalidParameter;
+            }
+        }
+        final UsageContext visitor;
+        try {
+            visitor = UsageContext.visitor(this.getToken(tokenCode), "AIGC", "");
+        } catch (IllegalArgumentException invalidToken) {
+            return AIGCStateCode.NoToken;
         }
 
         // 获取频道
@@ -2315,33 +2349,32 @@ public class AIGCService extends AbstractModule implements Generatable, Completi
             // 创建频道
             channel = this.createChannel(tokenCode, "User-" + channelCode, channelCode, Language.Chinese);
         }
-
-        // 如果频道正在应答上一次问题，则返回 null
-        if (channel.isProcessing()) {
-            Logger.w(AIGCService.class, "#executeMultimodal - Channel is processing: " + channelCode);
-            return false;
+        if (channel == null) {
+            return AIGCStateCode.NoToken;
         }
 
         // 流控制必须回到生成 streamId 的单元，不能重新按能力名调度。
-        String operation = (null != input.option)
-                ? input.option.optString("operation", "").trim().toLowerCase(Locale.ROOT) : "";
         AIGCUnit unit;
-        if ("status".equals(operation) || "stop".equals(operation) || "update".equals(operation)) {
+        if (input.isStreamControl()) {
             String streamId = input.option.optString("streamId", "").trim();
-            UnitMeta streamMeta = streamId.isEmpty() ? null : EventCenter.getInstance().getUnitMeta(streamId);
+            if (streamId.isEmpty()) {
+                return AIGCStateCode.InvalidParameter;
+            }
+            UnitMeta streamMeta = EventCenter.getInstance().getUnitMeta(streamId);
             if (!(streamMeta instanceof MultimodalUnitMeta)) {
                 Logger.w(AIGCService.class, "#executeMultimodal - Unknown stream: " + streamId);
-                return false;
+                return AIGCStateCode.NotFound;
             }
             if (!visitor.domain.equals(streamMeta.usageContext.domain)
                     || visitor.contactId != streamMeta.usageContext.contactId) {
                 Logger.w(AIGCService.class, "#executeMultimodal - Stream is NOT owned by the visitor: " + streamId);
-                return false;
+                return AIGCStateCode.NotFound;
             }
             unit = streamMeta.unit;
-            if (null == unit.getContext() || !unit.getContext().isValid()) {
+            TalkContext context = unit.getContext();
+            if (context == null || !context.isValid() || unit.isRetired()) {
                 Logger.w(AIGCService.class, "#executeMultimodal - Stream unit is unavailable: " + streamId);
-                return false;
+                return AIGCStateCode.UnitNoReady;
             }
             input.unit = unit.getCapability().getName();
         } else {
@@ -2349,17 +2382,24 @@ public class AIGCService extends AbstractModule implements Generatable, Completi
         }
         if (null == unit) {
             Logger.w(AIGCService.class, "#executeMultimodal - No task unit setup in server: " + input.unit);
-            return false;
+            return AIGCStateCode.UnitNoReady;
         }
 
-        channel.setProcessing(true);
-        final MultimodalUnitMeta meta = new MultimodalUnitMeta(this, unit, channel, input, listener);
+        boolean stream = input.isStreamRequest();
+        if (!stream && !channel.tryStartProcessing()) {
+            return AIGCStateCode.Processing;
+        }
+        String reservation = "OmniVL".equals(input.unit) && input.hasRtspSource() && !input.isStreamControl()
+                && !unit.getProcessId().isEmpty() ? reservedStreamId : null;
+        MultimodalUnitMeta meta = new MultimodalUnitMeta(this, unit, channel, input, listener,
+                !stream, deadline, reservation);
         meta.usageContext = visitor;
 
-        // 取队列 → 起任务 → 收尾，统一由单元任务队列执行器处理
+        if (stream) {
+            return this.taskExecutor.submitMultimodalStream(meta) ? AIGCStateCode.Ok : AIGCStateCode.Busy;
+        }
         this.taskExecutor.submitMultimodal(meta);
-
-        return true;
+        return AIGCStateCode.Ok;
     }
 
     /**

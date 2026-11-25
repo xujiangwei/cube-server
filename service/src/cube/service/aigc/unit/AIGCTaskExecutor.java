@@ -9,6 +9,7 @@ package cube.service.aigc.unit;
 import cell.util.CachedQueueExecutor;
 import cell.util.log.Logger;
 import cube.aigc.SpecializedDetectionDefaults;
+import cube.common.state.AIGCStateCode;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -20,6 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -57,6 +60,8 @@ public class AIGCTaskExecutor {
     private int detectionControlQueue = SpecializedDetectionDefaults.CONTROL_QUEUE;
     /** 检测线程池是否已关闭。 */
     private boolean detectionClosed;
+
+    private final ThreadPoolExecutor multimodalStreams = boundedPool(8, 32, "multimodal-stream");
 
     /**
      * 配置检测线程池容量。线程池尺寸在初始化时生效，变更后需重启服务。
@@ -99,7 +104,7 @@ public class AIGCTaskExecutor {
      * @param name    线程名前缀
      * @return 线程池
      */
-    private java.util.concurrent.ThreadPoolExecutor detectionPool(int threads, int queue, String name) {
+    private static ThreadPoolExecutor boundedPool(int threads, int queue, String name) {
         return new java.util.concurrent.ThreadPoolExecutor(threads, threads, 30, java.util.concurrent.TimeUnit.SECONDS,
                 new java.util.concurrent.ArrayBlockingQueue<Runnable>(queue), job -> {
                     Thread t = new Thread(job, name); t.setDaemon(true); return t;
@@ -118,10 +123,10 @@ public class AIGCTaskExecutor {
             return false;
         }
         if (control && detectionControl == null) {
-            detectionControl = detectionPool(detectionControlThreads, detectionControlQueue, "detection-control");
+            detectionControl = boundedPool(detectionControlThreads, detectionControlQueue, "detection-control");
         }
         if (!control && detectionData == null) {
-            detectionData = detectionPool(detectionDataThreads, detectionDataQueue, "detection-data");
+            detectionData = boundedPool(detectionDataThreads, detectionDataQueue, "detection-data");
         }
         try {
             (control ? detectionControl : detectionData).execute(job);
@@ -351,6 +356,15 @@ public class AIGCTaskExecutor {
         this.unitQueueExecutor.submit(this.multimodalQueueMap, meta);
     }
 
+    public boolean submitMultimodalStream(MultimodalUnitMeta meta) {
+        try {
+            this.multimodalStreams.execute(meta);
+            return true;
+        } catch (RejectedExecutionException unavailable) {
+            return false;
+        }
+    }
+
     /**
      * 提交文生图任务（独占模式）。
      *
@@ -495,6 +509,9 @@ public class AIGCTaskExecutor {
      * 关闭线程池并释放排队中的排空标记。
      */
     public void shutdown() {
+        for (Runnable job : this.multimodalStreams.shutdownNow()) {
+            ((MultimodalUnitMeta) job).reject(AIGCStateCode.UnitNoReady);
+        }
         synchronized (this) {
             detectionClosed = true;
             for (java.util.concurrent.ThreadPoolExecutor pool : new java.util.concurrent.ThreadPoolExecutor[]{detectionData, detectionControl}) {

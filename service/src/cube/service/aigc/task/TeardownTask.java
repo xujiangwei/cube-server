@@ -48,7 +48,7 @@ public class TeardownTask extends ServiceTask {
 
         AIGCService service = ((AIGCCellet) this.cellet).getService();
 
-        List<AIGCUnit> units = service.teardownUnit(contact);
+        List<AIGCUnit> units = service.teardownUnit(contact, this.talkContext);
         Logger.i(TeardownTask.class, "AIGC unit " + contact.getName() + " teardown : " + units.size());
 
         JSONArray array = new JSONArray();

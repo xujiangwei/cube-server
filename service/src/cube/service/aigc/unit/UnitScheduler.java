@@ -39,6 +39,9 @@ public class UnitScheduler {
      */
     private final Map<String, AIGCUnit> unitMap = new ConcurrentHashMap<>();
 
+    private static final long STREAM_RECONNECT_GRACE = 5 * 60 * 1000;
+    private final Map<String, Long> offlineSince = new HashMap<>();
+
     /**
      * 单元权重。
      * Key 是 Contact Id。
@@ -101,6 +104,11 @@ public class UnitScheduler {
      * @return 返回本次涉及的单元列表。
      */
     public synchronized List<AIGCUnit> setup(Contact contact, List<AICapability> capabilities, TalkContext context) {
+        return this.setup(contact, capabilities, context, "");
+    }
+
+    public synchronized List<AIGCUnit> setup(Contact contact, List<AICapability> capabilities, TalkContext context,
+                                              String processId) {
         List<AIGCUnit> result = new ArrayList<>(capabilities.size());
 
         Set<String> reported = new HashSet<>();
@@ -110,21 +118,28 @@ public class UnitScheduler {
             if (previous.getId().equals(contact.getId())
                     && previous.getDomain().getName().equals(contact.getDomain().getName())
                     && !reported.contains(entry.getKey())) {
-                if (this.unitMap.remove(entry.getKey(), entry.getValue()))
+                if (this.unitMap.remove(entry.getKey(), entry.getValue())) {
+                    this.offlineSince.remove(entry.getKey());
                     EventCenter.getInstance().removeUnitMeta(entry.getValue());
+                }
             }
         }
 
         for (AICapability capability : capabilities) {
             String key = AIGCUnit.makeQueryKey(contact, capability);
             AIGCUnit unit = this.unitMap.get(key);
+            this.offlineSince.remove(key);
+            if (unit != null && !unit.getProcessId().equals(processId)) {
+                EventCenter.getInstance().removeUnitMeta(unit);
+                unit = null;
+            }
             if (null != unit) {
                 unit.setContext(context);
                 unit.getCapability().setSubtasks(capability.getSubtasks());
                 unit.getCapability().setChatCompletion(capability.getChatCompletion());
                 unit.getCapability().setUsageProtocol(capability.getUsageProtocol());
             } else {
-                unit = new AIGCUnit(contact, capability, context);
+                unit = new AIGCUnit(contact, capability, context, processId);
                 this.unitMap.put(key, unit);
             }
 
@@ -148,15 +163,21 @@ public class UnitScheduler {
      * @return 返回被注销的单元列表。
      */
     public synchronized List<AIGCUnit> teardown(Contact contact) {
+        return this.teardown(contact, null);
+    }
+
+    public synchronized List<AIGCUnit> teardown(Contact contact, TalkContext context) {
         List<AIGCUnit> result = new ArrayList<>();
 
         Iterator<AIGCUnit> iter = this.unitMap.values().iterator();
         while (iter.hasNext()) {
             AIGCUnit unit = iter.next();
             if (unit.getContact().getId().equals(contact.getId())
-                    && unit.getContact().getDomain().getName().equals(contact.getDomain().getName())) {
+                    && unit.getContact().getDomain().getName().equals(contact.getDomain().getName())
+                    && (context == null || context.equals(unit.getContext()))) {
                 result.add(unit);
                 iter.remove();
+                this.offlineSince.remove(unit.getQueryKey());
                 // 从事件中心移除
                 EventCenter.getInstance().removeUnitMeta(unit);
             }
@@ -173,6 +194,7 @@ public class UnitScheduler {
     public synchronized List<AIGCUnit> getAll() {
         List<AIGCUnit> list = new ArrayList<>(this.unitMap.size());
         list.addAll(this.unitMap.values());
+        list.removeIf(unit -> this.offlineSince.containsKey(unit.getQueryKey()));
         return list;
     }
 
@@ -377,13 +399,22 @@ public class UnitScheduler {
      *
      * @param now 当前时刻。
      */
-    public void onTick(long now) {
+    public synchronized void onTick(long now) {
         Iterator<AIGCUnit> unitIter = this.unitMap.values().iterator();
         while (unitIter.hasNext()) {
             AIGCUnit unit = unitIter.next();
             if (null != unit.getContext() && !unit.getContext().isValid()) {
+                String name = unit.getCapability().getName();
+                if (!unit.getProcessId().isEmpty() && ("OmniVL".equals(name)
+                        || "OmniGround".equals(name) || "OmniPerception".equals(name))) {
+                    long since = this.offlineSince.computeIfAbsent(unit.getQueryKey(), key -> now);
+                    if (now - since < STREAM_RECONNECT_GRACE) {
+                        continue;
+                    }
+                }
                 // 已失效
                 unitIter.remove();
+                this.offlineSince.remove(unit.getQueryKey());
                 EventCenter.getInstance().removeUnitMeta(unit);
             }
         }
