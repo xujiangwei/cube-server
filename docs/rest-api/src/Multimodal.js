@@ -9,12 +9,12 @@
  * @apiGroup Multimodal
  * @apiVersion 1.0.0
  *
- * @apiDescription 分析图片、音频或视频，返回文字回答或目标位置。先创建频道并保存频道码；上传文件并确认可查询后，将文件码放入 <code>input.files</code>。也可使用服务端可访问的文件 URL。用 <code>input.content</code> 描述问题或目标，并显式选择 <code>input.unit</code>。
- *                 <div class="table-scroll" tabindex="0" role="region" aria-label="多模态模型选择"><table><thead><tr><th>模型</th><th>输入与任务选择</th><th>结果读取</th></tr></thead><tbody>
- *                 <tr><td>OmniGround</td><td>一张图片；用 task 选择目标、文字或 GUI 元素定位，mode 仅适用于该模型。</td><td>resultPayload.refs 中的 boxes 或 points。</td></tr>
- *                 <tr><td>OmniVL</td><td>一个视频文件；content 描述需要总结的内容。服务端抽帧、缩放后分析。</td><td>answer 中的视频分析文字，不保证覆盖视频的每一帧。</td></tr>
- *                 <tr><td>OmniMultimodal</td><td>图片等媒体与问题；可用 history 提供文字上下文。语音问题使用已上传的 WAV/MP3 文件码作为 content。</td><td>answer 中的回答。</td></tr>
- *                 <tr><td>OmniPerception</td><td>一张图片；task 选择检测、计数、区域描述、区域 OCR 或视觉问答。</td><td>answer 中的文字，以及 resultPayload.refs 中的目标框。</td></tr>
+ * @apiDescription 分析图片、音频或视频，返回文字回答或目标位置。先创建频道并保存频道码；上传文件并确认可查询后，将文件码放入 <code>input.files</code>。也可使用服务端可访问的文件 URL。用 <code>input.content</code> 描述问题或目标，并显式选择 <code>input.unit</code>。 调用时将示例中的频道码和文件码换成实际值。
+ *                 <div class="table-scroll" tabindex="0" role="region" aria-label="多模态模型选择"><table><thead><tr><th>模型</th><th>建议使用场景</th><th>结果读取</th></tr></thead><tbody>
+ *                 <tr><td>OmniGround</td><td>在图片上标出目标位置。例如框出照片里的设备，或定位界面截图中的按钮和文字。</td><td>resultPayload.refs 中的 boxes 或 points。</td></tr>
+ *                 <tr><td>OmniPerception</td><td>按描述检查一张图片。例如找出屋顶上的水箱、统计货架上的纸箱，或读取设备铭牌上的文字。</td><td>answer 中的文字，以及 resultPayload.refs 中的目标框。</td></tr>
+ *                 <tr><td>OmniVL</td><td>回看一段录像并梳理事情的先后顺序。例如总结巡检录像，或描述车辆驶入、停靠和离开的过程。</td><td>answer 中的视频分析文字，基于视频中采样的画面。</td></tr>
+ *                 <tr><td>OmniMultimodal</td><td>围绕一张或多张图片提问、比较变化或整理记录。例如对比基准图与待检图，判断地面是否出现疑似水渍或油渍。</td><td>answer 中的回答。</td></tr>
  *                 </tbody></table></div>
  *                 <p>REST 应答的文字字段为 <code>answer</code>。绘制目标框、定位点时读取 <code>resultPayload</code>，坐标以原图像素为单位，缩放显示时按返回的 width、height 换算。空 refs 表示没有返回目标位置；OCR、问答等任务仍可在 answer 中返回文字。计数结果由 answer 描述，不提供独立的 count 字段。</p>
  *                 <p>扩展参数统一放在 <code>option.parameters</code>；仅支持新任务名和字段结构，旧的 detect、ground_gui、平铺 lang/mode 等字段会被拒绝。GUI 定位选择 <code>task="gui_grounding"</code>：parameters.outputType 默认为 box，从 refs[].boxes 读取边界框；设为 point 时从 refs[].points 读取定位点。接口只返回位置，不执行界面操作。</p>
@@ -27,11 +27,11 @@
  * @apiBody {String} channel 通道的频道码。
  * @apiBody {Object} input 多模态输入信息。
  * @apiBody {String} [input.unit=OmniGround] 模型名称；建议显式指定，取值见上方模型表。
- * @apiBody {String} [input.content] 当前提示词，省略时为 ""；不会自动下载此字段中的 URL。OmniMultimodal 还可使用语音文件码。OmniPerception 除区域任务外必须非空；OmniGround 的 text_detection 或使用 parameters.categories 的 detection 可省略；OmniVL 为空时使用内置描述提示词。
+ * @apiBody {String} [input.content] 当前提示词，省略时为 ""。此字段中的 URL 按文本处理。OmniMultimodal 的语音问题可使用已上传的 WAV/MP3 文件码。OmniPerception 除区域任务外必须非空。OmniGround 的 text_detection 或使用 parameters.categories 的 detection 可省略。OmniVL 为空时使用内置描述提示词。
  * @apiBody {Object[]} [input.history] OmniMultimodal 的文字对话上下文，每项包含 query 和 answer；后续请求按需提交完整上下文。
  * @apiBody {String} input.history.query 每条历史对话中的用户输入。
  * @apiBody {String} input.history.answer 每条历史对话中的模型输出。
- * @apiBody {String[]} [input.files] 文件码或文件 URL 列表。OmniGround、OmniPerception 必须提供一张图片，OmniVL 必须提供一个视频；OmniMultimodal 按需提供媒体附件。
+ * @apiBody {String[]} [input.files] 已上传的 64 字符文件码或服务端可访问的 HTTP(S) 媒体 URL，按数组顺序读取。OmniGround、OmniPerception 必须提供一张图片。OmniVL 必须提供一个视频。OmniMultimodal 可提供多张图片，做双图对比时依次传入基准图和待检图。
  * @apiBody {Object} [input.option] 指定的任务描述。
  * @apiBody {String} [input.option.operation=analyze] 同步分析使用 analyze；RTSP 输入默认 start，参见流式接口。
  * @apiBody {Object} [input.option.parameters] 图片任务的扩展参数；OmniVL、OmniMultimodal 仅接受空对象。视频抽帧、分辨率、并发及推理预算由服务端配置。
@@ -63,10 +63,11 @@
  * @apiBody {Number[]} [input.option.parameters.targetRegionIndexes] 需要处理的候选框索引列表，索引从 0 开始且必须小于 bboxList 的长度。仅用于 <code>brief_region_caption</code> 和 <code>region_ocr</code>，使用这两个任务时必填。
  *
  * 
- * @apiParamExample {json} OmniGround -一般示例
+ * @apiParamExample {json} OmniGround - 单图目标检测（使用文件码）
  *     {
  *         "channel": "mnxRSaLdPuHEVaKY",
  *         "input": {
+ *             "unit": "OmniGround",
  *             "content": "定位图中所有的电脑和手机",
  *             "files": [
  *                 "unpmAGrMYphCHatmTRmoPMbrMCKGLHOlWOTHGviJSLDQyIwtSLdBTRLUpOQeMxLg"
@@ -334,6 +335,20 @@
  *         }
  *     }
  *
+ * @apiParamExample {json} OmniMultimodal - 双图对比（使用文件码）
+ *     {
+ *         "channel": "mnxRSaLdPuHEVaKY",
+ *         "input": {
+ *             "unit": "OmniMultimodal",
+ *             "content": "图1是已确认干净的基准图，图2是待检图。只比较两图中对应的地面，判断图2是否新增可见的水渍、油渍或积液。区分液渍与阴影、地砖接缝、原有污痕和整体亮度变化。只输出包含 status 和 findings 的 JSON。画面足以判断且未见新增液渍时，status 为 clean。发现疑似新增液渍时为 suspected，并在 findings 中记录图2里的位置 location、可见依据 evidence 和液渍类型 type。画面不足以判断时为 uncertain。分不清水和油时，type 写液体类型不明。没有可记录的区域时，findings 为空数组。",
+ *             "files": [
+ *                 "d77a5ad0e5fe58015a2b33a7df7c6e585885a42f7bb94cafed8c85fc1e8d7a03",
+ *                 "8783af901cd45a97b50d89fd2d76a7eed1ec68d7b46ab4d7fdce91883edc7e28"
+ *             ],
+ *             "option": {"operation": "analyze", "task": "understanding"}
+ *         }
+ *     }
+ *
  * @apiSuccess {Number} sn 本次请求的流水号。
  * @apiSuccess {Number} timestamp 本次请求的时间戳（毫秒）。
  * @apiSuccess {String} unit 指定多模态单元。
@@ -598,17 +613,29 @@
  *         "thought": ""
  *     }
  *
+ * @apiSuccessExample {json} OmniMultimodal - 地面液渍对比应答
+ *     HTTP/1.1 200 OK
+ *     {
+ *         "sn": 887736216,
+ *         "timestamp": 1789131476537,
+ *         "unit": "OmniMultimodal",
+ *         "answer": "{\"status\":\"suspected\",\"findings\":[{\"location\":\"图2右下方第二块地砖\",\"evidence\":\"出现基准图未见的不规则暗斑，边缘有局部反光\",\"type\":\"液体类型不明\"}]}",
+ *         "thought": "",
+ *         "resultPayload": {}
+ *     }
+ *
  * @apiError 400 请求执行失败。检查频道、模型、任务、文件及参数；OmniVL 还需检查视频大小、时长、源像素和可解码性，资源繁忙时延迟重试。Python 的参数错误、资源繁忙等内部错误在此入口均可能表现为 HTTP 400，响应体可能为空；确认无误后仍失败时联系服务提供方。
  * @apiError 401 令牌无效或设备信息不匹配；检查令牌及关联的设备请求头。
  * @apiError 403 请求体格式错误或缺少必填字段；检查 channel、input 及字符串类型的 input.content。
  *
  * @apiParamExample {http} 完整请求示例
- *     POST http://211.157.179.37:7010/multimodal/base/UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG
+ *     POST https://cube.example.com/multimodal/base/{token}
  *     Content-Type: application/json
  *
  *     {
  *         "channel": "mnxRSaLdPuHEVaKY",
  *         "input": {
+ *             "unit": "OmniGround",
  *             "content": "定位图中所有的电脑和手机",
  *             "files": [
  *                 "unpmAGrMYphCHatmTRmoPMbrMCKGLHOlWOTHGviJSLDQyIwtSLdBTRLUpOQeMxLg"
@@ -626,10 +653,10 @@
  * @apiVersion 1.0.0
  *
  * @apiDescription 持续分析一个 RTSP(S) 视频源。先创建频道，准备可用的视频地址和结果接收地址；所有启动、查询、更新和停止操作均向本路径发送 POST，用 <code>input.option.operation</code> 区分。
- *                 <div class="table-scroll" tabindex="0" role="region" aria-label="流式模型选择"><table><thead><tr><th>模型</th><th>启动条件</th><th>结果形式</th></tr></thead><tbody>
- *                 <tr><td>OmniGround</td><td>必须提供可接收 RTSP 推流的 output.url；content 可为空。</td><td>output.url 中带目标标注的视频，当前自动检测目标，不提供自定义类别筛选。</td></tr>
- *                 <tr><td>OmniVL</td><td>content 描述关注内容；建议显式提供 output.url。</td><td>向 output.url POST application/json，按片段返回文字 response。</td></tr>
- *                 <tr><td>OmniPerception</td><td>非空 content、HTTP(S) output.url；task 支持 detection、grounding_single、reasoning_detection、counting。</td><td>命中目标时向 output.url POST image/png；从 PNG 的 vlm_meta 读取 JSON。</td></tr>
+ *                 <div class="table-scroll" tabindex="0" role="region" aria-label="流式模型选择"><table><thead><tr><th>模型</th><th>建议使用场景</th><th>启动条件</th><th>结果形式</th></tr></thead><tbody>
+ *                 <tr><td>OmniGround</td><td>在监控画面上实时查看目标标注，例如观察通道内行人和车辆的位置。</td><td>必须提供可接收 RTSP 推流的 output.url。content 可为空。</td><td>output.url 中带目标标注的视频，自动检测预设类别。</td></tr>
+ *                 <tr><td>OmniPerception</td><td>在监控中查找符合描述的目标，命中后查看对应图片。例如发现通道内的堆放物时把画面发给值班人员复核。</td><td>提供非空 content 和 HTTP(S) output.url。task 支持 detection、grounding_single、reasoning_detection、counting。</td><td>命中目标时向 output.url POST image/png。从 PNG 的 vlm_meta 读取 JSON。</td></tr>
+ *                 <tr><td>OmniVL</td><td>持续查看视频中的活动并生成文字记录。例如分段记录出入口的人员和车辆活动。</td><td>使用 content 描述关注内容。建议显式提供 output.url。</td><td>向 output.url POST application/json，按片段返回文字 response。</td></tr>
  *                 </tbody></table></div>
  *                 <p>接入顺序：start 后保存 <code>resultPayload.streamId</code> → status 确认运行状态 → 接收结果 → 按需 update 提示词 → stop → 继续 status，直到 stopped 或 failed。启动返回 starting 只表示已创建会话，stopping 表示仍在停止。不要用未收到回调判断会话是否结束；检查 status、lastError 和回调计数。sn 是本次请求的流水号，不能代替字符串 streamId。</p>
  *                 <p>后续操作使用创建会话的用户身份、频道和模型，同一频道按顺序发送请求。status、stop 的 content 可省略或传空字符串，files/history 可省略或传 []；OmniVL、OmniPerception 的 update 用非空 content 替换提示词。启动时 option 使用 operation、task 和 output 对象，output 中使用 url、headers、intervalSeconds；控制请求的 option 仅使用 operation、streamId。流请求 parameters 仅接受空对象；控制请求不能携带 task、parameters 或 output。更新后用 queryVersion、activeQueryVersion 判断新提示词是否已应用。</p>

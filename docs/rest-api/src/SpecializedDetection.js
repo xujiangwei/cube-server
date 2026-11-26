@@ -7,16 +7,25 @@
  * @apiName SpecializedDetectionImage
  * @apiGroup SpecializedDetection
  * @apiVersion 1.0.0
- * @apiDescription 按所选 profile 检测单张图片中的目标，返回类别、置信度及矩形位置。火烟方案识别火焰与烟雾，通用物体方案识别常见物体，其完整类别清单见下方「可识别类别」表。
+ * @apiDescription 按所选 profile 检测单张图片中的火烟、常见物体或热成像目标，返回类别、置信度和矩形位置。
  *                 <p>调用前先<a href="#api-Data_Management-申请对话频道">创建频道</a>，再通过<a href="#api-File_Processing-上传文件数据">上传文件数据</a>接口上传图片，并确认文件可查询。将频道码填入 <code>channel</code>，将文件码填入 <code>input.files</code>；频道和文件须属于当前用户和域。</p>
- *                 <p><code>profile</code> 决定本次可识别的类别。<code>fire-smoke</code> 用于火焰、烟雾检测，<code>uav-fire-smoke</code> 用于无人机巡检画面，两者使用 <code>fire</code>、<code>smoke</code>；<code>thing</code> 可识别 80 类常见物体，类别名与编号见下方表格。可用方案和切片支持以节点注册及生效模型绑定为准。</p>
- *                 <p><code>classes</code> 是可选的类别过滤数组，元素必须使用所选方案的规范英文类别名，含空格与大小写须与表格一致。<strong>不传 <code>classes</code> 字段表示检测该方案的全部可识别类别</strong>，结果中可能出现表格内任意类别；传入时只返回指定类别，按首次出现顺序去重。<code>null</code>、空数组、非字符串项、空白名称及未知类别返回 400。类别编号由服务端类别契约固定，过滤不会重新编号。所有 profile 共享节点容量，不会因切换 profile 获得额外配额。</p>
+ *                 <h3>检测方案与可识别类别</h3>
+ *                 <div class="table-scroll" tabindex="0" role="region" aria-label="检测方案与可识别类别">
+ *                 <table><thead><tr><th>profile</th><th>适用画面</th><th>规范类别名与 classId</th><th>切片检测</th></tr></thead><tbody>
+ *                 <tr><td><code>fire-smoke</code></td><td>地面火烟画面</td><td><code>fire</code>（0）、<code>smoke</code>（1）</td><td>整帧</td></tr>
+ *                 <tr><td><code>uav-fire-smoke</code></td><td>航拍火烟画面</td><td><code>fire</code>（0）、<code>smoke</code>（1）</td><td>可选</td></tr>
+ *                 <tr><td><code>thing</code></td><td>通用物体检测画面</td><td>见下方基础类别表</td><td>整帧</td></tr>
+ *                 <tr><td><code>thermal-imagery</code></td><td>地面灰度或伪彩热图</td><td>见下方基础类别表</td><td>整帧</td></tr>
+ *                 <tr><td><code>uav-thermal-imagery</code></td><td>航拍热像</td><td><code>person</code>（0）、<code>car</code>（1）、<code>bicycle</code>（2）、<code>other vehicle</code>（3）</td><td>可选</td></tr>
+ *                 </tbody></table></div>
+ *                 <p>热成像方案需由服务提供方启用。可用方案和切片支持以节点实际注册及生效能力为准，各方案共享节点容量。</p>
+ *                 <p><code>classes</code> 是可选的类别过滤数组。类别名的大小写与空格须符合表格，重复项按首次出现顺序去重。省略 <code>classes</code> 时检测所选方案的全部可识别类别。<code>null</code>、空数组、非字符串项、空白名称及未知类别返回 400。类别过滤保留所选方案的原始编号。</p>
  *                 <p><code>confidence</code> 为置信度阈值 [0,1]：提高可减少低置信度结果，降低可保留更多候选目标；省略时使用服务默认值。</p>
  *                 <p>本接口在一次请求中返回结果。遍历 <code>resultPayload.refs[].boxes[]</code> 绘制检测框，按 <code>content</code> 区分类别、按 <code>classId</code> 对照下方表格；坐标以方向校正后的原图像素为准，缩放展示时按 <code>width</code>、<code>height</code> 同比换算。<code>refs=[]</code> 表示未检出目标，仍是成功结果，应以检测区域判断是否命中。</p>
  *                 <p>请求体最大 <code>64 KiB</code>，每次提交一张图片。检测可能需要较长时间，客户端请求超时建议大于 <code>190 秒</code>；出现 <code>429</code> 或 <code>503</code> 时延迟重试，其他错误按下方状态说明处理。</p>
- *                 <h3>通用物体方案（thing）可识别类别</h3>
- *                 <p>下表列出 <code>thing</code> 方案可识别的全部 80 类目标。<code>classId</code> 与 <code>resultPayload.refs[].classId</code> 一致；<code>classes</code> 与 <code>refs[].content</code> 使用「规范类别名」列的英文值，须完全一致。火烟方案不使用本表，仅识别 <code>fire</code>（0）与 <code>smoke</code>（1）。</p>
- *                 <div class="table-scroll" tabindex="0" role="region" aria-label="通用物体方案可识别类别">
+ *                 <h3>基础类别表</h3>
+ *                 <p><code>thing</code> 和 <code>thermal-imagery</code> 使用此表。<code>classId</code> 对应 <code>resultPayload.refs[].classId</code>，<code>classes</code> 和 <code>refs[].content</code> 使用「规范类别名」列的英文值。</p>
+ *                 <div class="table-scroll" tabindex="0" role="region" aria-label="基础类别表">
  *                 <table><thead><tr><th>classId</th><th>规范类别名</th><th>中文名称</th></tr></thead><tbody>
  *                 <tr><td><code>0</code></td><td><code>person</code></td><td>人</td></tr>
  *                 <tr><td><code>1</code></td><td><code>bicycle</code></td><td>自行车</td></tr>
@@ -109,10 +118,10 @@
  * @apiBody {String[]} input.files 一个上传完成的 64 位文件码；不接受本地路径、HTTP 媒体地址或文件元数据对象。
  * @apiBody {Object} input.option 检测参数。
  * @apiBody {String} [input.option.operation=detect] 图片操作。
- * @apiBody {String} input.option.profile 检测方案名称字符串，当前目录为 <code>fire-smoke</code>、<code>uav-fire-smoke</code>、<code>thing</code>，支持范围以节点实际注册能力为准。无有效提供方或匹配节点未就绪返回 503，不支持请求能力返回 400。
- * @apiBody {String[]} [input.option.classes] 可选类别过滤数组，元素为所选方案的规范英文类别名。<strong>不传该字段即检测该方案的全部可识别类别</strong>（thing 的 80 类见「可识别类别」表，火烟为 fire、smoke）；传入时只返回指定类别，按首次出现顺序去重。null、空数组、非字符串项、空白名称及未知类别均返回 400。
+ * @apiBody {String} input.option.profile 检测方案名称，支持 <code>fire-smoke</code>、<code>uav-fire-smoke</code>、<code>thing</code>、<code>thermal-imagery</code> 和 <code>uav-thermal-imagery</code>。支持范围以节点实际注册能力为准。无有效提供方或匹配节点未就绪返回 503，不支持请求能力返回 400。
+ * @apiBody {String[]} [input.option.classes] 可选类别过滤数组，元素为所选方案的规范英文类别名。<strong>不传该字段即检测该方案的全部可识别类别</strong>。传入时只返回指定类别，按首次出现顺序去重。null、空数组、非字符串项、空白名称及未知类别均返回 400。
  * @apiBody {Number} [input.option.confidence] 阈值 [0,1]，省略时使用服务默认值。
- * @apiBody {Boolean} [input.option.sliced=false] 是否启用切片检测，按节点生效绑定的能力校验；当前仅 uav-fire-smoke 支持。
+ * @apiBody {Boolean} [input.option.sliced=false] 是否启用切片检测。<code>uav-fire-smoke</code> 和 <code>uav-thermal-imagery</code> 支持切片，按节点生效能力校验。
  * @apiParamExample {json} 图片检测请求:
  * {
  *   "channel": "inspection-001",
@@ -137,13 +146,29 @@
  *     "option": {"profile": "thing", "classes": ["person", "car"], "confidence": 0.5}
  *   }
  * }
+ * @apiParamExample {json} 地面热像检测行人和车辆
+ * {
+ *   "channel": "inspection-001",
+ *   "input": {
+ *     "files": ["UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHlbzAxepzvKBXapMJJZcNkOXiZpEx"],
+ *     "option": {"profile": "thermal-imagery", "classes": ["person", "car", "motorcycle"]}
+ *   }
+ * }
+ * @apiParamExample {json} 航拍热像切片检测车辆
+ * {
+ *   "channel": "inspection-001",
+ *   "input": {
+ *     "files": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+ *     "option": {"profile": "uav-thermal-imagery", "classes": ["car", "other vehicle"], "sliced": true}
+ *   }
+ * }
  * @apiSuccess {Number} sn 本次检测的请求编号，可用于关联请求与结果。
  * @apiSuccess {String} unit SpecializedDetection。
  * @apiSuccess {Number} timestamp 检测结果的 Unix 毫秒时间戳。
  * @apiSuccess {String} response 检测结果的文字说明，可能为空；目标信息以 resultPayload 为准。
  * @apiSuccess {String} thought 补充说明，可能为空。
  * @apiSuccess {Object} resultPayload 检测结果，坐标基于方向校正后的原图像素。
- * @apiSuccess {String} resultPayload.profile 本次请求的检测方案；类别名与编号见上述「可识别类别」说明。
+ * @apiSuccess {String} resultPayload.profile 本次请求的检测方案。按该方案的类别表解读检测结果。
  * @apiSuccess {String} resultPayload.modelId 服务端生效模型配置 ID；模型绑定由服务端配置，示例展示默认绑定。
  * @apiSuccess {String} resultPayload.modelVariant 模型规格。
  * @apiSuccess {String} resultPayload.backend 推理后端。
@@ -152,9 +177,9 @@
  * @apiSuccess {Number} resultPayload.width 图片宽度，单位：像素。
  * @apiSuccess {Number} resultPayload.height 图片高度，单位：像素。
  * @apiSuccess {Object[]} resultPayload.refs 检测区域，未命中时为 []；命中时包含 content、classId、boxes 和 points。
- * @apiSuccess {String} resultPayload.refs.content 所选 profile 中的规范类别名，与上述「可识别类别」说明一致。
- * @apiSuccess {Number} resultPayload.refs.classId 类别编号：火烟方案中 fire=0、smoke=1；通用物体方案固定为 0…79，完整对照见「可识别类别」表，例如 person=0、car=2。类别过滤不会重新编号。
- * @apiSuccess {Array} resultPayload.refs.points 预留的检测点列表；当前三个检测方案均返回 []，无需读取子字段。
+ * @apiSuccess {String} resultPayload.refs.content 所选方案表中的规范英文类别名。
+ * @apiSuccess {Number} resultPayload.refs.classId 类别编号由所选方案确定。例如 <code>car</code> 在 <code>uav-thermal-imagery</code> 中为 1，在 <code>thing</code> 和 <code>thermal-imagery</code> 中为 2。类别过滤保留原编号。
+ * @apiSuccess {Array} resultPayload.refs.points 预留的检测点列表，返回 []。
  * @apiSuccess {Object[]} resultPayload.refs.boxes 检测框，字段为 x1、y1、x2、y2、confidence；左上角为 (x1,y1)，右下角为 (x2,y2)。
  * @apiSuccess {Number} resultPayload.refs.boxes.x1 左上角横坐标，单位：原图像素。
  * @apiSuccess {Number} resultPayload.refs.boxes.y1 左上角纵坐标，单位：原图像素。
@@ -316,12 +341,13 @@
  * @apiName SpecializedDetectionStream
  * @apiGroup SpecializedDetection
  * @apiVersion 1.0.0
- * @apiDescription 按所选 profile 持续检测视频文件或 RTSP(S) 实时画面中的火烟或通用物体，在命中目标时向指定地址推送带检测框的 PNG 图片。适合视频巡检、摄像头监控和告警图片留存。
+ * @apiDescription 按所选 profile 持续检测视频文件或 RTSP(S) 实时画面中的火烟、常见物体或热成像目标。命中目标时向指定地址推送带检测框的 PNG 图片。
  *                 <p>先创建频道。检测视频文件时先上传并取得文件码；检测实时视频时提供服务端可访问的 RTSP(S) 地址。使用 <code>operation=start</code> 创建会话，保存返回的 <code>resultPayload.streamId</code>，之后通过同一接口的 <code>status</code> 查询进度、<code>stop</code> 停止会话。</p>
+ *                 <p>地面热像视频选择 <code>thermal-imagery</code>，航拍热像视频选择 <code>uav-thermal-imagery</code>。航拍方案可在节点支持时使用 <code>sliced=true</code>。类别名、编号和切片支持见<a href="#api-SpecializedDetection-SpecializedDetectionImage">专项图片检测</a>的「检测方案与可识别类别」表。</p>
  *                 <p>启动成功表示会话已创建，媒体仍可能处于 <code>starting</code> 状态。查询返回 <code>running</code> 后开始检测；<code>reconnecting</code> 表示正在重新连接视频源；<code>stopping</code> 表示正在停止；<code>stopped</code>、<code>failed</code> 表示会话已结束。视频文件可读取 <code>progress</code> 展示进度，实时视频的进度为 <code>null</code>。</p>
  *                 <p>接收回调的地址须可被检测服务访问，并支持 <code>POST</code> 二进制请求。请求类型为 <code>image/png</code>，<code>X-VLM-Event-Id</code> 为事件标识，同一事件可能重复投递，请据此去重。检测元数据位于 PNG 的 <code>vlm_meta</code> 文本信息中，包含会话标识、时间、画面位置和检测框；其中 <code>resultPayload</code> 与图片检测结果结构一致，按 <code>profile</code>、<code>refs[].content</code> 和 <code>refs[].classId</code> 读取类别。下方示例展示读取方法。</p>
  *                 <p>只有命中目标的画面才会回调，未收到回调不代表会话已结束。可通过 <code>inferenceFps</code> 调整每秒检测帧数，通过 <code>intervalSeconds</code> 控制命中画面的推送间隔；回调发送失败不会自动停止检测，可通过状态中的 <code>callbackFailures</code> 排查。</p>
- *                 <p><code>classes</code> 为可选类别过滤条件，<strong>不传该字段即按该方案的全部可识别类别检测</strong>；类别名与编号见<a href="#api-SpecializedDetection-SpecializedDetectionImage">专项图片检测</a>的「可识别类别」表。过滤后仍有达到阈值的目标才算命中。profile、类别过滤、阈值、切片策略与模型绑定在启动时固定，可从快照 <code>parameters</code> 查看；更改参数需停止后重新启动。多个 profile 共享节点的会话上限，匹配节点就绪但容量耗尽时返回 <code>429</code>。</p>
+ *                 <p>类别过滤后有目标达到阈值时才算命中。检测方案、类别过滤、阈值、切片策略与模型绑定在启动时固定。可从会话快照的 <code>profile</code> 和 <code>parameters</code> 查看生效参数，更改参数需停止后重新启动。多个 profile 共享节点的会话上限，匹配节点就绪但容量耗尽时返回 <code>429</code>。</p>
  *                 <p>查询和停止时使用创建会话的用户身份，并将 <code>files</code> 设为空数组；<code>option</code> 仅传 <code>operation</code> 和 <code>streamId</code>，请求仍回到原会话节点，停止期间允许继续查询或停止。启动请求超时后，检测仍可能继续，请先核查已收到的回调或联系服务提供方，避免立即重复创建；服务重启后需重新建立会话。</p>
  * @apiParam {String} token 授权令牌。
  * @apiHeader {String} Content-Type application/json
@@ -333,11 +359,11 @@
  * @apiBody {String[]} input.files start 为一个上传完成的 64 位视频文件码或 RTSP(S) 地址，status/stop 为 []；不接受本地路径、HTTP 媒体地址或文件元数据对象。
  * @apiBody {Object} input.option start 参数或控制参数。
  * @apiBody {String="start","status","stop"} input.option.operation 操作。
- * @apiBody {String} [input.option.profile] start 必填，检测方案名称字符串，当前目录为 fire-smoke、uav-fire-smoke、thing，按实际注册能力选路。
+ * @apiBody {String} [input.option.profile] start 必填，检测方案为 <code>fire-smoke</code>、<code>uav-fire-smoke</code>、<code>thing</code>、<code>thermal-imagery</code> 或 <code>uav-thermal-imagery</code>，按节点实际注册能力选路。
  * @apiBody {String[]} [input.option.classes] start 可选，规范英文类别名数组，按首次出现顺序去重；<strong>不传该字段即检测该方案的全部可识别类别</strong>。null、空数组、错误类型、空白名称及未知类别返回 400。先过滤再判断视频命中，绑定到会话，不用于 status/stop。
  * @apiBody {String} [input.option.callbackUrl] start 必填，检测服务可访问的 HTTP(S) PNG 接收地址。
  * @apiBody {Number} [input.option.confidence] start 可选，置信度阈值 [0,1]；提高阈值可减少低置信度检测框。
- * @apiBody {Boolean} [input.option.sliced=false] start 可选，按节点生效绑定校验；当前仅 uav-fire-smoke 支持。
+ * @apiBody {Boolean} [input.option.sliced=false] start 可选。<code>uav-fire-smoke</code> 和 <code>uav-thermal-imagery</code> 支持切片，按节点生效能力校验。
  * @apiBody {Number} [input.option.intervalSeconds] start 回调间隔 [0,86400] 秒，省略时使用服务默认值。
  * @apiBody {Number} [input.option.inferenceFps] start 抽帧率 [0.1,60]，省略时使用服务默认值。
  * @apiBody {String} [input.option.streamId] status/stop 必填；控制只允许 operation 和 streamId。
@@ -353,6 +379,20 @@
  *       "callbackUrl": "https://receiver.example.com/detection",
  *       "intervalSeconds": 10,
  *       "inferenceFps": 1
+ *     }
+ *   }
+ * }
+ * @apiParamExample {json} 启动航拍热像 RTSP 切片检测
+ * {
+ *   "channel": "inspection-001",
+ *   "input": {
+ *     "files": ["rtsp://camera.example.com/thermal"],
+ *     "option": {
+ *       "operation": "start",
+ *       "profile": "uav-thermal-imagery",
+ *       "classes": ["person", "car", "other vehicle"],
+ *       "sliced": true,
+ *       "callbackUrl": "https://receiver.example.com/detection"
  *     }
  *   }
  * }

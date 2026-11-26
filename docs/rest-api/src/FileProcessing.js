@@ -358,7 +358,7 @@
  *
  * @apiDescription 以原始二进制请求体上传文件。将令牌和文件名放入查询参数，文件名中的中文、空格等字符应进行 URL 编码；不要使用 multipart/form-data 或将文件内容包装为 JSON。
  *                 <p>默认响应从 <code>data.fileCode</code> 读取文件码；后续音频、心理学、视觉或知识库接口都使用该值。提供 <code>filesize</code> 时须与实际字节数一致，<code>modified</code> 使用 Unix 毫秒时间戳。</p>
- *                 <p>下方 curl 示例读取当前目录的 <code>sample.txt</code>。使用 Windows PowerShell 时将命令名写为 <code>curl.exe</code>，以调用 curl 程序。</p>
+ *                 <p>下方 curl 示例发送 <code>hello</code> 的 5 个字节，并以 <code>sample.txt</code> 保存。使用 Windows PowerShell 时将命令名写为 <code>curl.exe</code>。</p>
  *
  * @apiQuery {String} token 有效账号的令牌。
  * @apiQuery {String} filename 文件名。
@@ -380,11 +380,11 @@
  *         "sn": 2114771911,
  *         "name": "uploadFile",
  *         "data": {
- *             "fileName": "yuebing.wav",
- *             "fileSize": 10248112,
+ *             "fileName": "sample.txt",
+ *             "fileSize": 5,
  *             "fileCode": "UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHyoznXRPmiKBXapMJJZcNkOXiZpEx",
  *             "lastModified": 1682835314622,
- *             "position": 10248112
+ *             "position": 5
  *         }
  *     }
  *
@@ -394,8 +394,8 @@
  * @apiError 406 令牌无效。
  * @apiError 503 接收数据错误。
  *
- * @apiParamExample {bash} 上传本地文件（curl）
- *     curl --request POST "http://211.157.179.37:7010/filestorage/file/?token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&filename=sample.txt" --header "Content-Type: application/octet-stream" --data-binary "@sample.txt"
+ * @apiParamExample {bash} 上传文件字节（curl）
+ *     curl --request POST "http://211.157.179.37:7010/filestorage/file/?token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&filename=sample.txt" --header "Content-Type: application/octet-stream" --data-binary "hello"
  */
 
 
@@ -418,8 +418,8 @@
  * @apiError 406 令牌无效。
  * @apiError 503 接收数据错误。
  *
- * @apiParamExample {bash} 下载并保存文件（curl）
- *     curl "http://211.157.179.37:7010/filestorage/file/?token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&fc=UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHlbzAxepzvKBXapMJJZcNkOXiZpEx&type=mp3" --output "consultation_01.mp3"
+ * @apiParamExample {http} 按文件码下载音频
+ *     GET http://211.157.179.37:7010/filestorage/file/?token=UQYrEcbPaZhHSBvJippdpPrwvIfvuPlG&fc=UxUiHFebTvyQusIRBQCpANsMdYfWGlHGwVxHlbzAxepzvKBXapMJJZcNkOXiZpEx&type=mp3
  *
  * @apiSuccessExample {http} 音频文件响应（下方为内容说明）
  *     HTTP/1.1 200 OK

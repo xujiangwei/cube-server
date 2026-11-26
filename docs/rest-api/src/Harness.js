@@ -863,8 +863,8 @@
  * @apiParam {String} inputId 输入文件 ID。
  * @apiHeader {String} Content-Type application/octet-stream。
  * @apiBody {Binary} content 整个 HTTP 请求体为文件字节，不使用 JSON 包装。
- * @apiExample {curl} 上传 hello.txt（内容必须与创建会话时的 size/sha256 相符）
- *     curl -X PUT "http://211.157.179.37:7010/harness/v1/inputs/input-001/content" -H "Authorization: Bearer <Cube Token>" -H "Idempotency-Key: upload-input-001" -H "Content-Type: application/octet-stream" --data-binary @hello.txt
+ * @apiExample {curl} 上传 hello 的 5 个字节
+ *     curl -X PUT "http://211.157.179.37:7010/harness/v1/inputs/input-001/content" -H "Authorization: Bearer <Cube Token>" -H "Idempotency-Key: upload-input-001" -H "Content-Type: application/octet-stream" --data-binary "hello"
  * @apiUse HarnessInputMetadata
  * @apiError (接口错误) FILE_EXPIRED HTTP 410，文件会话已到期。
  * @apiError (接口错误) UNSUPPORTED_MEDIA_TYPE HTTP 415，上传请求的 Content-Type 错误。
@@ -1028,8 +1028,8 @@
  *     Content-Disposition: attachment; filename*=UTF-8''hello.txt
  *
  *     hello
- * @apiExample {curl} 下载到本地
- *     curl --fail "http://211.157.179.37:7010/harness/v1/artifacts/artifact-001/content" -H "Authorization: Bearer <Cube Token>" -o artifact.txt
+ * @apiExample {curl} 读取文本产物
+ *     curl --fail "http://211.157.179.37:7010/harness/v1/artifacts/artifact-001/content" -H "Authorization: Bearer <Cube Token>"
  * @apiError (接口错误) FILE_EXPIRED HTTP 410，产物已到期。
  */
 

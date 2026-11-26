@@ -17,8 +17,8 @@
  * @apiDescription 要求 admin.release.subjects。正文为原始 ZIP；验证 manifest、摘要、依赖声明及已注册 Provider 的连接器/分析配置，不发布或激活。校验成功不证明依赖或 UNIT 在线。
  * @apiSuccess {String} digest 规范化 manifest 的 SHA-256；用于签名，不是整个 ZIP 的摘要。
  * @apiSuccess {Object} manifest 已验证的原 manifest。
- * @apiExample {curl} 校验本地包
- *     curl.exe -X POST http://211.157.179.37:7010/harness/v1/admin/packages/validate -H "Authorization: Bearer <Cube Token>" -H "Idempotency-Key: validate-001" -H "Content-Type: application/zip" --data-binary "@fhe-patrol-v1.zip"
+ * @apiExample {curl} 校验业务资源包（从标准输入读取原始 ZIP 字节）
+ *     curl.exe -X POST http://211.157.179.37:7010/harness/v1/admin/packages/validate -H "Authorization: Bearer <Cube Token>" -H "Idempotency-Key: validate-001" -H "Content-Type: application/zip" --data-binary "@-"
  */
 
 /**
@@ -34,8 +34,8 @@
  * @apiDescription 要求 admin.release.subjects。发送和校验时相同的 ZIP。远程作者只可发布资源包，不能上传 executable 工具安装 Java/Python 插件。依赖必须在本租户已发布且 ready。发布后还需发布 policy 并 CAS 绑定，才对新任务生效。
  * @apiSuccess (201) {String} digest 固定的发布摘要。
  * @apiSuccess (201) {String} state 发布状态，成功为 ready。
- * @apiExample {curl} 发布包
- *     curl.exe -X POST http://211.157.179.37:7010/harness/v1/admin/releases -H "Authorization: Bearer <Cube Token>" -H "Idempotency-Key: publish-001" -H "Content-Type: application/zip" -H "X-Harness-Key-Id: f-author" -H "X-Harness-Signature: <Base64 signature>" --data-binary "@fhe-patrol-v1.zip"
+ * @apiExample {curl} 发布签名包（从标准输入读取原始 ZIP 字节）
+ *     curl.exe -X POST http://211.157.179.37:7010/harness/v1/admin/releases -H "Authorization: Bearer <Cube Token>" -H "Idempotency-Key: publish-001" -H "Content-Type: application/zip" -H "X-Harness-Key-Id: f-author" -H "X-Harness-Signature: <Base64 signature>" --data-binary "@-"
  */
 
 /**

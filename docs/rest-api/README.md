@@ -26,7 +26,7 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 专项检测的 subtasks 注册、独立状态上报、节点就绪租约及共享容量约定见
 [注册与调度协议](../specialized-detection.md)；外部调用仍使用下方现有 REST 接口。
 
-接口中的令牌、频道码、文件码和任务序号均为示例值，调用时使用实际返回值。请求体为 JSON 时设置 `Content-Type: application/json`；URL 查询值中的中文、空格等字符应编码。若令牌关联了设备，后续请求携带相同的 `x-baize-api-device` 与 `x-baize-api-platform`。
+接口中的令牌、频道码、文件码和任务序号均为示例值，调用时使用实际返回值。已上传的 Cube 文件使用 64 字符文件码。支持媒体 URL 的接口也可使用服务端能访问的 URL。请求体为 JSON 时设置 `Content-Type: application/json`。URL 查询值中的中文、空格等字符应编码。若令牌关联了设备，后续请求携带相同的 `x-baize-api-device` 与 `x-baize-api-platform`。
 
 | 场景 | 建议调用顺序 | 读取结果 |
 | --- | --- | --- |
@@ -40,7 +40,7 @@ REST API 文档中的 dispatcher 业务请求示例统一使用 `http://211.157.
 
 异步接口返回 HTTP 200 可能仅表示受理成功。请使用各接口规定的业务状态字段判断是否完成，处理中间隔数秒重查，失败后按接口的错误说明处理。不同模块的 `code`、`state`、`stateCode` 含义以各自文档为准，不共用一套判断规则。
 
-各接口提供完整请求地址和请求/响应示例。长报告和量表的示例保留代表性条目，实际界面应遍历全部返回数据；所有标记为 JSON 的示例均可直接解析。文件上传下载的 curl 示例只展示本地文件读写，Windows PowerShell 中使用 `curl.exe`。
+各接口提供完整请求地址和请求/响应示例。长报告和量表的示例保留代表性条目，实际界面应遍历全部返回数据。所有标记为 JSON 的示例均可直接解析。上传接口接收文件字节，下载接口按文件码或接口规定的 ID 返回内容。Windows PowerShell 中使用 `curl.exe`。
 
 ## Harness 方案与接入
 
@@ -50,16 +50,21 @@ PDF、图片、表格、报告、OCR 和音频转写复用 Input、任务和 Art
 
 ## 专项检测 SpecializedDetection
 
-专项检测用于识别图片、视频及实时画面中的火烟或通用物体。先创建频道；图片和视频文件先上传并取得 64 位文件码，实时视频则使用 RTSP(S) 地址。图片请求直接返回检测区域；视频会话在类别过滤后命中目标时向指定地址推送带检测框的 PNG 图片。
+专项检测用于识别图片、视频及实时画面中的火烟、通用物体和热成像目标。创建频道后，上传图片和视频文件以取得 64 位文件码，实时视频使用 RTSP(S) 地址。图片请求直接返回检测区域。视频会话在类别过滤后命中目标时向指定地址推送带检测框的 PNG 图片。
 
 | 接口 | 用途 | 生成页面 |
 | --- | --- | --- |
-| `POST /specialized-detection/base/{token}` | 火烟或通用物体图片检测 | [专项图片检测](output/index.html#api-SpecializedDetection-SpecializedDetectionImage) |
+| `POST /specialized-detection/base/{token}` | 火烟、通用物体或热成像目标的图片检测 | [专项图片检测](output/index.html#api-SpecializedDetection-SpecializedDetectionImage) |
 | `POST /specialized-detection/stream/{token}` | 视频文件或 RTSP(S) 后台检测，支持 `start/status/stop` | [专项视频后台会话](output/index.html#api-SpecializedDetection-SpecializedDetectionStream) |
 
-`fire-smoke` 用于火烟，`uav-fire-smoke` 用于无人机巡检，`thing` 用于常见通用物体；`thing` 可识别的全部 80 类目标（规范类别名与 `classId` 对照表）见 [专项图片检测](output/index.html#api-SpecializedDetection-SpecializedDetectionImage) 的「通用物体方案（thing）可识别类别」。profile 是名称字符串，可用方案及切片支持以节点实际注册能力和生效绑定为准。
+图片检测和视频 `start` 请求都用 `input.option.profile` 选择检测方案。`fire-smoke` 和 `uav-fire-smoke` 分别检测地面和航拍画面中的火烟，`thing` 检测通用物体。热成像方案需由服务提供方通过 `unit.specialized_detection.profiles` 启用。
 
-`classes` 是可选的类别过滤数组，元素使用规范英文类别名，例如 `["person","car"]`，重复项按首次出现顺序去重。**不传 `classes` 字段表示检测所选方案的全部可识别类别**；null、空数组、错误类型及未知类别返回 400。过滤不会改变 `classId`，例如 `thing` 中 person=0、car=2。空 `refs` 表示未检出所选目标。
+| 热成像 profile | 适用画面 | 规范类别与编号 | 切片检测 |
+| --- | --- | --- | --- |
+| `thermal-imagery` | 地面灰度或伪彩热图 | 与 `thing` 共用基础类别表，例如 `person`（0）、`car`（2） | 整帧 |
+| `uav-thermal-imagery` | 航拍热像 | `person`（0）、`car`（1）、`bicycle`（2）、`other vehicle`（3） | 节点支持时可设 `sliced=true` |
+
+`classes` 是可选的类别过滤数组，元素使用规范英文类别名，例如 `["person","car"]`，重复项按首次出现顺序去重。省略 `classes` 时检测所选方案的全部可识别类别。null、空数组、错误类型及未知类别返回 400。类别过滤保留所选方案的原始编号，空 `refs` 表示未检出所选目标。 [完整类别表和图片请求示例](output/index.html#api-SpecializedDetection-SpecializedDetectionImage)
 
 图片结果与视频 PNG 元数据中的类别按 `profile`、`refs[].content`、`refs[].classId` 对照上述类别说明读取；`modelId`、`modelVariant`、`backend`、`inputResolution`、`artifactSha256` 用于追溯模型。视频快照的 `parameters` 保存启动时固定的绑定、阈值、切片与类别过滤条件。按节点实际注册能力、切片支持、就绪状态和共享容量选路；启用多个 profile 不增加节点吞吐或会话上限。无有效提供方或匹配节点未就绪返回 503，不支持请求能力返回 400，匹配且就绪但容量耗尽返回 429。
 
@@ -79,16 +84,16 @@ PDF、图片、表格、报告、OCR 和音频转写复用 Input、任务和 Art
 
 单次图片、视频分析使用 [多模态数据推理](output/index.html#api-Multimodal-多模态数据推理)，实时 RTSP(S) 分析使用 [流式多模态推理](output/index.html#api-Multimodal-流式多模态推理)。先创建频道，上传媒体并确认可查询后使用文件码；实时视频则直接提供视频源地址。
 
-| 场景 | 模型与参数选择 | 读取结果 |
+| 模型 | 建议使用场景 | 读取结果 |
 | --- | --- | --- |
-| 图片目标、文字或 GUI 定位 | `OmniGround`，用 `task` 选择任务 | `resultPayload.refs[].boxes` 或 `points`，原图像素坐标。 |
-| 视频总结、媒体问答 | `OmniVL` 对一个视频抽帧、缩放后分析；`OmniMultimodal` 结合媒体、问题及文字历史回答 | REST 应答的 `answer`；视频分析不保证覆盖每一帧。 |
-| 图片计数、OCR、区域描述、问答 | `OmniPerception`，单张图片；区域参数放在 `option.parameters`，区域任务提供 `targetRegionIndexes`，可用 `bboxList` 指定候选框；整图 `vqa` 省略它们 | `answer` 与目标框；计数不提供独立的 `count` 字段。 |
-| 实时视频 | `OmniGround` 的 `option.output.url` 为 RTSP 输出地址；`OmniVL` 接收 JSON 回调；`OmniPerception` 的该字段为必填的 HTTP(S) PNG 回调地址 | 保存 `resultPayload.streamId`；回调的文字字段为 `response`。 |
+| `OmniGround` | 在图片或实时监控画面上标出目标位置，例如定位截图里的按钮，或在出入口画面中标出行人和车辆。 | 图片的框和点从 `resultPayload.refs` 读取。实时画面从 `option.output.url` 查看。 |
+| `OmniPerception` | 按描述查找或清点目标、读取指定区域的文字，或在监控命中后发送画面供复核。例如找屋顶水箱或读取设备铭牌。 | 单图读取 `answer` 和目标框。计数结果在 `answer` 中。实时命中通过 HTTP(S) 回调发送图片。 |
+| `OmniVL` | 按时间梳理视频中发生的事情，例如总结一段巡检录像，或分段记录出入口活动。 | 录像分析读取 `answer`。实时片段通过 JSON 回调返回文字 `response`。 |
+| `OmniMultimodal` | 根据照片回答问题、对比变化或整理记录，例如比较同一区域的基准图和待检图，找疑似新增的地面液渍。 | 读取 `answer`。 |
 
 实时会话全部使用 POST：`start` → 保存字符串 `streamId` → `status` 确认状态 → 接收结果 → 按需 `update` → `stop` → `status` 确认 `stopped` 或 `failed`。查询和停止时 `input.content` 可省略或传 `""`，`input.files/history` 可省略或传 `[]`；控制请求的 `option` 仅接受 `operation`、`streamId`。沿用创建会话的用户身份、频道和模型，同一频道顺序发送控制请求。`sn` 是请求流水号，不能用来代替 `streamId`。
 
-Omni 请求统一使用 `option.operation/task/parameters/output`，旧的平铺 `lang/mode/bboxList`、`callbackUrl/outputUrl` 以及 `detect/ground_gui` 等旧任务名不再支持。Java REST 的 `files` 仍接受已上传文件码或 HTTP(S) 媒体 URL，媒体 URL 由 Java 下载后转换为 FileLabel 再发给 Python；`content` 中的 URL 作为提示词原样传递。Python 单元直接调用的本地路径与 FileLabel 输入不属于此 REST 入口。
+Omni 请求统一使用 `option.operation/task/parameters/output`，旧的平铺 `lang/mode/bboxList`、`callbackUrl/outputUrl` 以及 `detect/ground_gui` 等旧任务名不再支持。REST 的 `files` 接受已上传的文件码或服务端可访问的 HTTP(S) 媒体 URL。`content` 中的 URL 按提示词原样传递。
 
 OmniVL 视频文件默认不超过 512 MiB、3600 秒及 33177600 源像素，须有可用视频轨道和有限正时长。服务端默认最多抽取 32 帧，按比例缩小至不超过 1280×720；探测与解码共用默认 30 秒时限。实际限额由服务提供方配置，不能通过请求参数修改。视频不符时压缩、裁剪或转码后重新上传；繁忙时延迟重试。
 
@@ -101,6 +106,10 @@ OmniPerception 只有命中目标时才发送 PNG，从 PNG 的 `vlm_meta` 读�
 未收到回调时结合 `pendingCallbacks`、`supersededCallbacks`（新结果替代或 Perception 更新失效）、`cancelledCallbacks`（停止取消）与 `callbackFailures` 判断；成功投递读取 OmniVL 的 `successfulCallbacks` 或 Perception 的 `postedFrames`。视频会因预算或积压丢帧，OmniVL 另提供 `bufferedBytes`、`peakBufferedBytes`、`droppedSegments` 和 `droppedFrames`。`idleTimeoutSeconds` 为实际无画面超时，至少覆盖两个有效采样间隔，重连本身不重置最后收帧时间。启动和控制请求应按各模型的字段限制分别构造，不要直接复用整份启动选项。
 
 接口条目包含计数、区域描述、OCR、问答、未检出目标的应答，以及实时会话、暂停状态、回调统计和 PNG 元数据读取示例。多模态 REST 当前在执行失败时返回 HTTP 400（包括单元参数错误、资源繁忙或文件处理失败），请求体解析失败为 403，认证失败为 401；响应体可能为空，不能按 Python 内部错误名推断 REST 会返回 429 或 503。
+
+### 对比两张地面图片
+
+对比地面水渍、油渍时，使用 `POST /multimodal/base/{token}`，将同一区域的干净基准图和待检图依次放入 `input.files`，并指定 `input.unit="OmniMultimodal"` 与 `input.option.task="understanding"`。如果原图是上下拼图，先裁成两张图片。示例提示词要求区分 `clean`、`suspected` 和 `uncertain`，返回内容是 `answer` 中的模型文本。客户端可尝试将这段文本解析为 JSON。双图请求、URL 示例及应答见 [多模态数据推理](output/index.html#api-Multimodal-多模态数据推理)。
 
 ## GUI 元素定位 OmniGround
 

@@ -171,7 +171,11 @@ try {
   await page.goto(address+'/doc/api/index.html#api-SpecializedDetection');
   await page.locator('.api-card').first().waitFor();
   assert.equal(await page.locator('.api-card').count(),2);
-  await page.goto(address+'/doc/api/print.html');assert.equal(await page.locator('article').count(),110);
+  const catalogIds = await page.evaluate(() => CubeApiCatalog.entries.map(entry => entry.id).sort());
+  await page.goto(address+'/doc/api/print.html');
+  const printIds = await page.locator('article').evaluateAll(articles =>
+    articles.map(article => article.dataset.apiId).sort());
+  assert.deepEqual(printIds, catalogIds);
   await page.emulateMedia({media:'print'});assert.equal(await page.locator('#print-button').isVisible(),false);await page.emulateMedia({media:'screen'});
   await page.setViewportSize({width:390,height:844});
   await page.goto(address+'/doc/api/index.html#'+endpoint);await ready();
